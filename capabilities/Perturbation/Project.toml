@@ -1,0 +1,54 @@
+name = "Perturbation"
+uuid = "12c091d5-3f53-42c4-bffe-b2905e161585"
+authors = ["GrTool capability migration (Claude)"]
+version = "0.1.0"
+
+# Tier-3 vacuum/test perturbed-field solver (design §4.3): the Teukolsky-radial engine + MST
+# machinery, point-particle amplitudes/fluxes, MST scattering phase, and (later round) spinning-
+# secondary spin-fluxes. The LIGHT-DEP FIREWALL: zero HDF5/JLD2/Symbolics/OrdinaryDiffEq/CUDA/
+# KernelAbstractions edges. "external-ODE-free" rests on a VENDORED DP5/Sasaki-Nakamura radial
+# integrator — never refactored onto OrdinaryDiffEq. Heavy reaches a user ONLY as the HypGeo/
+# SpecialFunctions closure through BigSpecial. Every primitive is type-generic {T} so BigFloat
+# precision (256..2048-bit) is inherited.
+[deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+NumericsCore = "54f76139-0f7a-42ab-9084-b9cc78b29132"
+BigSpecial = "60bbc8d6-d7db-4da8-98fc-f8225939f22c"
+Spacetime = "6cd685be-be12-48c2-bc38-9d046c4f5e88"
+Harmonics = "abf3daaf-bc8b-489b-a3fd-54920b7d8f29"
+# The HypGeo/SpecialFunctions closure (NOT a firewall-poison axis): ₂F₁/U for the MST radial terms
+# + Γ for the static path. Light — the same closure the legacy Teukolsky carried directly.
+HypergeometricFunctions = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+
+[sources]
+NumericsCore = {path = "../../core/NumericsCore"}
+BigSpecial = {path = "../../core/BigSpecial"}
+Spacetime = {path = "../Spacetime"}
+Harmonics = {path = "../Harmonics"}
+# test-only (S2 §7.7 hygiene gates): TestKit + its unregistered dep Data, path-mapped for the test env.
+TestKit = {path = "../../core/TestKit"}
+Data = {path = "../../core/Data"}
+# Phase 7-B: the former LIVE test-oracle path-deps [Teukolsky, ScatteringPhaseMST, KerrGeodesics,
+# SpinWeightedSpheroidalHarmonics] were removed. Their outputs on the exact test grids are now
+# BAKED once into test/fixtures/leg_*.jl (captured from the live legacy at the same commit), so the
+# characterization survives at the SAME tolerances without any packages/* edge at test time.
+
+[compat]
+julia = "1.10"
+HypergeometricFunctions = "0.3"
+SpecialFunctions = "2"
+
+# TestKit (+its Data spine) is a TEST-ONLY GrTool dep powering the §7.7 hygiene gates (test/hygiene.jl).
+# Data here is TEST-ONLY infrastructure for TestKit — it is NOT a runtime [deps] (firewall intact).
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+TestKit = "a6b7dd63-3a78-412f-8db2-e0e7b8b9a65d"
+Data = "2e9be357-8831-4976-ad1c-c30f98102c3a"
+# SHA (stdlib) is TEST-ONLY: the Q3 QQNM-table provenance gate re-hashes the owner .tex vs the frozen
+# sha256 ledger (test/fixtures/qqnm_source_tex_provenance.jl). Not a runtime [deps] (firewall intact).
+SHA = "ea8e919c-243c-51af-8825-aaa63cd721ce"
+
+[targets]
+test = ["Test", "TestKit", "Data", "SHA"]
