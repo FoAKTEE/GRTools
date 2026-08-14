@@ -1,0 +1,50 @@
+name: CI
+on:
+  push:
+    branches: [main]
+    tags: ["*"]
+  pull_request:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+jobs:
+  test:
+    name: ${{ matrix.package }} - Julia ${{ matrix.julia-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        julia-version: ["1.10", "1"]
+        package:
+          - .                                # umbrella
+          - core/NumericsCore
+          - core/BigSpecial
+          - core/Data
+          - core/TestKit
+          - core/Wigner
+          - core/Kernels
+          - core/EllipticCore
+          - capabilities/Spacetime
+          - capabilities/Harmonics
+          - capabilities/Perturbation
+          - capabilities/MetricReconstruction
+          - capabilities/SelfForce
+          - capabilities/ScalarSelfForce
+          - capabilities/PostNewtonian
+          - capabilities/ModifiedGravity
+          - capabilities/EMRIWaveforms
+          - capabilities/Hybrid
+          - capabilities/AccretionDisc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: ${{ matrix.julia-version }}
+      - uses: julia-actions/cache@v2
+      - name: Run tests
+        run: |
+          julia --project=${{ matrix.package }} -e '
+            using Pkg
+            Pkg.instantiate()
+            Pkg.test()'

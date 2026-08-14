@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use GrTool in your research, please cite it as below."
+title: "GrTool.jl: a next-generation Julia toolkit for black-hole perturbation theory"
+type: software
+authors:
+  - name: "GrTool contributors"
+version: 0.1.0
+date-released: 2026-08-14
+abstract: >-
+  GrTool is a next-generation suite of Julia packages for black-hole
+  perturbation theory:
+  Kerr geometry, spin-weighted spherical and spheroidal harmonics, the
+  Teukolsky equation (radial solutions, point-particle fluxes, quasinormal
+  and quadratic-quasinormal modes), metric reconstruction, gravitational and
+  scalar self-force, post-Newtonian expansions, EMRI waveforms, and
+  relativistic accretion-disc modes. All numerical paths are type-generic:
+  BigFloat inputs inherit the active working precision end-to-end.
+keywords:
+  - black-hole perturbation theory
+  - Teukolsky equation
+  - self-force
+  - EMRI
+  - gravitational waves
+  - Julia
+license: MIT

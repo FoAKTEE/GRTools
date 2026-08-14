@@ -1,0 +1,17 @@
+# Documenter output
+docs/build/
+
+# Julia scratch
+*.jl.cov
+*.jl.*.cov
+*.jl.mem
+.CondaPkg/
+
+# Editors / OS
+.DS_Store
+.vscode/
+*.swp
+
+# Local scratch and logs
+scratch/
+*.log
