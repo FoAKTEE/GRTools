@@ -1,0 +1,57 @@
+name = "EMRIWaveforms"
+uuid = "3c1a9e74-6b52-4d8f-9a0c-2f7e51d4b6a8"
+authors = ["GrTool capability migration (Claude)"]
+version = "0.1.0"
+
+# Tier-5 capability (design §4.8, §6.8): the EMRI trajectory + observed-waveform pipeline,
+# fusing FastEMRIWaveforms + KerrBackwards. HDF5 HOME #2. v0.1 is an EXPLICIT TRANSITIONAL
+# two-fork state — every collision-survivor submodule is bifurcated behind the qualified
+# `EMRIWaveforms.KerrBackwards.*` / `EMRIWaveforms.FEW.*` deep namespaces (§4.8 collisions),
+# collapsed only after a per-submodule bit-equivalence gate (§13). The 4 dead FEW import edges
+# (Teukolsky/TeukolskyPN/TeukolskySpinFluxes/SpinningOrbit) are DELETED → Symbolics-clean.
+# Float64/GPU-only: CALLS the BigFloat-generic lower tiers at Float64, imposes no precision
+# constraint upward. HDF5 is a DIRECT dep (the trigger that activates Data's HDF5 weakdep-ext).
+[deps]
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+NumericsCore = "54f76139-0f7a-42ab-9084-b9cc78b29132"
+Spacetime = "6cd685be-be12-48c2-bc38-9d046c4f5e88"
+Harmonics = "abf3daaf-bc8b-489b-a3fd-54920b7d8f29"
+Kernels = "d9c6b49b-1aa6-4fec-800e-eecae98eeb2e"
+Data = "2e9be357-8831-4976-ad1c-c30f98102c3a"
+HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
+OrdinaryDiffEqVerner = "79d7bb75-1356-48c1-b8c0-6832512096c2"
+Roots = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
+NLsolve = "2774e3e8-f4cf-5e23-947b-6d7e65073b56"
+# SpecialFunctions promoted test-extra -> regular dep (S4-c §5.5 Kernels-purity hoist):
+# ak_bessel_coeffs (besselj) now lives in EMRIWaveforms.AAK, injected into Kernels.aak_summation.
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+
+[sources]
+NumericsCore = {path = "../../core/NumericsCore"}
+Spacetime = {path = "../Spacetime"}
+Harmonics = {path = "../Harmonics"}
+Kernels = {path = "../../core/Kernels"}
+Data = {path = "../../core/Data"}
+# test-only (S2 §7.7 hygiene gates): TestKit, path-mapped for the test env (Data already above).
+TestKit = {path = "../../core/TestKit"}
+
+[compat]
+SpecialFunctions = "2.8.0"
+julia = "1.10"
+
+# Test-characterization oracle: NONE live. The heavy legacy oracles (FastEMRIWaveforms,
+# KerrBackwards) are NEVER live test-deps (TEST-DEP WEIGHT RULE) — grounding is by analytic
+# identity + CAPTURED fixtures from the checksum-verified .fewdata grids and one-shot legacy
+# outputs baked as literals.
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+# SpecialFunctions is ALSO a regular [deps] entry since the S4-c purity hoist (ak_bessel_coeffs
+# lives here now); the [extras] duplicate keeps it addressable from the [targets] test list.
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+# TestKit is a TEST-ONLY GrTool dep powering the §7.7 hygiene gates (test/hygiene.jl).
+TestKit = "a6b7dd63-3a78-412f-8db2-e0e7b8b9a65d"
+
+[targets]
+test = ["Test", "SpecialFunctions", "TestKit"]
