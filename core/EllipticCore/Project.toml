@@ -1,0 +1,36 @@
+name = "EllipticCore"
+uuid = "e8851893-f00c-4fc3-abda-c275a669a970"
+authors = ["GrTool capability migration"]
+version = "0.1.0"
+
+# Tier-1 core stratum: generic complex-parametric 2D hp-DG elliptic solver — ZERO physics
+# (elliptic-ssf DESIGN.md §1). Binding dep budget (enforced by test/hygiene.jl):
+# {LinearAlgebra, SparseArrays, NumericsCore}. SparseArrays lives HERE (not in NumericsCore,
+# whose budget is LinearAlgebra ONLY) for the multigrid bottom solve's cached sparse LU;
+# UMFPACK arrives via SparseArrays' `lu` on sparse ComplexF64 — stdlib, no external dep.
+# No Krylov/IterativeSolvers/AlgebraicMultigrid: GMRES/MG/Schwarz are written in-tree per
+# the GrTool vendoring precedent (DESIGN.md §1.2 point 2).
+[deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+NumericsCore = "54f76139-0f7a-42ab-9084-b9cc78b29132"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+
+[sources]
+NumericsCore = {path = "../NumericsCore"}
+# test-only (§7.7 hygiene gates): TestKit + its unregistered dep Data, path-mapped for the test env.
+TestKit = {path = "../TestKit"}
+Data = {path = "../Data"}
+
+[compat]
+julia = "1.10"
+
+# TestKit (+its Data spine) is a TEST-ONLY GrTool dep powering the §7.7 hygiene gates
+# (test/hygiene.jl). No characterization oracle package is needed at scaffold stage.
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+TestKit = "a6b7dd63-3a78-412f-8db2-e0e7b8b9a65d"
+Data = "2e9be357-8831-4976-ad1c-c30f98102c3a"
+REPL = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
+
+[targets]
+test = ["Test", "TestKit", "Data", "REPL"]
