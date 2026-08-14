@@ -1,0 +1,33 @@
+name = "TestKit"
+uuid = "a6b7dd63-3a78-412f-8db2-e0e7b8b9a65d"
+authors = ["GrTool capability migration (Claude)"]
+version = "0.1.0"
+
+# Tier-1 core, TEST-INFRASTRUCTURE package (design §5.6). `Test` is a normal `[deps]` here precisely
+# because this package IS the shared test harness — it re-exports an `@approx_oracle`/characterization
+# layer on top of `Test`. Data is a hard dep (fixture loader rides Data's `read_dat`/`datadir`).
+[deps]
+NumericsCore = "54f76139-0f7a-42ab-9084-b9cc78b29132"
+Data = "2e9be357-8831-4976-ad1c-c30f98102c3a"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+# TOML (stdlib, zero cost) powers the §7.7 TOML-static dep-budget hygiene gate (src/hygiene.jl).
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
+
+[sources]
+NumericsCore = {path = "../NumericsCore"}
+Data = {path = "../Data"}
+
+[compat]
+julia = "1.10"
+
+# No legacy oracle: TestKit is greenfield test infrastructure (design §5.6 — `@approx_oracle` has zero
+# legacy usages). It is grounded by SELF-TESTS (the macro passes/fails correctly, tolerance-class
+# ordering invariants, the `class_tol <= original_tol` tighten-guard, fixture round-trip via Data, and
+# the characterization gate detecting a perturbed output) — not by characterization against a physics
+# package. So the test target pulls only the (already-LIVE) GrTool deps; the cold-compile stays light.
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
