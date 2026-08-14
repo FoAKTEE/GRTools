@@ -1,0 +1,71 @@
+name = "SelfForce"
+uuid = "3a1d9c64-7e02-4b8f-9d31-2c6f0a5e7b48"
+authors = ["GrTool capability migration (Claude)"]
+version = "0.1.0"
+
+# Tier-5 1st+2nd-order gravitational self-force capability (design §4.5): the GSF corpus that
+# fuses the legacy H1Lorenz + Punctures + SecondOrderRicci packages over the shared h1 corpus
+# (intrinsic HDF5, via Data.H1Schema). HDF5 HOME #1 of the capability layer. Three namespaced
+# submodules:
+#   - LorenzField  (H1Lorenz)        : type-generic Lorenz-gauge BLS first-order field solver that
+#                                      CONSUMES MetricReconstruction.Lorenz.LorenzRadial's radial
+#                                      RHS (even_ode!/odd_ode!/monopole_ode!/odd_dipole_ode! — does
+#                                      NOT own them); R1..R10 sources, in/out BC series, vendored
+#                                      DP5+GBS integrators from NumericsCore, gauge-field assembly,
+#                                      and WRITES the h1 corpus via Data write_mode_h5.
+#   - SecondOrder  (SecondOrderRicci): reads the h1 corpus via Data, the 10 quadratic r2_1..r2_10
+#                                      → Kernels.r2 GPU host, 3-harmonic coupling → Wigner, analytic
+#                                      h1_mass/h1_spin, d2hdr2, second_order_ricci/ricci_source
+#                                      assembly + write_src.
+#   - Puncture     (Punctures)       : static h0 AGM elliptic, auto-gen coeffs, terminating-2F1
+#                                      α-integration via BigSpecial, Wigner-D β=π/2 mode mixing,
+#                                      digamma regularisation sums, singular/retarded subtraction,
+#                                      worldline self-field.
+# Every primitive is type-generic {T} so BigFloat precision (256..2048-bit) is inherited.
+[deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+NumericsCore = "54f76139-0f7a-42ab-9084-b9cc78b29132"
+BigSpecial = "60bbc8d6-d7db-4da8-98fc-f8225939f22c"
+Wigner = "6ff5feb8-af12-4c65-941e-1525bdfc7120"
+Kernels = "d9c6b49b-1aa6-4fec-800e-eecae98eeb2e"
+Data = "2e9be357-8831-4976-ad1c-c30f98102c3a"
+Harmonics = "abf3daaf-bc8b-489b-a3fd-54920b7d8f29"
+MetricReconstruction = "c7b6efb7-e918-408f-a652-a8355248f733"
+Spacetime = "6cd685be-be12-48c2-bc38-9d046c4f5e88"
+HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+QuadGK = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
+
+[sources]
+NumericsCore = {path = "../../core/NumericsCore"}
+BigSpecial = {path = "../../core/BigSpecial"}
+Wigner = {path = "../../core/Wigner"}
+Kernels = {path = "../../core/Kernels"}
+Data = {path = "../../core/Data"}
+Harmonics = {path = "../Harmonics"}
+MetricReconstruction = {path = "../MetricReconstruction"}
+Spacetime = {path = "../Spacetime"}
+# test-only (S2 §7.7 hygiene gates): TestKit, path-mapped for the test env (Data already above).
+TestKit = {path = "../../core/TestKit"}
+
+# NOTE: the legacy H1Lorenz / Punctures / SecondOrderRicci oracles are NOT live test-deps. They are
+# HEAVY (OrdinaryDiffEq/HDF5/large closures) per the TEST-DEP WEIGHT RULE. Every characterization
+# value is CAPTURED one-shot — from the legacy source, the genuine compiled g++/GSL oracles
+# (r2_oracle.cpp + h1.cc, compiled once to capture as the legacy did), wolframscript/Mathematica
+# (Puncture), or an analytic / round-trip-h1-corpus identity — and baked as literal fixtures in the
+# test files (capture scripts cited there). HDF5 is a LIVE test dep (round-trip h1-corpus
+# write/read fires the Data weakdep extension); the cold-compile stays fast against the GrTool
+# deps only.
+
+[compat]
+julia = "1.10"
+
+# TestKit is a TEST-ONLY GrTool dep powering the §7.7 hygiene gates (test/hygiene.jl).
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+TestKit = "a6b7dd63-3a78-412f-8db2-e0e7b8b9a65d"
+
+[targets]
+test = ["Test", "Random", "TestKit"]
