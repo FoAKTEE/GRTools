@@ -1,0 +1,48 @@
+name = "Hybrid"
+uuid = "271ffa06-0127-4767-93fc-413a2d73c6e8"
+authors = ["GrTool capability migration (Claude)"]
+version = "0.1.0"
+
+# Tier-5 capability (design §4.9): the WaSABI self-force / post-Newtonian HYBRID waveform engine.
+# Absorbs the legacy WaSABI package — the SF-PN-hybrid forcing model, the N-var spin inspiral ODE
+# evolution, the binding-energy interpolants, the model registry and the hybrid binary waveform.
+# Submodules: Models · BindingEnergy · HybridC · Drivers · Registry · BinaryWaveform · Introspection.
+# This is a top-of-DAG leaf: nothing depends UP on Hybrid, so the heavy OrdinaryDiffEqVerner/SciMLBase
+# precompile floor is confined here and never reaches the core numeric/GPU paths. Routes digamma to
+# BigSpecial, interpolation to NumericsCore.interp, and .wl/.jld2 artifacts to Data.
+[deps]
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+NumericsCore = "54f76139-0f7a-42ab-9084-b9cc78b29132"
+BigSpecial = "60bbc8d6-d7db-4da8-98fc-f8225939f22c"
+Spacetime = "6cd685be-be12-48c2-bc38-9d046c4f5e88"
+Data = "2e9be357-8831-4976-ad1c-c30f98102c3a"
+OrdinaryDiffEqVerner = "79d7bb75-1356-48c1-b8c0-6832512096c2"
+SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
+JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
+
+[sources]
+NumericsCore = {path = "../../core/NumericsCore"}
+BigSpecial = {path = "../../core/BigSpecial"}
+Spacetime = {path = "../Spacetime"}
+Data = {path = "../../core/Data"}
+# test-only (S2 §7.7 hygiene gates): TestKit, path-mapped for the test env (Data already above).
+TestKit = {path = "../../core/TestKit"}
+
+[compat]
+julia = "1.10"
+
+# Test characterization grounds WITHOUT any heavy live legacy dep: WaSABI is NEVER admitted as a live
+# [targets].test dep (it pulls the SF-PN closure + ODE stack). The oracle is instead (a) wolframscript
+# on WaSABI's WL forcing/interpolation/NDSolve sources, (b) captured fixtures / baked literals from the
+# legacy .m/.wl data, (c) analytic identities (binding-energy known limits, serial==threaded parity).
+# TestKit is a TEST-ONLY GrTool dep powering the §7.7 hygiene gates (test/hygiene.jl).
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+Data = "2e9be357-8831-4976-ad1c-c30f98102c3a"
+TestKit = "a6b7dd63-3a78-412f-8db2-e0e7b8b9a65d"
+
+[targets]
+# Data (already a [deps] entry) is repeated in the test target so test code can `import Data`
+# directly (the §5.4 DataJLD2Ext liveness assertion in test_data_jld2_ext.jl).
+test = ["Test", "Data", "TestKit"]
