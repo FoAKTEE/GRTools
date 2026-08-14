@@ -1,0 +1,11 @@
+# CITATION: baked once from KerrGeodesics.{KerrGeoEnergy,KerrGeoAngularMomentum,KerrGeoCarterConstant}
+# on the exact `cases` grid of test_geodesics_constants.jl. Full round-trip Float64 literals.
+const CONSTANTS_REF = [
+    (E = 0.9561828874675149, Lz = 3.7796447300922735, Q = 0.0),
+    (E = 0.95253975012074, Lz = 3.6103494592521925, Q = 0.0),
+    (E = 0.9522402386495982, Lz = 3.457299296190152, Q = 0.0),
+    (E = 0.9542699747531124, Lz = 1.7964716981097308, Q = 9.736223241613233),
+    (E = 0.9263968995765239, Lz = 2.2696367957704515, Q = 2.9484187821323125),
+    (E = 0.9669180949945181, Lz = 2.389883252673195, Q = 10.174258138914741),
+    (E = 0.9419868559907482, Lz = 1.0146170980765363, Q = 10.434491975785827),
+]

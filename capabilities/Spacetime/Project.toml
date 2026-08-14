@@ -1,0 +1,30 @@
+name = "Spacetime"
+uuid = "6cd685be-be12-48c2-bc38-9d046c4f5e88"
+authors = ["GrTool capability migration (Claude)"]
+version = "0.1.0"
+
+[deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+NumericsCore = "54f76139-0f7a-42ab-9084-b9cc78b29132"
+
+[sources]
+NumericsCore = {path = "../../core/NumericsCore"}
+# test-only (S2 §7.7 hygiene gates): TestKit + its unregistered dep Data, path-mapped for the test env.
+TestKit = {path = "../../core/TestKit"}
+Data = {path = "../../core/Data"}
+
+[compat]
+julia = "1.10"
+
+# Phase7-B: the KerrGeodesics / SpinningOrbit test-oracles were BAKED into
+# test/fixtures/spacetime_{constants,frequencies,trajectory,spinning}_ref.jl (captured once from the
+# legacy implementations at their frozen tolerances). The package now tests WITHOUT any packages/*
+# dependency — no legacy [sources]/[extras]/[targets] entry remains.
+# TestKit (+its Data spine) is a TEST-ONLY GrTool dep powering the §7.7 hygiene gates (test/hygiene.jl).
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+TestKit = "a6b7dd63-3a78-412f-8db2-e0e7b8b9a65d"
+Data = "2e9be357-8831-4976-ad1c-c30f98102c3a"
+
+[targets]
+test = ["Test", "TestKit", "Data"]
