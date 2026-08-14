@@ -1,0 +1,57 @@
+name = "MetricReconstruction"
+uuid = "c7b6efb7-e918-408f-a652-a8355248f733"
+authors = ["GrTool capability migration (Claude)"]
+version = "0.1.0"
+
+# Tier-4 metric-perturbation capability (design §4.4): the reconstruction of the linear metric
+# perturbation h_{μν} from the Teukolsky/Hertz scalars and the Lorenz-gauge first-order field.
+# Fuses the legacy MetricReconstruction (CCK/Hertz-potential radiation-gauge reconstruction) and
+# KerrLorenzCirc (Dolan-2024 a≠0 Lorenz-gauge reconstruction) into two namespaced submodules:
+#   - Radiation  : Hertz potential, ψ4/Weyl from Hertz, the 10 metric components, reconstruct_kerr
+#   - Lorenz     : Dolan-2024 a≠0 Lorenz reconstruction + Lorenz.LorenzRadial — the CANONICAL home
+#                  of the a=0 first-order Lorenz-gauge radial field-equation RHS (even/odd/monopole/
+#                  odd_dipole _ode!) consumed (not owned) by SelfForce.LorenzField + AccretionDisc.
+# Concept-name overlaps (weyl_scalar/to_BLS) are disambiguated by the Radiation.*/Lorenz.*
+# submodule namespaces — NO rename. KLC's hand-rolled cg is promoted to Wigner.clebsch_gordan.
+# Every primitive is type-generic {T} so BigFloat precision (256..2048-bit) is inherited.
+[deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+NumericsCore = "54f76139-0f7a-42ab-9084-b9cc78b29132"
+BigSpecial = "60bbc8d6-d7db-4da8-98fc-f8225939f22c"
+Wigner = "6ff5feb8-af12-4c65-941e-1525bdfc7120"
+Spacetime = "6cd685be-be12-48c2-bc38-9d046c4f5e88"
+Harmonics = "abf3daaf-bc8b-489b-a3fd-54920b7d8f29"
+Perturbation = "12c091d5-3f53-42c4-bffe-b2905e161585"
+QuadGK = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
+
+[sources]
+NumericsCore = {path = "../../core/NumericsCore"}
+BigSpecial = {path = "../../core/BigSpecial"}
+Wigner = {path = "../../core/Wigner"}
+Spacetime = {path = "../Spacetime"}
+Harmonics = {path = "../Harmonics"}
+Perturbation = {path = "../Perturbation"}
+# test-only (S2 §7.7 hygiene gates): TestKit + its unregistered dep Data, path-mapped for the test env.
+TestKit = {path = "../../core/TestKit"}
+Data = {path = "../../core/Data"}
+# NOTE: the legacy MetricReconstruction/KerrLorenzCirc/H1Lorenz/DiscModes oracles are NOT live
+# test-deps. The legacy MetricReconstruction package has the SAME NAME as this package (fatal
+# manifest name-collision), KLC/H1Lorenz/DiscModes are HEAVY (Teukolsky/HDF5 closure). Per the
+# TEST-DEP WEIGHT RULE every characterization value is captured ONE-SHOT from the legacy source
+# and baked as literal fixtures in the test files (capture scripts cited there). The test cold-
+# compile stays fast against the LIGHT GrTool deps (Spacetime/Harmonics/Perturbation) only.
+
+[compat]
+julia = "1.10"
+QuadGK = "2"
+
+# TestKit (+its Data spine) is a TEST-ONLY GrTool dep powering the §7.7 hygiene gates (test/hygiene.jl).
+# Data here is TEST-ONLY infrastructure for TestKit — it is NOT a runtime [deps] (§4.4 exclusion intact).
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+TestKit = "a6b7dd63-3a78-412f-8db2-e0e7b8b9a65d"
+Data = "2e9be357-8831-4976-ad1c-c30f98102c3a"
+
+[targets]
+test = ["Test", "TestKit", "Data"]
