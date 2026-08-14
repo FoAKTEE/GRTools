@@ -1,0 +1,35 @@
+name = "Kernels"
+uuid = "d9c6b49b-1aa6-4fec-800e-eecae98eeb2e"
+version = "0.1.0"
+authors = ["GrTool capability migration (Claude)"]
+
+[deps]
+KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+NumericsCore = "54f76139-0f7a-42ab-9084-b9cc78b29132"
+
+[weakdeps]
+AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+
+[sources]
+NumericsCore = {path = "../NumericsCore"}
+# test-only (S2 §7.7 hygiene gates): TestKit + its unregistered dep Data, path-mapped for the test env.
+TestKit = {path = "../TestKit"}
+Data = {path = "../Data"}
+
+[extensions]
+KernelsAMDGPUExt = "AMDGPU"
+KernelsCUDAExt = "CUDA"
+
+[compat]
+julia = "1.10"
+
+# TestKit (+its Data spine) is a TEST-ONLY GrTool dep powering the §7.7 hygiene gates (test/hygiene.jl).
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+TestKit = "a6b7dd63-3a78-412f-8db2-e0e7b8b9a65d"
+Data = "2e9be357-8831-4976-ad1c-c30f98102c3a"
+
+[targets]
+test = ["Test", "TestKit", "Data"]
