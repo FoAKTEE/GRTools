@@ -1,0 +1,46 @@
+name = "PostNewtonian"
+uuid = "74b58e6d-f201-41d9-a4c5-e15407757458"
+authors = ["GrTool capability migration (Claude)"]
+version = "0.1.0"
+
+# Tier-4 capability (design §4.6): the PN-series engine and the Symbolics QUARANTINE. Fuses the two
+# legacy PN leaf packages (TeukolskyPN + PostNewtonianSelfForce) into ONE capability whose submodules
+# are Series · MST · RadialMode · SelfForce · Catalog. Symbolics is a HARD [deps] here and ONLY here:
+# it is a STRUCT FIELD TYPE (PNSeries.coeffs::Vector{Symbolics.Num}, ResummedSeriesData.sf::Num) so it
+# physically cannot be a weakdep. The quarantine holds because the DAG is one-directional — this node
+# is a top-of-DAG leaf (NOTHING depends UP on PostNewtonian after the dead FEW→TeukolskyPN cut), so
+# Symbolics' ~1.9s precompile floor never reaches the numeric/GPU waveform path. Touches Data only for
+# .m/.wl artifacts via DelimitedFiles-class readers, so it does NOT declare HDF5 (CI gate §7.7).
+[deps]
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+NumericsCore = "54f76139-0f7a-42ab-9084-b9cc78b29132"
+Harmonics = "abf3daaf-bc8b-489b-a3fd-54920b7d8f29"
+Data = "2e9be357-8831-4976-ad1c-c30f98102c3a"
+Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+
+[sources]
+NumericsCore = {path = "../../core/NumericsCore"}
+Harmonics = {path = "../Harmonics"}
+Data = {path = "../../core/Data"}
+# test-only (S2 §7.7 hygiene gates): TestKit, path-mapped for the test env (Data already above).
+TestKit = {path = "../../core/TestKit"}
+
+[compat]
+julia = "1.10"
+Symbolics = "7"
+
+# Test characterization grounds WITHOUT any heavy live legacy dep: both legacy PN packages are
+# Symbolics-heavy, so they are NEVER admitted as live [targets].test deps. The byte-exact oracle is
+# instead (a) wolframscript on the 91 legacy .m SeriesData files at packages/PostNewtonianSelfForce/
+# SeriesData, (b) captured fixtures / baked literals, (c) analytic PN identities (Schwarzschild l2m2
+# leading flux = Newtonian quadrupole 32/5, known low-PN coefficients). TEST cold-compile stays fast.
+# TestKit is a TEST-ONLY GrTool dep powering the §7.7 hygiene gates (test/hygiene.jl).
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+TestKit = "a6b7dd63-3a78-412f-8db2-e0e7b8b9a65d"
+
+[targets]
+test = ["Test", "JSON", "TestKit"]
