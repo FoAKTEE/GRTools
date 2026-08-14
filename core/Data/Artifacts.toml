@@ -1,0 +1,16 @@
+# GrTool data artifacts (Pkg lazy `Artifacts`, design §10). A declared entry resolves through the
+# `Data.artifact_path` override -> artifact -> error chain (src/artifacts.jl): the injected
+# `set_datadir!` / GRTOOLS_DATADIR root wins first, else the entry below resolves lazily via its
+# `git-tree-sha1` (the runtime `@artifact_str` path — `artifact_hash`/`artifact_exists`/`artifact_path`).
+#
+# `kerr_ecc_eq_flux` — the cached `.fewdata` Kerr-ecc-eq flux corpus (FEW `KerrEccEqFluxData.h5`),
+# bound via `Pkg.Artifacts.create_artifact`/`bind_artifact!` so a declared entry is actually resolvable.
+# `lazy = true`: not auto-installed at `Pkg.add` time; provisioned locally in the depot (the override /
+# `stage_datadir!` path stays authoritative for sites without the artifact). Add a `[[…​.download]]`
+# url+sha256 block here to make it network-fetchable.
+#
+# The 4.74GB ZNAmps Kerr amplitude grid stays local-only (`stage_datadir!`/`ensure_local`), never pinned.
+
+[kerr_ecc_eq_flux]
+git-tree-sha1 = "ab05685876a1bf53d2e391d6b96e18b6c41dc3d9"
+lazy = true
