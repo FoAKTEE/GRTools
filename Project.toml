@@ -1,0 +1,58 @@
+name = "GrTool"
+uuid = "d866091c-02d1-4515-9122-6c0c359beda3"
+authors = ["GrTool contributors"]
+version = "0.1.0"
+
+# Umbrella package over the GrTool suite: `using GrTool` loads every core and
+# capability package and exposes each as `GrTool.<PackageName>` (no symbol
+# re-export — subpackage APIs never collide). Individual packages remain fully
+# usable on their own via `Pkg.develop(path="core/<P>")` / `path="capabilities/<P>"`.
+
+[deps]
+NumericsCore = "54f76139-0f7a-42ab-9084-b9cc78b29132"
+BigSpecial = "60bbc8d6-d7db-4da8-98fc-f8225939f22c"
+Data = "2e9be357-8831-4976-ad1c-c30f98102c3a"
+TestKit = "a6b7dd63-3a78-412f-8db2-e0e7b8b9a65d"
+Wigner = "6ff5feb8-af12-4c65-941e-1525bdfc7120"
+Kernels = "d9c6b49b-1aa6-4fec-800e-eecae98eeb2e"
+EllipticCore = "e8851893-f00c-4fc3-abda-c275a669a970"
+Spacetime = "6cd685be-be12-48c2-bc38-9d046c4f5e88"
+Harmonics = "abf3daaf-bc8b-489b-a3fd-54920b7d8f29"
+Perturbation = "12c091d5-3f53-42c4-bffe-b2905e161585"
+MetricReconstruction = "c7b6efb7-e918-408f-a652-a8355248f733"
+SelfForce = "3a1d9c64-7e02-4b8f-9d31-2c6f0a5e7b48"
+ScalarSelfForce = "2c6894da-19ee-44fd-8009-a03a1c15dffd"
+PostNewtonian = "74b58e6d-f201-41d9-a4c5-e15407757458"
+ModifiedGravity = "3a8f1d62-9c47-4e5b-8a10-2f6b7c4d9e03"
+EMRIWaveforms = "3c1a9e74-6b52-4d8f-9a0c-2f7e51d4b6a8"
+Hybrid = "271ffa06-0127-4767-93fc-413a2d73c6e8"
+AccretionDisc = "41b4f346-9cfd-4132-92af-b9cd45d2bbed"
+
+[sources]
+NumericsCore = {path = "core/NumericsCore"}
+BigSpecial = {path = "core/BigSpecial"}
+Data = {path = "core/Data"}
+TestKit = {path = "core/TestKit"}
+Wigner = {path = "core/Wigner"}
+Kernels = {path = "core/Kernels"}
+EllipticCore = {path = "core/EllipticCore"}
+Spacetime = {path = "capabilities/Spacetime"}
+Harmonics = {path = "capabilities/Harmonics"}
+Perturbation = {path = "capabilities/Perturbation"}
+MetricReconstruction = {path = "capabilities/MetricReconstruction"}
+SelfForce = {path = "capabilities/SelfForce"}
+ScalarSelfForce = {path = "capabilities/ScalarSelfForce"}
+PostNewtonian = {path = "capabilities/PostNewtonian"}
+ModifiedGravity = {path = "capabilities/ModifiedGravity"}
+EMRIWaveforms = {path = "capabilities/EMRIWaveforms"}
+Hybrid = {path = "capabilities/Hybrid"}
+AccretionDisc = {path = "capabilities/AccretionDisc"}
+
+[compat]
+julia = "1.10"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
