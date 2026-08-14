@@ -1,0 +1,45 @@
+name = "ScalarSelfForce"
+uuid = "2c6894da-19ee-44fd-8009-a03a1c15dffd"
+authors = ["GrTool capability migration"]
+version = "0.1.0"
+
+# Capability stratum: m-mode elliptic Kerr scalar self-force (arXiv:2606.04998 reproduction,
+# elliptic-ssf DESIGN.md §1). Binding dep budget (enforced by test/hygiene.jl §7.7 gates):
+# {LinearAlgebra, Printf, NumericsCore, BigSpecial, Spacetime, EllipticCore, Data}.
+# Special functions come ONLY through BigSpecial (no direct SpecialFunctions /
+# HypergeometricFunctions); EffectiveSource C oracles are baked fixtures, NEVER live deps
+# (no GSL/ccall channel); GPU stacks banned (CUDA/KernelAbstractions).
+[deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+NumericsCore = "54f76139-0f7a-42ab-9084-b9cc78b29132"
+BigSpecial = "60bbc8d6-d7db-4da8-98fc-f8225939f22c"
+Spacetime = "6cd685be-be12-48c2-bc38-9d046c4f5e88"
+EllipticCore = "e8851893-f00c-4fc3-abda-c275a669a970"
+Data = "2e9be357-8831-4976-ad1c-c30f98102c3a"
+
+[sources]
+NumericsCore = {path = "../../core/NumericsCore"}
+BigSpecial = {path = "../../core/BigSpecial"}
+Spacetime = {path = "../Spacetime"}
+EllipticCore = {path = "../../core/EllipticCore"}
+Data = {path = "../../core/Data"}
+# test-only (§7.7 hygiene gates): TestKit, path-mapped for the test env (Data is already a hard dep).
+TestKit = {path = "../../core/TestKit"}
+
+[compat]
+julia = "1.10"
+
+# TestKit is a TEST-ONLY GrTool dep powering the §7.7 hygiene gates (test/hygiene.jl).
+# No characterization oracle package is needed at scaffold stage; the EffectiveSource /
+# spectre / WB oracles arrive later as BAKED fixtures under test/fixtures/.
+# SHA (stdlib) is TEST-ONLY: the runtime-config-fixture drift pin (test_runtime_config.jl)
+# hashes the baked anc/ScalarSelfForce.yaml mirror; [extras] is outside the §7.7 dep budget
+# by design (assert_dep_budget deliberately does not scan it).
+[extras]
+SHA = "ea8e919c-243c-51af-8825-aaa63cd721ce"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+TestKit = "a6b7dd63-3a78-412f-8db2-e0e7b8b9a65d"
+
+[targets]
+test = ["SHA", "Test", "TestKit"]

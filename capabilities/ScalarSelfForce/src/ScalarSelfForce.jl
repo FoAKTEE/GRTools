@@ -1,0 +1,163 @@
+"""
+    ScalarSelfForce
+
+ScalarSelfForce (GrToolScalarSelfForce) — the m-mode ELLIPTIC Kerr scalar self-force
+capability: the GrTool reproduction of arXiv:2606.04998 (Vu et al., "Self-force
+calculations with numerical relativity methods"). It owns the PHYSICS of the elliptic
+formulation and consumes the physics-free hp-DG solver stack from `core/EllipticCore`.
+
+Dependency budget (binding, enforced by `test/hygiene.jl` §7.7 gates): EXACTLY
+`{LinearAlgebra, Printf, NumericsCore, BigSpecial, Spacetime, EllipticCore, Data}`.
+Special functions come ONLY through BigSpecial (no direct SpecialFunctions /
+HypergeometricFunctions); the EffectiveSource C oracles are baked test fixtures, NEVER
+live deps (no GSL/ccall channel); GPU stacks are banned (CUDA/KernelAbstractions).
+
+Conventions (locked package-wide):
+  - Geometric units `G = c = 1`, background mass `M = 1`; Kerr spin `a ∈ (−1, 1)`,
+    retrograde orbits encoded via `a < 0` with `m ≥ 0` and the ×2 real-part mode-sum
+    convention.
+  - Mode ansatz `Φ = Σ_m Ψ_m(r, z) · sin^{|m|}θ / r · e^{i m (φ̄ − Ω t)}` with `z = cosθ`
+    and the horizon-regular azimuthal chart `φ̄ = φ + a/(r₊−r₋)·ln((r−r₊)/(r−r₋))`
+    (main.tex:223-236).
+  - Radial chart: horizon-penetrating Boyer–Lindquist `r` via
+    `∂_{r_*} = Δ/(r²+a²) ∂_r` (main.tex:354-358); slicing is vtu (v→t→u null/Boyer
+    slabs) with piecewise boost `H ∈ {−1, 0, +1}` and the two junction conditions
+    `[∂_{r_*}Ψ] = −imΩΨ` (main.tex:337-343).
+  - Equatorial symmetry via the `z²` variant on `z ∈ [0, 1]` (main.tex:389-394).
+
+Submodules (each = one elliptic-ssf GLOBAL_DAG node, TDD, added as it lands):
+  - `Orbits/`          — `CircularOrbit{T}` thin adapters over Spacetime (E, L, Ω, u^t,
+                         u^φ, r_ISCO, r_*, φ̄ offset).
+  - `MModeOperator/`   — ansatz → t-sliced △̃_m → hyperboloidal → vtu jumps →
+                         horizon-penetrating first-order flux form (F^i, β_m, γ^i_m) →
+                         z² variant → Bayliss–Turkel outer BC.
+  - `Puncture/`        — 4th-order Detweiler–Whiting Φ^P (A_ijk), ₃P/2F1 m-mode
+                         integrals (Bourg Eq. 115 over `BigSpecial.legendre_P3`),
+                         analytic derivatives.
+  - `EffectiveSource/` — S^eff_m direct evaluation + near-worldline series switch.
+  - `Worldtube/`       — regularized-region partition, Ψ^P mortar jump data,
+                         fixed-source assembly (operator-on-zero trick).
+  - `Domain/`          — `SSFConfig` (yaml-twin runtime config) + EllipticCore `Mesh2D`
+                         block instantiation.
+  - `Solve/`           — BC glue, single-mode solver-stack driver, hp-AMR loop,
+                         process-parallel m-mode fan-out.
+  - `Extraction/`      — F_r^m extraction, Heffernan regularization, mode-sum + tail.
+
+Type policy: type-generic `{T}` throughout so BigFloat precision is inherited from
+NumericsCore/BigSpecial (never hard-Float64'd); the production path is ComplexF64.
+"""
+module ScalarSelfForce
+
+using LinearAlgebra
+using Printf
+using NumericsCore
+using BigSpecial
+using Spacetime
+using EllipticCore
+using Data
+
+# Submodule files are included as each elliptic-ssf GLOBAL_DAG node is TDD-built and
+# grounded against its oracle (baked EffectiveSource-C fixtures, spectre-verified
+# formulas, Warburton–Barack tables). Each include + its exports land with the node.
+
+include("Orbits/orbits.jl")                  # orbits-adapters
+export CircularOrbit
+
+include("MModeOperator/ansatz.jl")           # mode-ansatz-decomposition
+# Locked conventions (see the mode_term docstring for the normative statement):
+# z = cosθ chart, sin^{|m|}θ/r factoring, e^{+im(φ̄−Ωt)} phase, e^{−imΩh} hyperboloidal
+# factor, and Ψ_{−m} = conj(Ψ_m) for real Φ (guards the spectre doxygen sign trap).
+export sintheta_of_z, sinm_theta, sinm_theta_dz, sinm_theta_d2z
+export kerr_varphi, mode_term, mode_amplitude, reconstruct_field
+export psi_from_tilde, tilde_from_psi
+
+include("MModeOperator/tsliced.jl")          # elliptic-operator-tsliced
+# First-order flux-form coefficient layer (eq:flux + eq:first-order, main.tex:365-383; z²
+# equatorial variant main.tex:389-394): A^rr, A^zz, A^{z²} + β_m, γ^r_m, γ^z_m, γ^{z²}_m with
+# caller-supplied boost (H, H′ = dH/dr_*) — t-slicing = the (0, 0) defaults; the vtu piecewise
+# assembly + junction conditions are a later node. |m| reading of the angular-origin terms
+# (coefficient_{−m} = conj(coefficient_m)); Δ factored off cached horizons (exact zero at r₊).
+export flux_coeff_r, flux_coeff_z, flux_coeff_z2
+export beta_m, gamma_r_m, gamma_z_m, gamma_z2_m
+
+include("MModeOperator/hyperboloidal.jl")    # hyperboloidal-transformation
+# Slicing kinematics (main.tex:255-262 + 267-314): Kerr tortoise r_*(r) (wraps
+# Spacetime.tortoise_kerr; dr_*/dr = 1/A^rr) and the HeightFunction carrier
+# (h, H = dh/dr_*, H′ = dH/dr_*) of r_*, evaluated at r via slicing_kinematics. Composes
+# with the ansatz.jl phase map and the tsliced.jl (H, H′) coefficient slots; closure
+# oracle = the conjugation identity △_m[Ψ̃e^{−imΩh}] = e^{−imΩh}△̃_m[Ψ̃]. t_slicing() is
+# the exact-zero t-domain instance; the vtu piecewise instance is a later node.
+export rstar, HeightFunction, t_slicing, slicing_kinematics
+
+include("Puncture/field4d.jl")               # puncture-field-4d
+# 4D Detweiler-Whiting puncture: A_ijk transcribed from kerr-circular.c
+# effsource_set_particle (generated field4d_coeffs.jl); Φ^P = R⁻⁷ Σ A_ijk Δr^i Δθ^j Q^k.
+export Puncture, puncture_phi
+
+include("Puncture/mmode_integrals.jl")       # mmode-puncture-integrals
+# m-mode puncture via the CRP ₃P route (main.tex:459-486; Bourg Eq. 115 over
+# BigSpecial.legendre_P3/pochhammer): mode_integral_Rn = ∫R^n e^{−imΔφ}dΔφ closed form,
+# puncture_phi_m = the BARE azimuthal integral of Φ^P (the C effsource_PhiS_m up to its
+# e^{−imφ_p} rotation), puncture_psi_m = THE locked-convention mode function Ψ^P_m(r, z)
+# (sin^{|m|}θ/r factoring included via mode_amplitude; Ψ^P_{−m} = conj(Ψ^P_m)).
+export mode_integral_Rn, puncture_phi_m, puncture_psi_m
+
+include("Puncture/derivatives.jl")           # puncture-derivatives
+# Analytic first derivatives of the m-mode puncture (main.tex:481-487):
+# mode_integral_Rn_drho2 = exact power reduction ∂J_n/∂ϱ² = (n/2)J_{n−2} (extends n to −9),
+# puncture_dphi_m = bare (I_m, ∂I_m/∂Δr, ∂I_m/∂Δθ) bundle (C effsource_calc_m dPhiS slots
+# up to the phase rotation), puncture_dpsi_m = Ψ-level bundle with the trivial −imΩ/+im
+# t/φ̄ factors on the same API.
+export mode_integral_Rn_drho2, puncture_dphi_m, puncture_dpsi_m
+
+include("Domain/config.jl")                  # runtime-config-fixture
+# Typed twin of the CRP production input anc/ScalarSelfForce.yaml (baked + sha256-pinned at
+# test/fixtures/runtime_config/): crp_paper_config(; spin, orbital_radius, m_mode, …) = the
+# yaml's Jinja2 parameters (defaults = the header production example), reproducing every
+# derived number (v→t = r0 − 1.5wr, t→u = r0 + 3wr, block bounds, L+1 source pre-refinement,
+# m = 0 no-outer-BC branch). CRP_PAPER_MMODES = 0:20 is the paper's per-mode run sweep.
+export RunConfig, crp_paper_config, SommerfeldBC, BlockRefinement, CRP_PAPER_MMODES
+
+include("MModeOperator/vtu.jl")              # vtu-slicing-jumps
+# vtu piecewise slicing (main.tex:315-347; after config.jl — reads the RunConfig/OrbitConfig
+# transition radii): VtuSlicing (r^v/r^u in both BL and tortoise charts), vtu_height_function
+# = the piecewise HeightFunction instance (boost H ∈ {−1, 0, +1}, continuous h, H′ ≡ 0
+# pointwise — the interface deltas live in the junction data), vtu_domain classification, and
+# the two junction conditions [∂_{r_*}Ψ] = −imΩΨ (eq:jump_vt/eq:jump_tu) as pure VtuJunction
+# data for the DG jump hooks (node dg-jump-conditions; dg_operator.jl N6 contract).
+export VtuSlicing, vtu_slicing, vtu_height_function, vtu_domain, VtuJunction, vtu_junctions
+
+include("MModeOperator/fluxform.jl")         # horizon-penetrating-compactification + first-order-flux-form
+# Chart-converted coefficient bundle in the DISCRETIZATION chart q = (r, z) (main.tex:354-360):
+# ∂_{r_*} = Δ/(r²+a²) ∂_r fully absorbed — fluxform_coefficients composes one slicing_kinematics
+# evaluation into the tsliced.jl slots, the pointwise (Arr, Azz, beta, gamma_r, gamma_z) the DG
+# quadrature consumes. Horizon-penetration closure gates (H = −1 finiteness at r₊(1+1e-12),
+# u-domain 1/r-compaction smoothness at H = +1) live in test_fluxform.jl. Part 2
+# (first-order-flux-form, W6-E): fluxform_callables — the assembled per-region form, constant
+# vtu slab boost H ∈ {−1, 0, +1} baked into (A, beta, gamma) callables over (r, z), the exact
+# shape EllipticCore's element_coefficients consumes; closure gates (F^r(r₊) = 0 / F^z(±1) = 0
+# exact, spectral −∂F + βΨ + γ∂Ψ == △_mΨ per region) live in test_first_order_flux_form.jl.
+export fluxform_coefficients
+export fluxform_callables
+
+include("MModeOperator/z2.jl")               # equatorial-symmetry-z2
+# z² equatorial-symmetry chart (main.tex:389-394): fluxform_callables_z2 — the assembled
+# per-region bundle in the half-domain chart q = (r, w = z²) with the printed chain-rule
+# factors 𝓕^{z²} = 4z²𝓕^z, γ^{z²} = 2zγ^z + 2(1−z²)/(r²+a²) (coefficient functions sealed in
+# tsliced.jl) — plus the RunConfig chart-selector method of fluxform_callables driven by
+# impose_equatorial_symmetry (yaml:36). Closure gates ((r, w)-operator == (r, z)-operator on
+# even fields per-chart spectrally, A^{z²} exact zeros at w ∈ {0, 1}, equator regularity)
+# live in test_equatorial_symmetry_z2.jl.
+export fluxform_callables_z2
+
+include("MModeOperator/bayliss_turkel.jl")   # bayliss-turkel-bc
+# Second-order Bayliss–Turkel outer radiation condition (main.tex:403-411 + DG realization
+# main.tex:614-618): bt_tsliced_residual = the printed t-form (∂_{r_*} − imΩ)², u-sliced
+# equivalence ∂²_{r_*}Ψ = 0 documented + gated through the replacement rules;
+# bt_robin_coefficient = the pointwise (n·F)_N = robin·Ψ data (all four spectre Sommerfeld
+# branches, hard-regression-pinned); BaylissTurkelGhost = the EllipticCore GhostBoundary
+# policy (linear-homogeneous: linearized == full, in the solver matrix);
+# outer_boundary_ghost = the RunConfig entry honoring the m = 0 no-outer-BC yaml branch.
+export bt_tsliced_residual, bt_robin_coefficient, BaylissTurkelGhost, outer_boundary_ghost
+
+end # module
