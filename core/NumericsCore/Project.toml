@@ -1,0 +1,39 @@
+name = "NumericsCore"
+uuid = "54f76139-0f7a-42ab-9084-b9cc78b29132"
+authors = ["GrTool capability migration (Claude)"]
+version = "0.1.0"
+
+[deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+
+# test-only (S2 §7.7 hygiene gates): TestKit + its unregistered dep Data, path-mapped for the test env.
+[sources]
+TestKit = {path = "../TestKit"}
+Data = {path = "../Data"}
+
+[compat]
+julia = "1.10"
+
+# Test-characterization oracles: ALL legacy packages/* are now DROPPED from the test sandbox (Phase-7-B).
+# Every legacy oracle is BAKED into a captured-once fixture, so `Pkg.test` resolves and runs with NO
+# packages/* on the load path:
+#  - Carlson/Legendre/Jacobi + FEW modulus/real conventions (was KerrGeodesics._R*/_ellip*/_jacobi*):
+#    test/fixtures/numericscore_carlson_ref.jl (captured from packages/KerrGeodesics).
+#  - spin-weighted spherical-harmonic seed spin_weighted_Y / _y_dtheta, incl. the high-l BigFloat path
+#    (was SpinWeightedSpheroidalHarmonics.SpinWeightedSphericalHarmonicY / _y_dtheta):
+#    test/fixtures/numericscore_swsh_ref.jl (captured from packages/SpinWeightedSpheroidalHarmonics).
+#  - units constants: exact decimal literals read from packages/{KerrBackwards,FastEMRIWaveforms}/
+#    src/constants.jl + analytic cross-identities (MRSUN=MTSUN*c, Gpc_in_s=Gpc_in_m/c, ...).
+#  - precision bc_tol/rk_tol: documented closed forms = H1Lorenz source (boundary_conditions.jl:17-23,
+#    integrator.jl:22-28): Float64 1e-14/1e-12; BigFloat max(2^(10-bits),8eps)/2^(20-bits).
+#  - ModeIndexTable + (l,m)<->gamma: deterministic-enumeration counts/ordering/mirror invariants +
+#    literal reference rows (FEW SchwarzschildEccentric baseclasses.py:223-323; gamma=l(l+1)/2+m).
+# All fixtures carry a provenance header naming the legacy fn + args that produced them.
+# TestKit (+its Data spine) is a TEST-ONLY GrTool dep powering the §7.7 hygiene gates (test/hygiene.jl).
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+TestKit = "a6b7dd63-3a78-412f-8db2-e0e7b8b9a65d"
+Data = "2e9be357-8831-4976-ad1c-c30f98102c3a"
+
+[targets]
+test = ["Test", "TestKit", "Data"]
