@@ -1,7 +1,7 @@
 """
     Harmonics
 
-Angular-eigenfunction FOUNDATION for GrTool — the second spine root (Tier-2, design §4.2).
+Angular-eigenfunction FOUNDATION for GrTools — the second spine root (Tier-2, design §4.2).
 It owns the full angular harmonic surface of the Kerr perturbation problem: spin-weighted
 spheroidal eigenvalues λ(s,l,m,γ), the spheroidal harmonic S_lm(θ) carrier and its
 derivatives, the spin-weighted spherical-harmonic Y seed, and the UNIFIED m<0 parity surface

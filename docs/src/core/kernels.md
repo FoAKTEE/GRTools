@@ -1,6 +1,6 @@
 # Kernels
 
-The GPU/parallel compute-kernel spine of GrTool (capability **C4**, design §5.5 + §8). It owns the
+The GPU/parallel compute-kernel spine of GrTools (capability **C4**, design §5.5 + §8). It owns the
 hot inner loops that several physics capabilities share, each consolidated into a single canonical
 copy — collapsing the FastEMRIWaveforms-vs-KerrBackwards forks of the *same* arithmetic. Everything
 else (trajectory ODEs, HDF5 IO, Wigner couplings, Bessel machinery) stays with the calling

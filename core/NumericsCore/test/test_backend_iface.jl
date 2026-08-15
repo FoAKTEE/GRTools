@@ -1,5 +1,5 @@
 # Behavior-contract tests for the CPU/GPU dispatch seam (no legacy oracle — genuinely new).
-# AbstractBackend / CPUBackend / select_backend is the boundary GrToolKernels extends via a package
+# AbstractBackend / CPUBackend / select_backend is the boundary GrToolsKernels extends via a package
 # extension; NumericsCore itself stays GPU-dependency-free.
 
 using NumericsCore

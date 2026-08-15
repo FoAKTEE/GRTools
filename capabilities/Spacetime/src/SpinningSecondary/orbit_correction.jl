@@ -1,7 +1,7 @@
 # Orbit-correction-object assembly + the two public functions it unlocks — consolidates
 # SpinningOrbit/src/orbit_correction.jl (port of SpinningTrajectory.wl `KerrSpinOrbitCorrection2`
 # L748-906, `KerrSpinOrbitCorrection` L907-911, `KerrSpinOrbitNum` L914-938; renamed
-# `_spin_orbit_correction2` / `spin_orbit_correction` / `spin_orbit_numeric` in the GrTool style).
+# `_spin_orbit_correction2` / `spin_orbit_correction` / `spin_orbit_numeric` in the GrTools style).
 # Given the numeric `Correction` engine output (here the verified `_numeric_correction` NamedTuple),
 # assemble the linear-in-spin orbit correction: the geodesic constants/Mino-frequencies, the
 # δχrS/δχθS/δ𝔯/δ𝔷 Fourier series, the four-velocity correction pieces, the UtS/UφS → DFT →

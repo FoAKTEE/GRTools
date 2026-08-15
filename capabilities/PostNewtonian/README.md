@@ -1,6 +1,6 @@
 # PostNewtonian
 
-Tier-4 GrTool capability — the **post-Newtonian series engine** and the **Symbolics quarantine**
+Tier-4 GrTools capability — the **post-Newtonian series engine** and the **Symbolics quarantine**
 (design §4.6). It fuses the two legacy PN leaf packages into one capability and is a top-of-DAG leaf:
 nothing depends UP on it, so `Symbolics` (a HARD dep here and ONLY here) never leaks its ~1.9s
 precompile floor onto the numeric/GPU waveform path.
@@ -39,7 +39,7 @@ Populated per-module as primitives land (`PNSeries`, `Normal`, `read_mma_inputfo
 
 ## Dependencies
 
-- GrTool: `NumericsCore`, `Harmonics` (numeric `SpinWeightedSpheroidalEigenvalueSeries` →
+- GrTools: `NumericsCore`, `Harmonics` (numeric `SpinWeightedSpheroidalEigenvalueSeries` →
   `Vector{Float64}`, carries no Symbolics), `Data` (`.m`/`.wl` artifact readers — **no HDF5**).
 - external: `Symbolics` (HARD, quarantined), std `Printf`/`LinearAlgebra`.
 

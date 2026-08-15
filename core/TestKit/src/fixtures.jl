@@ -1,4 +1,4 @@
-# Data-backed fixture loader + characterization-gate harness (design §5.6 / DAG §GrToolTestKit).
+# Data-backed fixture loader + characterization-gate harness (design §5.6 / DAG §GrToolsTestKit).
 #
 # Built second: depends on `oracle.jl` (the tolerance/recording layer) and on `Data` (fixture IO). It
 # owns two pieces:
@@ -17,7 +17,7 @@ using Data: read_dat, datapath
     load_fixture(parts...; kwargs...) -> Matrix
 
 Load a captured characterization fixture as a numeric matrix, resolving the path under the active
-GrTool data root (`Data.datapath`) and reading it via `Data.read_dat`. `kwargs` pass through to the
+GrTools data root (`Data.datapath`) and reading it via `Data.read_dat`. `kwargs` pass through to the
 underlying `readdlm` (e.g. `skipstart`). Configure the root first with `Data.set_datadir!(dir)` (or
 `ENV["GRTOOLS_DATADIR"]`); there is deliberately no implicit fallback.
 """

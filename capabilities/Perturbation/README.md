@@ -1,7 +1,7 @@
 # Perturbation
 
 Tier-3 vacuum/test perturbed-field solver for the Kerr spacetime — the **Teukolsky-radial
-engine** and the **light-dep firewall** of GrTool (design §4.3).
+engine** and the **light-dep firewall** of GrTools (design §4.3).
 
 ## Physics this capability owns
 
@@ -46,7 +46,7 @@ under the BLAS-guard.
 
 ## Dependencies
 
-- **GrTool:** `NumericsCore` (continued-fraction, interpolation, conventions, precision),
+- **GrTools:** `NumericsCore` (continued-fraction, interpolation, conventions, precision),
   `BigSpecial` (Γ / 2F1 / pochhammer / Kummer), `Spacetime` (geodesic constants, frequencies,
   roots), `Harmonics` (SWSH eigenvalue + S).
 - **stdlib:** `LinearAlgebra`, `Printf`.

@@ -8,7 +8,7 @@
 #
 # GATES (tolerances MEASURED, headroom stated inline):
 #   (B) coupling == CG        : closed forms [arXiv:1702.04204, Eq. (34)] vs the baked
-#                               Clebsch–Gordan fixture (GrTool core/Wigner, one-shot capture —
+#                               Clebsch–Gordan fixture (GrTools core/Wigner, one-shot capture —
 #                               Wigner is NOT a runtime dep), ≤ 1e-13 rel.
 #   (A1) s=0 coupling identity: spin coefficients at s=0 == locked `cminus`/`mode_coupling`
 #                               BIT-EXACT.

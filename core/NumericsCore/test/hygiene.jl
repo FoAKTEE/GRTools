@@ -9,7 +9,7 @@ ts_hygiene = @testset "hygiene (§7.7 gates)" begin
     TestKit.assert_dep_budget(joinpath(@__DIR__, "..", "Project.toml");
         # the sink budget: LinearAlgebra EXACTLY — any new hard dep is core re-growth.
         allow=["LinearAlgebra"],
-        # forbid everything heavy + every GrTool package (nothing may point UP from the sink).
+        # forbid everything heavy + every GrTools package (nothing may point UP from the sink).
         forbid=["HDF5", "JLD2", "Symbolics", "OrdinaryDiffEq*", "CUDA", "AMDGPU", "Metal",
                 "oneAPI", "GPUArrays", "KernelAbstractions", "WignerSymbols", "Roots", "NLsolve",
                 "SciMLBase", "QuadGK", "ForwardDiff", "SpecialFunctions", "HypergeometricFunctions",

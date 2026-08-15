@@ -1,8 +1,8 @@
-# Contributing to GrTool
+# Contributing to GrTools
 
 ## Repository layout
 
-GrTool is a monorepo of 18 independent Julia packages plus an umbrella:
+GrTools is a monorepo of 18 independent Julia packages plus an umbrella:
 
 - `core/` — physics-free numerics (NumericsCore, BigSpecial, Data, TestKit,
   Wigner, Kernels, EllipticCore). Dependency budgets are deliberate and tight:
@@ -11,7 +11,7 @@ GrTool is a monorepo of 18 independent Julia packages plus an umbrella:
 - `capabilities/` — physics packages built over core (Spacetime, Harmonics,
   Perturbation, MetricReconstruction, SelfForce, ScalarSelfForce,
   PostNewtonian, ModifiedGravity, EMRIWaveforms, Hybrid, AccretionDisc).
-- Root `Project.toml` / `src/GrTool.jl` — the umbrella package.
+- Root `Project.toml` / `src/GrTools.jl` — the umbrella package.
 - `docs/` — one Documenter site over the whole suite.
 - `examples/` — runnable, self-contained example scripts.
 

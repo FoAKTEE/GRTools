@@ -1,6 +1,6 @@
 name = "ScalarSelfForce"
 uuid = "2c6894da-19ee-44fd-8009-a03a1c15dffd"
-authors = ["GrTool capability migration"]
+authors = ["GrTools capability migration"]
 version = "0.1.0"
 
 # Capability stratum: m-mode elliptic Kerr scalar self-force (arXiv:2606.04998 reproduction,
@@ -30,7 +30,7 @@ TestKit = {path = "../../core/TestKit"}
 [compat]
 julia = "1.10"
 
-# TestKit is a TEST-ONLY GrTool dep powering the §7.7 hygiene gates (test/hygiene.jl).
+# TestKit is a TEST-ONLY GrTools dep powering the §7.7 hygiene gates (test/hygiene.jl).
 # No characterization oracle package is needed at scaffold stage; the EffectiveSource /
 # spectre / WB oracles arrive later as BAKED fixtures under test/fixtures/.
 # SHA (stdlib) is TEST-ONLY: the runtime-config-fixture drift pin (test_runtime_config.jl)

@@ -10,7 +10,7 @@
 # `T P⁻T⁻¹=½[[1,-1],[-1,1]]`. Source on the π-row only: `G=[G_π,0]`.
 # Energy flux at 𝓘⁺: `Ė_{ℓm}=|π_{ℓm}|²/(4π)`.
 #
-# REUSE SUBSTITUTIONS (repo → GrTool; DG-P3 directive):
+# REUSE SUBSTITUTIONS (repo → GrTools; DG-P3 directive):
 #   Flux1D.Ylm_equator (local closed form)      → Harmonics.Ylm_real(ℓ, m, π/2) + exact parity 0
 #   Flux1D.orbital_params (repo commit a643b5f) → Spacetime geodesic_energy /
 #     geodesic_angular_momentum / kerr_frequencies (circular equatorial e=0, x=1; M=1 canon)

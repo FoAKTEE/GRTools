@@ -1,6 +1,6 @@
 name = "Wigner"
 uuid = "6ff5feb8-af12-4c65-941e-1525bdfc7120"
-authors = ["GrTool capability migration (Claude)"]
+authors = ["GrTools capability migration (Claude)"]
 version = "0.1.0"
 
 # Tier-1 core stratum (C2). deps = NumericsCore ONLY (design §5.3) — the angular-momentum
@@ -22,7 +22,7 @@ julia = "1.10"
 # Test-characterization oracle: WignerSymbols is a SMALL, light, registered package, added
 # TEST-ONLY (never a runtime [deps]) to ground the hand-rolled 3j/6j/CG over a grid of
 # (j1,j2,j3,m1,m2,m3). The runtime package carries NO WignerSymbols dependency.
-# TestKit (+its Data spine) is a TEST-ONLY GrTool dep powering the §7.7 hygiene gates (test/hygiene.jl).
+# TestKit (+its Data spine) is a TEST-ONLY GrTools dep powering the §7.7 hygiene gates (test/hygiene.jl).
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 WignerSymbols = "9f57e263-0b3d-5e2e-b1be-24f2bb48858b"

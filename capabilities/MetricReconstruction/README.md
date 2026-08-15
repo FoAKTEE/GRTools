@@ -1,6 +1,6 @@
 # MetricReconstruction
 
-Tier-4 GrTool capability (design §4.4): reconstruction of the linear metric perturbation
+Tier-4 GrTools capability (design §4.4): reconstruction of the linear metric perturbation
 `h_{μν}` of the Kerr spacetime from perturbed-field scalars. It fuses two legacy packages into
 disjoint submodule namespaces so the gauge-dependent concept-name overlaps (`weyl_scalar`,
 `to_BLS`) coexist without rename.
@@ -40,7 +40,7 @@ Concrete symbols are exported as each TDD module lands.
 
 ## Dependencies
 
-- GrTool: `NumericsCore`, `Wigner`, `Spacetime`, `Harmonics`, `Perturbation`.
+- GrTools: `NumericsCore`, `Wigner`, `Spacetime`, `Harmonics`, `Perturbation`.
 - External: `QuadGK`, plus the `LinearAlgebra`/`Printf` standard libraries.
 
 ## Precision

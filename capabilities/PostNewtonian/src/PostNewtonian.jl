@@ -1,7 +1,7 @@
 """
     PostNewtonian
 
-PN-series engine for Teukolsky-mode post-Newtonian expansions and PN self-force — the GrTool
+PN-series engine for Teukolsky-mode post-Newtonian expansions and PN self-force — the GrTools
 **Symbolics quarantine** (design §4.6). Fuses the two legacy PN leaf packages (TeukolskyPN +
 PostNewtonianSelfForce) into one capability. `Symbolics` is a HARD dep here and ONLY here, because
 the Laurent/Taylor coefficient vector and the resummed self-force scalar are `Symbolics.Num` struct

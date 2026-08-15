@@ -1,6 +1,6 @@
 # EMRIWaveforms
 
-GrTool tier-5 capability (design §4.8, §6.8): the **EMRI trajectory + observed-waveform
+GrTools tier-5 capability (design §4.8, §6.8): the **EMRI trajectory + observed-waveform
 pipeline**, fusing the two legacy waveform engines **FastEMRIWaveforms** and **KerrBackwards**.
 This is **HDF5 home #2** (inspiral ODE → flux/amplitude grid models → mode selection → mode
 summation → generate).
@@ -51,7 +51,7 @@ work flows only through `Kernels` (Float64-on-device).
 
 ## Dependencies
 
-- GrTool: `NumericsCore`, `Spacetime`, `Harmonics`, `Kernels`, `Data`.
+- GrTools: `NumericsCore`, `Spacetime`, `Harmonics`, `Kernels`, `Data`.
 - External: `HDF5` (DIRECT — the trigger that activates Data's HDF5 weakdep-extension for grid
   IO), `OrdinaryDiffEqVerner`, `Roots`, `NLsolve`, plus std `Printf`/`LinearAlgebra`/`Random`.
 

@@ -1,4 +1,4 @@
-# EllipticCore (GrToolElliptic) — core stratum
+# EllipticCore (GrToolsElliptic) — core stratum
 
 Generic complex-parametric 2D hp-DG elliptic solver — a Tier-1 core stratum with
 **zero physics**. Any capability with a 2D elliptic problem (the scalar-self-force
@@ -30,8 +30,8 @@ through caller-supplied `fluxes!`/`sources!` closures and boundary hooks.
 
 Binding dependency budget, enforced by `test/hygiene.jl`:
 `{LinearAlgebra, SparseArrays, NumericsCore}`. No external Krylov/AMG package —
-GMRES, multigrid, and Schwarz are in-tree per the GrTool vendoring precedent;
-no GPU, no AD, no IO, no GrTool capability package.
+GMRES, multigrid, and Schwarz are in-tree per the GrTools vendoring precedent;
+no GPU, no AD, no IO, no GrTools capability package.
 
 ## Conventions
 

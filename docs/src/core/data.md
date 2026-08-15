@@ -1,6 +1,6 @@
-# Data (`GrToolData`)
+# Data (`GrToolsData`)
 
-Tier-1 core **data spine** of GrTool. Every on-disk corpus the physics packages consume — H1Lorenz
+Tier-1 core **data spine** of GrTools. Every on-disk corpus the physics packages consume — H1Lorenz
 retarded-field modes, FEW/KerrBackwards Teukolsky amplitude and flux grids, the ZNAmps Kerr
 eccentric-equatorial B-spline coefficients, the ROMAN NN weights, PN `.dat` series and Mathematica
 `.wl`/`.m` catalogs — is read through this one package. The schema *shapes* (`H1Schema`,

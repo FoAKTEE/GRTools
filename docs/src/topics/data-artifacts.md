@@ -1,14 +1,14 @@
 # Data artifacts
 
-*This page is the single home for the GrTool data-artifact story (design doc §10, per the §12
+*This page is the single home for the GrTools data-artifact story (design doc §10, per the §12
 single-source rule): the schema contract, the HDF5/JLD2 extension-trigger rule, the injected data
 root, the reader families, and the format separation between the on-disk dialects. The
 [Data](../core/data.md) core page and the capability pages link here rather than restating it.*
 
-GrTool packages consume large precomputed corpora — H1Lorenz retarded-field modes, FEW /
+GrTools packages consume large precomputed corpora — H1Lorenz retarded-field modes, FEW /
 KerrBackwards Teukolsky amplitude and flux grids, the ZNAmps Kerr eccentric-equatorial B-spline
 coefficients, ROMAN NN weights, PN series catalogs, WaSABI flux tables, ModifiedGravity source-mode
-tables. All of it flows through the tier-1 `Data` package (`GrToolData`) under three binding
+tables. All of it flows through the tier-1 `Data` package (`GrToolsData`) under three binding
 rules: a **versioned schema contract** decoupled from storage, an **extension-trigger rule** that
 keeps HDF5/JLD2 out of the numeric path, and an **injected data root** that forbids path escapes.
 

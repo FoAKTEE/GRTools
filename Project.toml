@@ -1,10 +1,10 @@
-name = "GrTool"
+name = "GrTools"
 uuid = "d866091c-02d1-4515-9122-6c0c359beda3"
-authors = ["GrTool contributors"]
+authors = ["GrTools contributors"]
 version = "0.1.0"
 
-# Umbrella package over the GrTool suite: `using GrTool` loads every core and
-# capability package and exposes each as `GrTool.<PackageName>` (no symbol
+# Umbrella package over the GrTools suite: `using GrTools` loads every core and
+# capability package and exposes each as `GrTools.<PackageName>` (no symbol
 # re-export — subpackage APIs never collide). Individual packages remain fully
 # usable on their own via `Pkg.develop(path="core/<P>")` / `path="capabilities/<P>"`.
 

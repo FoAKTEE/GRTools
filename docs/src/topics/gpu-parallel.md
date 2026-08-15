@@ -1,6 +1,6 @@
 # GPU / Parallel
 
-Single-source topic page (design §8 / §12): **this page is the home of the GrTool parallelism and
+Single-source topic page (design §8 / §12): **this page is the home of the GrTools parallelism and
 GPU-gating rules**. Package pages ([Kernels](../core/kernels.md), [NumericsCore](../core/numericscore.md),
 [EMRIWaveforms](../capabilities/emriwaveforms.md), [SelfForce](../capabilities/selfforce.md),
 [Hybrid](../capabilities/hybrid.md), [AccretionDisc](../capabilities/accretiondisc.md)) link here rather
@@ -32,7 +32,7 @@ GPU support is a **CPU-first optional extension** of `Kernels`:
 **Lease model.** GPU occupancy is *operator-signalled*: the device is used only when the operator
 (a) loads `CUDA`/`AMDGPU` into the environment and (b) explicitly requests
 `select_backend(gpu=true, kind=:cuda)` (or `:rocm`). There is deliberately **no free-memory probing** —
-no code path in GrTool queries device memory or `CUDA.functional()`-style availability to auto-select a
+no code path in GrTools queries device memory or `CUDA.functional()`-style availability to auto-select a
 backend (grep-verified). When the massive GPU is leased to another heavy run, the operator simply does
 not request it, and everything resolves to `CPUBackend()`.
 

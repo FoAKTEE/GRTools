@@ -1,6 +1,6 @@
 # AccretionDisc
 
-Tier-6 EMRI-accretion-disc capability (GrTool design §4.10) — the **top of the capability DAG**;
+Tier-6 EMRI-accretion-disc capability (GrTools design §4.10) — the **top of the capability DAG**;
 nothing depends on it. The Lindblad-torque / spiral-density-wave disc front-end.
 
 ## Physics owned
@@ -34,7 +34,7 @@ resonance torque.
 
 ## Dependencies
 
-GrTool: `NumericsCore`, `Data`, `Spacetime`, `Harmonics`, `Perturbation`, `MetricReconstruction`.
+GrTools: `NumericsCore`, `Data`, `Spacetime`, `Harmonics`, `Perturbation`, `MetricReconstruction`.
 External: `HDF5` (Force submodule only).
 
 ## Grounding

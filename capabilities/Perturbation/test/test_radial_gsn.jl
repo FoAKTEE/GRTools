@@ -145,7 +145,7 @@ const GSNCFG = (rsin=RSIN_FIX, rsout=RSOUT_FIX, autowiden=false)
         worst_amp = 0.0; worst_prof = 0.0; worst_gsn = 0.0; worst_sanity = 0.0
         for (s, l, m, a, omega) in modes
             lam_fix = amps[(s, l, m, a, omega, 1)][1]
-            # OQ-5 λ-source gate: GrTool Harmonics vs the upstream SWSH.jl per-row value
+            # OQ-5 λ-source gate: GrTools Harmonics vs the upstream SWSH.jl per-row value
             lam_h = SpinWeightedSpheroidalEigenvalue(s, l, m, a * omega)
             @test abs(real(lam_h) - lam_fix) <= 1e-11 * max(1.0, abs(lam_fix))
             R = TeukolskyRadial(s, l, m, a, omega; method=:GSN, nu=0.0 + 0.0im, gsn=GSNCFG)

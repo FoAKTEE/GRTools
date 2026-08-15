@@ -1,6 +1,6 @@
 name = "Data"
 uuid = "2e9be357-8831-4976-ad1c-c30f98102c3a"
-authors = ["GrTool capability migration (Claude)"]
+authors = ["GrTools capability migration (Claude)"]
 version = "0.1.0"
 
 [deps]
@@ -32,7 +32,7 @@ julia = "1.10"
 # struct to a temp .h5/.jld2, read it back, assert identity) plus the checksum-verified cached FEW
 # grids on disk — so HDF5/JLD2 are LIVE test deps (they fire the weakdep-ext under test) and NO heavy
 # legacy package is pulled into the test sandbox.
-# TestKit is a TEST-ONLY GrTool dep powering the §7.7 hygiene gates (test/hygiene.jl).
+# TestKit is a TEST-ONLY GrTools dep powering the §7.7 hygiene gates (test/hygiene.jl).
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"

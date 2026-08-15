@@ -1,4 +1,4 @@
-# GrTool Documenter site (§12 of GRTOOLS_DESIGN_CAPABILITY.md).
+# GrTools Documenter site (§12 of GRTOOLS_DESIGN_CAPABILITY.md).
 # One site, page-per-capability. Local build only (no deploydocs).
 #
 # Build:  julia --project=docs docs/make.jl   (from repo root)
@@ -28,7 +28,7 @@ using AccretionDisc
 using ScalarSelfForce
 
 makedocs(
-    sitename = "GrTool",
+    sitename = "GrTools",
     # Local/standalone site: no remote-repository detection (restore a Remotes.GitHub
     # entry here if the site is ever deployed with edit links).
     remotes = nothing,

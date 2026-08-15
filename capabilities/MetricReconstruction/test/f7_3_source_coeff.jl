@@ -4,7 +4,7 @@
 #   The owner's Mathematica script builds the a_ij^(ν) by inserting CCK/ORG fields into the
 #   Campanelli–Lousto B.11 bracket, applying the outer d4^(0), and reducing angular products.
 #   NONE of that is used here. This gate uses ONLY:
-#     (i)  the App B Chandrasekhar operators P=D_2† and D_1, which GrTool' `Dn` ladder ALREADY
+#     (i)  the App B Chandrasekhar operators P=D_2† and D_1, which GrTools' `Dn` ladder ALREADY
 #          implements (Dn(+1,2)=D_2†, Dn(-1,1)=D_1) — built from Chandrasekhar/Ma–Yang directly,
 #          predating this paper's script;
 #     (ii) the single radial field equation (ΔD_1D_2† + 6iωr − λ_+)R = 0 (App B / Sec VII.A);
@@ -13,12 +13,12 @@
 #
 # GATES
 #   G-F7-3a  Quotient relation R'' = F R' + G R (Eq. R-second-derivative-reduction). DOUBLE-ENTRY:
-#            F,G extracted from the GrTool operator composition Dn(-1,1)∘Dn(+1,2) (shipped ladders)
+#            F,G extracted from the GrTools operator composition Dn(-1,1)∘Dn(+1,2) (shipped ladders)
 #            vs. the tex closed forms F=−6(r−1)/Δ, G=−U'−VU−T. Plus residual-vanishing on the
-#            GrTool-built radial operator.  Uses NO a_ij — pure operator algebra (non-circular).
+#            GrTools-built radial operator.  Uses NO a_ij — pure operator algebra (non-circular).
 #   G-F7-3b  Named entries as convention-independent rational-function identities under Γ+Γ̄=2r:
 #            the machine r-form (generated .tex) == the hand-written Γ-form (Appendix C), evaluated
-#            as GrTool RTJets (value + ∂_r,∂_θ,∂_rr,∂_θθ,∂_rθ) at generic Kerr (r,θ). 6 entries
+#            as GrTools RTJets (value + ∂_r,∂_θ,∂_rr,∂_θθ,∂_rθ) at generic Kerr (r,θ). 6 entries
 #            spanning A_1..A_4 incl. all three source-level-fixed entries a_11^(1),a_04^(3),a_33^(3).
 #            NON-CIRCULAR: the two forms are DISTINCT strings equal only under Γ+Γ̄=2r; substituting
 #            one form on both sides would trivially pass and miss an r-form simplification error.
@@ -64,7 +64,7 @@ _cvt(::Type{C}, x::Integer) where {C} = C(x)
 _cvt(::Type{T}, x) where {T<:AbstractFloat} = T(x)
 
 # ───────────────────────────── G-F7-3a: quotient relation (double-entry) ───────────────────────────
-# Uses the SHIPPED GrTool `Dn` on a SepField: value(D_1 D_2† R) with a generic radial jet
+# Uses the SHIPPED GrTools `Dn` on a SepField: value(D_1 D_2† R) with a generic radial jet
 # [R,R',R'',0,0], then the radial operator L = Δ·(D_1 D_2† R) + (6iωr−λ)R. Extract F_op,G_op as the
 # quotient of the linear-form coefficients in (R,R',R''); compare to the tex closed forms.
 function f73_quotient(::Type{C}, a, r, ω, m, λ) where {C}
@@ -168,10 +168,10 @@ f73_named_entries() = [
     ("a_11^(4)", (Γ,Γb,r)-> 15*(3*Γ - 4*Γb)/(2*Γb^7),       (Γ,Γb,r)-> (45*Γ - 60*Γb)/(2*Γb^7)),
 ]
 
-# Evaluate a named entry as an RTJet at generic Kerr (r,θ): Γ=ζ̄=r+iacosθ, Γb=ζ=r−iacosθ (GrTool).
+# Evaluate a named entry as an RTJet at generic Kerr (r,θ): Γ=ζ̄=r+iacosθ, Γb=ζ=r−iacosθ (GrTools).
 function f73_entry_rtjet(f, ::Type{C}, a, r, θ) where {C}
-    Γ  = RAD._rt_zetabar(C, a, r, θ)     # paper Γ  = GrTool ζ̄
-    Γb = RAD._rt_zeta(C, a, r, θ)        # paper Γ̄  = GrTool ζ
+    Γ  = RAD._rt_zetabar(C, a, r, θ)     # paper Γ  = GrTools ζ̄
+    Γb = RAD._rt_zeta(C, a, r, θ)        # paper Γ̄  = GrTools ζ
     rr = RAD._rt_r(C, r)
     f(Γ, Γb, rr)
 end

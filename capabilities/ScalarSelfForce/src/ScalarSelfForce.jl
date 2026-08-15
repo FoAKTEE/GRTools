@@ -1,8 +1,8 @@
 """
     ScalarSelfForce
 
-ScalarSelfForce (GrToolScalarSelfForce) — the m-mode ELLIPTIC Kerr scalar self-force
-capability: the GrTool reproduction of arXiv:2606.04998 (Vu et al., "Self-force
+ScalarSelfForce (GrToolsScalarSelfForce) — the m-mode ELLIPTIC Kerr scalar self-force
+capability: the GrTools reproduction of arXiv:2606.04998 (Vu et al., "Self-force
 calculations with numerical relativity methods"). It owns the PHYSICS of the elliptic
 formulation and consumes the physics-free hp-DG solver stack from `core/EllipticCore`.
 

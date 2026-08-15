@@ -1,8 +1,8 @@
 """
-    Wigner (GrToolWigner)
+    Wigner (GrToolsWigner)
 
 Hand-rolled angular-momentum coupling — the Tier-1 core stratum (C2) that ELIMINATES the
-`WignerSymbols` package from every GrTool runtime path (design §5.3 / §7.4 / L4). Its only
+`WignerSymbols` package from every GrTools runtime path (design §5.3 / §7.4 / L4). Its only
 dependency is `NumericsCore`; it sits BESIDE `Harmonics`, never on the in-degree light-numeric
 spine.
 

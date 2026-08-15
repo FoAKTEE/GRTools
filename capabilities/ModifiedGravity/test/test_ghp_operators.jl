@@ -4,7 +4,7 @@
 #  (1) schw_spincoeff literals — transcribed from Sourceincoordinates.nb Schwspincoeff (SC): ρ=−1/r,
 #      ρ′=(r−2M)/2r², ε′=ε′†=−M/2r², ψ₂=−M/r³. Exact rationals at r=6, M=1.
 #  (2) þ ≡ 𝒟† at a=0,m=0 — thorn is the Kinnersley l-leg derivative iωr²/Δ+∂_r, which is EXACTLY the
-#      Chandrasekhar 𝒟†=∂_r+c (c=iK/Δ, K=ωr² at a=0,m=0) of Operators.jet_ops.opDd (in-GrTool cross-
+#      Chandrasekhar 𝒟†=∂_r+c (c=iK/Δ, K=ωr² at a=0,m=0) of Operators.jet_ops.opDd (in-GrTools cross-
 #      check that thorn reuses the SAME radial jet calculus, including the ω time part).
 #  (3) þ′ n-leg directional part — at ω=0, weight-0, þ′g|₀ = n^r g′ = −(Δ/2r²)g′(r0), and the extracted
 #      derivative g′(r0) equals Operators.opD(jet)|₀ (opD=∂_r at ω=0).

@@ -1,6 +1,6 @@
 name = "Perturbation"
 uuid = "12c091d5-3f53-42c4-bffe-b2905e161585"
-authors = ["GrTool capability migration (Claude)"]
+authors = ["GrTools capability migration (Claude)"]
 version = "0.1.0"
 
 # Tier-3 vacuum/test perturbed-field solver (design §4.3): the Teukolsky-radial engine + MST
@@ -40,7 +40,7 @@ julia = "1.10"
 HypergeometricFunctions = "0.3"
 SpecialFunctions = "2"
 
-# TestKit (+its Data spine) is a TEST-ONLY GrTool dep powering the §7.7 hygiene gates (test/hygiene.jl).
+# TestKit (+its Data spine) is a TEST-ONLY GrTools dep powering the §7.7 hygiene gates (test/hygiene.jl).
 # Data here is TEST-ONLY infrastructure for TestKit — it is NOT a runtime [deps] (firewall intact).
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

@@ -18,7 +18,7 @@
 #
 # CG-EQUIVALENCE gate (gate B, dossier §2.2 DERIVED/CHECK3):
 #   ⟨ₛY_{ℓ′m}|cosθ|ₛYₗₘ⟩ = √((2ℓ+1)/(2ℓ′+1)) · ⟨ℓ,m;1,0|ℓ′,m⟩ · ⟨ℓ,−s;1,0|ℓ′,−s⟩
-# baked one-shot from GrTool core/Wigner.clebsch_gordan (scratchpad/capture_spin_cg_fixture.jl)
+# baked one-shot from GrTools core/Wigner.clebsch_gordan (scratchpad/capture_spin_cg_fixture.jl)
 # into test/fixtures/spin_cg_reference.jl — Wigner is NOT a runtime dep (firewall preserved).
 
 """

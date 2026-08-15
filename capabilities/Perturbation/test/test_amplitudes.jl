@@ -5,7 +5,7 @@
 # Ref=InRef/InTrans, …) match the legacy radial amplitude accessors R.In/Up.amplitudes at the
 # legacy tolerance (Teukolsky/test/runtests.jl lines 243-300: In rtol 1e-7, Up rtol 1e-7).
 # Legacy oracle values (ν,λ inputs + amplitude RHS) BAKED once into fixtures/leg_amplitudes.jl
-# (Phase 7-B); the GrTool side + tolerances are unchanged.
+# (Phase 7-B); the GrTools side + tolerances are unchanged.
 include("fixtures/leg_amplitudes.jl")  # REF_AMP1 / REF_AMP2 / REF_AMP3
 
 @testset "AmplitudesFluxes :: _mst_amplitudes vs Teukolsky radial amplitudes (baked, captured once)" begin

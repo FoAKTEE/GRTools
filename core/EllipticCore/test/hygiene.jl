@@ -1,7 +1,7 @@
-# Binding CI hygiene gates for EllipticCore (elliptic-ssf DESIGN.md §1.3 + §6.4; GrTool
+# Binding CI hygiene gates for EllipticCore (elliptic-ssf DESIGN.md §1.3 + §6.4; GrTools
 # GRTOOLS_DESIGN_CAPABILITY.md §7.7 gates 1+2). Budget: {LinearAlgebra, SparseArrays,
 # NumericsCore} — zero physics: no external Krylov/AMG package (GMRES/MG/Schwarz are
-# in-tree), no GPU/AD/IO axes, and no GrTool capability may ever enter this core closure.
+# in-tree), no GPU/AD/IO axes, and no GrTools capability may ever enter this core closure.
 using Test
 using TestKit
 
@@ -11,7 +11,7 @@ ts_hygiene = @testset "hygiene (§7.7 gates)" begin
         forbid=["Krylov", "IterativeSolvers", "AlgebraicMultigrid", "CUDA", "AMDGPU",
                 "KernelAbstractions", "OrdinaryDiffEq*", "HDF5", "JLD2", "ForwardDiff",
                 "SpecialFunctions", "HypergeometricFunctions", "QuadGK",
-                # physics never enters core: every GrTool capability is poison here
+                # physics never enters core: every GrTools capability is poison here
                 "AccretionDisc", "EMRIWaveforms", "Harmonics", "Hybrid",
                 "MetricReconstruction", "ModifiedGravity", "Perturbation",
                 "PostNewtonian", "SelfForce", "ScalarSelfForce", "Spacetime"])

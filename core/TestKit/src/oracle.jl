@@ -1,4 +1,4 @@
-# Leaf tolerance + oracle harness for the GrTool capability packages (design §5.6 / DAG §GrToolTestKit).
+# Leaf tolerance + oracle harness for the GrTools capability packages (design §5.6 / DAG §GrToolsTestKit).
 #
 # This is the dependency LEAF of TestKit: it depends on nothing but `Test` (+ stdlib `Printf` for one
 # error message), so it cold-compiles instantly. It owns three pieces:

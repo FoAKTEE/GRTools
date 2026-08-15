@@ -11,7 +11,7 @@ using REPL   # Julia >=1.11: docstring lookup (@doc) is a no-op unless REPL is l
         @test EllipticCore isa Module
         @test pkgversion(EllipticCore) == v"0.1.0"
         docstr = string(@doc EllipticCore)
-        @test occursin("EllipticCore (GrToolElliptic)", docstr)   # alias-line convention
+        @test occursin("EllipticCore (GrToolsElliptic)", docstr)   # alias-line convention
         @test occursin("LinearAlgebra, SparseArrays, NumericsCore", docstr)  # dep budget stated
     end
 

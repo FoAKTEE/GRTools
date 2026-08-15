@@ -3,7 +3,7 @@
 # Run from the repository root:
 #     julia --project=. examples/07_bigfloat_precision.jl
 #
-# Every numerical path in GrTool is type-generic in the element type: BigFloat
+# Every numerical path in GrTools is type-generic in the element type: BigFloat
 # inputs inherit the active setprecision(BigFloat, bits) end-to-end, with no
 # silent Float64 waypoints. This example measures it: the same quantity computed
 # at 256 and at 512 bits must agree to ~the 256-bit floor, far beyond Float64.

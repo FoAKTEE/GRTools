@@ -1,6 +1,6 @@
 # [Conventions](@id topic-conventions)
 
-The cross-cutting convention surface of GrTool: the unified negative-``m`` parity flag,
+The cross-cutting convention surface of GrTools: the unified negative-``m`` parity flag,
 the dimensionless MST/EMRI convention helpers, and the split-named physical constants.
 This page is the **single home** of the topic (design §12) — package pages
 ([Harmonics](../capabilities/harmonics.md), [NumericsCore](../core/numericscore.md),
@@ -18,7 +18,7 @@ Everything below lives in exactly two places:
 The legacy packages disagreed on how to *package* the negative-``m`` spin-weighted
 spherical harmonic: FEW's `GetYlms` and KerrBackwards' `ylm_few` apply a ``(-1)^\ell``
 operator, the scalar/real-``Y`` users (DiscModes, Punctures) build ``m<0`` from the
-reality relation, and BHPT-style code uses the bare seed. GrTool collapses these forks
+reality relation, and BHPT-style code uses the bare seed. GrTools collapses these forks
 into **one parity-flagged front door**:
 
 ```julia
@@ -108,7 +108,7 @@ body.
 The legacy forks disagreed on more than naming: KerrBackwards carries the canonical
 **LAL** (`global.h`) values while FastEMRIWaveforms re-derives from `lisaconstants 2.0.2`
 (a slightly different ``GM_\odot``), so `MTSUN`/`MRSUN`/`YRSID` differed at ``\sim 10^{-7}``
-relative. GrTool takes the **LAL values as canonical**. Separately, the bare symbol
+relative. GrTools takes the **LAL values as canonical**. Separately, the bare symbol
 `Gpc` *collided* between packages — metres in FEW but light-seconds in the C `GPCINSEC` —
 so it is **split into two distinct named axes**:
 
@@ -132,7 +132,7 @@ Pick the axis by what the formula divides by:
 - **time conversions** — `EMRIWaveforms.Trajectory` converts observation years to
   dimensionless time via `T * YRSID_SI / (Mtot * MTSUN_SI)`.
 
-## [Hyperboloidal charts in GrTool](@id conventions-hyperboloidal)
+## [Hyperboloidal charts in GrTools](@id conventions-hyperboloidal)
 
 The time-domain solvers use **three distinct hyperboloidal charts**. "Hyperboloidal" is an
 *umbrella property*, not one chart: the constant-time slices are spacelike yet reach future null

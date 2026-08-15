@@ -1,7 +1,7 @@
 """
     EMRIWaveforms
 
-GrTool tier-5 capability: the EMRI trajectory + observed-waveform pipeline (design §4.8, §6.8),
+GrTools tier-5 capability: the EMRI trajectory + observed-waveform pipeline (design §4.8, §6.8),
 fusing FastEMRIWaveforms and KerrBackwards. HDF5 HOME #2.
 
 # Submodules (pipeline order)

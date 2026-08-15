@@ -1,6 +1,6 @@
-# NumericsCore (`GrToolBase`)
+# NumericsCore (`GrToolsBase`)
 
-The **dimensionless math + infrastructure sink** of GrTool. It is the unique root of the
+The **dimensionless math + infrastructure sink** of GrTools. It is the unique root of the
 dependency DAG: its only dependency is `LinearAlgebra`. A CI dep-budget gate keeps
 it from re-growing — no heavy deps (HypergeometricFunctions, SpecialFunctions, HDF5, Symbolics,
 KernelAbstractions, ODE solvers) and **no physics geometry** (geometry is `Spacetime` physics).

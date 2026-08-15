@@ -1,6 +1,6 @@
 name = "Harmonics"
 uuid = "abf3daaf-bc8b-489b-a3fd-54920b7d8f29"
-authors = ["GrTool capability migration (Claude)"]
+authors = ["GrTools capability migration (Claude)"]
 version = "0.1.0"
 
 # Tier-2 spine root (design §4.2): the angular-eigenfunction FOUNDATION — SWSH eigenvalues +
@@ -24,7 +24,7 @@ julia = "1.10"
 # Phase7-B: the SpinWeightedSpheroidalHarmonics test-characterization oracle was BAKED into
 # test/fixtures/*_ref.jl (captured once from the legacy port on the exact test arg grids), so
 # the test suite no longer needs packages/* to run. The runtime package carries NO SWSH dep.
-# TestKit (+its Data spine) is a TEST-ONLY GrTool dep powering the §7.7 hygiene gates (test/hygiene.jl).
+# TestKit (+its Data spine) is a TEST-ONLY GrTools dep powering the §7.7 hygiene gates (test/hygiene.jl).
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 TestKit = "a6b7dd63-3a78-412f-8db2-e0e7b8b9a65d"

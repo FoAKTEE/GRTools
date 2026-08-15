@@ -1,4 +1,4 @@
-# GrTool examples
+# GrTools examples
 
 Self-contained, runnable scripts demonstrating the suite. Each prints labeled
 results with built-in cross-checks against exact limits or identities.

@@ -1,6 +1,6 @@
-# BigSpecial (`GrToolBigSpecial`)
+# BigSpecial (`GrToolsBigSpecial`)
 
-Tier-1 core stratum: the `Complex{BigFloat}` special-functions layer for GrTool
+Tier-1 core stratum: the `Complex{BigFloat}` special-functions layer for GrTools
 (design §5.2). Kept SEPARATE from `NumericsCore` so that `HypergeometricFunctions`
 and `SpecialFunctions` never leak onto the NumericsCore-only spine
 (`KerrGeodesics` empty-deps, `SpinWeightedSpheroidalHarmonics` LinearAlgebra-only).

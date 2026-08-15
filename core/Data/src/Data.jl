@@ -1,7 +1,7 @@
 """
-    Data (GrToolData)
+    Data (GrToolsData)
 
-Tier-1 core data spine for GrTool. Owns the I/O BODIES behind the dep-free
+Tier-1 core data spine for GrTools. Owns the I/O BODIES behind the dep-free
 `DataSchema` contract structs (`H1Schema`/`AmpGridSchema`/`FluxGridSchema`, defined in
 `NumericsCore.dataschema`):
 

@@ -1,19 +1,19 @@
 """
-    GrTool
+    GrTools
 
-Umbrella module for the GrTool suite — Julia packages for black-hole perturbation
+Umbrella module for the GrTools suite — Julia packages for black-hole perturbation
 theory: Kerr geometry, spin-weighted harmonics, the Teukolsky equation, metric
 reconstruction, gravitational and scalar self-force, post-Newtonian expansions,
 EMRI waveforms, and relativistic accretion-disc modes.
 
-`using GrTool` loads every package in the suite; each is exposed as a qualified
-submodule binding (`GrTool.Spacetime`, `GrTool.Perturbation`, …). No symbols are
+`using GrTools` loads every package in the suite; each is exposed as a qualified
+submodule binding (`GrTools.Spacetime`, `GrTools.Perturbation`, …). No symbols are
 re-exported at the top level, so subpackage APIs never collide — bring the ones you
 want into scope yourself:
 
 ```julia
-using GrTool
-using GrTool.Spacetime, GrTool.Perturbation
+using GrTools
+using GrTools.Spacetime, GrTools.Perturbation
 ```
 
 or depend on the individual packages directly (each is an independent Julia package
@@ -53,7 +53,7 @@ coordinates; Kinnersley tetrad; fields `∝ e^{i(mφ − ωt)}`. Every numerical
 type-generic: BigFloat inputs inherit the active `setprecision(BigFloat, bits)`
 end-to-end.
 """
-module GrTool
+module GrTools
 
 # Core tier
 import NumericsCore
@@ -77,14 +77,14 @@ import EMRIWaveforms
 import Hybrid
 import AccretionDisc
 
-# The subpackages, exposed as qualified bindings (GrTool.Spacetime, …).
+# The subpackages, exposed as qualified bindings (GrTools.Spacetime, …).
 export NumericsCore, BigSpecial, Data, TestKit, Wigner, Kernels, EllipticCore,
        Spacetime, Harmonics, Perturbation, MetricReconstruction, SelfForce,
        ScalarSelfForce, PostNewtonian, ModifiedGravity, EMRIWaveforms, Hybrid,
        AccretionDisc
 
 """
-    GrTool.PACKAGES
+    GrTools.PACKAGES
 
 NamedTuple of the suite's packages grouped by tier — `PACKAGES.core` and
 `PACKAGES.capabilities`, each a tuple of the loaded subpackage modules.
@@ -96,4 +96,4 @@ const PACKAGES = (
                     EMRIWaveforms, Hybrid, AccretionDisc),
 )
 
-end # module GrTool
+end # module GrTools

@@ -1,6 +1,6 @@
 # ModifiedGravity
 
-Beyond-GR (modified Teukolsky) source machinery — a thin, independently versioned GrTool research
+Beyond-GR (modified Teukolsky) source machinery — a thin, independently versioned GrTools research
 capability (design §4.7, Tier-4).
 
 ## Physics owned

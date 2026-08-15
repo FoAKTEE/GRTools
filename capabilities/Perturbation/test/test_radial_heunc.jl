@@ -36,7 +36,7 @@ const _HEUNC_PTS = [
 end
 
 # Well-conditioned real-ν modes (same shape as the legacy REF_HEUNC_RAD oracle). λ,ν pinned so the
-# GrTool + legacy backends are apples-to-apples (identical inputs → the HeunC math is the same port).
+# GrTools + legacy backends are apples-to-apples (identical inputs → the HeunC math is the same port).
 const _HEUNC_MODES = [
     (s=-2, l=2, m=2, a=0.5, w=0.3),
     (s=-2, l=2, m=1, a=0.9, w=0.2),
@@ -55,7 +55,7 @@ const _HEUNC_MODES = [
         for (j, rr) in enumerate((2.1, 3.0, 5.0, 10.0))
             # same confluent-Heun port on identical (λ,ν) → In agrees to ~machine; Up = Refl·In +
             # Inc·conj is a cancellation-limited difference at large r (identical conditioning in
-            # both backends), so its GrTool-vs-legacy tolerance is relaxed with r.
+            # both backends), so its GrTools-vs-legacy tolerance is relaxed with r.
             @test isapprox(Rg.In(rr), leg.vin[j]; rtol=1e-9)
             rtolUp = rr ≤ 3.0 ? 1e-8 : rr ≤ 5.0 ? 1e-7 : 1e-5
             @test isapprox(Rg.Up(rr), leg.vup[j]; rtol=rtolUp)
@@ -72,7 +72,7 @@ end
         Rg = TeukolskyRadial(md.s, md.l, md.m, md.a, md.w; method=:HeunC, lambda=lam, nu=nu)
         for (j, rr) in enumerate((3.0, 5.0))
             # legacy teukolsky_radial_deriv on a :HeunC carrier physically returns the MST derivative;
-            # the GrTool analytic confluent-Heun derivative is the SAME physical solution → agrees to
+            # the GrTools analytic confluent-Heun derivative is the SAME physical solution → agrees to
             # the shared well-conditioned tolerance.
             @test isapprox(teukolsky_radial_deriv(Rg.In, rr), leg.din[j]; rtol=1e-7)
             rtolUp = rr ≤ 3.0 ? 1e-7 : 1e-5

@@ -1,7 +1,7 @@
 """
-    NumericsCore (GrToolBase)
+    NumericsCore (GrToolsBase)
 
-Dimensionless math + infrastructure spine for GrTool — the unique DAG sink whose
+Dimensionless math + infrastructure spine for GrTools — the unique DAG sink whose
 ONLY dependency is `LinearAlgebra`. It carries no physics geometry; that
 lives in `Spacetime`. Everything here is type-generic `{T}` so BigFloat precision is
 inherited, never hard-Float64'd on a generic path.

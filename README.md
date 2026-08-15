@@ -1,9 +1,9 @@
-# GrTool.jl
+# GrTools.jl
 
 **A next-generation Julia toolkit for black-hole perturbation theory and
 extreme-mass-ratio-inspiral (EMRI) science.**
 
-GrTool consolidates the calculations that this field has historically spread
+GrTools consolidates the calculations that this field has historically spread
 across many single-purpose research codes — Teukolsky solvers, harmonic
 libraries, geodesic integrators, self-force pipelines, waveform generators —
 into one coherently engineered suite: 11 physics **capability** packages
@@ -49,16 +49,16 @@ Clone and instantiate — packages reference each other with relative-path
 `[sources]` entries, so no registry setup is needed:
 
 ```bash
-git clone <this-repo> GrTool.jl
-cd GrTool.jl
+git clone <this-repo> GrTools.jl
+cd GrTools.jl
 julia --project=. -e 'using Pkg; Pkg.instantiate()'
 ```
 
 Then either load the whole suite through the umbrella package:
 
 ```julia
-using GrTool
-GrTool.Spacetime.kerr_isco(0.9)
+using GrTools
+GrTools.Spacetime.kerr_isco(0.9)
 ```
 
 or work in a single package's own project (each stands alone):
@@ -70,8 +70,8 @@ julia --project=capabilities/Perturbation -e 'using Pkg; Pkg.instantiate(); Pkg.
 ## Quickstart
 
 ```julia
-using GrTool
-using GrTool.Spacetime, GrTool.Perturbation, GrTool.Harmonics
+using GrTools
+using GrTools.Spacetime, GrTools.Perturbation, GrTools.Harmonics
 
 # Kerr bound geodesic: constants of motion and fundamental frequencies
 com  = constants_of_motion(0.9, 8.0, 0.3, 0.8)      # (a, p, e, x) -> E, Lz, Q

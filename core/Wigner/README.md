@@ -1,6 +1,6 @@
-# Wigner (GrToolWigner) — core stratum C2
+# Wigner (GrToolsWigner) — core stratum C2
 
-Hand-rolled angular-momentum coupling for GrTool. This package exists to **eliminate the
+Hand-rolled angular-momentum coupling for GrTools. This package exists to **eliminate the
 `WignerSymbols` package** from every runtime path (design §5.3 / §7.4 / L4): it hosts the
 promoted hand-rolled implementations so the consumers that previously hand-rolled or
 `[deps]`-ed Wigner inherit **no** new heavy dependency.

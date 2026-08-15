@@ -1,6 +1,6 @@
 name = "AccretionDisc"
 uuid = "41b4f346-9cfd-4132-92af-b9cd45d2bbed"
-authors = ["GrTool capability migration (Claude)"]
+authors = ["GrTools capability migration (Claude)"]
 version = "0.1.0"
 
 # Tier-6 EMRI-accretion-disc capability (design §4.10), the TOP of the capability DAG (nothing
@@ -40,7 +40,7 @@ MetricReconstruction = {path = "../MetricReconstruction"}
 # (pulls Teukolsky/KerrGeodesics/SWSH/FastGaussQuadrature) so it is NOT a live [targets].test dep:
 # κ_r² is grounded by the geodesic closed form, the disc-mode leaves by captured arXiv:2601.19123 /
 # DiscModes one-shot fixtures (capture scripts cited in the test files). The path is recorded here
-# for the capture scripts only; the test cold-compile resolves the LIGHT GrTool deps only.
+# for the capture scripts only; the test cold-compile resolves the LIGHT GrTools deps only.
 # DiscModes (packages/DiscModes) is the MODERATE/HEAVY disc-mode oracle — NOT a live test-dep
 # (a [sources] entry without a matching test-target dep orphans in the Pkg test sandbox). Its
 # closed-form profiles (csound/eden0/Delta_r/_risco) were captured ONCE as Float64 fixtures baked

@@ -1,4 +1,4 @@
-# Dep-free DataSchema contract structs — the infra seam that `GrToolData` fills with HDF5/JLD2
+# Dep-free DataSchema contract structs — the infra seam that `GrToolsData` fills with HDF5/JLD2
 # bodies. NO HDF5 here: these are pure struct shapes + field-invariant validators, so the grid/inhom
 # layout is a VERSIONED CONTRACT decoupled from the storage backend.
 #
@@ -22,7 +22,7 @@ const SCHEMA_VERSION = 1
 Versioned contract for one H1Lorenz `(l,m)` mode file: radial `grid`, the split inhomogeneous-field
 tables `inhom_left` (`4nf × (r0index+1)`) and `inhom_right` (`4nf × (gs−r0index)`), asymptotic
 amplitude vectors `C_inf`/`C_horiz`, and the important grid indices `r0index`/`ra_index`/`rb_index`
-(0-based, as the H1 loader stores them). Struct shape only — the HDF5 body lives in `GrToolData`.
+(0-based, as the H1 loader stores them). Struct shape only — the HDF5 body lives in `GrToolsData`.
 """
 struct H1Schema{T}
     grid::Vector{T}
@@ -40,7 +40,7 @@ end
 
 Versioned contract for a Teukolsky amplitude grid (FEW `ampinterp2d`): the interpolation axes
 `w` (eccentricity `e`) and `u` (`y(p,e)`), strictly increasing, and the stored `(l,m,n)` mode list.
-Each mode's surface is a `length(w) × length(u)` matrix (the body lives in `GrToolData`).
+Each mode's surface is a `length(w) × length(u)` matrix (the body lives in `GrToolsData`).
 """
 struct AmpGridSchema{T}
     w::Vector{T}
@@ -53,7 +53,7 @@ end
 
 Versioned contract for one Kerr flux-grid region (FEW `kerrflux`): the tricubic axes `u`,`w`,`z`
 (each strictly increasing on `[0,1]`) and the region tag (`:A` close / `:B` far). Each flux channel's
-sample array is `length(u) × length(w) × length(z)` (the body lives in `GrToolData`).
+sample array is `length(u) × length(w) × length(z)` (the body lives in `GrToolsData`).
 """
 struct FluxGridSchema{T}
     region::Symbol

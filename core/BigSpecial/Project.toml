@@ -1,6 +1,6 @@
 name = "BigSpecial"
 uuid = "60bbc8d6-d7db-4da8-98fc-f8225939f22c"
-authors = ["GrTool capability migration (Claude)"]
+authors = ["GrTools capability migration (Claude)"]
 version = "0.1.0"
 
 [deps]
@@ -20,7 +20,7 @@ julia = "1.10"
 # Test-characterization oracle values (Teukolsky MST/Leaver 2F1 + gamma_big/pochhammer)
 # are now BAKED into fixture literals in test/*.jl (captured once at 256-bit, bit-identical
 # `==` preserved), so the suite no longer needs any packages/* legacy dep to run.
-# TestKit (+its Data spine) is a TEST-ONLY GrTool dep powering the §7.7 hygiene gates (test/hygiene.jl).
+# TestKit (+its Data spine) is a TEST-ONLY GrTools dep powering the §7.7 hygiene gates (test/hygiene.jl).
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 TestKit = "a6b7dd63-3a78-412f-8db2-e0e7b8b9a65d"

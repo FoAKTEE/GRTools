@@ -1,6 +1,6 @@
 name = "TestKit"
 uuid = "a6b7dd63-3a78-412f-8db2-e0e7b8b9a65d"
-authors = ["GrTool capability migration (Claude)"]
+authors = ["GrTools capability migration (Claude)"]
 version = "0.1.0"
 
 # Tier-1 core, TEST-INFRASTRUCTURE package (design §5.6). `Test` is a normal `[deps]` here precisely
@@ -25,7 +25,7 @@ julia = "1.10"
 # legacy usages). It is grounded by SELF-TESTS (the macro passes/fails correctly, tolerance-class
 # ordering invariants, the `class_tol <= original_tol` tighten-guard, fixture round-trip via Data, and
 # the characterization gate detecting a perturbed output) — not by characterization against a physics
-# package. So the test target pulls only the (already-LIVE) GrTool deps; the cold-compile stays light.
+# package. So the test target pulls only the (already-LIVE) GrTools deps; the cold-compile stays light.
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 

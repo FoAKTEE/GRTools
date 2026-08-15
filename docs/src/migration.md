@@ -1,8 +1,8 @@
-# Migration: legacy packages → GrTool
+# Migration: legacy packages → GrTools
 
 This appendix is the function-regrouping crosswalk (§6 of
 `GRTOOLS_DESIGN_CAPABILITY.md`): for every legacy package / file / function
-group, its new GrTool home. Look up the old package you were using, find the
+group, its new GrTools home. Look up the old package you were using, find the
 capability (and submodule) that now owns the function.
 
 **★ = crosses a legacy package boundary** (an actionable reorg move — the

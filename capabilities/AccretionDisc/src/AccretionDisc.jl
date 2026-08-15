@@ -1,7 +1,7 @@
 """
     AccretionDisc
 
-Tier-6 EMRI-accretion-disc capability (design §4.10) — the TOP of the GrTool capability DAG.
+Tier-6 EMRI-accretion-disc capability (design §4.10) — the TOP of the GrTools capability DAG.
 The Lindblad-torque / spiral-density-wave disc front-end, fusing the legacy `DiscModes`
 (relativistic disc-mode solver) and `DiscEMRIForce` (circular-equatorial Kerr thin-disc torque)
 into two namespaced submodules:

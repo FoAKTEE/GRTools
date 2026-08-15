@@ -1,5 +1,5 @@
 """
-    EllipticCore (GrToolElliptic)
+    EllipticCore (GrToolsElliptic)
 
 Generic complex-parametric 2D hp-DG elliptic solver — Tier-1 core stratum, **zero
 physics** (elliptic-ssf DESIGN.md §1). Any capability with a 2D elliptic problem
@@ -28,7 +28,7 @@ Owns (DESIGN.md §2.1, one DAG node = one commit per module):
 
 Dep budget (binding, enforced by `test/hygiene.jl`): {LinearAlgebra, SparseArrays,
 NumericsCore}. No external Krylov/AMG package — GMRES/multigrid/Schwarz are in-tree
-per the GrTool vendoring precedent; no GPU, no AD, no IO, no GrTool capability.
+per the GrTools vendoring precedent; no GPU, no AD, no IO, no GrTools capability.
 
 Conventions (DESIGN.md §4): every struct is parametric in the scalar type `T<:Number`
 with geometry in `RT = real(T)` — ComplexF64 is first-class, BigFloat-compatible where

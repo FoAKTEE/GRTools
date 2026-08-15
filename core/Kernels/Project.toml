@@ -1,7 +1,7 @@
 name = "Kernels"
 uuid = "d9c6b49b-1aa6-4fec-800e-eecae98eeb2e"
 version = "0.1.0"
-authors = ["GrTool capability migration (Claude)"]
+authors = ["GrTools capability migration (Claude)"]
 
 [deps]
 KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
@@ -25,7 +25,7 @@ KernelsCUDAExt = "CUDA"
 [compat]
 julia = "1.10"
 
-# TestKit (+its Data spine) is a TEST-ONLY GrTool dep powering the §7.7 hygiene gates (test/hygiene.jl).
+# TestKit (+its Data spine) is a TEST-ONLY GrTools dep powering the §7.7 hygiene gates (test/hygiene.jl).
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 TestKit = "a6b7dd63-3a78-412f-8db2-e0e7b8b9a65d"

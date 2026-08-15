@@ -626,7 +626,7 @@ git-tree-sha1 = "83cf05ab16a73219e5f6bd1bdfa9848fa24ac627"
 uuid = "46192b85-c4d5-4398-a991-12ede77f4527"
 version = "0.2.0"
 
-[[deps.GrTool]]
+[[deps.GrTools]]
 deps = ["AccretionDisc", "BigSpecial", "Data", "EMRIWaveforms", "EllipticCore", "Harmonics", "Hybrid", "Kernels", "MetricReconstruction", "ModifiedGravity", "NumericsCore", "Perturbation", "PostNewtonian", "ScalarSelfForce", "SelfForce", "Spacetime", "TestKit", "Wigner"]
 path = "."
 uuid = "d866091c-02d1-4515-9122-6c0c359beda3"

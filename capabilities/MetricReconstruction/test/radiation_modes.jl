@@ -1,6 +1,6 @@
 # Grounding for Radiation Modes — teuk_lambda / radial_jet / angular_jet / clear_mode_caches!.
 #
-# Characterized against the already-green GrTool Harmonics/Perturbation surfaces (themselves
+# Characterized against the already-green GrTools Harmonics/Perturbation surfaces (themselves
 # grounded vs SWSH/Teukolsky) plus closed-form/field-equation identities (mirrors legacy
 # MetricReconstruction verify_modes G-M2/G-M3):
 #   • teuk_lambda  vs Harmonics.SpinWeightedSpheroidalEigenvalue + a=0,s=−2 closed form (l−1)(l+2).
@@ -32,7 +32,7 @@ import Perturbation   # Move C: radial_jet's radial/λ caches now live in Pertur
             λ = teuk_lambda(s, l, m, a, ω)
             sols = TeukolskyRadial(s, l, m, a, ω; method=:MST, lambda=λ)
             rj = radial_jet(s, l, m, a, ω, r; bc=:Up)
-            # [1],[2] match the GrTool surface directly
+            # [1],[2] match the GrTools surface directly
             @test rj[1] ≈ sols.Up(r) rtol=1e-12
             @test rj[2] ≈ teukolsky_radial_deriv(sols.Up, r) rtol=1e-12
             # eqR residual (R'' built by collapsing this equation ⇒ ≈ 0 by construction)

@@ -45,7 +45,7 @@ Chandrasekhar towers) are DIFFERENT decisions and are deliberately kept separate
 
 ## Dependencies and poison-axis budget
 
-Runtime `[deps]` (Project.toml): GrTool `NumericsCore`, `BigSpecial`, `Wigner`,
+Runtime `[deps]` (Project.toml): GrTools `NumericsCore`, `BigSpecial`, `Wigner`,
 `Spacetime`, `Harmonics`, `Perturbation`; external `QuadGK`; stdlib `LinearAlgebra`,
 `Printf`. `BigSpecial` is a SANCTIONED Rev-3 amendment on top of the §3.2 tier line
 (terminating-``{}_2F_1``/``\Gamma`` primitives used by the Lorenz submodule).

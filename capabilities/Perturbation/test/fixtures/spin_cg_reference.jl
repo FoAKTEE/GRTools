@@ -1,5 +1,5 @@
 # AUTO-GENERATED one-shot fixture — DO NOT EDIT.
-# Baked from GrTool core/Wigner clebsch_gordan (BigInt-exact Racah) by
+# Baked from GrTools core/Wigner clebsch_gordan (BigInt-exact Racah) by
 # scratchpad/capture_spin_cg_fixture.jl (julia 1.12.6).
 # Formula: <sY_l'm|cosθ|sY_lm> = sqrt((2l+1)/(2l'+1))·CG(l,m;1,0|l',m)·CG(l,-s;1,0|l',-s)
 # — dossier DG_SPIN_FORMULATION.md §2.2 (DERIVED, CHECK3), the CG-form gate of

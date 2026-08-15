@@ -2,7 +2,7 @@
 # reduced-ODE forcing source 𝔉_m — the leaf that CLOSES the Modes submodule (arXiv:2601.19123).
 # The Lindblad torque is computed by REUSING the Perturbation engine (MST amplitudes / point-particle
 # Z's) — the same Teukolsky overlap the legacy `DiscModes.lindblad_torque` used, now routed through
-# the GrTool `Perturbation` runtime dep and `Harmonics` SWSH eigenvalue. GENERAL Kerr (all spins);
+# the GrTools `Perturbation` runtime dep and `Harmonics` SWSH eigenvalue. GENERAL Kerr (all spins);
 # the equatorial geodesic/wave factors reduce to Schwarzschild at a=0. The resonance radius r1 is the
 # Lindblad root already solved by `Resonances.lindblad_locations` (AHA — the same condition
 # m(Ω−Ω_p)=±κ drives the Wronskian, the WKB turning points, and the torque). From

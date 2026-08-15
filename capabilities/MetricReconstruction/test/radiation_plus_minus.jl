@@ -29,7 +29,7 @@ import MetricReconstruction.Radiation as R
             (:IRG,:mm) => -0.510796474507245 + 4.756503171521537im,
         )
         # The verbatim block assembly is exact (test 2 matches the hand assembly to 1e-12); the residual
-        # vs legacy is the cross-Teukolsky-solver floor of the −ω/−m barred radial blocks (GrTool
+        # vs legacy is the cross-Teukolsky-solver floor of the −ω/−m barred radial blocks (GrTools
         # Perturbation vs legacy MR), ~3e-8 absolute (~5e-9 relative) at this point.
         for ((g,c), v) in ref
             got = R.component_value(g, c, a, ω, l, m, r, θ, t, φ, w; bc=:Up)

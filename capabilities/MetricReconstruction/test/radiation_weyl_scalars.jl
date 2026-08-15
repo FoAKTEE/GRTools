@@ -8,7 +8,7 @@
 # (1) H10 PHYSICS GATE (LIVE, corpus-free): for a vacuum CCK ORG reconstruction the regenerated ψ4[h_ORG] has
 #     EXACTLY the Teukolsky s=−2 (r,θ) shape ρ⁴·R^up_{−2}(r)·S_{−2}(θ), ρ=−1/(r−ia cosθ). Because both are the
 #     SAME gauge-invariant scalar, the ratio ψ4[h] / (ρ⁴·R^up·S_{−2}) is a single (r,θ)-INDEPENDENT complex
-#     constant. Grounded LIVE against GrTool Perturbation.TeukolskyRadial(−2,…) + Harmonics SWSH (both light
+#     constant. Grounded LIVE against GrTools Perturbation.TeukolskyRadial(−2,…) + Harmonics SWSH (both light
 #     built deps): constancy to <1e-9 with the :psi4_ORG preset. Likewise ψ0[h_IRG] ∝ R^up_{+2}·S_{+2} with the
 #     :psi0_IRG preset. (At a=0, ρ⁴=1/r⁴, so the shape is R^up_{−2}·S_{−2}/r⁴ — the "ψ4==Teukolsky/r⁴" gate.)
 # (2) COMPANION vacuum gate (already-green Einstein): lin_einstein_residual→0 on the same reconstructed h — the

@@ -22,7 +22,7 @@ end
 
 Teukolsky λ (= notebook `λ[s,ω,l,m]`). The eqS separation constant is `A = λ + 2amω − a²ω²`,
 matching the SWSH convention `λ = A − 2mγ + γ²` (γ=aω); so this IS the notebook λ directly. For
-BigFloat inputs the eigenvalue carries precision through the GrTool Harmonics surface.
+BigFloat inputs the eigenvalue carries precision through the GrTools Harmonics surface.
 """
 function teuk_lambda(s::Integer, l::Integer, m::Integer, a::Real, ω::Real)
     key = (s, l, m, a, ω, typeof(a), precision(BigFloat))

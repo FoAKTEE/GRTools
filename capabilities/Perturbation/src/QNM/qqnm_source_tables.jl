@@ -23,7 +23,7 @@
 #       spin2-minus-minus-zero-proof).  No table — [`qqnm_mm_is_zero`](@ref) asserts + cites.
 #
 # ─────────────────────────────── CONVENTIONS ──────────────────────────────────────────────────────
-# Paper Γ = r + ia cosθ (GrTool ζ̄), Γ̄ = r − ia cosθ (GrTool ζ); at a=0 Γ=Γ̄=r.  Under the on-shell
+# Paper Γ = r + ia cosθ (GrTools ζ̄), Γ̄ = r − ia cosθ (GrTools ζ); at a=0 Γ=Γ̄=r.  Under the on-shell
 # identity Γ + Γ̄ = 2r the machine r-forms below equal the Appendix-C Γ-forms (test-gated).
 # ii = im (the +− tables carry explicit i from the mirror-channel factor).
 #

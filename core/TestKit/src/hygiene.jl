@@ -1,5 +1,5 @@
 # §7.7 binding CI hygiene gates (design GRTOOLS_DESIGN_CAPABILITY.md §7.7, gates 1/2/5) — the
-# executable dep-budget + closure-load checkers shared by every GrTool capability/core package.
+# executable dep-budget + closure-load checkers shared by every GrTools capability/core package.
 #
 # Two checkers:
 #   * `assert_dep_budget` — gate 1 (dep-budget) + gate 5 (extension-trigger, via `must_declare`)

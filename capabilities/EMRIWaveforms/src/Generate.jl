@@ -63,7 +63,7 @@ Trajectory.evaluate_rhs(m::SchwarzEccFluxODE, p, e, x, p_sep) =
                                       roman=nothing) -> (t, h)
 
 Time-domain Schwarzschild eccentric EMRI strain `h(t) = h₊ − i h_×` — the `FastSchwarzschildEccentricFlux`
-generator (`few/waveform.py`). Composes the already-grounded GrTool pieces: [`run_inspiral`](@ref) with
+generator (`few/waveform.py`). Composes the already-grounded GrTools pieces: [`run_inspiral`](@ref) with
 [`SchwarzEccFluxODE`] (trajectory) → `AmplitudeModels.RomanAmplitude` Teukolsky amplitudes
 (`get_amplitudes(...; backend=:few)` carries the amplitude-vector renormalization) → `ModeSelect.KerrBackwards`
 power-thresholded mode selection → `Harmonics.ylms_few` angular factors → `ModeSum.KerrBackwards`

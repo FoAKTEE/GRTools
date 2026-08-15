@@ -1,6 +1,6 @@
 # Spacetime
 
-Kerr background-geometry + orbital-mechanics **foundation** for GrTool (Plan B, design
+Kerr background-geometry + orbital-mechanics **foundation** for GrTools (Plan B, design
 §4.1). This is the Tier-2 spine root: its entire dependency closure is `{LinearAlgebra,
 NumericsCore}`. Every physics capability above it (Perturbation, MetricReconstruction,
 SelfForce, EMRIWaveforms, PostNewtonian, Hybrid, AccretionDisc) reaches Kerr geometry,

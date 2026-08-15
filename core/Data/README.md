@@ -1,6 +1,6 @@
-# Data (`GrToolData`)
+# Data (`GrToolsData`)
 
-Tier-1 core **data spine** of GrTool. Owns the file-format I/O *bodies* that sit behind the
+Tier-1 core **data spine** of GrTools. Owns the file-format I/O *bodies* that sit behind the
 dep-free `DataSchema` contract structs (`H1Schema` / `AmpGridSchema` / `FluxGridSchema`, defined in
 `NumericsCore.dataschema`). The schema *shapes* are decoupled from the storage backend; this package
 fills them with HDF5 / JLD2 / DelimitedFiles / Mathematica readers and a single injected data-root

@@ -55,7 +55,7 @@ scaffolding, and are excluded from any flat re-export.
 
 ## Dependencies and poison-axis declaration
 
-GrTool deps: `NumericsCore`, `Spacetime`, `Harmonics`, `Kernels`, `Data`.
+GrTools deps: `NumericsCore`, `Spacetime`, `Harmonics`, `Kernels`, `Data`.
 External deps: `HDF5` (**direct** — see below), `OrdinaryDiffEqVerner`, `Roots`, `NLsolve`,
 `SpecialFunctions` (`besselj` for `ak_bessel_coeffs`), plus stdlib `Printf` / `LinearAlgebra` /
 `Random`.

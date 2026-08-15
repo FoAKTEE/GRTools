@@ -1,6 +1,6 @@
 # Harmonics — capability (Tier-2 spine root)
 
-The angular-eigenfunction **foundation** of GrTool (design §4.2). It owns every angular
+The angular-eigenfunction **foundation** of GrTools (design §4.2). It owns every angular
 harmonic object of the Kerr perturbation problem and exposes them through one consolidated,
 type-generic surface:
 

@@ -8,7 +8,7 @@
 #       (HIRG_nn/.../HORG_mm) at (a=0.1, ω=0.3, l=2, m=2, r=6.0, θ=1.0). Legacy MR carries the
 #       Teukolsky closure (heavy) + shares this package's NAME, so it is NEVER a live test-dep —
 #       captured once via:  julia --project=packages/MetricReconstruction -e '... MR.HIRG_nn(...) ...'.
-#       The GrTool radial_jet (MST) was checked to match the legacy (HeunC) mode to ~2e-11 rel, so
+#       The GrTools radial_jet (MST) was checked to match the legacy (HeunC) mode to ~2e-11 rel, so
 #       the linear operator chains reproduce the legacy H-values to ~1e-13 (observed); tol 1e-10.
 
 using Test

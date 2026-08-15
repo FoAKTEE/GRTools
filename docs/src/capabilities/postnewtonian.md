@@ -1,6 +1,6 @@
 # PostNewtonian
 
-Tier-4 GrTool capability — the **post-Newtonian series engine** and the **Symbolics quarantine**
+Tier-4 GrTools capability — the **post-Newtonian series engine** and the **Symbolics quarantine**
 (design §4.6). It fuses the two legacy PN leaf packages (`TeukolskyPN` + `PostNewtonianSelfForce`)
 into one capability and is a top-of-DAG leaf: nothing depends UP on it, so `Symbolics` (a HARD dep
 here and ONLY here) never leaks its ~1.9 s precompile floor onto the numeric/GPU waveform path.
@@ -49,7 +49,7 @@ evaluate numerically.
 
 ## Dependencies and poison-axis budget
 
-Declared `[deps]` (Project.toml): `NumericsCore`, `Harmonics`, `Data` (GrTool) + `Symbolics`
+Declared `[deps]` (Project.toml): `NumericsCore`, `Harmonics`, `Data` (GrTools) + `Symbolics`
 (HARD, quarantined), `SpecialFunctions`, and stdlib `Printf`/`LinearAlgebra`.
 
 The binding budget is the §7.7 CI gate in `test/hygiene.jl` (`TestKit.assert_dep_budget` +
@@ -58,7 +58,7 @@ The binding budget is the §7.7 CI gate in `test/hygiene.jl` (`TestKit.assert_de
 - **may carry** (allow-list): `Printf`, `LinearAlgebra`, `NumericsCore`, `Harmonics`, `Data`,
   `Symbolics`, `SpecialFunctions`. (`LinearAlgebra` is flagged there as a TODO/S2 discrepancy:
   stdlib, zero-cost, but grep-verified no `src/` usage and not on the §4.6 dep list.)
-- **must declare**: `Symbolics` — this capability is its SOLE hard home in GrTool (gate 5,
+- **must declare**: `Symbolics` — this capability is its SOLE hard home in GrTools (gate 5,
   quarantine home).
 - **may NOT carry** (forbid-list): `HDF5`, `JLD2`, `CUDA`, `AMDGPU`, `KernelAbstractions`,
   `Kernels`, `WignerSymbols`, `OrdinaryDiffEq*`, `Roots`, `NLsolve`, `SciMLBase`. In particular

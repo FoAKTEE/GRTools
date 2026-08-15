@@ -1,6 +1,6 @@
 # Hybrid
 
-Tier-5 GrTool capability (design §4.9): the **WaSABI self-force / post-Newtonian hybrid**
+Tier-5 GrTools capability (design §4.9): the **WaSABI self-force / post-Newtonian hybrid**
 EMRI waveform engine.
 
 ## Overview
@@ -55,7 +55,7 @@ forcing/amplitude leaves; `Drivers`, `HybridC`, `Registry`, `BinaryWaveform` and
 
 Declared `[deps]` (Project.toml):
 
-- **GrTool:** `NumericsCore` (the canonical interpolation suite + `blas_single_thread`),
+- **GrTools:** `NumericsCore` (the canonical interpolation suite + `blas_single_thread`),
   `BigSpecial` (`PolyGamma` digamma), `Spacetime` (`kerr_isco`, `kepler_Ω`), `Data`
   (`.wl`/`.m` table readers).
 - **External:** `OrdinaryDiffEqVerner`, `SciMLBase`, `JLD2`, plus stdlib

@@ -2,10 +2,10 @@
 # Source: scratchpad/qqnm_phase3/mma_radial_fixture.txt (QNM-Mathematica HEAD a74aadd,
 # BHPToolkit Teukolsky+SWSH, WL 14.3.0). Mode (s=-2,l=2,m=2,n=0,a=0.7,M=1). Hyperboloidal
 # Ripley chart R=1/r in [0,1/r+]; ef normalized so horizon value = 1; I = ef(scri)/ef(hor).
-# Chart map to the GrTool hphc operator: SAME hyperboloidal chart; the GrTool 1/2-form
+# Chart map to the GrTools hphc operator: SAME hyperboloidal chart; the GrTools 1/2-form
 # operator = 1/2 x the QNM.wl ScriptCapitalM (== R22/2), so the NULL EIGENFUNCTION is
 # identical (global scale is a null-space invariant). Comparison is on the scri/horizon
-# R-RATIO (normalization-invariant): GrTool R(rho)/R(scri) vs baked ef(rho)/ef(scri).
+# R-RATIO (normalization-invariant): GrTools R(rho)/R(scri) vs baked ef(rho)/ef(scri).
 module QNMHphcMMARef
 const OMEGA   = 0.5326002435337337 - 0.08079287315478063im   # 32-pt hyperboloidal solve
 const OMEGA_LEAVER = 0.532600243551019 - 0.08079287315501084im  # Leaver crosscheck (|Δ|=1.73e-11)

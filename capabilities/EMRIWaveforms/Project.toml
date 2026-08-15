@@ -1,6 +1,6 @@
 name = "EMRIWaveforms"
 uuid = "3c1a9e74-6b52-4d8f-9a0c-2f7e51d4b6a8"
-authors = ["GrTool capability migration (Claude)"]
+authors = ["GrTools capability migration (Claude)"]
 version = "0.1.0"
 
 # Tier-5 capability (design §4.8, §6.8): the EMRI trajectory + observed-waveform pipeline,
@@ -50,7 +50,7 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 # SpecialFunctions is ALSO a regular [deps] entry since the S4-c purity hoist (ak_bessel_coeffs
 # lives here now); the [extras] duplicate keeps it addressable from the [targets] test list.
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
-# TestKit is a TEST-ONLY GrTool dep powering the §7.7 hygiene gates (test/hygiene.jl).
+# TestKit is a TEST-ONLY GrTools dep powering the §7.7 hygiene gates (test/hygiene.jl).
 TestKit = "a6b7dd63-3a78-412f-8db2-e0e7b8b9a65d"
 
 [targets]

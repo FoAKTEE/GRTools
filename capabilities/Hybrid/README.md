@@ -1,6 +1,6 @@
 # Hybrid
 
-Tier-5 GrTool capability (design §4.9): the **WaSABI self-force / post-Newtonian hybrid**
+Tier-5 GrTools capability (design §4.9): the **WaSABI self-force / post-Newtonian hybrid**
 EMRI waveform engine.
 
 ## Physics owned
@@ -35,7 +35,7 @@ The upstream-undefined `inspiral_evaluate` path is carried as an honest stub-`[H
 
 ## Dependencies
 
-GrTool: `NumericsCore` (interpolation), `BigSpecial` (`digamma`), `Spacetime`, `Data`
+GrTools: `NumericsCore` (interpolation), `BigSpecial` (`digamma`), `Spacetime`, `Data`
 (`.wl`/`.jld2` artifacts). External: `OrdinaryDiffEqVerner`, `SciMLBase`, `JLD2`.
 
 This capability is a top-of-DAG leaf, so the heavy ODE/SciML precompile floor is confined here

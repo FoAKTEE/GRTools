@@ -1,6 +1,6 @@
 name = "PostNewtonian"
 uuid = "74b58e6d-f201-41d9-a4c5-e15407757458"
-authors = ["GrTool capability migration (Claude)"]
+authors = ["GrTools capability migration (Claude)"]
 version = "0.1.0"
 
 # Tier-4 capability (design §4.6): the PN-series engine and the Symbolics QUARANTINE. Fuses the two
@@ -36,7 +36,7 @@ Symbolics = "7"
 # instead (a) wolframscript on the 91 legacy .m SeriesData files at packages/PostNewtonianSelfForce/
 # SeriesData, (b) captured fixtures / baked literals, (c) analytic PN identities (Schwarzschild l2m2
 # leading flux = Newtonian quadrupole 32/5, known low-PN coefficients). TEST cold-compile stays fast.
-# TestKit is a TEST-ONLY GrTool dep powering the §7.7 hygiene gates (test/hygiene.jl).
+# TestKit is a TEST-ONLY GrTools dep powering the §7.7 hygiene gates (test/hygiene.jl).
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"

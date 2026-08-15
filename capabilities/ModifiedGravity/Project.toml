@@ -1,6 +1,6 @@
 name = "ModifiedGravity"
 uuid = "3a8f1d62-9c47-4e5b-8a10-2f6b7c4d9e03"
-authors = ["GrTool capability migration (Claude)"]
+authors = ["GrTools capability migration (Claude)"]
 version = "0.1.0"
 
 # Tier-4 beyond-GR (modified Teukolsky) source machinery (design §4.7) — the THIN research surface
@@ -32,10 +32,10 @@ julia = "1.10"
 # Test characterization is by FROZEN oracle literals — the upstream wolframscript/paclet values
 # (source kernels, RadHzpotmode, Sourcesamplitudes) and the 3 shipped .dat source tables baked
 # verbatim — plus closed-form round-trip / minus-mode self-symmetry identities, evaluated through
-# the GrTool deps (Data / Harmonics / Perturbation) already in [deps]. NO live legacy dep: the
+# the GrTools deps (Data / Harmonics / Perturbation) already in [deps]. NO live legacy dep: the
 # heavy ModifiedTeukolsky closure would blow the cold-compile budget (test-dep weight rule), and
 # every expected value here is frozen so it is not needed.
-# TestKit is a TEST-ONLY GrTool dep powering the §7.7 hygiene gates (test/hygiene.jl).
+# TestKit is a TEST-ONLY GrTools dep powering the §7.7 hygiene gates (test/hygiene.jl).
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 TestKit = "a6b7dd63-3a78-412f-8db2-e0e7b8b9a65d"

@@ -1,6 +1,6 @@
 name = "NumericsCore"
 uuid = "54f76139-0f7a-42ab-9084-b9cc78b29132"
-authors = ["GrTool capability migration (Claude)"]
+authors = ["GrTools capability migration (Claude)"]
 version = "0.1.0"
 
 [deps]
@@ -29,7 +29,7 @@ julia = "1.10"
 #  - ModeIndexTable + (l,m)<->gamma: deterministic-enumeration counts/ordering/mirror invariants +
 #    literal reference rows (FEW SchwarzschildEccentric baseclasses.py:223-323; gamma=l(l+1)/2+m).
 # All fixtures carry a provenance header naming the legacy fn + args that produced them.
-# TestKit (+its Data spine) is a TEST-ONLY GrTool dep powering the §7.7 hygiene gates (test/hygiene.jl).
+# TestKit (+its Data spine) is a TEST-ONLY GrTools dep powering the §7.7 hygiene gates (test/hygiene.jl).
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 TestKit = "a6b7dd63-3a78-412f-8db2-e0e7b8b9a65d"

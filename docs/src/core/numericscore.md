@@ -1,6 +1,6 @@
-# NumericsCore (`GrToolBase`)
+# NumericsCore (`GrToolsBase`)
 
-The **dimensionless math + infrastructure sink** of GrTool — tier C0, the unique root
+The **dimensionless math + infrastructure sink** of GrTools — tier C0, the unique root
 of the dependency DAG (design doc §3.2/§5.1). Its only runtime dependency is
 `LinearAlgebra`, and a binding CI dep-budget gate keeps it that way. It carries **no
 physics geometry**: Kerr metric/Christoffel/geodesics are `Spacetime` physics, and even the
@@ -80,7 +80,7 @@ This is not an aspiration but a CI gate: `test/hygiene.jl` runs
 `TestKit.assert_dep_budget` with `allow = ["LinearAlgebra"]` and explicitly **forbids**
 the full poison-axis set — HDF5, JLD2, Symbolics, `OrdinaryDiffEq*`, CUDA/AMDGPU/Metal/
 oneAPI/GPUArrays/KernelAbstractions, WignerSymbols, Roots, NLsolve, SciMLBase, QuadGK,
-ForwardDiff, SpecialFunctions, HypergeometricFunctions — **and every other GrTool
+ForwardDiff, SpecialFunctions, HypergeometricFunctions — **and every other GrTools
 package** (nothing may point *up* from the sink). A second closure-load gate
 (`TestKit.assert_not_loaded`) asserts none of the poison packages sneak into the load
 closure after `using NumericsCore`.

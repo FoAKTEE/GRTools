@@ -2,16 +2,16 @@
 # the tier grouping is complete. Package-level physics tests live in each
 # subpackage's own `test/` (run them with `Pkg.test` in that package's project).
 using Test
-using GrTool
+using GrTools
 
-@testset "GrTool umbrella" begin
-    @test GrTool isa Module
-    for m in (GrTool.PACKAGES.core..., GrTool.PACKAGES.capabilities...)
+@testset "GrTools umbrella" begin
+    @test GrTools isa Module
+    for m in (GrTools.PACKAGES.core..., GrTools.PACKAGES.capabilities...)
         @test m isa Module
     end
-    @test length(GrTool.PACKAGES.core) == 7
-    @test length(GrTool.PACKAGES.capabilities) == 11
+    @test length(GrTools.PACKAGES.core) == 7
+    @test length(GrTools.PACKAGES.capabilities) == 11
     # The qualified bindings match the loaded modules.
-    @test GrTool.Spacetime === GrTool.PACKAGES.capabilities[1]
-    @test GrTool.NumericsCore === GrTool.PACKAGES.core[1]
+    @test GrTools.Spacetime === GrTools.PACKAGES.capabilities[1]
+    @test GrTools.NumericsCore === GrTools.PACKAGES.core[1]
 end

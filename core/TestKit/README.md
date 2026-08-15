@@ -1,9 +1,9 @@
-# TestKit (`GrToolTestKit`) — shared test harness (test-only)
+# TestKit (`GrToolsTestKit`) — shared test harness (test-only)
 
 Tier-1 core, test-infrastructure package. Implements the design's §5.6 harness: a tolerance-recording
 oracle layered on stdlib `Test`, riding the `Data` spine for fixtures. See
 `progress/emri-disk/GRTOOLS_DESIGN_CAPABILITY.md` §5.6 and `GRTOOLS_FILE_FUNCTION_DAG.md`
-§GrToolTestKit.
+§GrToolsTestKit.
 
 ## Scope (Rev 2 decision)
 
@@ -29,7 +29,7 @@ This package absorbs, across the legacy corpus:
 - `assert_can_only_tighten(class_tol, original_tol)` — CI guard that a new tolerance may only TIGHTEN
   the legacy one (`class_tol <= original_tol`), throwing otherwise.
 - `load_fixture(parts...; kwargs...)` — load a captured fixture as a numeric matrix, resolving the path
-  under the active GrTool data root (`Data.datapath`) and reading via `Data.read_dat`. Configure the
+  under the active GrTools data root (`Data.datapath`) and reading via `Data.read_dat`. Configure the
   root with `Data.set_datadir!` / `ENV["GRTOOLS_DATADIR"]`.
 - `characterization_snapshot(f, inputs)` / `characterization_gate(candidate, snap; ulp, rtol, atol)` —
   snapshot a reference function's full-precision output (BigFloat stays BigFloat), then gate a

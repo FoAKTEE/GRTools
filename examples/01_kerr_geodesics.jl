@@ -6,8 +6,8 @@
 # Conventions: G = c = M = 1; orbits parameterized by (a, p, e, x) — spin, semi-latus
 # rectum, eccentricity, cos(inclination).
 
-using GrTool                 # umbrella: every suite package is GrTool.<Name>
-using GrTool.Spacetime
+using GrTools                 # umbrella: every suite package is GrTools.<Name>
+using GrTools.Spacetime
 using Printf
 
 a, p, e, x = 0.9, 8.0, 0.3, 0.8    # inclined eccentric orbit around a fast-spinning hole

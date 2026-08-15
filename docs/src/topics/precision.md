@@ -1,6 +1,6 @@
 # [Precision / BigFloat inheritance](@id topic-precision)
 
-How arbitrary precision flows through GrTool (design §9): one policy home in
+How arbitrary precision flows through GrTools (design §9): one policy home in
 `NumericsCore`, two BigFloat-generic spine roots, a type-generic `{T}` radial chain
 from [Perturbation](../capabilities/perturbation.md) through
 [MetricReconstruction](../capabilities/metricreconstruction.md) to

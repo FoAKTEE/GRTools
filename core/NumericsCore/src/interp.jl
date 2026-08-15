@@ -1,4 +1,4 @@
-# Interpolation library — the analytically-groundable core of the GrTool interp suite, consolidated
+# Interpolation library — the analytically-groundable core of the GrTools interp suite, consolidated
 # from the four legacy copies into one canonical type-generic `{T}` set with a coefficient/eval split
 # (coefficients built once, evaluated batched — the GPU-eval seam). Everything is exact on the
 # polynomial degree it interpolates, which is the grounding oracle (no heavy legacy dep needed).

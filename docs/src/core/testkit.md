@@ -1,6 +1,6 @@
 # TestKit
 
-Tier-1 core, **test-only** shared harness for the GrTool capability packages (design
+Tier-1 core, **test-only** shared harness for the GrTools capability packages (design
 `GRTOOLS_DESIGN_CAPABILITY.md` §5.6, unit C5). It layers a thin, tolerance-recording oracle on top of
 stdlib `Test` and rides the [Data](data.md) spine for fixtures. Nothing here computes physics: TestKit
 exists so that every *new* numerical assertion in the monorepo records its frozen tolerance, every

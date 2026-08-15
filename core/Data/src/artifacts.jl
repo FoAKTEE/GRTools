@@ -1,4 +1,4 @@
-# Artifacts resolution + offline/HPC pre-staging (design §8.2, §10). A GrTool data corpus `name`
+# Artifacts resolution + offline/HPC pre-staging (design §8.2, §10). A GrTools data corpus `name`
 # resolves through an explicit OVERRIDE -> ARTIFACT -> ERROR chain: the injected `datadir`
 # (`set_datadir!` / GRTOOLS_DATADIR) wins FIRST (precedence — HPC/offline + tests), else a declared +
 # provisioned `Artifacts.toml` entry resolves lazily via its `Artifacts` stdlib tree-hash (the runtime
@@ -66,7 +66,7 @@ end
 """
     artifact_path(name) -> String
 
-Resolve the on-disk root of a GrTool data corpus `name` through the override -> artifact -> error
+Resolve the on-disk root of a GrTools data corpus `name` through the override -> artifact -> error
 chain (`_resolve_artifact`): the injected [`datadir`](@ref) override (`set_datadir!` /
 `GRTOOLS_DATADIR`) FIRST (precedence), else a declared + provisioned `Artifacts.toml` entry resolved
 lazily via the `Artifacts` stdlib tree-hash, else a loud throw (no `..` escape).

@@ -146,7 +146,7 @@ const FEWsum = ModeSum.FEW
             (571, -2.01635917012076618e+02, 4.97686464926241911e+02,  9.19841225130812745e+01, -5.54335243467494934e+01),
         ]
         nzset = Set(c[1] for c in cap)
-        # legacy KB also emits NaN at the turnover bins (fdot→0 SPA singularity); GrTool reproduces them.
+        # legacy KB also emits NaN at the turnover bins (fdot→0 SPA singularity); GrTools reproduces them.
         nanset = Set([100, 101, 501, 502])
         for (idx, hpr, hpi, hcr, hci) in cap
             @test hp[idx] ≈ complex(hpr, hpi) rtol = 1e-10

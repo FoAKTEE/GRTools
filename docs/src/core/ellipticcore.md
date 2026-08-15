@@ -47,8 +47,8 @@ the cosine real and the sine complex.
 
 Binding dependency budget, enforced by `test/hygiene.jl`:
 `{LinearAlgebra, SparseArrays, NumericsCore}`. No external Krylov/AMG package —
-GMRES, multigrid, and Schwarz are in-tree per the GrTool vendoring precedent;
-no GPU, no AD, no IO, no GrTool capability package.
+GMRES, multigrid, and Schwarz are in-tree per the GrTools vendoring precedent;
+no GPU, no AD, no IO, no GrTools capability package.
 
 ## Public API
 

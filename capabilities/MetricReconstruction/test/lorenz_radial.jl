@@ -12,7 +12,7 @@
 #       captured MONO_H1_l* arrays were verified identical to MONO_DM ⇒ the fork collapse to a
 #       canonical arity-4 + trivial arity-5 method is sound.
 #   (2) RHS VALUES — even/even_dipole/even_static/odd/odd_dipole/monopole RHS match the captured
-#       legacy arrays. The GrTool tortoise inverse (Spacetime.tortoise_schw_inverse) was checked
+#       legacy arrays. The GrTools tortoise inverse (Spacetime.tortoise_schw_inverse) was checked
 #       bit-identical to the legacy r_of_rs at rs=12.3, so equality holds to full precision.
 
 using Test

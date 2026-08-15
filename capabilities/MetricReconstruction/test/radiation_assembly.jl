@@ -7,9 +7,9 @@
 #       cd packages/MetricReconstruction && julia --project=. -e 'h_coord_modesum(:ORG,:BL,0.5,0.2,modes,8.0,π/3)'
 #     The TIGHT (rel<1e-7) fixture uses two distinct l=2 modes [(2,2),(2,1)] (both at the ~1e-9 cross-solver
 #     floor demonstrated by the single-mode Projection oracle). The 3-mode list [(2,2),(3,2),(4,2)] adds l=3,4
-#     whose GrTool-vs-legacy agreement is set by the cross-Teukolsky-solver accuracy floor (l=3 ~3e-6, l=4 ~1e-2),
+#     whose GrTools-vs-legacy agreement is set by the cross-Teukolsky-solver accuracy floor (l=3 ~3e-6, l=4 ~1e-2),
 #     so those higher-l modes are used ONLY for the assembly-logic gates (parallel==serial, vacuum) below, not the
-#     tight value-characterization (each higher-l GrTool mode is itself vacuum to machine precision — test (2)).
+#     tight value-characterization (each higher-l GrTools mode is itself vacuum to machine precision — test (2)).
 # (2) VACUUM GATE (reuses green Einstein): the linearized-Einstein operator is LINEAR, so G⁽¹⁾[Σ_modes h] =
 #     Σ_modes G⁽¹⁾[h]. Each mode is a vacuum CCK reconstruction ⇒ einstein_grid returns ‖G⁽¹⁾‖/‖h‖<1e-10 at
 #     every grid point for every mode ⇒ the assembled mode sum is vacuum to machine precision.

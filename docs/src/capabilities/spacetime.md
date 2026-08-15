@@ -1,6 +1,6 @@
 # Spacetime
 
-Kerr background-geometry + orbital-mechanics **foundation** of GrTool (design §4.1) — the
+Kerr background-geometry + orbital-mechanics **foundation** of GrTools (design §4.1) — the
 Tier-2 *spine root*. Its entire dependency closure is `{LinearAlgebra, NumericsCore}`; every
 capability above it (Perturbation, MetricReconstruction, SelfForce, EMRIWaveforms,
 PostNewtonian, Hybrid, AccretionDisc) reaches Kerr geometry, geodesics, separatrix and ISCO

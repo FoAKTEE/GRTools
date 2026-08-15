@@ -1,4 +1,4 @@
-# GrTool data artifacts (Pkg lazy `Artifacts`, design §10). A declared entry resolves through the
+# GrTools data artifacts (Pkg lazy `Artifacts`, design §10). A declared entry resolves through the
 # `Data.artifact_path` override -> artifact -> error chain (src/artifacts.jl): the injected
 # `set_datadir!` / GRTOOLS_DATADIR root wins first, else the entry below resolves lazily via its
 # `git-tree-sha1` (the runtime `@artifact_str` path — `artifact_hash`/`artifact_exists`/`artifact_path`).

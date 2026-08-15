@@ -8,7 +8,7 @@ const _DATADIR = Ref{Union{Nothing,String}}(nothing)
 """
     set_datadir!(path) -> String
 
-Set the process-global GrTool data root (where on-disk corpora — h1 fields, FEW grids, PN/WaSABI
+Set the process-global GrTools data root (where on-disk corpora — h1 fields, FEW grids, PN/WaSABI
 catalogs — are resolved from). Returns the normalized absolute path. Pass `nothing` to clear the
 override and fall back to [`default_datadir`](@ref).
 """
@@ -32,7 +32,7 @@ implicit `ref-code` fallback, so a missing configuration fails loudly instead of
 function default_datadir()
     env = get(ENV, "GRTOOLS_DATADIR", "")
     isempty(env) || return abspath(env)
-    # Artifacts hook: a registered "GrTool_data" artifact resolves here once pinned (none yet).
+    # Artifacts hook: a registered "GrTools_data" artifact resolves here once pinned (none yet).
     throw(ErrorException(
         "Data: no data root configured — call set_datadir!(path) or set ENV[\"GRTOOLS_DATADIR\"]"))
 end
@@ -40,7 +40,7 @@ end
 """
     datadir() -> String
 
-The active GrTool data root: the [`set_datadir!`](@ref) override if set, else [`default_datadir`](@ref).
+The active GrTools data root: the [`set_datadir!`](@ref) override if set, else [`default_datadir`](@ref).
 """
 datadir() = _DATADIR[] === nothing ? default_datadir() : _DATADIR[]
 

@@ -16,7 +16,7 @@
 # ones; <1e-6 for the inhomogeneous κ) AND reproduce the closure_kerr jumps ([f]=J0,[f']=J1) to <1e-4.
 # =============================================================================================================
 
-# Teukolsky homogeneous radial surface + the low-level MST internals, REUSED from the GrTool
+# Teukolsky homogeneous radial surface + the low-level MST internals, REUSED from the GrTools
 # Perturbation capability (the migrated, verified Teukolsky port). _d2R_ode/_mst_*/_hu_*/_prefac_up
 # are flat unexported Perturbation internals; pochhammer is owned by BigSpecial (used by the
 # high-magnitude node sampler to build the r-INDEPENDENT MST f_n array ONCE per leg).

@@ -1,7 +1,7 @@
 """
     Kernels
 
-GPU/parallel compute-kernel spine of GrTool (capability C4, design §5.5 + §8).
+GPU/parallel compute-kernel spine of GrTools (capability C4, design §5.5 + §8).
 
 This package owns the *hot inner loops* that several physics capabilities share, consolidated into a
 single canonical copy each (AHA — collapse the FEW-vs-KerrBackwards forks of the same arithmetic):

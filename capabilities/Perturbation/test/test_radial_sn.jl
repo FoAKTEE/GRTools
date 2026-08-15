@@ -3,7 +3,7 @@
 #   (1) _sn_outer_c 13-term OuterBCs recurrence == legacy Teukolsky._sn_outer_c at 1e-12 (identical
 #       analytic recurrence — a pure algebraic characterization);
 #   (2) public TeukolskyRadial(-2,l,m,a,ω;method=:SasakiNakamura).Up VALUE + DERIV == legacy SN at the
-#       legacy SN rtol (both integrate the SN ODE inward; GrTool uses the in-firewall NumericsCore DP5);
+#       legacy SN rtol (both integrate the SN ODE inward; GrTools uses the in-firewall NumericsCore DP5);
 #   (3) STRONG cross-check :SN Up ≈ already-green :MST Up (same physical solution after scale-matching)
 #       + an r-independent Wronskian W(In_MST, Up_SN);
 #   (4) NotYetPorted throw for s≠-2 and for the In BC, matching the legacy faithful restriction.
@@ -12,7 +12,7 @@
 include("fixtures/leg_radial_sn.jl")  # REF_SN_LEG / REF_SN_RESTRICT (baked Teukolsky SN oracle + inputs, Phase 7-B)
 using Perturbation: TeukolskyRadial, teukolsky_radial_deriv
 
-# s=-2 Up modes (the legacy REF_SN grid). λ,ν pinned via the legacy oracle so GrTool and legacy are
+# s=-2 Up modes (the legacy REF_SN grid). λ,ν pinned via the legacy oracle so GrTools and legacy are
 # apples-to-apples (identical inputs → the SN coefficients + outer BC are the same port).
 const _SN_MODES = [
     (a=0.0, w=0.1), (a=0.5, w=0.1), (a=0.5, w=0.3), (a=0.9, w=0.1),
@@ -40,7 +40,7 @@ end
         @test Rg.Up.method === :SasakiNakamura
         @test Rg.Up.amplitudes.Transmission ≈ 1
         for (j, rr) in enumerate((2.5, 3.0, 5.0, 10.0, 30.0))
-            # both integrate the SN equation inward from rout=1000 (GrTool via NumericsCore DP5,
+            # both integrate the SN equation inward from rout=1000 (GrTools via NumericsCore DP5,
             # legacy via its inline DP5) then scale-match to their own MST Up — same physical solution.
             @test isapprox(Rg.Up(rr), leg.up[j]; rtol=1e-6, atol=1e-8)
             @test isapprox(teukolsky_radial_deriv(Rg.Up, rr), leg.upd[j]; rtol=1e-6, atol=1e-8)

@@ -2,7 +2,7 @@
 
 Tier-3 vacuum/test perturbed-field solver for the Kerr spacetime — the **Teukolsky-radial
 engine** (frequency domain) plus a **discontinuous-Galerkin time-domain solver**
-(`Perturbation.TimeDomain`), and the **light-dep firewall** of GrTool (design §4.3).
+(`Perturbation.TimeDomain`), and the **light-dep firewall** of GrTools (design §4.3).
 
 ## Overview
 
@@ -127,7 +127,7 @@ floor. Vacuum Kerr is *not* restricted.
 
 Runtime `[deps]` (from `Project.toml`):
 
-- **GrTool:** `NumericsCore` (continued-fraction, interpolation, conventions, precision),
+- **GrTools:** `NumericsCore` (continued-fraction, interpolation, conventions, precision),
   `BigSpecial` (``\Gamma`` / ``{}_2F_1`` / Pochhammer / Kummer), `Spacetime` (geodesic constants,
   frequencies, roots; `SpinningSecondary` equatorial spin-frequency corrections), `Harmonics`
   (SWSH eigenvalue + ``S``).
@@ -135,7 +135,7 @@ Runtime `[deps]` (from `Project.toml`):
 - **external:** `HypergeometricFunctions`, `SpecialFunctions` — the *sanctioned* light closure
   (the same one legacy `Teukolsky` carried), reaching the user through `BigSpecial`.
 
-**Poison-axis declaration** — this package is the light-dep firewall of GrTool. The binding CI
+**Poison-axis declaration** — this package is the light-dep firewall of GrTools. The binding CI
 budget lives in `test/hygiene.jl` (design §7.7 gates 1+2), which asserts TOML-statically that
 the runtime `[deps]` are exactly the allow-list above and **forbids**
 

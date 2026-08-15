@@ -1,13 +1,13 @@
-# GrTool
+# GrTools
 
-**GrTool** is a next-generation Julia toolkit for black-hole perturbation
+**GrTools** is a next-generation Julia toolkit for black-hole perturbation
 theory and EMRI (extreme-mass-ratio inspiral) science. It consolidates the
 calculations this field has historically spread across many single-purpose
 research codes into one coherently engineered, capability-grouped monorepo:
 11 physics **capability** packages layered over 7 **core/infra** packages,
 strictly acyclic, living under `core/` + `capabilities/`. The umbrella package
-`GrTool` (repo root) loads the whole suite: `using GrTool` exposes each
-package as `GrTool.<Name>`.
+`GrTools` (repo root) loads the whole suite: `using GrTools` exposes each
+package as `GrTools.<Name>`.
 
 ## The thesis: one `using` per mental concept
 
@@ -15,7 +15,7 @@ Each package is one concept in the physicist's mental map. If you are thinking
 "I need the Teukolsky radial solution", you type `using Perturbation` — not the
 name of whichever historical repository the function happened to live in. The
 20 legacy research packages (`packages/*`, now a frozen research oracle) were
-organized by *provenance*; GrTool is organized by *capability*. Every legacy
+organized by *provenance*; GrTools is organized by *capability*. Every legacy
 function has exactly one new home — see the [Migration](migration.md) appendix
 to find yours.
 

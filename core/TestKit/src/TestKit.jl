@@ -1,8 +1,8 @@
 """
-    TestKit (GrToolTestKit)
+    TestKit (GrToolsTestKit)
 
-Tier-1 core, TEST-ONLY shared harness for the GrTool capability packages (design §5.6,
-`GRTOOLS_FILE_FUNCTION_DAG.md §GrToolTestKit`). It layers a thin, tolerance-recording oracle on top of
+Tier-1 core, TEST-ONLY shared harness for the GrTools capability packages (design §5.6,
+`GRTOOLS_FILE_FUNCTION_DAG.md §GrToolsTestKit`). It layers a thin, tolerance-recording oracle on top of
 stdlib `Test` and rides the `Data` spine for fixtures.
 
 Scope (Rev 2 decision, design §5.6): the 281 existing legacy `runtests` remain the AUTHORITATIVE

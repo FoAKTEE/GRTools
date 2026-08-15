@@ -27,7 +27,7 @@ using MetricReconstruction
     include("lorenz_weyl.jl")          # gauge-invariant ψ4 (weyl_psi4_lorenz/_amp), θ-factorization + Teukolsky identity
     include("lorenz_radial.jl")        # even/odd/monopole/odd_dipole _ode! RHS, vs H1Lorenz/DiscModes
     include("radiation_operators.jl")  # SepField/RTJet jet algebra + Dn/Ln ladders (analytic)
-    include("radiation_modes.jl")      # teuk_lambda/radial_jet/angular_jet vs GrTool Harmonics/Perturbation
+    include("radiation_modes.jl")      # teuk_lambda/radial_jet/angular_jet vs GrTools Harmonics/Perturbation
     include("radiation_tetrad.jl")     # six Hertz/CCK H-components, scalar+jet, vs legacy MR fixture
     include("radiation_weyl.jl")       # calD/calC/Dhat + CCK presets vs ExampleUsage cell-21 oracle
     include("radiation_plus_minus.jl") # ±m tetrad-component value assembly, vs legacy MR component_value fixture

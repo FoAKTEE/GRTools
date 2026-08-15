@@ -1,6 +1,6 @@
 # AccretionDisc
 
-Tier-6 EMRI-accretion-disc capability (design §4.10) — the **top of the GrTool capability
+Tier-6 EMRI-accretion-disc capability (design §4.10) — the **top of the GrTools capability
 DAG**; nothing depends on it. The Lindblad-torque / spiral-density-wave disc front-end.
 
 ## Physics owned
@@ -67,7 +67,7 @@ order), matching the corpus convention.
 
 ## Dependencies and poison-axis declaration
 
-Declared `[deps]` (Project.toml): `LinearAlgebra`, `Printf`, and the GrTool packages
+Declared `[deps]` (Project.toml): `LinearAlgebra`, `Printf`, and the GrTools packages
 `NumericsCore`, `Data`, `Spacetime`, `Harmonics`, `Perturbation`, `MetricReconstruction`, plus
 `HDF5` (**direct** — required by the `Force` submodule only, as the trigger that activates
 `Data`'s HDF5 weakdep extension; design §5.4 Rev-2 extension-activation rule).
@@ -125,7 +125,7 @@ pure-disc-mode user through the fused capability — propagates to no other capa
 - **Fusion, with hoists.** `DiscModes` + `DiscEMRIForce` became the two namespaced submodules;
   their geometry (`kerr_metric`/`christoffel`/`_risco` forks), spherical harmonics, a=0 Lorenz
   radial ODE systems, vendored DP5 integrator and interpolation primitives moved to their
-  canonical GrTool homes (table above) instead of being copied in.
+  canonical GrTools homes (table above) instead of being copied in.
 - **NEW a≠0 front-end (S5-5).** `kerr_mode` / `kerr_modes` (`KerrFrontend.jl`) are the ported
   spinning-BH path: `MetricReconstruction.Lorenz` Dolan-2024 reconstruction → BLS
   ``\bar h^i(r)`` → `H1Mode{T}`, sharing one banded `closure_kerr` solve across ``l``. The

@@ -6,7 +6,7 @@
 # (b) BRANCH selection + module-1 tie: weyl_psi4_lorenz_amp(rec,r;bc=:Up)==valK(rec.Pm2,r) for r>r0 and
 #     (bc=:In)==valK(rec.Pm2,r) for r<r0 (the HomFieldK amplitude×radial).
 # (c) ψ4 RECONSTRUCTION identity: the amp radial part R_{-2}(r) == Aup·Teukolsky s=−2 R^up(r) — i.e. P_{-2}
-#     IS the Teukolsky Weyl mode (reldiff vs GrTool Perturbation TeukolskyRadial < 1e-9, the App-H ψ4 check).
+#     IS the Teukolsky Weyl mode (reldiff vs GrTools Perturbation TeukolskyRadial < 1e-9, the App-H ψ4 check).
 
 using Test
 import MetricReconstruction.Lorenz as L

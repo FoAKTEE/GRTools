@@ -1,7 +1,7 @@
 """
-    BigSpecial (GrToolBigSpecial)
+    BigSpecial (GrToolsBigSpecial)
 
-The `Complex{BigFloat}` special-functions stratum for GrTool (design §5.2). It is a
+The `Complex{BigFloat}` special-functions stratum for GrTools (design §5.2). It is a
 SEPARATE tier so that `HypergeometricFunctions`/`SpecialFunctions` never leak onto the
 `NumericsCore`-only spine (KerrGeodesics empty-deps, SWSH LinearAlgebra-only); anything
 needing high-precision Γ/ψ/₂F₁/₁F₁ depends on BigSpecial explicitly.

@@ -3,7 +3,7 @@
 # Reference values are the UPSTREAM Mathematica (wolframscript) oracle from ExampleUsage.nb cell-17/19 at
 # the cell-21 config (a=1/10, M=1, l=3, m=0, ω=0.9, αin=1, αout=0), baked verbatim from the legacy
 # MetricReconstruction verify_weyl_amplitudes.jl reference block (20-digit). teuk_lambda comes from the
-# already-grounded GrTool Harmonics surface; _horizons/_Omega_plus are delegated to Spacetime.
+# already-grounded GrTools Harmonics surface; _horizons/_Omega_plus are delegated to Spacetime.
 #
 # [HOLE] crosswalk H10: the :psi0_IRG / :psi4_ORG presets are implemented and their numeric B-values match
 # the .nb oracle below, BUT the preset CHOICE is not exercised by any upstream vacuum-Einstein gate — the

@@ -14,7 +14,7 @@ export ka_device, with_kernel_threads
 """
     ka_device(backend::AbstractBackend) -> KernelAbstractions backend
 
-Concrete KernelAbstractions device for a GrTool `AbstractBackend`. The host `CPUBackend` maps to
+Concrete KernelAbstractions device for a GrTools `AbstractBackend`. The host `CPUBackend` maps to
 `KernelAbstractions.CPU()`; GPU backends (from the CUDA/AMDGPU extensions) override with `CUDABackend()`
 / `ROCBackend()`. One place for the tag→device map keeps the kernel launch sites backend-agnostic.
 """

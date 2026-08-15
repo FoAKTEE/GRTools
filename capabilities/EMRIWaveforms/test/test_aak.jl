@@ -89,7 +89,7 @@ const PM = AAK.ParameterMapAAK
         hdef = AAK.aak_summation(t, e, Phivec, gimvec, alpvec, nuvec, gimdotvec, OmegaPhi, lam,
                                  1.0e6, 0.5, 10.0, 0.7, 0.8, 0.9, 1.0, 1.5, 4; dt = 100.0, out_len = 5)
         # PRE-HOIST BEHAVIOR-IDENTITY GATE (§5.5 Kernels purity, S4-c): these literals are the EXACT
-        # (repr round-trip) output of the pre-hoist committed GrTool pipeline (Kernels @ 51efa9f,
+        # (repr round-trip) output of the pre-hoist committed GrTools pipeline (Kernels @ 51efa9f,
         # ak_bessel_coeffs internal) on these inputs, baked 2026-07-02 by
         # scratchpad/s4c_capture_fixtures.jl BEFORE the provider-injection refactor. Public behavior
         # must be IDENTICAL post-hoist (far tighter than the KB rtol=1e-10 gate below).
@@ -123,7 +123,7 @@ const PM = AAK.ParameterMapAAK
     #  · SELF-CONSISTENCY (bit-exact): aak_waveform == its own components composed
     #    (run_inspiral → AK basis map → Kernels.aak_summation).
     #  · CAPTURED FIXTURE: one-shot legacy KerrBackwards aak_waveform (Y0=1, T=0.02) early samples.
-    #    GrTool run_inspiral differs from the legacy KB integrator at the documented ~1e-7 phase level,
+    #    GrTools run_inspiral differs from the legacy KB integrator at the documented ~1e-7 phase level,
     #    so the early samples (tiny accumulated phase) are matched at the trajectory-limited tolerance.
     @testset "aak_waveform self-consistency" begin
         M, mu, a, p0, e0, Y0 = 1.0e6, 10.0, 0.5, 12.0, 0.3, 1.0
