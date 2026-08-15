@@ -1,6 +1,6 @@
 # SelfForce
 
-Tier-5 capability of the GrTools monorepo (design §4.5): the **1st + 2nd-order gravitational
+Tier-5 capability of the GrTools monorepo: the **1st + 2nd-order gravitational
 self-force (GSF) corpus**. It is HDF5 HOME #1 of the capability layer — the place where the h1
 corpus (the first-order Lorenz-gauge mode data) is generated, persisted, and re-ingested.
 
@@ -17,7 +17,7 @@ corpus (the first-order Lorenz-gauge mode data) is generated, persisted, and re-
   α-integration (terminating `2F1`), the β=π/2 mode mixing, the regularisation sums, and the
   retarded/singular subtraction giving the regular self-field on the worldline.
 
-## Legacy packages absorbed
+## Provenance
 
 | Legacy package      | Lands in submodule      |
 |---------------------|-------------------------|
@@ -36,7 +36,7 @@ Re-exported through the submodule namespaces:
 - `SelfForce.SecondOrder` — `r2_1..r2_10`, `second_order_ricci`, `ricci_source`, `write_src`.
 - `SelfForce.Puncture` — `h0` elliptic field, puncture / effective-source, worldline self-field.
 
-(Concrete symbols land incrementally with each TDD module.)
+(Concrete symbols land incrementally with each module.)
 
 ## Dependencies
 
@@ -47,8 +47,8 @@ All primitives are type-generic `{T}` so BigFloat precision (256..2048-bit) is i
 
 ## Grounding (test characterization)
 
-The legacy `H1Lorenz` / `Punctures` / `SecondOrderRicci` packages are HEAVY and are **never** live
-test-deps (TEST-DEP WEIGHT RULE). Expected values are CAPTURED one-shot and baked as literal
+The predecessor `H1Lorenz` / `Punctures` / `SecondOrderRicci` codes are HEAVY and are **never** live
+test-deps. Expected values are CAPTURED one-shot and baked as literal
 fixtures: the compiled g++/GSL `r2_oracle.cpp` + `h1.cc` oracles (compiled once to capture, as the
 legacy did), wolframscript / Mathematica for the puncture, analytic identities, and a round-trip
 h1-corpus write/read (which fires the `Data` HDF5 weakdep extension). The test cold-compile stays

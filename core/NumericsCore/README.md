@@ -1,4 +1,4 @@
-# NumericsCore (`GrToolsBase`)
+# NumericsCore
 
 The **dimensionless math + infrastructure sink** of GrTools. It is the unique root of the
 dependency DAG: its only dependency is `LinearAlgebra`. A CI dep-budget gate keeps
@@ -24,24 +24,24 @@ Pure, convention-stable, widely-reused primitives, all type-generic `{T}` (BigFl
   continued-fraction primitive, self-contained Kummer 1F1, root-finders
   (secant/bisect/brent + A42 Alefeld-Potra-Shi), dep-free `DataSchema` structs.
 
-## Legacy packages absorbed
+## Provenance
 
-Primitives are consolidated (one canonical form per *same decision*) from:
+Primitives are consolidated (one canonical form per *same decision*) from the predecessor codes
 KerrGeodesics, SpinWeightedSpheroidalHarmonics, Teukolsky, H1Lorenz, KerrBackwards,
 FastEMRIWaveforms, DiscModes, KerrLorenzCirc, SecondOrderRicci, DiscEMRIForce, Punctures,
-WaSABI, SpinningOrbit. Each ported function is grounded by characterization against its legacy
-oracle (kept green) at the legacy tolerance, or against an upstream/analytic identity.
+WaSABI, SpinningOrbit. Each ported function is grounded by characterization against its
+predecessor at the predecessor's tolerance, or against an upstream/analytic identity.
 
 ## Dependencies
 
 - Runtime: `LinearAlgebra`.
-- Test-only (`[extras]`, post Phase-7B): `Test`, `TestKit`, `Data` — the §7.7 hygiene gates.
-  NO legacy packages/* remain in the test sandbox: every legacy characterization oracle
+- Test-only (`[extras]`): `Test`, `TestKit`, `Data` — the hygiene gates.
+  No predecessor code is a test dependency: every characterization oracle
   (KerrGeodesics Carlson/elliptic/Jacobi, SWSH spin-weighted-Y, KerrBackwards/FEW units,
   H1Lorenz tolerances, FEW mode table) is BAKED into a captured-once fixture under
-  `test/fixtures/`, each with a provenance header naming the legacy fn + args that produced it.
+  `test/fixtures/`, each with a provenance header naming the predecessor function + args that produced it.
 
 ## Status
 
-Scaffold. Primitives are TDD-ported in rounds (Carlson/elliptic, precision, mode-index, units,
+Scaffold. Primitives are ported test-first (Carlson/elliptic, precision, mode-index, units,
 conventions, blas_guard first; interpolation, vendored-ODE, continued-fraction, root-finders next).

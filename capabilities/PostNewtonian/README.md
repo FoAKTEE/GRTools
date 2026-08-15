@@ -1,7 +1,7 @@
 # PostNewtonian
 
-Tier-4 GrTools capability — the **post-Newtonian series engine** and the **Symbolics quarantine**
-(design §4.6). It fuses the two legacy PN leaf packages into one capability and is a top-of-DAG leaf:
+Tier-4 GrTools capability — the **post-Newtonian series engine** and the **Symbolics quarantine**.
+It fuses the two predecessor PN leaf codes into one capability and is a top-of-DAG leaf:
 nothing depends UP on it, so `Symbolics` (a HARD dep here and ONLY here) never leaks its ~1.9s
 precompile floor onto the numeric/GPU waveform path.
 
@@ -25,12 +25,13 @@ Symbolics cannot be a weakdep and must be a hard dep confined to this capability
 The duplicated `_eval_mma_ast` / `_eval_pn_ast` walker forks unify into `Catalog.read_mma_inputform`
 behind a byte-for-byte `Num`-equivalence gate over all 91 legacy `.m` files.
 
-## Absorbs (legacy)
+## Provenance
 
 - `TeukolskyPN`
 - `PostNewtonianSelfForce`
 
-These stay green as the oracle; this capability never edits them.
+These predecessor codes served as the characterization oracle during construction; their outputs
+are baked into `test/fixtures/`.
 
 ## Public API
 
@@ -43,7 +44,7 @@ Populated per-module as primitives land (`PNSeries`, `Normal`, `read_mma_inputfo
   `Vector{Float64}`, carries no Symbolics), `Data` (`.m`/`.wl` artifact readers — **no HDF5**).
 - external: `Symbolics` (HARD, quarantined), std `Printf`/`LinearAlgebra`.
 
-## Grounding (TDD)
+## Grounding
 
 No heavy live legacy test dep (both PN packages are Symbolics-heavy). Tests ground against the
 wolframscript byte-exact oracle on the 91 `.m` SeriesData files, captured fixtures, and analytic PN

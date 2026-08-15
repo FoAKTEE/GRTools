@@ -1,6 +1,6 @@
 # AccretionDisc
 
-Tier-6 EMRI-accretion-disc capability (GrTools design §4.10) — the **top of the capability DAG**;
+Tier-6 EMRI-accretion-disc capability — the **top of the capability DAG**;
 nothing depends on it. The Lindblad-torque / spiral-density-wave disc front-end.
 
 ## Physics owned
@@ -25,7 +25,7 @@ resonance torque.
   `Kernels`) plus the a=0 Lorenz corpus. `HDF5` is required by **this submodule only** (captured
   disc-mode data, injected `datadir`).
 
-## Legacy packages absorbed
+## Provenance
 
 | Legacy | Absorbed as |
 |--------|-------------|
@@ -43,6 +43,6 @@ Built tests-first. The disc-mode leaves are grounded **without heavy live deps**
 κ_r² closed form, the corotation regular-singular exponent (vs RT-A6 −0.0818, non-circular
 validation), Newtonian disc-mode limits, and one-shot fixtures captured from the published
 arXiv:2601.19123 disc-mode data and the `DiscModes` oracle. `DiscModes`/`DiscEMRIForce` are NOT
-live `[targets].test` deps (TEST-DEP WEIGHT RULE: HDF5/Teukolsky closure).
+live `[targets].test` deps (they pull an HDF5/Teukolsky closure).
 
 Precision: every primitive is type-generic `{T}` so BigFloat precision (256..2048-bit) is inherited.

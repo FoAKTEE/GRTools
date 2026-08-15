@@ -21,7 +21,7 @@ formulation and consumes the physics-free hp-DG solver stack from
 - **Domain** — `RunConfig` runtime configuration (`crp_paper_config`,
   `CRP_PAPER_MMODES`) and EllipticCore `Mesh2D` block instantiation.
 
-Planned per the design DAG (landing TDD as each node is grounded):
+Planned, each landing written test-first once it is grounded:
 `EffectiveSource` (``S^{\rm eff}_m`` direct + near-worldline series switch),
 `Worldtube` (``\Psi^P`` mortar jump data, fixed-source assembly), `Solve`
 (single-mode driver, hp-AMR loop, process-parallel m fan-out), `Extraction`

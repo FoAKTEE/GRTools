@@ -1,16 +1,17 @@
-# Migration: legacy packages → GrTools
+# Migration guide: from the predecessor codes
 
-This appendix is the function-regrouping crosswalk (§6 of
-`GRTOOLS_DESIGN_CAPABILITY.md`): for every legacy package / file / function
-group, its new GrTools home. Look up the old package you were using, find the
-capability (and submodule) that now owns the function.
+GrTools regroups the functions of the earlier research codes by physics
+capability. This page is the lookup table (old package → new home): for every
+predecessor package / file / function group, its new GrTools home. Look up the
+old package you were using, find the capability (and submodule) that now owns
+the function.
 
-**★ = crosses a legacy package boundary** (an actionable reorg move — the
+**★ = crosses a predecessor-package boundary** (an actionable reorg move — the
 function no longer lives with its historical siblings). Rows without ★ moved
 wholesale with their package into the named capability.
 
-The legacy packages themselves remain under `packages/*` as a frozen research
-oracle; they are not developed further.
+The predecessor codes are not part of this repository; their outputs live on as
+baked characterization fixtures under each package's `test/fixtures/`.
 
 ## → Spacetime
 

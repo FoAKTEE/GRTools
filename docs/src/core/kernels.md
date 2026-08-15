@@ -1,6 +1,6 @@
 # Kernels
 
-The GPU/parallel compute-kernel spine of GrTools (capability **C4**, design §5.5 + §8). It owns the
+The GPU/parallel compute-kernel spine of GrTools (capability **C4**). It owns the
 hot inner loops that several physics capabilities share, each consolidated into a single canonical
 copy — collapsing the FastEMRIWaveforms-vs-KerrBackwards forks of the *same* arithmetic. Everything
 else (trajectory ODEs, HDF5 IO, Wigner couplings, Bessel machinery) stays with the calling
@@ -20,7 +20,7 @@ All five files are `include`d into the single `Kernels` module — there are no 
 CUDA/AMDGPU support lives in the package extensions `ext/KernelsCUDAExt.jl` /
 `ext/KernelsAMDGPUExt.jl`, loaded only when the operator brings the device package.
 
-## Parallelism + precision contract (design §8, BINDING)
+## Parallelism + precision contract (binding)
 
 - **One work-item per output axis + a serial inner reduction** — encoded once in
   [`with_kernel_threads`](@ref) and shared by every CPU kernel — so the CPU-serial and CPU-threaded
@@ -33,7 +33,7 @@ CUDA/AMDGPU support lives in the package extensions `ext/KernelsCUDAExt.jl` /
 
 ## Dependencies and poison-axis declaration
 
-Post-S4 hard dep budget (design §5.5), enforced by the §7.7 `TestKit.assert_dep_budget` gate in
+Hard dep budget, enforced by the `TestKit.assert_dep_budget` gate in
 `core/Kernels/test/hygiene.jl`:
 
 - **May carry (`allow`, closed budget):** `NumericsCore` (backend seam, BLAS guard, spline/mode-index
@@ -45,7 +45,7 @@ Post-S4 hard dep budget (design §5.5), enforced by the §7.7 `TestKit.assert_de
   A second closure-load gate (`TestKit.assert_not_loaded`) asserts none of these — nor CUDA/AMDGPU —
   is loaded after `using Kernels` in the CPU-only test env.
 
-Two purity hoists keep the forbidden axes out (§5.5/§7.7.1):
+Two purity hoists keep the forbidden axes out:
 
 - **Injected-provider AAK.** The Peters–Mathews Bessel builder `ak_bessel_coeffs` lives in
   `EMRIWaveforms.AAK`; [`aak_summation`](@ref) receives it as the `bessel_coeffs` keyword provider,
@@ -63,7 +63,7 @@ Two purity hoists keep the forbidden axes out (§5.5/§7.7.1):
 
 - **GPU is an optional, CPU-first extension.** The CPU backend is the dependency-free default;
   CUDA/AMDGPU enter only as `[weakdeps]` extensions that add the `gpu=true` method to
-  `select_backend` and the device map to `ka_device`. GPU device runs are **[FUTURE]** this round.
+  `select_backend` and the device map to `ka_device`. GPU device runs are **[FUTURE]**.
 - **No data artifacts.** Kernels reads no files: mode amplitudes, splines' input grids, NN weights
   (the HDF5 ROMAN weight loading stays in `EMRIWaveforms.AmplitudeModels`), first-order field
   dictionaries (`read_h1` layout, packed to dense matrices internally) and coupling arrays all
@@ -71,10 +71,11 @@ Two purity hoists keep the forbidden axes out (§5.5/§7.7.1):
   (`r2_oracle_ref.jl`, `r2_coupling_ref.jl`, `fdspa_{inputs,ref}.jl`, `aak_bessel_ref.jl`) — no
   live legacy dep.
 
-## Legacy provenance (drawsFrom)
+## Provenance
 
-Rewrite-redesign, not copy; the legacy packages remain green as the characterization oracle and are
-never live test deps (they pull OrdinaryDiffEq/HDF5/SWSH/Teukolsky closures).
+Rewrite-redesign, not copy; the predecessor codes served as the characterization oracle during
+construction and were never live test deps (they pull OrdinaryDiffEq/HDF5/SWSH/Teukolsky closures);
+their outputs are baked into `test/fixtures/`.
 
 | legacy package / files | landed here as |
 |---|---|
@@ -83,13 +84,13 @@ never live test deps (they pull OrdinaryDiffEq/HDF5/SWSH/Teukolsky closures).
 | SecondOrderRicci `r2terms.jl` + `r2_1.jl..r2_10.jl` (transliterations of the upstream `R2_*.cc`) | `r2.jl` — [`r2_term`](@ref) + `r2_1!..r2_10!` (math byte-identical; coupling evaluation hoisted to `SelfForce.SecondOrder`) |
 | KerrBackwards `romanamplitude.jl` (`roman_amplitudes`, `leaky_relu`); FastEMRIWaveforms `amplitude/romannet.jl` (`leaky_relu`) | `amp_gemm.jl` — [`roman_forward`](@ref), [`leaky_relu`](@ref) (pure GEMM; weight IO and conj-partner mode selection stay in `EMRIWaveforms.AmplitudeModels`) |
 
-## What changed vs legacy
+## What changed from the predecessor codes
 
 - **Fork collapse.** The FEW and KerrBackwards copies of the same mode-sum/AAK/ROMAN arithmetic are
   collapsed to one canonical kernel each; the capabilities keep thin, convention-preserving facades.
-- **FD-SPA is NEW here (S4-a).** The frequency-domain stationary-phase kernel
+- **FD-SPA is NEW here.** The frequency-domain stationary-phase kernel
   ([`fd_interpolated_mode_sum`](@ref)/[`spa_func`](@ref)/[`fd_flip_average`](@ref)) was hoisted
-  from the transitional `EMRIWaveforms.ModeSum.FEW` local copy into Kernels, fulfilling the §5.5
+  from the transitional `EMRIWaveforms.ModeSum.FEW` local copy into Kernels, fulfilling the
   "TD + FD-SPA + AAK mode-sum live in Kernels" single-copy mandate; `EMRIWaveforms` now delegates.
 - **Dependency inversion instead of dependency import.** Legacy kernels evaluated Bessel
   coefficients and Wigner couplings inline; here the AAK Bessel *builder* is injected

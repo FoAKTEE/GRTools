@@ -1,7 +1,7 @@
 # Data artifacts
 
-*This page is the single home for the GrTools data-artifact story (design doc §10, per the §12
-single-source rule): the schema contract, the HDF5/JLD2 extension-trigger rule, the injected data
+*This page is the single home for the GrTools data-artifact story: the schema contract, the
+HDF5/JLD2 extension-trigger rule, the injected data
 root, the reader families, and the format separation between the on-disk dialects. The
 [Data](../core/data.md) core page and the capability pages link here rather than restating it.*
 
@@ -40,7 +40,7 @@ schema. The HDF5-free parts of the H1 story — the parity-selected Barack–Lou
 occupies dataset rows `(k−1)·4 .+ (1:4)` = `[Re h, Im h, Re ∂ᵣh, Im ∂ᵣh]`) — are closed-form
 tables in `Data`'s main source, always available.
 
-## The extension-trigger rule (design §5.4, hygiene gate 5)
+## The extension-trigger rule
 
 `Data` declares `HDF5` and `JLD2` only under `[weakdeps]` (see `core/Data/Project.toml`). A Julia
 package extension activates **only when the *loading* package declares the trigger in its own
@@ -57,12 +57,13 @@ Who declares what (verified against the capability `Project.toml` files):
 * Everyone else (`Spacetime` → `Harmonics` → `Perturbation` → …, `PostNewtonian`) uses `Data`
   with no trigger, so HDF5/JLD2 never enter their dependency closure.
 
-This is CI-enforced, not aspirational: `TestKit.assert_dep_budget` (design §7.7, gates 1+5;
-`core/TestKit/src/hygiene.jl`) statically parses each package's own `Project.toml` and asserts the
+This is CI-enforced, not aspirational: `TestKit.assert_dep_budget`
+(`core/TestKit/src/hygiene.jl`) statically parses each package's own `Project.toml` and asserts the
 trigger via its `must_declare` argument — `capabilities/EMRIWaveforms/test/hygiene.jl` runs
 `assert_dep_budget(...; must_declare=["HDF5"], ...)`, `capabilities/Hybrid/test/hygiene.jl` uses
 `must_declare=["JLD2"]`. The same gate keeps HDF5/JLD2 *out* of `Data`'s hard budget (they appear
-only in its `weakdeps_allow`) and rejects any `[sources]` path into `packages/` or `ref-code/`.
+only in its `weakdeps_allow`) and rejects any `[sources]` path into the predecessor-code or
+reference-code trees.
 
 ## The injected data root: `set_datadir!` / `datadir`
 
@@ -112,7 +113,7 @@ the extension. Evaluators that *consume* the loaded slabs stay with the physics 
 B-spline evaluator in `EMRIWaveforms.KerrAmpSpline`, the ROMAN forward pass in
 `Kernels.roman_forward` — because they are numerics, not I/O.
 
-## Format separation (design §10)
+## Format separation
 
 Four on-disk dialects, four deliberately separate readers — same-looking files are **not** merged:
 

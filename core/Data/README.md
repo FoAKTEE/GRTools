@@ -1,4 +1,4 @@
-# Data (`GrToolsData`)
+# Data
 
 Tier-1 core **data spine** of GrTools. Owns the file-format I/O *bodies* that sit behind the
 dep-free `DataSchema` contract structs (`H1Schema` / `AmpGridSchema` / `FluxGridSchema`, defined in
@@ -17,7 +17,7 @@ policy.
 | `wl`       | Mathematica `.wl`/`.m` InputForm readers | WaSABI `wl_parser`, TeukolskyPN/PN InputForm walkers (→ `read_mma_inputform`) |
 | `datadir` / `artifacts` | injected `datadir=` + `set_datadir!` + `Artifacts` resolution | kills the legacy `ref-code/.../run_output` path escapes |
 
-## HDF5 / JLD2 are weakdep extensions (design §5.4)
+## HDF5 / JLD2 are weakdep extensions
 
 The HDF5 and JLD2 reader-writer bodies live in `ext/DataHDF5Ext.jl` / `ext/DataJLD2Ext.jl`. A Julia
 extension activates **only when the loading package declares the trigger in its own `[deps]`**.
@@ -40,4 +40,4 @@ So the grid/corpus consumers — `SelfForce`, `EMRIWaveforms`, `AccretionDisc.Fo
 ## Status
 
 Scaffold: module loads, schema contract re-exported, weakdep-ext seams in place. Reader/writer bodies
-are ported tests-first (round-trip identity + checksum-verified FEW grids) in the Data build round.
+are ported tests-first (round-trip identity + checksum-verified FEW grids).

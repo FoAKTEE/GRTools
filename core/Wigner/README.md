@@ -1,7 +1,7 @@
-# Wigner (GrToolsWigner) — core stratum C2
+# Wigner — angular-momentum coupling
 
 Hand-rolled angular-momentum coupling for GrTools. This package exists to **eliminate the
-`WignerSymbols` package** from every runtime path (design §5.3 / §7.4 / L4): it hosts the
+`WignerSymbols` package** from every runtime path: it hosts the
 promoted hand-rolled implementations so the consumers that previously hand-rolled or
 `[deps]`-ed Wigner inherit **no** new heavy dependency.
 
@@ -21,7 +21,7 @@ It is a Tier-1 core stratum whose **only** dependency is `NumericsCore`. It sits
 All primitives are type-generic `{T}` (BigFloat precision inherited); the combinatorics run in
 `BigInt`/rational arithmetic and downcast only at the boundary.
 
-## Legacy packages absorbed (via REWRITE/promotion, not copy)
+## Provenance (rewrite/promotion, not copy)
 
 | Legacy source | Function | New home |
 |---|---|---|
@@ -29,9 +29,10 @@ All primitives are type-generic `{T}` (BigFloat precision inherited); the combin
 | `SecondOrderRicci/src/coupling.jl` | `coupling` (drops `WignerSymbols` dep) | `Wigner.coupling` |
 | `Punctures/src/mode_mixing.jl` | `_wignerd_halfpi`, `_wignerD_fixed` | `Wigner.wignerD` |
 
-The legacy packages stay green as the characterization oracle; they are never edited.
+The predecessor codes served as the characterization oracle during construction; their outputs are
+baked as literal fixtures in the test files.
 
-## Public API (built TDD in the BUILD rounds)
+## Public API
 
 `wigner3j`, `wigner6j`, `clebsch_gordan`, `coupling`, `wignerd`, `wignerD_halfpi`.
 

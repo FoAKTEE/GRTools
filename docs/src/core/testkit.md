@@ -1,8 +1,7 @@
 # TestKit
 
-Tier-1 core, **test-only** shared harness for the GrTools capability packages (design
-`GRTOOLS_DESIGN_CAPABILITY.md` §5.6, unit C5). It layers a thin, tolerance-recording oracle on top of
-stdlib `Test` and rides the [Data](data.md) spine for fixtures. Nothing here computes physics: TestKit
+Tier-1 core, **test-only** shared harness for the GrTools capability packages. It layers a
+thin, tolerance-recording oracle on top of stdlib `Test` and rides the [Data](data.md) spine for fixtures. Nothing here computes physics: TestKit
 exists so that every *new* numerical assertion in the monorepo records its frozen tolerance, every
 fork relocation is gated against a full-precision snapshot of the legacy primitive, and every
 package's dependency budget is CI-enforced.
@@ -36,27 +35,28 @@ Three invariants, one per source file:
    through `Data.datapath` + `Data.read_dat` (configure the root with `Data.set_datadir!` or
    `ENV["GRTOOLS_DATADIR"]`; there is deliberately no implicit fallback).
 
-3. **Dependency-hygiene gates** (`hygiene.jl`, design §7.7). Two checkers shared by all 16 packages'
+3. **Dependency-hygiene gates** (`hygiene.jl`). Two checkers shared by all 16 packages'
    `test/hygiene.jl`:
-   - `assert_dep_budget(project_toml_path; allow, forbid, must_declare, weakdeps_allow)` — gates 1+5:
+   - `assert_dep_budget(project_toml_path; allow, forbid, must_declare, weakdeps_allow)` —
      a TOML-*static* check of the package's own `Project.toml` (`[deps]`/`[weakdeps]`/`[sources]`;
      nothing is loaded). It enforces the closed `allow` budget, the `forbid` poison axes (trailing-`*`
-     prefix globs, e.g. `"OrdinaryDiffEq*"`), the gate-5 extension triggers (`must_declare` names must
+     prefix globs, e.g. `"OrdinaryDiffEq*"`), the extension triggers (`must_declare` names must
      be *direct* hard `[deps]`, since a Julia extension activates only when the loading package
-     declares its trigger), and — always — that no `[sources]` path points into the legacy
-     `packages/` or `ref-code/` trees.
-   - `assert_not_loaded(mods)` — gate 2: a *runtime* closure-load check that no poison module is in
+     declares its trigger), and — always — that no `[sources]` path points into a predecessor-code
+     tree (`packages/` or `ref-code/`).
+   - `assert_not_loaded(mods)` — a *runtime* closure-load check that no poison module is in
      `Base.loaded_modules`. Binding usage contract: call it **after** `using <Pkg>`, and list only
      poison names nothing in the test env legitimately loads.
 
-## Scope decision (Rev 2, binding)
+## Scope decision
 
-The 281 existing legacy `runtests` remain the **authoritative regression oracle**, run unchanged
-against the legacy facades. TestKit is scoped to **new tests only** — characterization-gate snapshots
-for fork relocations plus any new physics. The ~1900 legacy tolerance literals are *not* transcribed
-into `@approx_oracle` (that transcription would itself be the regression risk). The regression net is
-therefore: legacy runtests (verbatim) + new characterization gates, which is what makes
-additive-then-sweep dedup safe (design §5.6, harness decision option (a)).
+The 281 `runtests` of the predecessor codes served as the **authoritative regression oracle**
+during construction, run unchanged against their own facades. TestKit is scoped to **new tests
+only** — characterization-gate snapshots for fork relocations plus any new physics. The ~1900
+predecessor tolerance literals are *not* transcribed into `@approx_oracle` (that transcription would
+itself be the regression risk). The regression net is therefore: predecessor runtests (verbatim,
+during construction) + new characterization gates, which is what makes additive-then-sweep dedup
+safe.
 
 ## Module map
 
@@ -75,7 +75,7 @@ precisely because this package *is* the shared harness; `TOML` (stdlib, zero cos
 dep-budget gate. There is no legacy oracle dependency — the harness is greenfield and grounded by
 self-tests, so the cold-compile stays light.
 
-TestKit eats its own dog food: its `test/hygiene.jl` runs the §7.7 gates on itself with the closed
+TestKit eats its own dog food: its `test/hygiene.jl` runs the hygiene gates on itself with the closed
 budget `allow = [NumericsCore, Data, Test, Printf, TOML]` and forbids (in `[deps]`/`[weakdeps]`)
 `HDF5`, `JLD2`, `Symbolics`, `OrdinaryDiffEq*`, `CUDA`, `AMDGPU`, `KernelAbstractions`, `Kernels`,
 `WignerSymbols`, `Roots`, `NLsolve`, `SciMLBase`, `SpecialFunctions`, `HypergeometricFunctions`,
@@ -90,34 +90,34 @@ None. No GPU code, no runtime I/O of its own — fixture reads go through the in
 (`Data.set_datadir!` / `ENV["GRTOOLS_DATADIR"]`). The `:gpu` tolerance class exists for *other*
 packages' CPU-vs-GPU gates (e.g. [Kernels](kernels.md)); TestKit itself never touches a device.
 
-## Legacy provenance (drawsFrom)
+## Provenance
 
 TestKit is the one core unit with **no function-level legacy provenance**: `@approx_oracle` had zero
-usages in the legacy corpus, so the harness is 100% greenfield (design §5.6). What it absorbs from
-the legacy packages is *patterns*, not code:
+usages in the legacy corpus, so the harness is 100% greenfield. What it absorbs from the
+predecessor codes is *patterns*, not code:
 
 | legacy source (all ~20 packages) | absorbed as | note |
 |---|---|---|
 | inline `rtol`/`atol` asserts (~1924 tolerance literals, ~1754 `isapprox`) | `@approx_oracle` + tolerance classes | pattern only — the literals are NOT transcribed; legacy runtests stay authoritative |
 | scattered per-package test-fixture loaders | `load_fixture` over the `Data` spine | kills the verified `ref-code` run-output path escapes |
 | ad-hoc "does the port match?" spot checks | `characterization_snapshot` / `characterization_gate` | full-precision, ULP-bounded, perturbation-detecting |
-| (new, no legacy analogue) | `assert_dep_budget` / `assert_not_loaded` | §7.7 CI hygiene gates, wired into all 16 packages |
+| (new, no legacy analogue) | `assert_dep_budget` / `assert_not_loaded` | CI hygiene gates, wired into all 16 packages |
 
 Grounding: self-tests in `test/` (infra, not physics) — the macro passes/fails correctly and records
 its tolerance, the class ordering (`:machine` strictly tighter than `:physics`), the
 can-only-tighten guard catching a loosened tolerance, a fixture round-trip through `Data`, the gate
 detecting 1-ULP and gross perturbations, and the hygiene gates on TestKit's own `Project.toml`.
 
-## What changed vs legacy
+## What changed from the predecessor codes
 
 - **New package.** Nothing in the legacy corpus corresponds to TestKit; migrating users lose nothing
   and gain the frozen-tolerance log, the relocation gate, and the hygiene gates.
 - **Tolerance discipline is now enforced, not conventional**: new tests must declare a class or a
   frozen tolerance, and CI can prove (via `oracle_records()` + `assert_can_only_tighten`) that no
   tolerance was loosened over a relocation.
-- **Dependency budgets are now executable** (`assert_dep_budget`/`assert_not_loaded`), replacing the
-  design doc's prose poison-axis declarations with per-package CI gates — including the Phase 7-B
-  invariant that no `[sources]` entry may point into `packages/` or `ref-code/`.
+- **Dependency budgets are now executable** (`assert_dep_budget`/`assert_not_loaded`), replacing
+  prose poison-axis declarations with per-package CI gates — including the invariant that no
+  `[sources]` entry may point into a predecessor-code tree (`packages/` or `ref-code/`).
 
 ## Public API
 

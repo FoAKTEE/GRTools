@@ -1,7 +1,7 @@
 # ModifiedGravity
 
 Beyond-GR (modified Teukolsky) source machinery — a thin, independently versioned Tier-4 research
-capability (design §4.7).
+capability.
 
 ## Overview
 
@@ -29,11 +29,11 @@ eccentric orbits throw (no migrated grounding yet).
 
 ## Submodule map
 
-`ModifiedGravity` is a **flat namespace**: the design-§4.7 "submodules" are source files included
+`ModifiedGravity` is a **flat namespace**: the "submodules" are source files included
 into the single top-level module (verified — `src/` declares no nested `module` blocks). The map
 below is file → public surface:
 
-| Source file (design-§4.7 area) | Public surface |
+| Source file (area) | Public surface |
 |---|---|
 | `source_tables.jl` (SourceTables) | `SourceMode`, `read_source_table` (both re-exported from `Data`), `source_mode_line`, `write_source_mode`, `write_source_table` |
 | `hertz_potential.jl` (HertzPotential) | `hertz_potential_mode` |
@@ -55,16 +55,16 @@ Runtime `[deps]` (Project.toml): `Perturbation` (Teukolsky radial engine, reused
 front-end), `Harmonics` (SWSH values at ``\pi/2``), `NumericsCore`, `Data` (`.dat` reader +
 `_mma_sci`), `MetricReconstruction` (see below), `Printf`.
 
-**Sanctioned MetricReconstruction edge (Rev-3).** The design-§3.2 dep line for ModifiedGravity was
+**Sanctioned MetricReconstruction edge.** The original dep line for ModifiedGravity was
 `Perturbation, Harmonics, NumericsCore (+Printf, Data)`; `MetricReconstruction` is a **sanctioned
-Rev-3 amendment** for the h44 GHP fill: `ghp_operators.jl` reuses
+later amendment** for the h44 GHP fill: `ghp_operators.jl` reuses
 `MetricReconstruction.Lorenz`'s jet calculus (`jmul`/`jadd`/`jderiv`/…, the single source of truth
 for radial-derivative Taylor towers) and `h44_from_hertz` reuses
 `MetricReconstruction.Radiation.radial_jet` (the ``s=+2`` Teukolsky ODE tower). The CCK
 ``\psi_4\leftarrow`` Hertz identity itself remains hard-baked as a closed-form kernel
 (`_psi4_hertz_kernel`) — it does not call Radiation machinery.
 
-**Poison axis** — the binding §7.7 CI budget in
+**Poison axis** — the binding CI budget in
 `capabilities/ModifiedGravity/test/hygiene.jl` (`TestKit.assert_dep_budget` +
 closure-load gate `TestKit.assert_not_loaded`):
 
@@ -76,17 +76,17 @@ The package is HDF5-free and Symbolics-free by CI gate, not by convention.
 
 ## GPU / data needs
 
-- **GPU:** none. Parallelism is CPU threads/processes over the `(l,m,n,k)` mode axis (design
-  §"per-capability parallelism").
+- **GPU:** none. Parallelism is CPU threads/processes over the `(l,m,n,k)` mode axis.
 - **Data:** the only data surface is the 12-column tab-separated `.dat` ring-forcing source tables
   (three shipped oracles in `test/data/`, e.g. `i1.0_p12.0_e0_r20.0.dat`), read through `Data`.
   No HDF5, no grids.
 - **Precision:** the numeric surface is type-generic; BigFloat inheritance from
-  Perturbation/Harmonics is preserved (see "What changed vs legacy").
+  Perturbation/Harmonics is preserved (see "What changed from the predecessor codes").
 
-## Legacy provenance (drawsFrom)
+## Provenance
 
-Design §6.7 crosswalk — 1:1 with legacy `ModifiedTeukolsky`, zero cross-legacy pulls:
+The mapping is 1:1 with the earlier `ModifiedTeukolsky` research code; nothing is drawn from any
+other predecessor code:
 
 | Legacy pkg / file | New home |
 |---|---|
@@ -106,9 +106,9 @@ identities for ``\text{þ}/\text{þ}'``, and — for `h44` — the necessary asy
 ``h_{44} \to 2\psi_4/\omega^2`` plus a finite-``r`` match to the independent wolframscript operator
 oracle (`oracle/h44_from_hertz_oracle.wl`).
 
-## What changed vs legacy
+## What changed from the predecessor codes
 
-- **BigFloat leak fixed (design hole H-MG-BIGFLOAT).** Legacy `hertz_potential_mode` coerced
+- **BigFloat leak fixed.** Legacy `hertz_potential_mode` coerced
   `float(a)`/`float(ω)` and pinned `ComplexF64`, silently downcasting extended-precision inputs.
   The port threads the element type through, so BigFloat flows into
   `TeukolskyRadial`/`TeukolskyPointParticleMode*` unmolested. The load-bearing
@@ -121,8 +121,8 @@ oracle (`oracle/h44_from_hertz_oracle.wl`).
   ``\bar m\bar m`` component natively from the recovered GHP operator (SC l.368):
   ``-(-1)^m\big[(3\varepsilon'+3\varepsilon'^{\dagger}+2\rho')\,\text{þ}'\Psi + \Psi B +
   \text{þ}'\text{þ}'\Psi\big]`` with ``\Psi = \mathrm{RadHZ}^{\dagger}/\xi^4`` — this is what
-  motivates the sanctioned Rev-3 `MetricReconstruction` dependency (jet calculus + `radial_jet`).
-- **Dead legacy deps dropped** (grep-verified in the design round): `KerrGeodesics`,
+  motivates the sanctioned `MetricReconstruction` dependency (jet calculus + `radial_jet`).
+- **Dead legacy deps dropped** (grep-verified): `KerrGeodesics`,
   `LinearAlgebra`, `DelimitedFiles` are gone from `[deps]`.
 
 ## Public API

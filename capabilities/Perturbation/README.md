@@ -1,7 +1,7 @@
 # Perturbation
 
 Tier-3 vacuum/test perturbed-field solver for the Kerr spacetime — the **Teukolsky-radial
-engine** and the **light-dep firewall** of GrTools (design §4.3).
+engine** and the **light-dep firewall** of GrTools.
 
 ## Physics this capability owns
 
@@ -16,17 +16,17 @@ them for a *vacuum / test* (point-particle) perturbation:
 - **Point-particle amplitudes** Z/C and the **energy / angular-momentum / Carter fluxes**
   (circular / eccentric / spherical / generic orbits × spin weights).
 - **MST scattering phase** + Starobinsky constant + B_refl/B_inc reflection/transmission.
-- (Later round) spinning-secondary **spin-fluxes**.
+- Spinning-secondary **spin-fluxes**.
 
-## Legacy packages absorbed
+## Provenance
 
-Functions relocate to this physics home from (design §6 crosswalk rows dest=Perturbation):
+Functions relocate to this physics home from the predecessor codes:
 
 | Legacy package | What moves in |
 | --- | --- |
 | `Teukolsky` | homogeneous radial In/Up, RenormalizedAngularMomentum ν, MST coefficients, amplitudes Z/C, point-particle fluxes |
 | `ScatteringPhaseMST` | `starobinsky_constant`, `_brefl_over_binc`, `scattering_phase_numerical`, `mst_coefficient`, `scattering_phase_table` |
-| `TeukolskySpinFluxes` (later round) | the 13 spinning-secondary `TeukolskySpinMode*` flux entrypoints |
+| `TeukolskySpinFluxes` | the 13 spinning-secondary `TeukolskySpinMode*` flux entrypoints |
 
 ## The firewall
 
@@ -54,13 +54,13 @@ under the BLAS-guard.
 
 ## Test-characterization oracle
 
-Grounded test-only against the LIGHT live oracles `Teukolsky` (closure
-KerrGeodesics/SWSH/SpecialFunctions/HypGeo — all light) and `ScatteringPhaseMST` (deps
-Teukolsky/SWSH) at their frozen tolerances, plus analytic identities (ν continued-fraction root,
+Grounded against the predecessor `Teukolsky` and `ScatteringPhaseMST` codes as characterization
+oracles at their frozen tolerances — their outputs on the test grids are baked into
+`test/fixtures/` — plus analytic identities (ν continued-fraction root,
 MST 2F1 connection, flux Newtonian-quadrupole 32/5 limit, Starobinsky–Chandrasekhar scattering
 identity). No heavy package is ever a live test-dep.
 
 ## Public API
 
-Built TDD across the BUILD rounds. The `Radial` submodule (the core everything downstream needs)
+Built test-first. The `Radial` submodule (the core everything downstream needs)
 lands first; `AmplitudesFluxes`, `Scattering`, and `SpinFluxes` follow.

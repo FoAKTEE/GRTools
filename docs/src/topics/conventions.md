@@ -2,7 +2,7 @@
 
 The cross-cutting convention surface of GrTools: the unified negative-``m`` parity flag,
 the dimensionless MST/EMRI convention helpers, and the split-named physical constants.
-This page is the **single home** of the topic (design §12) — package pages
+This page is the **single home** of the topic — package pages
 ([Harmonics](../capabilities/harmonics.md), [NumericsCore](../core/numericscore.md),
 [EMRIWaveforms](../capabilities/emriwaveforms.md)) link here rather than restating it.
 
@@ -98,7 +98,7 @@ p_to_y(p, e) = log(p - 2e - 21//10)       # NumericsCore
 maps the semilatus rectum ``p`` to the amplitude-grid coordinate
 ``y = \log(p - 2e - 21/10)``; the shift keeps ``y`` finite and clear of the Schwarzschild
 separatrix ``p_s = 6 + 2e``. It is the canonical home of FEW's
-`schwarzecc_p_to_y` and KerrBackwards' `p_to_y` (Phase 7-D dedup): the
+`schwarzecc_p_to_y` and KerrBackwards' `p_to_y` (deduplicated to one definition): the
 `EMRIWaveforms` amplitude interpolants (`AmplitudeModels.jl`) evaluate on the ``(y, e)``
 grid through this one definition, and `EMRIWaveforms.Mappings` re-exports it with no new
 body.
@@ -165,8 +165,8 @@ running from ``+0.92`` (``a=0``) / ``+1.19`` (``a=0.7``) at the horizon to ``+1.
 ``r=200``, vanishing only as ``r\to\infty``. Since the common ``r_*`` cancels, the difference is
 **``a``-independent** (identical for ``a=0`` and ``a=0.7`` to ``9\times10^{-16}``). **Verdict: RT and
 HPHC are different foliations** — the [HYPOTHESIS] is confirmed. The layer chart differs from both: it
-is Cauchy (``H=0``) in the strong field and so is not even horizon-penetrating. Evidence (dh/dr tables,
-analytic vs finite-difference, provenance): `scratchpad/npghp_phase2/F0_chart_identity.md`.
+is Cauchy (``H=0``) in the strong field and so is not even horizon-penetrating. The verdict rests on
+tabulated ``dh/dr`` differences, with the analytic derivatives checked against finite differences.
 
 Coefficients and maps live in the module docstrings: `rt_r_of_R`/`rt_F_of_R` (RT), `hphc_R_of_r`/
 `hphc_horizon_R` (HPHC), and the `Layer` struct with `Hfun`/`rstar_of_ρ` (layer).

@@ -1,11 +1,11 @@
 # Spacetime
 
-Kerr background-geometry + orbital-mechanics **foundation** for GrTools (Plan B, design
-§4.1). This is the Tier-2 spine root: its entire dependency closure is `{LinearAlgebra,
-NumericsCore}`. Every physics capability above it (Perturbation, MetricReconstruction,
-SelfForce, EMRIWaveforms, PostNewtonian, Hybrid, AccretionDisc) reaches Kerr geometry,
-geodesics, separatrix and ISCO through this single package — so the spine root carries
-**no heavy dependency** (no `Roots`, no HDF5/Symbolics/Wigner/external-ODE).
+Kerr background-geometry + orbital-mechanics **foundation** for GrTools. This is the
+Tier-2 spine root: its entire dependency closure is `{LinearAlgebra, NumericsCore}`. Every
+physics capability above it (Perturbation, MetricReconstruction, SelfForce, EMRIWaveforms,
+PostNewtonian, Hybrid, AccretionDisc) reaches Kerr geometry, geodesics, separatrix and ISCO
+through this single package — so the spine root carries **no heavy dependency** (no `Roots`,
+no HDF5/Symbolics/Wigner/external-ODE).
 
 ## What physics this capability owns
 
@@ -19,14 +19,15 @@ motion within it:
 | `Separatrix` | ONE canonical `separatrix(a,e,x)` + `kerr_isco(a)` over NumericsCore's vendored A42/brent bracketing root-finder (no `Roots`). |
 | `SpinningSecondary` | Linear-in-spin orbital actions/frequencies + spin-curvature force terms. |
 | `PNKinematics` | Numeric Kepler Ω / `r0_of_Ω` / `pn_x` and the collapsed single ISCO/PN-ISCO fork (the *numeric* kinematic helpers — not the symbolic PN series). |
-| `NPGHP` | NP/GHP **coefficient kernel** (NPGHP campaign Move B, nested `Spacetime.NPGHP.*`): the full Kerr Kinnersley NP spin-coefficient table `np_spincoeff(a,r,θ)` + GHP-primed view `ghp_spincoeff`, GHP `{p,q}=(s+b,−s+b)` weights, and the TeukEvolution HPHC-cl chart (`R=cl²/r`) with its 6 background NP_0 scalars + 11 GHP operator pre-coefficients. Owns **coefficients** (pointwise closed-form geometry); operator *application* (þ/þ′/ð/ð′) stays consumer-side. |
+| `NPGHP` | NP/GHP **coefficient kernel** (nested `Spacetime.NPGHP.*`): the full Kerr Kinnersley NP spin-coefficient table `np_spincoeff(a,r,θ)` + GHP-primed view `ghp_spincoeff`, GHP `{p,q}=(s+b,−s+b)` weights, and the TeukEvolution HPHC-cl chart (`R=cl²/r`) with its 6 background NP_0 scalars + 11 GHP operator pre-coefficients. Owns **coefficients** (pointwise closed-form geometry); operator *application* (þ/þ′/ð/ð′) stays consumer-side. |
 
 Everything is type-generic `{T}`, so BigFloat precision (256…2048-bit) is inherited from
 the caller via `NumericsCore.precision`.
 
-## Legacy packages absorbed
+## Provenance
 
-Consolidated here, with their original packages kept GREEN as the characterization oracle:
+Consolidated here from the predecessor codes, which served as the characterization oracle during
+construction (their outputs are baked into `test/fixtures/`):
 
 - **KerrGeodesics** — constants of motion, frequencies, radial/polar roots, trajectories (→ `Geodesics`).
 - **SpinningOrbit** — linear-in-spin orbit corrections + spin deviations (→ `SpinningSecondary`).
@@ -51,6 +52,6 @@ analytic identity before its exports go live.)
 - **Runtime:** `LinearAlgebra`, `NumericsCore` (Carlson/elliptic/Jacobi for Geodesics;
   precision policy; the vendored A42/brent bracketing root-finder for Separatrix). No
   external deps — spine-root invariant.
-- **Test-characterization oracles (light, live):** `KerrGeodesics` (empty `[deps]`) and
-  `SpinningOrbit` (depends only on KerrGeodesics). No heavy package is ever a live test-dep
-  here, keeping the cold-compile fast.
+- **Characterization oracles:** the predecessor `KerrGeodesics` and `SpinningOrbit` codes,
+  whose outputs on the test grids are baked into `test/fixtures/`. No heavy package is ever a
+  live test-dep here, keeping the cold-compile fast.

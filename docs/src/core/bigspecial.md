@@ -1,7 +1,7 @@
 # BigSpecial (`GrToolsBigSpecial`)
 
-Tier-1 core stratum: the `Complex{BigFloat}` special-functions layer of GrTools
-(design §5.2). It exists as a **separate** package so that
+Tier-1 core stratum: the `Complex{BigFloat}` special-functions layer of GrTools.
+It exists as a **separate** package so that
 `HypergeometricFunctions`/`SpecialFunctions` never leak onto the
 `NumericsCore`-only spine (`KerrGeodesics` empty-deps,
 `SpinWeightedSpheroidalHarmonics` LinearAlgebra-only). Any caller needing
@@ -43,8 +43,7 @@ Three families, one file each:
   HypergeometricFunctions-**delegated** Kummer ``M`` (via `pFq`). This is a
   deliberately **distinct named function** from the series-self-contained
   `NumericsCore.kummer_1F1`: HypGeo-delegated vs. vendored-series are different
-  decisions, so they are two named primitives, not one unacknowledged fork
-  (design H-CORE-STRAT resolution, §4.2/§5.1/§5.2).
+  decisions, so they are two named primitives, not one unacknowledged fork.
 
 ## Module map
 
@@ -65,7 +64,7 @@ the two sanctioned external backends `HypergeometricFunctions` and
 `SpecialFunctions`. BigSpecial is **the only place** the heavy
 special-function stack is allowed below tier 3.
 
-The §7.7 CI budget (`test/hygiene.jl`) is binding:
+The CI dependency budget (`test/hygiene.jl`) is binding:
 
 - **allow**: `NumericsCore`, `HypergeometricFunctions`, `SpecialFunctions`;
 - **forbid** (dep-budget gate): `HDF5`, `JLD2`, `Symbolics`,
@@ -79,15 +78,15 @@ The §7.7 CI budget (`test/hygiene.jl`) is binding:
 ## GPU / data needs
 
 None. Pure CPU, no data artifacts, no I/O: the BigFloat generation tier never
-touches the device (design §5.5), and the budget above forbids every GPU and
+touches the device, and the budget above forbids every GPU and
 I/O axis. Test-oracle values are **baked fixture literals** in `test/*.jl`
 (captured once at 256-bit, bit-identical `==` preserved), so the test suite
-needs no legacy `packages/*` dependency and no data files.
+needs no dependency on the predecessor codes and no data files.
 
-## Legacy provenance (drawsFrom)
+## Provenance
 
-Consolidates four legacy forks of the same decision into one canonical
-type-generic primitive per function (design §6 crosswalk, dest = BigSpecial):
+Consolidates four predecessor forks of the same decision into one canonical
+type-generic primitive per function:
 
 | Legacy (pkg / file / fn) | → BigSpecial |
 |---|---|
@@ -96,7 +95,7 @@ type-generic primitive per function (design §6 crosswalk, dest = BigSpecial):
 | Punctures / `alpha_integration.jl`, `regsum.jl` / `_poch`, `_f21_term`, `_regsum_tail` | `pochhammer`, `f21_terminating`, `digamma_big` |
 | WaSABI / inspiral deps / hand-rolled `_digamma`, `PolyGamma` | `digamma_big`, `PolyGamma` |
 
-## What changed vs. legacy
+## What changed from the predecessor codes
 
 - **Fork collapse.** Four per-package copies of ``\Gamma``/pochhammer/``{}_2F_1``
   machinery became one type-generic canonical primitive each; every move was

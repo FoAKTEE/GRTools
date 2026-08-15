@@ -1,6 +1,6 @@
 # EMRIWaveforms
 
-Tier-5 capability (design §4.8, §6.8): the **EMRI trajectory + observed-waveform pipeline**,
+Tier-5 capability: the **EMRI trajectory + observed-waveform pipeline**,
 fusing the two legacy waveform engines **FastEMRIWaveforms** (FEW) and **KerrBackwards** (KB).
 This is **HDF5 home #2**: inspiral ODE → flux/amplitude grid models → mode selection → mode
 summation → observed-waveform generation.
@@ -60,7 +60,7 @@ External deps: `HDF5` (**direct** — see below), `OrdinaryDiffEqVerner`, `Roots
 `SpecialFunctions` (`besselj` for `ak_bessel_coeffs`), plus stdlib `Printf` / `LinearAlgebra` /
 `Random`.
 
-The binding dep budget is CI-enforced by `test/hygiene.jl` (§7.7 gates 1+2+5), which
+The binding dep budget is CI-enforced by `test/hygiene.jl` (hygiene gates 1, 2 and 5), which
 
 - **allows** exactly: `Printf`, `LinearAlgebra`, `Random`, `NumericsCore`, `Spacetime`,
   `Harmonics`, `Kernels`, `Data`, `HDF5`, `OrdinaryDiffEqVerner`, `Roots`, `NLsolve`,
@@ -70,7 +70,7 @@ The binding dep budget is CI-enforced by `test/hygiene.jl` (§7.7 gates 1+2+5), 
   consumer declares the trigger package in its own `[deps]`;
 - **forbids** (may never carry): `Symbolics`, `WignerSymbols`, `JLD2`, `CUDA`, `AMDGPU`,
   `KernelAbstractions` (must arrive only *through* `Kernels`), the monolithic `OrdinaryDiffEq`
-  (only the Verner sub-package is sanctioned, §7.5), `SciMLBase`, `BigSpecial`;
+  (only the Verner sub-package is sanctioned), `SciMLBase`, `BigSpecial`;
 - asserts post-load (gate 2) that `Symbolics` / `WignerSymbols` / `JLD2` / `CUDA` / `AMDGPU` /
   `OrdinaryDiffEq` are not in the loaded-module closure.
 
@@ -90,14 +90,14 @@ grounding is by analytic identity and captured fixtures baked from the checksum-
   CPU. CPU fallback is threaded (≤ 20) with the BLAS single-thread guard.
 - **Precision** — Float64/GPU-only. This capability *calls* the BigFloat-generic lower tiers
   (Harmonics eigenvalues, Perturbation, MetricReconstruction) at Float64 and imposes no
-  precision constraint upward (§9).
+  precision constraint upward.
 - **Data** — all grid IO goes through `Data` (`read_fluxgrid`, `read_ampgrid`, `read_roman_nn`,
   `read_kerrampgrid`, `read_dat`); no EMRIWaveforms source performs direct HDF5 reads. Grids:
   the Schwarzschild-eccentric flux/amplitude grids, the ROMAN NN weights
   (`SchwarzschildEccentricInput.hdf5`), `KerrEccEqFluxData.h5`, and the 4.74 GB Kerr-ecc-eq
-  `ZNAmps` amplitude grid (`[FUTURE]`-large, §10).
+  `ZNAmps` amplitude grid (`[FUTURE]`-large).
 
-## Legacy provenance (drawsFrom, design §6.8)
+## Provenance
 
 | Legacy source | New home |
 |---|---|
@@ -113,27 +113,27 @@ grounding is by analytic identity and captured fixtures baked from the checksum-
 | both forks: interpolants / `GslBicubic` / `ModeIndexTable` / constants / Carlson elliptic | → `NumericsCore` (hoisted, single copy) |
 | FEW imports of Teukolsky / TeukolskySpinFluxes / SpinningOrbit / TeukolskyPN | **deleted** (dead, 0 call sites) |
 
-## What changed vs legacy
+## What changed from the predecessor codes
 
-- **Single-API backend collapse (§4.8/§6.8 milestone, CLOSED for three of six collision
-  survivors).** The three fork pairs that were the *same* decision — the `Trajectory` inspiral
+- **Single-API backend collapse (three of the six fork pairs).** The three fork pairs that
+  were the *same* decision — the `Trajectory` inspiral
   driver, `AmplitudeModels.RomanAmplitude`, and `AAK.aak_summation`/`aak_waveform` — are each
   ONE canonical API with a `backend::Symbol` selector (`:few` default, `:kb`) that reproduces
   both legacy forks bit-for-bit; the redundant fork scaffolding is deleted. `FluxModels`,
   `ModeSelect`, and `ModeSum` retain qualified `KerrBackwards`/`FEW` submodules because those
   are genuinely distinct backends (Schwarz-ecc vs Kerr-ecc-eq flux grids; ``(\ell,m,n)`` vs
   ``(\ell,m,k,n)`` selection; TD vs FD-SPA assembly).
-- **FD-SPA moved to `Kernels` (S4-a).** The frequency-domain stationary-phase mode sum
+- **FD-SPA moved to `Kernels`.** The frequency-domain stationary-phase mode sum
   (`fd_interpolated_mode_sum` / `fd_flip_average`) was hoisted to
   `Kernels.fd_interpolated_mode_sum` (single copy, bit-identical to the pre-hoist local kernel
   per the baked fixture); the FEW names in `ModeSum.FEW` are thin facades.
-- **HDF5 reader bodies moved to `Data` (S4-b).** `read_roman_nn`, `read_ampgrid`,
+- **HDF5 reader bodies moved to `Data`.** `read_roman_nn`, `read_ampgrid`,
   `read_fluxgrid`, `read_kerrampgrid`, `kerr_mode_table` live in `DataHDF5Ext`;
   EMRIWaveforms' direct `HDF5` dep exists solely as the extension trigger.
-- **`ak_bessel_coeffs` ownership (S4-c purity hoist).** The Peters–Mathews Bessel basis moved
+- **`ak_bessel_coeffs` ownership (purity hoist).** The Peters–Mathews Bessel basis moved
   verbatim *out of* `Kernels` into `EMRIWaveforms.AAK` (its canonical home), and is injected
   into `Kernels.aak_summation` as the `bessel_coeffs` provider — `Kernels` carries no
-  `SpecialFunctions` machinery (§5.5/§7.7 purity gate); `SpecialFunctions` was promoted to a
+  `SpecialFunctions` machinery (purity gate); `SpecialFunctions` was promoted to a
   regular dep here.
 - **Geometry migrated out; primitives hoisted.** Separatrix/frequencies/ISCO live in
   `Spacetime`; the ``{}_sY_{\ell m}`` carrier in `Harmonics`; cubic/bicubic/tricubic

@@ -1,7 +1,7 @@
 # PostNewtonian
 
-Tier-4 GrTools capability — the **post-Newtonian series engine** and the **Symbolics quarantine**
-(design §4.6). It fuses the two legacy PN leaf packages (`TeukolskyPN` + `PostNewtonianSelfForce`)
+Tier-4 GrTools capability — the **post-Newtonian series engine** and the **Symbolics quarantine**.
+It fuses the two legacy PN leaf packages (`TeukolskyPN` + `PostNewtonianSelfForce`)
 into one capability and is a top-of-DAG leaf: nothing depends UP on it, so `Symbolics` (a HARD dep
 here and ONLY here) never leaks its ~1.9 s precompile floor onto the numeric/GPU waveform path.
 
@@ -52,18 +52,18 @@ evaluate numerically.
 Declared `[deps]` (Project.toml): `NumericsCore`, `Harmonics`, `Data` (GrTools) + `Symbolics`
 (HARD, quarantined), `SpecialFunctions`, and stdlib `Printf`/`LinearAlgebra`.
 
-The binding budget is the §7.7 CI gate in `test/hygiene.jl` (`TestKit.assert_dep_budget` +
+The binding budget is the CI gate in `test/hygiene.jl` (`TestKit.assert_dep_budget` +
 `assert_not_loaded`):
 
 - **may carry** (allow-list): `Printf`, `LinearAlgebra`, `NumericsCore`, `Harmonics`, `Data`,
-  `Symbolics`, `SpecialFunctions`. (`LinearAlgebra` is flagged there as a TODO/S2 discrepancy:
-  stdlib, zero-cost, but grep-verified no `src/` usage and not on the §4.6 dep list.)
+  `Symbolics`, `SpecialFunctions`. (`LinearAlgebra` is flagged there as a TODO discrepancy:
+  stdlib, zero-cost, but grep-verified no `src/` usage.)
 - **must declare**: `Symbolics` — this capability is its SOLE hard home in GrTools (gate 5,
   quarantine home).
 - **may NOT carry** (forbid-list): `HDF5`, `JLD2`, `CUDA`, `AMDGPU`, `KernelAbstractions`,
   `Kernels`, `WignerSymbols`, `OrdinaryDiffEq*`, `Roots`, `NLsolve`, `SciMLBase`. In particular
   PostNewtonian touches `Data` only for `.m`/`.wl` text artifacts, so it must NOT declare `HDF5`
-  (Data's HDF5 weakdep-ext stays dormant here; design §7.7 gate 5).
+  (Data's HDF5 weakdep-ext stays dormant here; hygiene gate 5).
 - the closure-load gate additionally asserts none of the poison packages the Symbolics closure
   cannot legitimately pull are loaded after `using PostNewtonian`.
 
@@ -74,19 +74,19 @@ Symbolics), and nothing depends up on PostNewtonian after the dead `FEW → Teuk
 ## GPU / data needs
 
 - **GPU: none.** This capability never touches `Kernels`/`CUDA` (forbidden by the hygiene gate).
-  Its parallelism model (design §8) is CPU threads/processes over the mode axis.
+  Its parallelism model is CPU threads/processes over the mode axis.
 - **Data: the package-OWNED `SeriesData` store** — 91 Mathematica-InputForm `.m` files (~38 MB,
-  `Kerr/` + `Schwarzschild/` trees), a real copy (no symlink into legacy; ownership taken in the
-  S1 hygiene batch), resolved via `Catalog.SERIES_DATA_DIR`. The externalize-to-`Data.artifacts`
+  `Kerr/` + `Schwarzschild/` trees), a real copy (no symlink into the predecessor code),
+  resolved via `Catalog.SERIES_DATA_DIR`. The externalize-to-`Data.artifacts`
   move is deferred. No HDF5/JLD2 grids.
 - **Test grounding** needs no heavy live legacy dep: the wolframscript byte-exact oracle on the 91
   `.m` files, captured fixtures (`test/fixtures/pn_series_ops_oracle.json`), and analytic PN
   identities.
 
-## Legacy provenance (drawsFrom)
+## Provenance
 
-From design §6.6; the legacy packages stay green as the oracle and are never edited by this
-capability.
+The predecessor codes served as the characterization oracle during construction; their outputs
+are baked into `test/fixtures/`.
 
 | Legacy source | Landed in |
 |---------------|-----------|
@@ -97,7 +97,7 @@ capability.
 | PostNewtonianSelfForce / `catalog_selector.jl`, `series_data.jl` | `PostNewtonian.Catalog` |
 | TeukolskyPN `mode_pn_source.jl` `_eval_mma_ast` + PostNewtonianSelfForce `series_data.jl` `_eval_pn_ast` (duplicated walker forks) | unified into `PostNewtonian.MMAInputForm.read_mma_inputform`, behind a byte-for-byte `Num`-equivalence gate over all 91 legacy `.m` files |
 
-## What changed vs legacy
+## What changed from the predecessor codes
 
 - **One capability instead of two packages.** `TeukolskyPN` and `PostNewtonianSelfForce` fuse;
   `Symbolics` gets a single hard home and the dead `FEW → TeukolskyPN` import edge is cut, so no
@@ -105,8 +105,8 @@ capability.
 - **The MMA walker fork is unified.** The two duplicated InputForm walkers (`_eval_mma_ast` /
   `_eval_pn_ast`) collapse into one `MMAInputForm.read_mma_inputform`, verified `Num`-equivalent
   on all 91 legacy `.m` files. It is DISTINCT from `Data.read_mma_inputform`, which reads the
-  numeric `.wl` dialect (design §10 format separation).
-- **Finer submodule split than the §4.6 sketch.** The design's 5-way split
+  numeric `.wl` dialect.
+- **Finer submodule split than originally sketched.** The original 5-way split
   (`Series·MST·RadialMode·SelfForce·Catalog`) is realized as 7 modules: `MMAInputForm` (the
   symbolic walker) split out of `Catalog` (pure discovery/browse, stdlib-only), and `SourceMode`
   (source + flux assembly) split out of `RadialMode` (radial solutions + amplitudes).
@@ -114,7 +114,7 @@ capability.
   method table on `ResummedSeriesData` — as both legacy packages already did, now within one
   namespace.
 - **Owned data.** The 91-file SeriesData store is bundled inside the capability (real copy), so
-  tests and loaders no longer reach into `packages/PostNewtonianSelfForce`.
+  tests and loaders no longer reach into the earlier `PostNewtonianSelfForce` research code.
 
 ## Public API
 

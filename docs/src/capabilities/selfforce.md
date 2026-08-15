@@ -1,7 +1,7 @@
 # SelfForce
 
-Tier-5 capability (design §4.5): the **1st + 2nd-order gravitational self-force (GSF) corpus**,
-fusing the legacy `H1Lorenz`, `Punctures`, and `SecondOrderRicci` packages over the shared **h1
+Tier-5 capability: the **1st + 2nd-order gravitational self-force (GSF) corpus**,
+fusing the earlier `H1Lorenz`, `Punctures`, and `SecondOrderRicci` research codes over the shared **h1
 corpus** (the first-order Lorenz-gauge mode data, intrinsic HDF5 mediated by `Data.H1Schema`).
 This is **HDF5 HOME #1** of the capability layer: the h1 corpus is generated, persisted, and
 re-ingested here.
@@ -23,7 +23,7 @@ re-ingested here.
 
 The radial field-equation RHS (`even_ode!`/`odd_ode!`/`monopole_ode!`/`odd_dipole_ode!`) is **not
 owned here**: its single canonical, physics-justified home is
-`MetricReconstruction.Lorenz.LorenzRadial` (design §4.4/§6.10), which `LorenzField` consumes.
+`MetricReconstruction.Lorenz.LorenzRadial`, which `LorenzField` consumes.
 
 ## Submodule map
 
@@ -41,18 +41,18 @@ Re-exported-not-re-owned front doors: `a_il` (owner: `NumericsCore`), `coupling`
 Declared `[deps]` (Project.toml): core `NumericsCore`, `BigSpecial`, `Wigner`, `Kernels`, `Data`;
 capability `Spacetime`, `Harmonics`, `MetricReconstruction`; external `HDF5` (hard),
 `ForwardDiff` + `QuadGK` (Puncture); stdlib `LinearAlgebra`, `Printf` (Printf is flagged
-vestigial in the S2 report — allowed for a green suite but has no `src/` usage).
+vestigial — allowed for a green suite but has no `src/` usage).
 
-The binding budget is enforced by the §7.7 CI gates in `SelfForce/test/hygiene.jl`
+The binding budget is enforced by the CI gates in `SelfForce/test/hygiene.jl`
 (`TestKit.assert_dep_budget` + `TestKit.assert_not_loaded`):
 
-- **Must declare** — `HDF5` **directly**. This is the extension trigger (design §7.2): `Data`'s
+- **Must declare** — `HDF5` **directly**. This is the extension trigger: `Data`'s
   HDF5 reader/writer bodies live in a weakdep extension that activates only when the *loading*
   package declares the trigger in its own `[deps]`. Omitting it would silently disable corpus IO.
 - **May carry** — exactly the allow-list above; any other `[deps]` entry fails the gate.
 - **Must NOT carry (poison axes)** — `Symbolics` (quarantined in PostNewtonian),
-  `OrdinaryDiffEq*` (LorenzField uses the vendored NumericsCore DP5+GBS integrators — the §7.5
-  invariant), `WignerSymbols`, `JLD2`, `CUDA`/`AMDGPU`, direct `KernelAbstractions` (must arrive
+  `OrdinaryDiffEq*` (LorenzField uses the vendored NumericsCore DP5+GBS integrators — a
+  CI-gated invariant), `WignerSymbols`, `JLD2`, `CUDA`/`AMDGPU`, direct `KernelAbstractions` (must arrive
   only through `Kernels`), `Roots`, `NLsolve`, `SciMLBase`. A closure-load gate re-asserts after
   `using SelfForce` that none of these modules appears in the loaded-module set.
 
@@ -69,30 +69,30 @@ The binding budget is enforced by the §7.7 CI gates in `SelfForce/test/hygiene.
   (`datadir=`); the legacy `ref-code/h1Lorenz/run_r8/fields` relative-path escape is gone.
 - **Tests** run against baked fixtures only — captured one-shot from the compiled g++/GSL
   `r2_oracle.cpp`/`h1.cc` oracles, wolframscript/Mathematica (Puncture), analytic identities, and
-  a round-trip corpus write/read (which fires the Data HDF5 extension). The heavy legacy packages
+  a round-trip corpus write/read (which fires the Data HDF5 extension). The heavy predecessor codes
   are never live test-deps.
 
-## Legacy provenance (drawsFrom, design §6.5)
+## Provenance
 
-| Legacy package / files | Lands in |
+| Predecessor code / files | Lands in |
 |---|---|
 | `H1Lorenz` — `orbit, sources, boundary_conditions, integrator, scaling, static, gauge_fields, coupled_sets, assemble, driver, io_hdf5` | `SelfForce.LorenzField` |
 | `Punctures` — `static, h0_coefficients, alpha_integration, puncture_modes*, mode_mixing, regsum, tensor_basis, subtraction*, singular_field, worldline_self_field` | `SelfForce.Puncture` |
 | `SecondOrderRicci` — `r2_1..r2_10, r2terms, h1_mass, h1_spin, d2hdr2, modes, assembly, read_h1` | `SelfForce.SecondOrder` |
 
-## What changed vs legacy
+## What changed from the predecessor codes
 
 - **Radial RHS single-homed.** The a=0 Lorenz radial ODE systems moved to
   `MetricReconstruction.Lorenz.LorenzRadial`; `LorenzField` consumes them instead of owning a
-  fork (resolves the H1Lorenz-vs-DiscModes duplicate, design §6.10).
-- **`r2_term` Kernels-purity hoist (S4-c).** The 10 quadratic ``r^{(2)}`` combinations now live in
+  fork (resolves the H1Lorenz-vs-DiscModes duplicate).
+- **`r2_term` Kernels-purity hoist.** The 10 quadratic ``r^{(2)}`` combinations now live in
   the pure-arithmetic `Kernels.r2_term` GPU host, which takes a *precomputed* coupling array
   (per `Kernels.R2_COUPLING_SPEC`) and carries no Wigner machinery. The coupling-evaluating
   **host wrapper lives here** as `SelfForce.SecondOrder.r2_term`: it evaluates the 3-harmonic
   Wigner couplings, then launches the kernel — signature, semantics, and output identical to the
   legacy `SecondOrderRicci.r2_term`.
 - **Vendored integrators.** OrdinaryDiffEq is gone; `LorenzField` integrates on the NumericsCore
-  vendored DP5+GBS steppers (§7.5 invariant, CI-gated).
+  vendored DP5+GBS steppers (a CI-gated invariant).
 - **Type-generic `{T}`.** Legacy Float64-only paths are generic; BigFloat precision propagates
   end-to-end (only the on-device r2 path is Float64-capped).
 - **IO through `Data`.** The HDF5 reader/writer bodies live in `Data`'s weakdep extension behind

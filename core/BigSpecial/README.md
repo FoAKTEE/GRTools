@@ -1,7 +1,7 @@
-# BigSpecial (`GrToolsBigSpecial`)
+# BigSpecial
 
-Tier-1 core stratum: the `Complex{BigFloat}` special-functions layer for GrTools
-(design §5.2). Kept SEPARATE from `NumericsCore` so that `HypergeometricFunctions`
+Tier-1 core stratum: the `Complex{BigFloat}` special-functions layer for GrTools.
+Kept SEPARATE from `NumericsCore` so that `HypergeometricFunctions`
 and `SpecialFunctions` never leak onto the NumericsCore-only spine
 (`KerrGeodesics` empty-deps, `SpinWeightedSpheroidalHarmonics` LinearAlgebra-only).
 Any caller needing high-precision Γ / ψ / polygamma / ₂F₁ / ₁F₁ depends on
@@ -20,7 +20,7 @@ BigSpecial *explicitly*; the heavy hypergeometric closure reaches users only her
   vs series-self-contained are different decisions (AHA), so two named functions —
   not one unacknowledged fork.
 
-## Legacy packages absorbed (kept green as the characterization oracle)
+## Provenance
 
 | Legacy (pkg / file / fn) | → BigSpecial |
 |---|---|
@@ -37,13 +37,13 @@ per-caller decision and stays LOCAL to Teukolsky — it is not pulled here.
 - `NumericsCore` (path `../NumericsCore`) — precision policy, conventions.
 - `HypergeometricFunctions`, `SpecialFunctions` — external hypergeometric/Γ backends.
 
-Test-characterization oracle: `Teukolsky` (LIGHT closure — KerrGeodesics empty-deps +
-SWSH LinearAlgebra-only + SpecialFunctions + HypergeometricFunctions; no
-OrdinaryDiffEq/HDF5/Symbolics), used as a live test dep to ground the MST/Leaver
-₂F₁ + Kummer + `gamma_big`/`pochhammer` primitives at the legacy tolerance.
+Characterization oracle: the predecessor `Teukolsky` code served as the oracle during
+construction, grounding the MST/Leaver ₂F₁ + Kummer + `gamma_big`/`pochhammer` primitives at
+its tolerances; its outputs are baked as literal fixtures in the test files, so it is not a
+test dependency.
 
 ## Status
 
-Scaffold. Module loads; primitives are TDD `[HOLE]`s — each is ported tests-first,
-with expected values grounded by analytic identity or characterization vs the legacy
+Scaffold. Module loads; each primitive is ported tests-first,
+with expected values grounded by analytic identity or characterization vs the predecessor
 oracle, never by the new code's own output.

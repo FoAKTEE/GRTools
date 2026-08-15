@@ -14,10 +14,10 @@ package as `GrTools.<Name>`.
 Each package is one concept in the physicist's mental map. If you are thinking
 "I need the Teukolsky radial solution", you type `using Perturbation` — not the
 name of whichever historical repository the function happened to live in. The
-20 legacy research packages (`packages/*`, now a frozen research oracle) were
-organized by *provenance*; GrTools is organized by *capability*. Every legacy
-function has exactly one new home — see the [Migration](migration.md) appendix
-to find yours.
+20 predecessor research codes were organized by *provenance*; GrTools is
+organized by *capability*. Every function from the predecessor codes has
+exactly one new home — see the [Migration](migration.md) appendix to find
+yours.
 
 ## The 11 capabilities
 
@@ -78,8 +78,8 @@ TIER 3' [17] ScalarSelfForce → 16,6,1,4,0 (+Printf) — elliptic m-mode branch
 ## How to navigate this site
 
 - **Capabilities** — one page per physics capability: submodules, public API,
-  dependencies (with the heavy-dep declaration), GPU/data needs, and legacy
-  provenance (`drawsFrom`).
+  dependencies (with the heavy-dep declaration), GPU/data needs, and
+  provenance.
 - **Core** — reference pages for the 7 infra packages every capability builds on.
 - **Topics** — cross-cutting, single-source pages:
   [Conventions](topics/conventions.md) (the `m<0` parity surface, ε↔ω, units),
@@ -87,5 +87,5 @@ TIER 3' [17] ScalarSelfForce → 16,6,1,4,0 (+Printf) — elliptic m-mode branch
   `angular_precision_floor()`), [GPU/Parallel](topics/gpu-parallel.md)
   (heavy-run gating, lease model, parallel==serial), and
   [Data artifacts](topics/data-artifacts.md) (h1schema contract, datadir injection).
-- **[Migration](migration.md)** — the legacy→new crosswalk: look up the old
-  package/function, find its new capability home.
+- **[Migration](migration.md)** — the lookup table from the predecessor codes
+  to GrTools: look up the old package/function, find its new capability home.

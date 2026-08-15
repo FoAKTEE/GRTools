@@ -2,7 +2,7 @@
 
 Tier-3 vacuum/test perturbed-field solver for the Kerr spacetime — the **Teukolsky-radial
 engine** (frequency domain) plus a **discontinuous-Galerkin time-domain solver**
-(`Perturbation.TimeDomain`), and the **light-dep firewall** of GrTools (design §4.3).
+(`Perturbation.TimeDomain`), and the **light-dep firewall** of GrTools.
 
 ## Overview
 
@@ -73,7 +73,7 @@ type-generic `{T}`; for the BigFloat tier and the documented D-GBS deviation see
 [Precision](../topics/precision.md). Grounded against a 706-row upstream oracle fixture net
 (1e-10 trust floor, incl. 48 In/Up unit-transmission amplitudes ≤ 6.2e-10) with the `:MST`
 backend as referee and a condition-aware Wronskian gate. **Boundary:** complex ω (QNM contours)
-and the inhomogeneous GSN subsystem are quarantined (`@test_throws`-gated) — `[FUTURE]` GSN-3.
+and the inhomogeneous GSN subsystem are quarantined (`@test_throws`-gated) — `[FUTURE]`.
 
 ## [The TimeDomain submodule (DG time-domain solver)](@id perturbation-timedomain)
 
@@ -119,7 +119,7 @@ the TD stack added **zero new dependencies**.
 
 **`[FUTURE]` boundaries (documented in-source, constructor-enforced where applicable):**
 Kerr ``a \ne 0`` *sourced* TD (the spheroidal→spherical source re-projection is not in
-print — dossier `DG_SPIN_FORMULATION.md` §8.3; the sourced constructor enforces a = 0);
+print; the sourced constructor enforces a = 0);
 ``|s| = 1`` sourced; m = 0 sourced excluded; the s = +2 tail exponent below the numerical
 floor. Vacuum Kerr is *not* restricted.
 
@@ -133,10 +133,10 @@ Runtime `[deps]` (from `Project.toml`):
   (SWSH eigenvalue + ``S``).
 - **stdlib:** `LinearAlgebra`, `Printf`.
 - **external:** `HypergeometricFunctions`, `SpecialFunctions` — the *sanctioned* light closure
-  (the same one legacy `Teukolsky` carried), reaching the user through `BigSpecial`.
+  (the same one the earlier `Teukolsky` research code carried), reaching the user through `BigSpecial`.
 
 **Poison-axis declaration** — this package is the light-dep firewall of GrTools. The binding CI
-budget lives in `test/hygiene.jl` (design §7.7 gates 1+2), which asserts TOML-statically that
+budget lives in `test/hygiene.jl`, which asserts TOML-statically that
 the runtime `[deps]` are exactly the allow-list above and **forbids**
 
 ```
@@ -158,23 +158,23 @@ generation tier stays on CPU (BigFloat-CPU / Float64-GPU boundary); heavy outer 
 via `Distributed` pmap + CPU threads ≤ 20 under the BLAS-guard. Any future GPU flux-grid
 generation must remain an optional extension, never a hard `Kernels` dep, or the firewall is lost.
 
-## Legacy provenance (drawsFrom)
+## Provenance
 
-Functions relocated to this physics home from (design §6 crosswalk rows dest=Perturbation):
+Functions relocated to this physics home from the predecessor codes:
 
-| Legacy package | What moved in |
+| Predecessor code | What moved in |
 | --- | --- |
 | `Teukolsky` | homogeneous radial In/Up (`TeukolskyRadial`, `TeukolskyRadialFunction`, `teukolsky_radial_deriv`), `RenormalizedAngularMomentum` ``\nu``, MST coefficients, amplitudes ``Z/C``, point-particle modes + fluxes |
 | `ScatteringPhaseMST` | `starobinsky_constant`, ``B^{\mathrm{refl}}/B^{\mathrm{inc}}`` internals, `scattering_phase` / `scattering_phase_numerical` / `scattering_phase_table`, `mst_coefficient`, `mst_convergence` |
-| `TeukolskySpinFluxes` | all **12** exported `TeukolskySpinMode*` spinning-secondary flux entrypoints (S5-2 port), characterized vs baked BHPToolkit-MMA fixtures |
+| `TeukolskySpinFluxes` | all **12** exported `TeukolskySpinMode*` spinning-secondary flux entrypoints, characterized vs baked BHPToolkit-MMA fixtures |
 
-Grounding: test-only characterization against the (light) legacy oracles `Teukolsky` and
-`ScatteringPhaseMST` at their frozen tolerances, plus analytic identities (``\nu``
+Grounding: test-only characterization against the (light) predecessor codes `Teukolsky` and
+`ScatteringPhaseMST` as oracles at their frozen tolerances, plus analytic identities (``\nu``
 continued-fraction root, MST ``{}_2F_1`` connection, flux Newtonian-quadrupole ``32/5`` limit,
-Starobinsky–Chandrasekhar scattering identity). Since Phase 7-B the oracle outputs are **baked
-fixtures** (`test/fixtures/leg_*.jl`) — no `packages/*` edge exists at test time.
+Starobinsky–Chandrasekhar scattering identity). The oracle outputs are **baked
+fixtures** (`test/fixtures/leg_*.jl`) — no dependency on the predecessor codes exists at test time.
 
-Two later absorptions came from *outside* the `packages/*` legacy set, grounded the same way
+Two later absorptions came from *outside* the predecessor-code set, grounded the same way
 (baked one-shot fixtures + in-package referees): the DG-Teulolsky research repo →
 `Perturbation.TimeDomain` (fixtures `test/fixtures/td_*.jl`), and the vendored
 `GeneralizedSasakiNakamura.jl` v0.8.5 → the `:GSN` backend (fixtures
@@ -188,7 +188,7 @@ preserved:
 - `TeukolskySpinModeCircularCorrectionAnalytical` (circular-equatorial) and
   `TeukolskySpinModeEquatorialCorrectionAnalyticalPhases` (eccentric-equatorial) — the original
   circular/eccentric slice;
-- the ten S5-2 ports: `TeukolskySpinMode`, `TeukolskySpinModeFromCorrection`,
+- the ten later ports: `TeukolskySpinMode`, `TeukolskySpinModeFromCorrection`,
   `TeukolskySpinModeAnalytical`, `TeukolskySpinModeCorrection`,
   `TeukolskySpinModeCorrectionAnalytical`, `TeukolskySpinModeSpherical`,
   `TeukolskySpinModeSphericalCorrectionNum`, `TeukolskySpinModeSphericalCorrection`,
@@ -200,17 +200,17 @@ Energy/AngularMomentum → (I, H), …)`. The convenience methods materialize th
 internally (`KerrSpinOrbit*` kinematics, local to this package); the core methods accept a
 pre-built orbit NamedTuple so a whole ``(l,m,n,k)`` sweep reuses one orbit solve.
 
-## What changed vs legacy
+## What changed from the predecessor codes
 
-- **Entrypoint count corrected: 12, not 13.** Design §4.3 listed "13 `TeukolskySpinMode*`
-  entrypoints"; the legacy `TeukolskySpinFluxes` exports exactly 12 (its own runtests asserts
-  "12 public API symbols") — the 13 counted a wrapper list with one duplicate. This package
-  exports the corrected 12.
-- **Static path is now type-generic `{T}` (S3 fix).** The legacy static ``\omega = 0`` branch
+- **Entrypoint count corrected: 12, not 13.** An earlier count of "13 `TeukolskySpinMode*`
+  entrypoints" included a wrapper list with one duplicate; the earlier `TeukolskySpinFluxes`
+  research code exports exactly 12 (its own runtests asserts "12 public API symbols"). This
+  package exports the corrected 12.
+- **Static path is now type-generic `{T}`.** The predecessor's static ``\omega = 0`` branch
   was precision-capped; here the working precision `T = float(a)` flows through the closed-form
   ``{}_2F_1`` internals (`Complex{T}` via `BigSpecial.gamma_big`), so `:Static` inherits BigFloat
   precision like every other backend. Characterized against the baked pre-`{T}` references.
-- **`scattering_phase_analytic` is implemented** (design §4.3 flagged it as an unported stub):
+- **`scattering_phase_analytic` is implemented** (previously an unported stub):
   the published `phase{slm}Expansion` low-frequency ``\varepsilon``-series (exact through
   ``\varepsilon^3``) are transcribed as explicit polynomials in
   ``\gamma_E, \pi, \zeta(3), \log`` for the tabulated modes ``(s,l,m) \in
@@ -220,11 +220,11 @@ pre-built orbit NamedTuple so a whole ``(l,m,n,k)`` sweep reuses one orbit solve
   equatorial slice (`spin_linear_frequencies`, `spin_mino_time_correction`); the
   inclined / numeric-correction / spherical spinning-orbit kinematics live *here* as unexported
   internals (`KerrSpinOrbit`, `KerrSpinOrbitCorrection`, `KerrSpinOrbitNum`, …) — zero new deps.
-- **Namespace collapse.** The legacy three-package split (`Teukolsky`, `ScatteringPhaseMST`,
-  `TeukolskySpinFluxes`) becomes one flat `Perturbation` namespace; the Phase-0
+- **Namespace collapse.** The predecessors' three-package split (`Teukolsky`, `ScatteringPhaseMST`,
+  `TeukolskySpinFluxes`) becomes one flat `Perturbation` namespace; the earlier
   module-name collision around the root spinning-flux packages is resolved by this fold. Function
   names are otherwise preserved 1:1.
-- **Test oracles baked (Phase 7-B).** The former live test-oracle path-deps (`Teukolsky`,
+- **Test oracles baked.** The former live test-oracle path-deps (`Teukolsky`,
   `ScatteringPhaseMST`, `KerrGeodesics`, `SpinWeightedSpheroidalHarmonics`) were removed from
   `[sources]`; their outputs on the exact test grids are baked into `test/fixtures/leg_*.jl` at
   the same tolerances.

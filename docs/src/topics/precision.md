@@ -1,13 +1,13 @@
 # [Precision / BigFloat inheritance](@id topic-precision)
 
-How arbitrary precision flows through GrTools (design §9): one policy home in
+How arbitrary precision flows through GrTools: one policy home in
 `NumericsCore`, two BigFloat-generic spine roots, a type-generic `{T}` radial chain
 from [Perturbation](../capabilities/perturbation.md) through
 [MetricReconstruction](../capabilities/metricreconstruction.md) to
 [SelfForce](../capabilities/selfforce.md)/[AccretionDisc](../capabilities/accretiondisc.md),
 one *named* Float64 ceiling on the angular side, and a Float64/GPU tier on top that
 imposes no constraint downward. This page is the **single home** of the topic
-(design §12) — package pages link here rather than restating it.
+— package pages link here rather than restating it.
 
 The governing rule everywhere below: numerical code is type-generic `{T}`, so a
 `BigFloat` input under the active `setprecision(BigFloat, bits)` (256/512/1024/2048 in
@@ -75,7 +75,7 @@ angular_precision_floor(T) == (value_tier = eps(Float64), eigenvalue_tier = eps(
   spin-weighted-``Y`` downcast) is Float64-capped: ``S(\theta)`` and
   ``\partial_\theta S(\theta)`` stay at `eps(Float64)` even under BigFloat input.
 
-The cap is accepted by design (§4.2): precision is driven through the **radial** chain,
+The cap is accepted by design: precision is driven through the **radial** chain,
 not the angular value — KerrLorenzCirc-derived code Float64-casts its angular factors
 and relies on `eigenvalue_tier ≤ value_tier`. The function also marks the seam where a
 future un-downcast BigFloat angular-value path would lift the floor.
@@ -93,7 +93,7 @@ future un-downcast BigFloat angular-value path would lift the floor.
   recurrence-ratio type — `ComplexF64` for Float64 inputs, `Complex{BigFloat}` for the
   high-``\ell`` small-``\omega`` extended-precision amplitude path (`mst.jl`); the CF
   tails reuse `NumericsCore.cf_convergent`/`cf_finite`.
-- **Static (ω = 0) branch — the S3 de-capping.** The closed-form ``{}_2F_1`` path
+- **Static (ω = 0) branch — de-capped to `{T}`.** The closed-form ``{}_2F_1`` path
   (`teukolsky_radial_static.jl`) was ComplexF64-pinned and is now type-generic: the
   working precision `T = float(a)` threads ``\tau``/``\kappa``, the asymptotic
   amplitudes, the norm and the radial value/derivative, so a BigFloat `a` gives
@@ -102,8 +102,8 @@ future un-downcast BigFloat angular-value path would lift the floor.
   **bit-identical** to the pre-`{T}` baked regression literals, every other `Complex{T}`
   routes `BigSpecial.gamma_big`; ``{}_2F_1`` goes through `_safe_2f1` (byte-identical
   upstream `_₂F₁` for Float64, BigSpecial Pfaff/``z\to\infty`` fallback for BigFloat).
-- **`:GSN` backend — `{T}`-generic with a documented BigFloat truncation (deviation
-  D-GBS).** The Generalized Sasaki–Nakamura backend (`gsn_*.jl`) is type-generic
+- **`:GSN` backend — `{T}`-generic with a documented BigFloat truncation.** The
+  Generalized Sasaki–Nakamura backend (`gsn_*.jl`) is type-generic
   end-to-end: the closed-form layers (potentials, conversions, boundary series) are exact
   in `T` (256-vs-512-bit agreement < 1e-60), and the radial solve runs the *same*
   type-generic vendored DP5 mesh at every precision, giving cross-precision solve-tier
@@ -115,15 +115,14 @@ future un-downcast BigFloat angular-value path would lift the floor.
   agree with each other but sit 5e-6 from Float64 — the floor biases accuracy, not just
   cost; evidence in `gsn_solve.jl`). So BigFloat GSN runs are exact in *arithmetic*
   (precision threading, determinism) under an algorithmic truncation shared across
-  precisions; **deep-tolerance BigFloat GSN integration is a documented `[FUTURE]`
-  (GSN-2b)**.
+  precisions; **deep-tolerance BigFloat GSN integration is a documented `[FUTURE]`**.
 - The public `TeukolskyRadial(s, l, m, a, ω)` dispatcher composes all of the above, so
   its In/Up solutions are BigFloat-inheritable for both ``\omega \ne 0`` (MST/Monodromy)
   and ``\omega = 0`` (static).
 
 ### MetricReconstruction — Kerr and Schwarzschild radial reconstruction
 
-- **`SchwarzschildRadial` (a = 0) — the S3 de-capping.** `jump_data_radial(r0, l, m)`
+- **`SchwarzschildRadial` (a = 0) — de-capped to `{T}`.** `jump_data_radial(r0, l, m)`
   takes its element type from `r0` via `orbit_background` (`T = typeof(bg.r0)`;
   BigFloat in ⇒ BigFloat out); the upstream chain
   (`orbit_background`/`jumps_pm`/`hj1`/`closure_a0`) is already `{T}`, the reconstruction

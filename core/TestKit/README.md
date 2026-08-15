@@ -1,21 +1,19 @@
-# TestKit (`GrToolsTestKit`) — shared test harness (test-only)
+# TestKit — shared test harness (test-only)
 
-Tier-1 core, test-infrastructure package. Implements the design's §5.6 harness: a tolerance-recording
-oracle layered on stdlib `Test`, riding the `Data` spine for fixtures. See
-`progress/emri-disk/GRTOOLS_DESIGN_CAPABILITY.md` §5.6 and `GRTOOLS_FILE_FUNCTION_DAG.md`
-§GrToolsTestKit.
+Tier-1 core, test-infrastructure package: a tolerance-recording
+oracle layered on stdlib `Test`, riding the `Data` spine for fixtures.
 
-## Scope (Rev 2 decision)
+## Scope
 
-The 281 existing **legacy `runtests` remain the AUTHORITATIVE regression oracle**, run UNCHANGED against
-the legacy facades. TestKit is scoped to **NEW tests only** — characterization-gate snapshots for fork
-relocations + any new physics. We do NOT transcribe the ~1900 legacy tolerance literals into
-`@approx_oracle` (that transcription would itself be the regression risk). This new-test net + the
-legacy runtests are what make additive-then-sweep dedup safe.
+During construction the 281 **predecessor `runtests` remained the AUTHORITATIVE regression oracle**, run
+UNCHANGED against the predecessor codes. TestKit is scoped to **NEW tests only** — characterization-gate
+snapshots for fork relocations + any new physics. The ~1900 predecessor tolerance literals were NOT
+transcribed into `@approx_oracle` (that transcription would itself have been the regression risk). This
+new-test net + the predecessor runtests are what made additive-then-sweep de-duplication safe.
 
 ## What it owns
 
-This package absorbs, across the legacy corpus:
+This package absorbs, across the predecessor corpus:
 - every member's inline `rtol`/`atol` asserts (mechanically, behind `@approx_oracle`);
 - the scattered test-fixture loaders (behind `load_fixture`, over the `Data` reader spine).
 

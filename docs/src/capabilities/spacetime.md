@@ -1,6 +1,6 @@
 # Spacetime
 
-Kerr background-geometry + orbital-mechanics **foundation** of GrTools (design §4.1) — the
+Kerr background-geometry + orbital-mechanics **foundation** of GrTools — the
 Tier-2 *spine root*. Its entire dependency closure is `{LinearAlgebra, NumericsCore}`; every
 capability above it (Perturbation, MetricReconstruction, SelfForce, EMRIWaveforms,
 PostNewtonian, Hybrid, AccretionDisc) reaches Kerr geometry, geodesics, separatrix and ISCO
@@ -27,7 +27,7 @@ directories, not nested Julia modules); only `SpinningSecondary` is a real neste
 | `Geodesics/` | ``E/L_z/Q`` constants of motion, radial/polar roots, Fujita–Hikida Mino + BL frequencies ``\Omega_r,\Omega_\theta,\Omega_\varphi``, closed-form trajectories, proper time | `Spacetime.*` |
 | `Separatrix/` | ONE canonical `separatrix(a,e,x)` + `kerr_isco(a)` over NumericsCore's vendored A42/brent bracketing root-finder (no `Roots`); `get_separatrix` is a thin alias | `Spacetime.*` |
 | `PNKinematics/` | numeric `kepler_omega` / `r0_of_omega` / `pn_x` (+ the `kepler_Ω`/`r0_of_Ω` aliases) — the *numeric* kinematic helpers, **not** the symbolic PN series (those live in PostNewtonian) | `Spacetime.*` |
-| `SpinningSecondary/` | linear-in-spin orbital constants/frequencies, spin-curvature worldline deviations, the numeric 2-torus force/orbit-correction engine (`spin_orbit_correction` / `spin_orbit_numeric`) | `Spacetime.SpinningSecondary.*` (namespaced, **not** re-exported to top level, to avoid the legacy `SpinningOrbit` module-name collision — design §4.1) |
+| `SpinningSecondary/` | linear-in-spin orbital constants/frequencies, spin-curvature worldline deviations, the numeric 2-torus force/orbit-correction engine (`spin_orbit_correction` / `spin_orbit_numeric`) | `Spacetime.SpinningSecondary.*` (namespaced, **not** re-exported to top level, to avoid a module-name collision with the earlier `SpinningOrbit` research code) |
 
 Coordinate charts are **methods**, not flattened forks: `kerr_metric(a,r,θ; coords=:BL/:In/:Out)`
 plus the `:eq` restriction, and the Schwarzschild connection coexists with the Kerr one by
@@ -38,17 +38,17 @@ rehomed from Punctures).
 
 Runtime `[deps]` are exactly `LinearAlgebra` + `NumericsCore` (Carlson/elliptic/Jacobi for
 Geodesics, precision policy, and the vendored A42 bracketing solver for Separatrix — `Roots`
-was dropped from the spine, design §4.1 Rev-2).
+was dropped from the spine).
 
-This budget is a **binding CI gate**, not an aspiration: `test/hygiene.jl` (§7.7 gates 1+2)
+This budget is a **binding CI gate**, not an aspiration: `test/hygiene.jl`
 asserts `allow = ["LinearAlgebra", "NumericsCore"]` against `Project.toml` and forbids all
 four poison axes plus the heavy tail — `Roots`, `HDF5`/`JLD2`, `Symbolics`,
 `OrdinaryDiffEq*`, `CUDA`/`AMDGPU`/`KernelAbstractions`, `WignerSymbols`, `SpecialFunctions`,
 `HypergeometricFunctions`, `NLsolve`, `SciMLBase`, `QuadGK` — and additionally checks after
 `using Spacetime` that none of them appear in `Base.loaded_modules` (closure-load gate).
-`TestKit` (+ its `Data` spine) is a **test-only** dependency powering those gates; since
-Phase 7-B the legacy `KerrGeodesics`/`SpinningOrbit` test-oracles are baked into
-`test/fixtures/` and no `packages/*` entry remains in the test target.
+`TestKit` (+ its `Data` spine) is a **test-only** dependency powering those gates; the
+`KerrGeodesics`/`SpinningOrbit` test-oracles from the predecessor codes are baked into
+`test/fixtures/` and no dependency on the predecessor codes remains in the test target.
 
 ## GPU / data needs
 
@@ -56,15 +56,15 @@ None / none. The package is closed-form scalars, 4×4 linear algebra and per-orb
 root-finds; parallelism is caller-side CPU broadcast over ``(a,p,e,x)``. Zero data files —
 this is load-bearing for the spine-root property. The one Float64-tier corner is the
 `SpinningSecondary` DFT/least-squares engine (LAPACK `pinv`, faithful to the oracle); it is
-serial, so no §8 BLAS guard is required.
+serial, so no BLAS guard is required.
 
-## Legacy provenance (drawsFrom)
+## Provenance
 
-Functions moved here by physics home, regardless of source package (design §6.1). The legacy
-packages were kept green as characterization oracles during the port; their outputs are now
-frozen fixtures.
+Functions moved here by physics home, regardless of source package. The predecessor codes
+served as the characterization oracle during construction; their outputs are baked into
+`test/fixtures/`.
 
-| Legacy package / file / function(s) | Landed as |
+| Predecessor code / file / function(s) | Landed as |
 |---|---|
 | KerrGeodesics `kerrgeo_constants.jl` (`KerrGeoEnergy`, `AngularMomentum`, `CarterConstant`, `ConstantsOfMotion`) | `constants_of_motion`, `geodesic_energy`, `geodesic_angular_momentum`, `carter_constant` |
 | KerrGeodesics `kerrgeo_frequencies.jl` (`KerrGeoRadialRoots`, `KerrGeoFrequencies`, `ProperFrequencyFactor`) | `kerr_frequencies`, `radial_roots`, `polar_roots`, `proper_frequency_factor` |
@@ -75,15 +75,15 @@ frozen fixtures.
 | MetricReconstruction `background.jl` + DiscModes `kerr_geometry.jl` + KerrLorenzCirc `operators.jl` (metric/tetrad forks) | `kerr_metric`, `kerr_metric_inv`, `kinnersley_tetrad` (coords-parametrized methods) |
 | MetricReconstruction `background.jl`/KerrLorenzCirc (``\Delta,\Sigma,\zeta,K,Q`` bundles) | `bg_scalars`, `delta_kerr`, `sigma_kerr`, `zeta_kerr`, `kfun`, `qfun` |
 | MetricReconstruction `{einstein,weyl_scalars}.jl` `christoffel_BL` + DiscModes | `christoffel(a,r,θ)` (Kerr BL) |
-| Punctures `worldline_self_field.jl` `_christoffel(r,θ,M)` (+dr, +dθ) | `christoffel(r,θ; M)`, `christoffel_dr`, `christoffel_dtheta` (a=0/M-only method — geometry is Spacetime physics, not NumericsCore; §4.5 Rev-2) |
+| Punctures `worldline_self_field.jl` `_christoffel(r,θ,M)` (+dr, +dθ) | `christoffel(r,θ; M)`, `christoffel_dr`, `christoffel_dtheta` (a=0/M-only method — geometry is Spacetime physics, not NumericsCore) |
 | MetricReconstruction `weyl_amplitudes.jl` `_horizons`, `_Omega_plus` | `horizons`, `omega_plus` |
 | H1Lorenz `orbit.jl` (`rs_of_r`, `r_of_rs`, `_f`, `_df`, `_Vl`, `orbit_*`) + DiscModes `lorenz_metric.jl` | `schwarzschild_lapse/dlapse`, `bls_potential`, `tortoise_schw(_inverse)`, `schw_orbit_energy/ang_mom/phi_freq` |
 | SpinningOrbit `linear_parts.jl`, `spin_orbit.jl`, `spin_deviations.jl`, `numeric_correction*.jl`, `orbit_correction.jl` | `Spacetime.SpinningSecondary` (whole module) |
 | WaSABI `pn_kinematics.jl` (`kepler_Ω`, `r0_of_Ω`, `pn_x` + aliases) | `kepler_omega`, `r0_of_omega`, `pn_x` (+ `kepler_Ω`, `r0_of_Ω`) |
 
-## Spinning secondary: the S5-1 spin-curvature slice
+## Spinning secondary: the spin-curvature slice
 
-The S5-1 feature port brought the full linear-in-spin **force machinery** for generic
+A later feature port brought the full linear-in-spin **force machinery** for generic
 (inclined) bound orbits into `Spacetime.SpinningSecondary` — beyond the earlier
 constants/frequencies slice:
 
@@ -104,7 +104,7 @@ constants/frequencies slice:
 The algebraic terms are pure arithmetic and type-generic `{T}`; only the DFT/least-squares
 solve is Float64-tier (faithful to the oracle). Scope boundary (not a missing oracle): the
 closed-form **inclined** `spin_orbit` branch (``x^2 \neq 1``) and the **spherical**
-(``e = 0``) engine remain in the legacy oracle only — but the numeric `Correction` engine
+(``e = 0``) engine remain in the predecessor code only — but the numeric `Correction` engine
 here *is* the generic inclined force machinery, evaluated at ``x^2 < 1``. `spin_orbit`
 itself throws for ``x^2 \neq 1``.
 
@@ -120,7 +120,7 @@ Order = [:module, :type, :constant, :function]
 Private = false
 ```
 
-## What changed vs legacy
+## What changed from the predecessor codes
 
 - **One separatrix, one ISCO.** `separatrix`/`get_separatrix` (KerrBackwards/FEW) collapse
   to a single implementation; the four `kerr_isco`/`_risco` forks collapse to one. The
@@ -131,8 +131,8 @@ Private = false
   metric/tetrad/Christoffel forks became coords-parametrized methods of one function each;
   Punctures' Schwarzschild `_christoffel(r,θ,M)` became the M-only method of the canonical
   `christoffel` (not a separate name, and not in NumericsCore).
-- **The Kerr tortoise coordinate is canonical here** (DG-P2, commit `8be5f32` — closes the
-  Phase-7D "no canonical `tortoise_kerr`" leftover): `tortoise_kerr(r, a)` /
+- **The Kerr tortoise coordinate is canonical here** (commit `8be5f32` — closes the
+  earlier "no canonical `tortoise_kerr`" leftover): `tortoise_kerr(r, a)` /
   `tortoise_kerr_inverse(rs, a)` in `Geometry/`, M = 1 convention, reusing
   `horizons`/`delta_kerr`; the ``a = 0`` branch delegates to `tortoise_schw` **bit-exactly**
   (`==`-gated). The inverse is a Newton solve on the ``r_*`` residual with an
@@ -149,5 +149,5 @@ Private = false
 - **Precision.** Legacy Float64 hard-coding removed: all closed-form/algebraic paths are
   `{T}`-generic and BigFloat-inherit; the sole Float64-tier remnant is the SpinningSecondary
   DFT/`pinv` engine, kept faithful to the oracle.
-- **Tests stand alone.** Since Phase 7-B the characterization oracles are baked fixtures
-  under `test/fixtures/`; the test target has no live `packages/*` dependency.
+- **Tests stand alone.** The characterization oracles are baked fixtures
+  under `test/fixtures/`; the test target has no live dependency on the predecessor codes.

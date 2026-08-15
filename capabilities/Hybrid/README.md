@@ -1,6 +1,6 @@
 # Hybrid
 
-Tier-5 GrTools capability (design §4.9): the **WaSABI self-force / post-Newtonian hybrid**
+Tier-5 GrTools capability: the **WaSABI self-force / post-Newtonian hybrid**
 EMRI waveform engine.
 
 ## Physics owned
@@ -11,13 +11,13 @@ is mapped to a binary gravitational waveform. This is the WaSABI-C scheme: a 9-v
 SF-PN-hybrid forcing (Fω/Fν/Fm/Fχ) with δx-coupled trajectory evolution and closed-form
 shift channels.
 
-## Legacy package absorbed
+## Provenance
 
 - `WaSABI` — entire SF-PN-hybrid waveform package (forcing, evolution, binding-energy
   interpolants, model registry, hybrid binary waveform, model citation).
 
-The legacy `WaSABI` package stays green as the characterization oracle and is **never** added as
-a live test dependency (it pulls a heavy SF-PN + ODE closure). Tests instead ground against
+The predecessor `WaSABI` code served as the characterization oracle during construction and is
+**never** a live test dependency (it pulls a heavy SF-PN + ODE closure). Tests instead ground against
 wolframscript runs of WaSABI's WL forcing/interpolation/NDSolve sources, captured fixtures /
 baked literals from the legacy `.m`/`.wl` data, and analytic identities.
 

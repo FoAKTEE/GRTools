@@ -1,6 +1,6 @@
 # Hybrid
 
-Tier-5 GrTools capability (design §4.9): the **WaSABI self-force / post-Newtonian hybrid**
+Tier-5 GrTools capability: the **WaSABI self-force / post-Newtonian hybrid**
 EMRI waveform engine.
 
 ## Overview
@@ -30,7 +30,7 @@ The physicist mental map, bottom-up:
 Hybrid is a **top-of-DAG leaf**: nothing depends up on it, so the heavy
 `OrdinaryDiffEqVerner`/`SciMLBase` precompile floor is confined here and never reaches the
 core numeric/GPU waveform paths. It is also deliberately **outside the Symbolics
-quarantine** (design §4.9): the legacy WaSABI source has zero Symbolics tokens — its
+quarantine**: the legacy WaSABI source has zero Symbolics tokens — its
 digamma was hand-rolled — so Hybrid is firewalled from `PostNewtonian` and never pays the
 Symbolics load floor.
 
@@ -61,7 +61,7 @@ Declared `[deps]` (Project.toml):
 - **External:** `OrdinaryDiffEqVerner`, `SciMLBase`, `JLD2`, plus stdlib
   `Printf`/`LinearAlgebra`.
 
-The CI hygiene gate (`test/hygiene.jl` — §7.7 gates 1, 2 and 5, enforced by
+The CI hygiene gate (`test/hygiene.jl` — hygiene gates 1, 2 and 5, enforced by
 `TestKit.assert_dep_budget` / `assert_not_loaded`) pins this budget exactly:
 
 - **May carry:** only the nine packages above (the `allow` list); the SciML floor is
@@ -69,11 +69,11 @@ The CI hygiene gate (`test/hygiene.jl` — §7.7 gates 1, 2 and 5, enforced by
 - **Must declare:** `JLD2` — Hybrid is the *extension trigger* for `Data`'s JLD2
   weakdep-extension (`DataJLD2Ext`). A Julia package extension activates only when the
   loading package declares the trigger in its own `[deps]`, so if Hybrid dropped the
-  direct `JLD2` entry, `Data`'s JLD2 reader would silently never load (design §5.4).
+  direct `JLD2` entry, `Data`'s JLD2 reader would silently never load.
 - **May not carry (poison axes):** `HDF5` (Hybrid touches `Data` only for `.m`/`.wl`
   artifacts; the HDF5 ext must stay dormant), `Symbolics` (the PN quarantine must not
   leak in), `WignerSymbols`, the GPU axis (`Kernels`, `KernelAbstractions`, `CUDA`,
-  `AMDGPU`), the `OrdinaryDiffEq` monolith (Verner-only, §7.5), `Roots`, `NLsolve`.
+  `AMDGPU`), the `OrdinaryDiffEq` monolith (Verner-only), `Roots`, `NLsolve`.
   Gate 2 additionally asserts none of these appear in the loaded-module set after
   `using Hybrid`.
 
@@ -94,9 +94,9 @@ the WL sources, baked fixtures from the legacy `.m`/`.wl` data
   goes through `Data`'s JLD2 extension, triggered by Hybrid's direct `JLD2` dep.
   Citation metadata ships as package assets (`assets/MetadataModels/*.m`).
 
-## Legacy provenance (drawsFrom)
+## Provenance
 
-Hybrid absorbs exactly one legacy package — `WaSABI` — in full (design §6.9):
+Hybrid absorbs exactly one legacy package — `WaSABI` — in full:
 
 | Legacy source (WaSABI) | Lands in |
 |---|---|
@@ -108,23 +108,23 @@ Hybrid absorbs exactly one legacy package — `WaSABI` — in full (design §6.9
 | `binary_inspiral.jl`, `waveform.jl` | `Hybrid.BinaryWaveform` |
 | `utilities.jl` | `Hybrid.Introspection` |
 
-## What changed vs legacy
+## What changed from the predecessor codes
 
-- **ODE stack swap (§7.5).** The legacy `OrdinaryDiffEq` monolith dep was replaced by
+- **ODE stack swap.** The legacy `OrdinaryDiffEq` monolith dep was replaced by
   `OrdinaryDiffEqVerner` (`Vern9`-only) + `SciMLBase`; the monolith is a forbidden dep.
 - **Digamma collapse.** WaSABI's hand-rolled digamma/polygamma fork was collapsed onto
   the canonical `BigSpecial.PolyGamma` (re-exported by `HybridC`).
-- **WL-interp collapse onto NumericsCore (Phase 7-D DRY).** The moving-window order-8
+- **WL-interp collapse onto NumericsCore.** The moving-window order-8
   interpolant, `Interp2Hermite`/`Interp3Lagrange` and their analytic
   derivatives/`partial`s now live in `NumericsCore` (`Interp1WL`,
   `interp1_movingwindow`, …); `Hybrid.Interpolation` keeps only the historical
   Hybrid-facing names plus the two composites NumericsCore does not own
   (`interp_logexp`, `kerr_grid_coords`). Type-generic `{T}`: BigFloat tables and queries
   are inherited, never hard-Float64'd.
-- **JLD2 as a direct ext trigger (§5.4 Rev 2).** `import JLD2` at the top of the module
+- **JLD2 as a direct ext trigger.** `import JLD2` at the top of the module
   is load-bearing: it fires `Data`'s `DataJLD2Ext`. It is asserted by hygiene gate 5 and
   by a dedicated liveness test (`test/test_data_jld2_ext.jl`).
-- **Upstream stubs filled (H-WASABI-STUBS).** The upstream declaration-only
+- **Upstream stubs filled.** The upstream declaration-only
   `GetInspiralEquations`/`InspiralEvaluate` now have functional bodies
   (`get_inspiral_equations`, `inspiral_evaluate`), assembled from the already-grounded
   `Models`/`HybridC` forcing primitives.

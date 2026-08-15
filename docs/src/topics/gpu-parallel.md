@@ -1,6 +1,6 @@
 # GPU / Parallel
 
-Single-source topic page (design §8 / §12): **this page is the home of the GrTools parallelism and
+Single-source topic page: **this page is the home of the GrTools parallelism and
 GPU-gating rules**. Package pages ([Kernels](../core/kernels.md), [NumericsCore](../core/numericscore.md),
 [EMRIWaveforms](../capabilities/emriwaveforms.md), [SelfForce](../capabilities/selfforce.md),
 [Hybrid](../capabilities/hybrid.md), [AccretionDisc](../capabilities/accretiondisc.md)) link here rather
@@ -37,7 +37,7 @@ backend (grep-verified). When the massive GPU is leased to another heavy run, th
 not request it, and everything resolves to `CPUBackend()`.
 
 Status: the extensions are declared CPU-first (`[FUTURE]` in the extension headers) — actual on-device
-runs are gated to a heavy GPU round. **Float64 on device only** (see the precision boundary below).
+runs are deferred to a dedicated heavy-GPU validation. **Float64 on device only** (see the precision boundary below).
 
 ## The CPU ≤ 20 fallback
 
@@ -54,7 +54,7 @@ Every CPU kernel in `Kernels` (`direct_mode_sum`, `interpolated_mode_sum`, `fd_i
 `aak_summation`, `roman_forward`, `r2_term`) dispatches its output axis through this seam. Capability-level
 batch loops follow the same launch policy — e.g. both `int_inspiral_batch` methods in
 `Hybrid/src/Drivers/inspiral_driver.jl` carry the "keep Julia nthreads ≤ 20 CPUs" rule at their
-`Threads.@threads` sites. Rationale (measured, per project memory): heavy BigFloat/LA workloads scale
+`Threads.@threads` sites. Rationale (measured): heavy BigFloat/LA workloads scale
 *worse* beyond a few threads due to GC + BLAS contention — scale across **processes over modes**, not by
 oversubscribing threads.
 
@@ -69,7 +69,7 @@ no bit-identity gate is needed because no in-package threaded path exists.
 
 Running OpenBLAS from inside a `Threads.@threads` / `@spawn` region oversubscribes and can **deadlock**
 on the BLAS internal locks (nested Julia↔OpenBLAS threading), and a multi-thread BLAS reduction is
-nondeterministic in the last bits. The rule (§8, binding): *every threaded LAPACK/BLAS region pins
+nondeterministic in the last bits. The rule (binding): *every threaded LAPACK/BLAS region pins
 OpenBLAS to one thread, scoped*.
 
 The canonical primitives live in `NumericsCore` (`src/blas_guard.jl`; tests in
@@ -96,12 +96,12 @@ Real call sites (all `NumericsCore.blas_single_thread`):
 
 ## parallel == serial bit-identity gates
 
-The §8 parallelism contract: every kernel is **one work-item per output index + a serial inner
+The parallelism contract: every kernel is **one work-item per output index + a serial inner
 reduction inside the work-item**, and each work-item writes *only its own output index* (disjoint
 writes). Consequence: there is no cross-item reduction whose summation order could change, so the
 CPU-serial and CPU-threaded paths are **bit-identical** — and CI asserts it with `===`/`isequal`
 element-wise, not with a tolerance. This is the only bit-equality gate; **CPU-vs-GPU is *not*
-bit-gated** — device `sincos`/`fma` divergence is absorbed by a `:gpu` ULP tolerance class (design §8).
+bit-gated** — device `sincos`/`fma` divergence is absorbed by a `:gpu` ULP tolerance class.
 
 Where the gates live:
 

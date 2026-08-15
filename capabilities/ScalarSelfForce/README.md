@@ -1,4 +1,4 @@
-# ScalarSelfForce (GrToolsScalarSelfForce) — capability
+# ScalarSelfForce — elliptic scalar self-force capability
 
 The m-mode **elliptic** Kerr scalar self-force capability: the GrTools
 reproduction of arXiv:2606.04998 (Vu et al., *Self-force calculations with
@@ -18,7 +18,7 @@ and consumes the physics-free hp-DG solver stack from `core/EllipticCore`.
 - **Domain/** — `RunConfig` runtime configuration (`crp_paper_config`,
   `CRP_PAPER_MMODES`) + EllipticCore `Mesh2D` block instantiation.
 
-Planned per the design DAG (landing TDD as each node is grounded):
+Planned (each landing tests-first once grounded):
 `EffectiveSource/` (S^eff_m direct + near-worldline series switch),
 `Worldtube/` (Ψ^P mortar jump data, fixed-source assembly), `Solve/`
 (single-mode driver, hp-AMR loop, process-parallel m fan-out), `Extraction/`

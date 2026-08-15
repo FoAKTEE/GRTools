@@ -1,11 +1,10 @@
 # Wigner
 
 Hand-rolled angular-momentum coupling — the Tier-1 core stratum (C2). This package exists to
-**eliminate the `WignerSymbols` package** from every GrTools runtime path (design §5.3 / §7.4 /
-resolution L4): it hosts the promoted hand-rolled implementations, so the consumers that
-previously hand-rolled or `[deps]`-ed WignerSymbols inherit **no** new heavy dependency. It sits
-*beside* `Harmonics` and is deliberately kept **off** the in-degree light-numeric spine
-(design §3.2 Tier 1).
+**eliminate the `WignerSymbols` package** from every GrTools runtime path: it hosts the
+promoted hand-rolled implementations, so the consumers that previously hand-rolled or
+`[deps]`-ed WignerSymbols inherit **no** new heavy dependency. It sits *beside* `Harmonics`
+and is deliberately kept **off** the in-degree light-numeric spine.
 
 ## Capability overview
 
@@ -49,10 +48,10 @@ Every function returns `zero(T)` on selection-rule violations (triangle, ``m``-s
 ## Dependencies and poison-axis declaration
 
 **Runtime `[deps]`: `NumericsCore` only.** This budget is CI-enforced by
-`test/hygiene.jl` (§7.7 gates), which asserts `allow=["NumericsCore"]` and forbids —
+`test/hygiene.jl`, which asserts `allow=["NumericsCore"]` and forbids —
 statically in the TOML and, for the loadable set, again after `using Wigner`:
 
-- `WignerSymbols` — **the defining poison axis for this package** (§7.4/L4): runtime-eliminated.
+- `WignerSymbols` — **the defining poison axis for this package**: runtime-eliminated.
   It survives *only* as a sanctioned **test-only characterization oracle** in
   `[extras]`/`[targets]` (small, light, registered), grounding the hand-rolled 3j/6j/CG over a
   grid of ``(j_1,j_2,j_3,m_1,m_2,m_3)``.
@@ -68,10 +67,10 @@ None. Pure CPU integer/rational combinatorics plus `T`-precision trig and square
 kernels, no runtime data files. The only bundled artifact is the test-side
 `test/wignerD_reference.csv` (Wigner-d oracle values).
 
-## Legacy provenance (drawsFrom)
+## Provenance
 
-Promoted via **rewrite**, not copy (§6 crosswalk rows dest=Wigner); the legacy packages stayed
-green as the characterization oracle and were never edited:
+Promoted via **rewrite**, not copy; the predecessor codes served as the characterization oracle
+during construction and were never edited:
 
 | Legacy source | Legacy function | New home |
 |---|---|---|
@@ -84,7 +83,7 @@ The 3j/6j Racah closed forms are new canonical implementations grounded on analy
 `WignerSymbols.jl` oracle; the Wigner-d rotation matrices are grounded on the closed forms and a
 Mathematica `WignerD` reference.
 
-## What changed vs legacy
+## What changed from the predecessor codes
 
 - **`WignerSymbols` dropped from the runtime graph**: SecondOrderRicci's `coupling` is
   re-implemented over the in-package `wigner3j` (originally GSL `gsl_sf_coupling_3j`), so its

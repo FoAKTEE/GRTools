@@ -1,6 +1,6 @@
 # EMRIWaveforms
 
-GrTools tier-5 capability (design §4.8, §6.8): the **EMRI trajectory + observed-waveform
+GrTools tier-5 capability: the **EMRI trajectory + observed-waveform
 pipeline**, fusing the two legacy waveform engines **FastEMRIWaveforms** and **KerrBackwards**.
 This is **HDF5 home #2** (inspiral ODE → flux/amplitude grid models → mode selection → mode
 summation → generate).
@@ -23,10 +23,10 @@ End-to-end extreme-mass-ratio-inspiral (EMRI) waveform generation:
    reusing the `NumericsCore` conventions.
 7. **Generate** — top-level observed-waveform driver (source frame → detector frame).
 
-## Legacy packages absorbed
+## Provenance
 
-- `packages/FastEMRIWaveforms` (FEW fork)
-- `packages/KerrBackwards` (KB fork)
+- the earlier `FastEMRIWaveforms` research code (FEW fork)
+- the earlier `KerrBackwards` research code (KB fork)
 
 Geometry collisions are migrated out to `Spacetime`; the spherical-harmonic `ₛYₗₘ` carrier to
 `Harmonics`; shared numeric primitives (cubic/bicubic/tricubic interpolants, `ModeIndexTable`,
@@ -34,7 +34,7 @@ constants, Carlson, `leaky_relu`) are hoisted to `NumericsCore` / `Kernels`. The
 import edges** (Teukolsky / TeukolskyPN / TeukolskySpinFluxes / SpinningOrbit — 0 qualified call
 sites) are **deleted**, so this capability is **Symbolics-clean**.
 
-## v0.1 is a TRANSITIONAL two-fork state (§4.8, tracked milestone §13)
+## v0.1 is a TRANSITIONAL two-fork state
 
 The collision survivors (`RomanAmplitude`, `SchwarzEccFlux`, `aak_waveform`, the mode-sum /
 selector / inspiral driver / frame functions) exist in BOTH forks with differing conventions. In

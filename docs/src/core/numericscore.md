@@ -1,7 +1,7 @@
 # NumericsCore (`GrToolsBase`)
 
 The **dimensionless math + infrastructure sink** of GrTools — tier C0, the unique root
-of the dependency DAG (design doc §3.2/§5.1). Its only runtime dependency is
+of the dependency DAG. Its only runtime dependency is
 `LinearAlgebra`, and a binding CI dep-budget gate keeps it that way. It carries **no
 physics geometry**: Kerr metric/Christoffel/geodesics are `Spacetime` physics, and even the
 Schwarzschild `M`-only `_christoffel` from Punctures landed in `Spacetime.Geometry`, not
@@ -94,8 +94,8 @@ Consequences physicists rely on:
   stack never leaks onto the spine;
 - vendoring A42 here is what let `Spacetime` drop the external `Roots` package.
 
-Test-only: `Test`, `TestKit` (+ its `Data` spine) power the hygiene gates. All legacy
-characterization oracles are **baked fixtures** (post Phase-7B) — see below.
+Test-only: `Test`, `TestKit` (+ its `Data` spine) power the hygiene gates. All
+characterization oracles from the predecessor codes are **baked fixtures** — see below.
 
 ## GPU / data needs
 
@@ -110,17 +110,18 @@ None. NumericsCore is CPU-only and file-IO-free:
 - The interpolation coefficient/eval split is deliberate: coefficients are built on the
   (possibly BigFloat) CPU tier; batched Float64 evaluation is the seam `Kernels` consumes.
 
-## Legacy provenance (drawsFrom)
+## Provenance
 
-Primitives were consolidated — one canonical form per *same decision* — from thirteen legacy
-packages. Each ported function was grounded by characterization against its legacy oracle at
-the legacy tolerance, or against an analytic identity (interpolants are exact on the
-polynomial degree they interpolate). Where the ported function lives now:
+Primitives were consolidated — one canonical form per *same decision* — from thirteen
+predecessor research codes. Each ported function was grounded by characterization against
+its predecessor oracle at the original tolerance, or against an analytic identity
+(interpolants are exact on the polynomial degree they interpolate). Where the ported function
+lives now:
 
 | Legacy package / file | What landed here |
 |---|---|
 | KerrGeodesics (`_RF`/`_RC`/`_RD`/`_RJ`, `_ellip*`, `_jacobi*`) | Carlson + elliptic + Jacobi family (`specialfun_carlson.jl`), made type-generic |
-| SpinWeightedSpheroidalHarmonics (`SpinWeightedSphericalHarmonicY`, `_y_dtheta`; `leaver.jl`) | spin-weighted `spin_weighted_Y` seed; self-contained Kummer ``{}_1F_1`` pattern + continued-fraction primitives (promoted per design H-CORE-STRAT) |
+| SpinWeightedSpheroidalHarmonics (`SpinWeightedSphericalHarmonicY`, `_y_dtheta`; `leaver.jl`) | spin-weighted `spin_weighted_Y` seed; self-contained Kummer ``{}_1F_1`` pattern + continued-fraction primitives |
 | Teukolsky (`continued_fraction.jl` `_cf_finite`/`_cf_convergent`; `radial_numint.jl` `_hermite`, `_secant`) | `cf_finite`/`cf_convergent` (+ new `cf_lentz`); `cubic_hermite`; `secant` |
 | H1Lorenz (`math_funcs.jl`, `driver.jl`, `integrator.jl`, `io_hdf5.jl`) | `assoc_legendre_P` + θ-derivative; `gamma_to_lm`/`lm_to_gamma`/`mode_list`; `bc_tol`/`rk_tol` closed forms; DP5/GBS integrators; `blas_guard`; `H1Schema` field layout |
 | SecondOrderRicci (`modes.jl`) | Barack–Lousto `a_il` |
@@ -131,13 +132,13 @@ polynomial degree they interpolate). Where the ported function lives now:
 | DiscEMRIForce (`numerics.jl`) | `fornberg_weights`, `cheb_*`, `bary_*`, `local_interp` |
 | KerrLorenzCirc (`radial_kerr.jl`, `operators.jl`) | `LogChebInterp`/`BigLogRInterp`, `fd1c`/`fd2c`; precision-policy plumbing |
 | Punctures, SpinningOrbit | absorbed at the primitive level (shared conventions/precision plumbing); their *geometry* went to `Spacetime`, not here |
-| DG-Teulolsky (`src/DGCore.jl`, `src/TimeStepping.jl`) — *external research repo, not `packages/*`* | the `dg.jl` spectral-element core; characterized vs baked FastGaussQuadrature-original fixtures `test/fixtures/dg_lgl_ref.jl` (N = 2..16: node/weight rel dev ≤ 5.3e-15, D/M Frobenius ≤ 3.2e-15) + the original testsets ported verbatim (D exactness, mass row-sums, forced-interface mesh, advection superconvergence) |
+| DG-Teulolsky (`src/DGCore.jl`, `src/TimeStepping.jl`) — *external research repo* | the `dg.jl` spectral-element core; characterized vs baked FastGaussQuadrature-original fixtures `test/fixtures/dg_lgl_ref.jl` (N = 2..16: node/weight rel dev ≤ 5.3e-15, D/M Frobenius ≤ 3.2e-15) + the original testsets ported verbatim (D exactness, mass row-sums, forced-interface mesh, advection superconvergence) |
 
 The FEW-vs-KerrBackwards fork collisions (`CubicSplineInterpolant`, bicubic/tricubic,
 `GslBicubic`, `ModeIndexTable`, constants, Carlson) are *same-decision* primitives and were
-hoisted to the single copy here rather than namespaced (design §6/C3).
+hoisted to the single copy here rather than namespaced.
 
-## What changed vs legacy
+## What changed from the predecessor codes
 
 - **BigFloat inheritance everywhere.** Legacy KerrGeodesics hard-`Float64`'d the Jacobi
   functions; all Carlson/elliptic/Jacobi paths here promote to
@@ -160,9 +161,9 @@ hoisted to the single copy here rather than namespaced (design §6/C3).
   legacy `H1Lorenz.associated_legendre_P_theta_deriv` byte-for-byte, which actually returns
   ``-\,dP_\ell^m/d(\cos\theta)`` — i.e. ``(1/\sin\theta)\,dP_\ell^m/d\theta``; the genuine
   colatitude derivative is ``\sin\theta`` times this value. See its docstring.
-- **Test oracles are baked fixtures.** Post Phase-7B no legacy `packages/*` code is on the
-  test load path: Carlson/Legendre/Jacobi and SWSH references are captured-once fixtures
-  under `test/fixtures/` (each with a provenance header naming the legacy function and
+- **Test oracles are baked fixtures.** No predecessor code is on the test load path:
+  Carlson/Legendre/Jacobi and SWSH references are captured-once fixtures under
+  `test/fixtures/` (each with a provenance header naming the legacy function and
   arguments that produced it); units are checked against exact legacy literals + analytic
   cross-identities; `bc_tol`/`rk_tol` against the documented H1Lorenz closed forms.
 

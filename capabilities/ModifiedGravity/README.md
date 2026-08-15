@@ -1,7 +1,7 @@
 # ModifiedGravity
 
 Beyond-GR (modified Teukolsky) source machinery — a thin, independently versioned GrTools research
-capability (design §4.7, Tier-4).
+capability (Tier-4).
 
 ## Physics owned
 
@@ -19,12 +19,12 @@ scalar ψ4 obeys a Teukolsky equation with that source. This capability owns:
 - the perturbed **(1,1) ring dynamics** (geodesic + density/continuity response, NP→BL tetrad map),
 - the closed-form **ψ4←Hertz (CCK) reconstruction**.
 
-## Legacy package absorbed
+## Provenance
 
 - `ModifiedTeukolsky` (`source_table_io`, `hertz_potential`, `source_kernels`, `source_amplitudes`,
   `rhs_amplitudes`, `ring_geodesic`, `ring_functions`, `weyl_from_hertz`) → the six submodules below.
 
-## Submodules / public API (lands across BUILD rounds, TDD-grounded)
+## Submodules / public API
 
 | Submodule | Public surface |
 |-----------|----------------|
@@ -50,7 +50,7 @@ the xAct PDNP machinery not yet ported.
 
 ## Test grounding
 
-Test-only characterization against the LIGHT live oracle `ModifiedTeukolsky` (closure
-{Teukolsky, SWSH, KerrGeodesics, LinearAlgebra} — no OrdinaryDiffEq/HDF5/Symbolics) at its frozen
-tolerances, the three shipped `.dat` source-table oracles (round-trip via `Data`), and the analytic
-CCK reconstruction identity (reldiff ~4e-9).
+Test-only characterization against the predecessor `ModifiedTeukolsky` code at its frozen
+tolerances (its outputs are baked as literal fixtures in the test files), the three shipped `.dat`
+source-table oracles (round-trip via `Data`), and the analytic CCK reconstruction identity
+(reldiff ~4e-9).

@@ -1,6 +1,6 @@
 # Harmonics
 
-The angular-eigenfunction **foundation** of GrTools (design §4.2) and the second Tier-2
+The angular-eigenfunction **foundation** of GrTools and the second Tier-2
 spine root. It owns every angular harmonic object of the Kerr perturbation problem behind
 one consolidated, type-generic surface:
 
@@ -25,7 +25,7 @@ each), not nested modules:
 | Unit (file) | Owns |
 |---|---|
 | `SphericalHarmonics.jl` | ``\gamma=0`` spin-weighted ``Y`` front door (`SpinWeightedSphericalHarmonicY`, `spin_weighted_spherical_Y`), the parity unifier `angular_parity`, and the legacy convention shims `ylm`/`ylm_few`/`ylms_few`. Carries **no** Legendre/half-angle copy — the seed (`spin_weighted_Y`, `Ylm_real`, `Ylm_eq`) lives in `NumericsCore` and is re-exported here so callers depend on Harmonics, not NumericsCore directly. |
-| `SpheroidalEigenvalues.jl` | ``\lambda(s,\ell,m,\gamma)`` + ``\partial_\gamma\lambda`` behind **one dispatcher** over the backends (`SpinWeightedSpheroidalEigenvalue`, `SpinWeightedSpheroidalEigenvalueDeriv`). The BigFloat eigenvalue home (H-CORE-STRAT). |
+| `SpheroidalEigenvalues.jl` | ``\lambda(s,\ell,m,\gamma)`` + ``\partial_\gamma\lambda`` behind **one dispatcher** over the backends (`SpinWeightedSpheroidalEigenvalue`, `SpinWeightedSpheroidalEigenvalueDeriv`). The BigFloat eigenvalue home. |
 | `SpheroidalEigenvalueSeries.jl` | Asymptotic-series backend: small-``\gamma`` Taylor coefficients (`SpinWeightedSpheroidalEigenvalueSeries`, Stewart/Press–Teukolsky) and large-``\gamma`` Laurent coefficients (`SpinWeightedSpheroidalEigenvalueSeriesLargeGamma`, Casals–Ottewill–Warburton, arXiv:1810.00432). |
 | `SpheroidalHarmonics.jl` | Callable ``{}_sS_{\ell m}`` carriers in SphericalExpansion (`SWSHSFunction`) and Leaver (`SWSHSLeaverFunction`) representations, `SpinWeightedSpheroidalHarmonicS`, the small-``\gamma`` `SpinWeightedSpheroidalHarmonicSSeries` carrier, `expansion_coefficients`, and the derivative surface `swsh_derivative`/`swsh_gamma_derivative`. The Float64-**value** tier. |
 | `precision.jl` | `angular_precision_floor` — the precision policy in code. |
@@ -54,10 +54,10 @@ citizens, not a separate API.
 Runtime `[deps]` (Project.toml): **`LinearAlgebra`** (the spectral eigensolve) and
 **`NumericsCore`** (precision policy, mode-index, Legendre seed, continued-fraction
 primitive, secant, the promoted self-contained Kummer ``{}_1F_1``). That is the *entire*
-runtime closure — the §3.2 spine-root pin — so the light numeric path (`Perturbation`,
+runtime closure — the spine-root pin — so the light numeric path (`Perturbation`,
 `MetricReconstruction`, …) inherits **no heavy dependency** through Harmonics.
 
-This budget is CI-enforced by `test/hygiene.jl` (§7.7 gates 1+2):
+This budget is CI-enforced by `test/hygiene.jl`:
 
 - **Gate 1 (dep budget):** `allow = [LinearAlgebra, NumericsCore]`;
   `forbid = [Roots, HDF5, JLD2, Symbolics, OrdinaryDiffEq*, CUDA, AMDGPU,
@@ -66,11 +66,11 @@ This budget is CI-enforced by `test/hygiene.jl` (§7.7 gates 1+2):
 - **Gate 2 (closure load):** after `using Harmonics`, none of the poison packages may
   appear in the loaded-module set.
 
-In particular Harmonics carries **no local Kummer/continued-fraction copy** (H-CORE-STRAT:
-the LinearAlgebra-only primitives were promoted into NumericsCore's light tier;
+In particular Harmonics carries **no local Kummer/continued-fraction copy** (the
+LinearAlgebra-only primitives were promoted into NumericsCore's light tier;
 `BigSpecial`'s HypGeo-backed `kummer_hyp` is a distinct, separately-named function that
 never enters this closure), and **Wigner is deliberately not folded in** — co-locating it
-would leak angular-coupling deps onto the in-degree spine (§4.2).
+would leak angular-coupling deps onto the in-degree spine.
 
 ## GPU and data needs
 
@@ -78,16 +78,16 @@ None. Harmonics is CPU-only; parallelism is threads/processes over the ``(\ell,m
 axis. The BigFloat generation tier (eigenvalues, Leaver) never touches a device — GPU work
 lives in `Kernels`/`EMRIWaveforms`, which call these type-generic primitives at Float64.
 There are no runtime data artifacts; the only files under `test/fixtures/` are baked
-characterization references (Phase 7-B), so the test suite runs without any legacy
-`packages/*` checkout.
+characterization references, so the test suite runs without any checkout of the
+predecessor codes.
 
-## Legacy provenance (drawsFrom)
+## Provenance
 
-Functions landed here by REWRITE/promotion (design §6.2 crosswalk), grounded by
-characterization tests against the legacy `SpinWeightedSpheroidalHarmonics` oracle
+Functions landed here by rewrite/promotion, grounded by characterization tests against
+the earlier `SpinWeightedSpheroidalHarmonics` research code as oracle
 (now baked into `test/fixtures/*_ref.jl`):
 
-| Legacy source | Function(s) | New home |
+| Predecessor source | Function(s) | New home |
 |---|---|---|
 | `SpinWeightedSpheroidalHarmonics/spectral.jl` | `SpinWeightedSpheroidalEigenvalue(+Deriv)`, `_swsh_eigenvalue_spectral` | `SpheroidalEigenvalues.jl` |
 | `SpinWeightedSpheroidalHarmonics/leaver.jl` | `_swsh_eigenvalue_leaver`, `_swsh_leaver_coeffs` | `SpheroidalEigenvalues.jl` |
@@ -107,7 +107,7 @@ the load-bearing asymmetry: the eigenvalue/Leaver paths inherit `BigFloat` end-t
 the harmonic **value** carriers (`SWSHSFunction`, `SWSHSLeaverFunction`) store Float64
 coefficients — a Float64 value-ceiling above a BigFloat eigenvalue-floor.
 
-## What changed vs legacy
+## What changed from the predecessor codes
 
 - **One parity flag, not four silent forks.** Legacy code disagreed on the negative-``m``
   sign: FEW `GetYlms` and KerrBackwards `ylm_few` apply ``(-1)^\ell``; the DiscModes real-Y

@@ -1,4 +1,4 @@
-# EllipticCore (GrToolsElliptic) — core stratum
+# EllipticCore — hp-DG elliptic solver core
 
 Generic complex-parametric 2D hp-DG elliptic solver — a Tier-1 core stratum with
 **zero physics**. Any capability with a 2D elliptic problem (the scalar-self-force

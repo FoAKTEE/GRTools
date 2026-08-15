@@ -1,6 +1,6 @@
-# Harmonics — capability (Tier-2 spine root)
+# Harmonics — angular-eigenfunction capability
 
-The angular-eigenfunction **foundation** of GrTools (design §4.2). It owns every angular
+The angular-eigenfunction **foundation** of GrTools. It owns every angular
 harmonic object of the Kerr perturbation problem and exposes them through one consolidated,
 type-generic surface:
 
@@ -17,7 +17,7 @@ It is the second spine root: heavy-dep-FREE by construction, so the light numeri
 - **`SpheroidalEigenvalues`** — λ(s,l,m,γ) + ∂_γλ behind ONE dispatcher over three backends:
   pentadiagonal-LAPACK spectral Float64 fast path · type-generic Leaver continued-fraction
   BigFloat path · small-γ Taylor + large-γ Laurent asymptotics. This is the **BigFloat
-  eigenvalue home** (H-CORE-STRAT).
+  eigenvalue home**.
 - **`SpheroidalHarmonics`** — the callable `S_lm(θ)` carrier (spherical-expansion + Leaver
   representations) with mixed ∂_θ/∂_φ/∂_γ; the Float64-VALUE tier.
 - **`SphericalHarmonics`** — the γ=0 canonical spin-weighted Y seed (via
@@ -31,7 +31,7 @@ It is the second spine root: heavy-dep-FREE by construction, so the light numeri
 All primitives are type-generic `{T}`, so BigFloat precision (256/512/1024/2048 bits) is
 inherited. The spectral LAPACK eigensolve is wrapped in the BLAS-guard.
 
-## Legacy packages absorbed (via REWRITE/promotion, not copy)
+## Provenance (rewrite/promotion, not copy)
 
 | Legacy source | Function(s) | New home |
 |---|---|---|
@@ -46,9 +46,10 @@ inherited. The spectral LAPACK eigensolve is wrapped in the BLAS-guard.
 | `KerrLorenzCirc/precision.jl` | `swsh_eigenvalue_big` | `Harmonics.SpheroidalEigenvalues` (fold candidate — confirm signature) |
 | NEW | `spin_weighted_spherical_Y`, `angular_parity`, `angular_precision_floor` | `Harmonics` |
 
-The legacy packages stay green as the characterization oracle; they are never edited.
+The predecessor codes served as the characterization oracle during construction; their outputs are
+baked into `test/fixtures/`.
 
-## Public API (built TDD in the BUILD rounds)
+## Public API
 
 Spheroidal eigenvalues + derivative, `S_lm(θ)` carrier + `swsh_derivative`,
 `SpinWeightedSphericalHarmonicY(s,l,m,θ,φ; parity)`, `angular_parity`,
@@ -60,9 +61,9 @@ Spheroidal eigenvalues + derivative, `S_lm(θ)` carrier + `swsh_derivative`,
   Legendre primitive, continued-fraction primitive, secant, self-contained Kummer 1F1) +
   `BigSpecial` + `Wigner`. **No heavy deps** (no HDF5/Symbolics/ODE/WignerSymbols package);
   no local Kummer/CF copy.
-- Test-only oracle: `SpinWeightedSpheroidalHarmonics` (LIGHT, deps = LinearAlgebra only) in
-  `[extras]`/`[targets]`, grounding the eigenvalue solver, `S_lm(θ)` + θ-derivative, and the
-  spin-weighted-Y seed at the legacy tolerances.
+- Characterization oracle: the predecessor `SpinWeightedSpheroidalHarmonics` code, whose
+  outputs are baked into `test/fixtures/`, grounding the eigenvalue solver, `S_lm(θ)` +
+  θ-derivative, and the spin-weighted-Y seed at its tolerances.
 
 ## Grounding
 

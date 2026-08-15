@@ -1,7 +1,7 @@
 # MetricReconstruction
 
-Tier-4 GrTools capability (design §4.4): reconstruction of the linear metric perturbation
-`h_{μν}` of the Kerr spacetime from perturbed-field scalars. It fuses two legacy packages into
+Tier-4 GrTools capability: reconstruction of the linear metric perturbation
+`h_{μν}` of the Kerr spacetime from perturbed-field scalars. It fuses two predecessor codes into
 disjoint submodule namespaces so the gauge-dependent concept-name overlaps (`weyl_scalar`,
 `to_BLS`) coexist without rename.
 
@@ -18,7 +18,7 @@ disjoint submodule namespaces so the gauge-dependent concept-name overlaps (`wey
   first-order Lorenz-gauge radial field-equation RHS (`even_ode!`/`odd_ode!`/`monopole_ode!`/
   `odd_dipole_ode!`) that `SelfForce.LorenzField` and `AccretionDisc.Force` consume but do not own.
 
-## Legacy packages absorbed
+## Provenance
 
 | Legacy package          | Absorbed into          |
 |-------------------------|------------------------|
@@ -36,7 +36,7 @@ Exposed through the submodule namespaces to keep the disambiguated concept names
 - `MetricReconstruction.Lorenz`: Dolan-2024 reconstruction entrypoints, `weyl_scalar`/`to_BLS`
   (Lorenz variants), and `Lorenz.LorenzRadial.{even_ode!, odd_ode!, monopole_ode!, odd_dipole_ode!}`.
 
-Concrete symbols are exported as each TDD module lands.
+Concrete symbols are exported as each module lands.
 
 ## Dependencies
 
@@ -50,8 +50,8 @@ input element type.
 
 ## Testing / grounding
 
-Tests are written first and grounded by characterization against the LIGHT live legacy oracles
-`MetricReconstruction` and `KerrLorenzCirc` (verified runtime-HDF5-free; KLC's HDF5 is test-only)
-at their frozen tolerances, supplemented by analytic identities (CCK reconstruction vs the
+Tests are written first and grounded by characterization against the predecessor
+`MetricReconstruction` and `KerrLorenzCirc` codes at their frozen tolerances (their outputs are
+captured once and baked as literal fixtures in the test files), supplemented by analytic identities (CCK reconstruction vs the
 Teukolsky ψ4, metric-compatibility, Dolan App-H jump conditions). No heavy package is a live
 test dependency.
