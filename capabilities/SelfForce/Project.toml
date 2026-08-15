@@ -59,6 +59,17 @@ TestKit = {path = "../../core/TestKit"}
 # deps only.
 
 [compat]
+ForwardDiff = "1"
+BigSpecial = "0.1"
+Data = "0.1"
+HDF5 = "0.17"
+Harmonics = "0.1"
+Kernels = "0.1"
+MetricReconstruction = "0.1"
+NumericsCore = "0.1"
+QuadGK = "2"
+Spacetime = "0.1"
+Wigner = "0.1"
 julia = "1.10"
 
 # TestKit is a TEST-ONLY GrTools dep powering the §7.7 hygiene gates (test/hygiene.jl).

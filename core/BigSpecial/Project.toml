@@ -15,6 +15,9 @@ TestKit = {path = "../TestKit"}
 Data = {path = "../Data"}
 
 [compat]
+HypergeometricFunctions = "0.3"
+NumericsCore = "0.1"
+SpecialFunctions = "2"
 julia = "1.10"
 
 # Test-characterization oracle values (Teukolsky MST/Leaver 2F1 + gamma_big/pochhammer)

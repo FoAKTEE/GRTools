@@ -17,6 +17,7 @@ TestKit = {path = "../TestKit"}
 Data = {path = "../Data"}
 
 [compat]
+NumericsCore = "0.1"
 julia = "1.10"
 
 # Test-characterization oracle: WignerSymbols is a SMALL, light, registered package, added

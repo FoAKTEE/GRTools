@@ -30,6 +30,13 @@ Data = {path = "../../core/Data"}
 TestKit = {path = "../../core/TestKit"}
 
 [compat]
+BigSpecial = "0.1"
+Data = "0.1"
+JLD2 = "0.6"
+NumericsCore = "0.1"
+OrdinaryDiffEqVerner = "2"
+SciMLBase = "3"
+Spacetime = "0.1"
 julia = "1.10"
 
 # Test characterization grounds WITHOUT any heavy live legacy dep: WaSABI is NEVER admitted as a live

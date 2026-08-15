@@ -38,6 +38,15 @@ Data = {path = "../../core/Data"}
 TestKit = {path = "../../core/TestKit"}
 
 [compat]
+Data = "0.1"
+HDF5 = "0.17"
+Harmonics = "0.1"
+Kernels = "0.1"
+NLsolve = "4"
+NumericsCore = "0.1"
+OrdinaryDiffEqVerner = "2"
+Roots = "3"
+Spacetime = "0.1"
 SpecialFunctions = "2.8.0"
 julia = "1.10"
 

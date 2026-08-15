@@ -2,7 +2,7 @@
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "6f490bf18169a0e7c74381ff3182fb1413f4a731"
+project_hash = "f52534ff368896103206e2cde0132fcb5c81a1af"
 
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
@@ -23,7 +23,7 @@ uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 version = "1.12.0"
 
 [[deps.NumericsCore]]
-deps = ["LinearAlgebra", "Printf"]
+deps = ["LinearAlgebra"]
 path = "../NumericsCore"
 uuid = "54f76139-0f7a-42ab-9084-b9cc78b29132"
 version = "0.1.0"
@@ -32,15 +32,6 @@ version = "0.1.0"
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
 version = "0.3.29+0"
-
-[[deps.Printf]]
-deps = ["Unicode"]
-uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
-version = "1.11.0"
-
-[[deps.Unicode]]
-uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
-version = "1.11.0"
 
 [[deps.Wigner]]
 deps = ["NumericsCore"]

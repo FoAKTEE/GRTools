@@ -2,7 +2,7 @@
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "853dc6f8d92d55be05ef2209199db68b0b6a2662"
+project_hash = "dc57f5775cf1d35e13b179aec7825c28b99127cc"
 
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
@@ -36,7 +36,7 @@ uuid = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
 version = "0.9.5"
 
 [[deps.Harmonics]]
-deps = ["BigSpecial", "LinearAlgebra", "NumericsCore", "Wigner"]
+deps = ["LinearAlgebra", "NumericsCore"]
 path = "../Harmonics"
 uuid = "abf3daaf-bc8b-489b-a3fd-54920b7d8f29"
 version = "0.1.0"
@@ -90,7 +90,7 @@ uuid = "c7b6efb7-e918-408f-a652-a8355248f733"
 version = "0.1.0"
 
 [[deps.NumericsCore]]
-deps = ["LinearAlgebra", "Printf"]
+deps = ["LinearAlgebra"]
 path = "../../core/NumericsCore"
 uuid = "54f76139-0f7a-42ab-9084-b9cc78b29132"
 version = "0.1.0"

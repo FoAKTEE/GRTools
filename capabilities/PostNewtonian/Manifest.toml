@@ -2,7 +2,7 @@
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "6c795288fe10c5c200f3b7ce09d42092df5224f4"
+project_hash = "faf286b2c07dfa7f8707cc7be4399e47b4429a5a"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "d9aaef7c63466eee4de23b4d9dad03629df54bea"
@@ -115,12 +115,6 @@ version = "1.11.0"
 [[deps.Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 version = "1.11.0"
-
-[[deps.BigSpecial]]
-deps = ["HypergeometricFunctions", "NumericsCore", "SpecialFunctions"]
-path = "../../core/BigSpecial"
-uuid = "60bbc8d6-d7db-4da8-98fc-f8225939f22c"
-version = "0.1.0"
 
 [[deps.Bijections]]
 git-tree-sha1 = "a2d308fcd4c2fb90e943cf9cd2fbfa9c32b69733"
@@ -269,16 +263,10 @@ version = "1.14.0"
     SharedArrays = "1a1011a3-84de-559e-8e89-a11a2f7dc383"
 
 [[deps.Harmonics]]
-deps = ["BigSpecial", "LinearAlgebra", "NumericsCore", "Wigner"]
+deps = ["LinearAlgebra", "NumericsCore"]
 path = "../Harmonics"
 uuid = "abf3daaf-bc8b-489b-a3fd-54920b7d8f29"
 version = "0.1.0"
-
-[[deps.HypergeometricFunctions]]
-deps = ["LinearAlgebra", "OpenLibm_jll", "SpecialFunctions"]
-git-tree-sha1 = "68c173f4f449de5b438ee67ed0c9c748dc31a2ec"
-uuid = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
-version = "0.3.28"
 
 [[deps.Inflate]]
 git-tree-sha1 = "d1b1b796e47d94588b3757fe84fbf65a5ec4a80d"
@@ -412,7 +400,7 @@ uuid = "77ba4419-2d1f-58cd-9bb1-8ffee604a2e3"
 version = "1.1.4"
 
 [[deps.NumericsCore]]
-deps = ["LinearAlgebra", "Printf"]
+deps = ["LinearAlgebra"]
 path = "../../core/NumericsCore"
 uuid = "54f76139-0f7a-42ab-9084-b9cc78b29132"
 version = "0.1.0"
@@ -674,12 +662,6 @@ version = "1.11.0"
 [[deps.WeakCacheSets]]
 git-tree-sha1 = "386050ae4353310d8ff9c228f83b1affca2f7f38"
 uuid = "d30d5f5c-d141-4870-aa07-aabb0f5fe7d5"
-version = "0.1.0"
-
-[[deps.Wigner]]
-deps = ["NumericsCore"]
-path = "../../core/Wigner"
-uuid = "6ff5feb8-af12-4c65-941e-1525bdfc7120"
 version = "0.1.0"
 
 [[deps.libblastrampoline_jll]]

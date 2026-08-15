@@ -2,7 +2,7 @@
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "ec5c77426513990f9d64bb15cd2f98f1bc8ff9fc"
+project_hash = "83f415d408c8b2b5f23fc468f83146ee0e8010ad"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "d9aaef7c63466eee4de23b4d9dad03629df54bea"
@@ -653,7 +653,7 @@ version = "2.31.3"
     Tracker = "9f7883ad-71c0-57eb-9f7f-b5c9e6d3789c"
 
 [[deps.NumericsCore]]
-deps = ["LinearAlgebra", "Printf"]
+deps = ["LinearAlgebra"]
 path = "../../core/NumericsCore"
 uuid = "54f76139-0f7a-42ab-9084-b9cc78b29132"
 version = "0.1.0"

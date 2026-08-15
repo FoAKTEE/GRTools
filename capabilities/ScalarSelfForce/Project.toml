@@ -28,6 +28,11 @@ Data = {path = "../../core/Data"}
 TestKit = {path = "../../core/TestKit"}
 
 [compat]
+BigSpecial = "0.1"
+Data = "0.1"
+EllipticCore = "0.1"
+NumericsCore = "0.1"
+Spacetime = "0.1"
 julia = "1.10"
 
 # TestKit is a TEST-ONLY GrTools dep powering the §7.7 hygiene gates (test/hygiene.jl).

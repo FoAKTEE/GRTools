@@ -2,7 +2,7 @@
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "3509e5a1f7220ddef5252ab087165ee6e94352d9"
+project_hash = "3b82e98a73bfd7b8c8742fae478d6823f121c1c0"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "5970c86505ae9c07bf5bc521ef2bbbb3849e8b7b"
@@ -626,17 +626,17 @@ git-tree-sha1 = "83cf05ab16a73219e5f6bd1bdfa9848fa24ac627"
 uuid = "46192b85-c4d5-4398-a991-12ede77f4527"
 version = "0.2.0"
 
-[[deps.GrTools]]
-deps = ["AccretionDisc", "BigSpecial", "Data", "EMRIWaveforms", "EllipticCore", "Harmonics", "Hybrid", "Kernels", "MetricReconstruction", "ModifiedGravity", "NumericsCore", "Perturbation", "PostNewtonian", "ScalarSelfForce", "SelfForce", "Spacetime", "TestKit", "Wigner"]
-path = "."
-uuid = "d866091c-02d1-4515-9122-6c0c359beda3"
-version = "0.1.0"
-
 [[deps.Gamma]]
 deps = ["LogExpFunctions"]
 git-tree-sha1 = "becc397f7cfb06e343496ae6ffb04818a851da51"
 uuid = "a0844989-3bd2-4988-8bea-c9407ab0941b"
 version = "1.2.0"
+
+[[deps.GrTools]]
+deps = ["AccretionDisc", "BigSpecial", "Data", "EMRIWaveforms", "EllipticCore", "Harmonics", "Hybrid", "Kernels", "MetricReconstruction", "ModifiedGravity", "NumericsCore", "Perturbation", "PostNewtonian", "ScalarSelfForce", "SelfForce", "Spacetime", "TestKit", "Wigner"]
+path = "."
+uuid = "d866091c-02d1-4515-9122-6c0c359beda3"
+version = "0.1.0"
 
 [[deps.Graphs]]
 deps = ["ArnoldiMethod", "DataStructures", "Inflate", "LinearAlgebra", "Random", "SimpleTraits", "SparseArrays", "Statistics"]

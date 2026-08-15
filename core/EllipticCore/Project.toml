@@ -22,6 +22,7 @@ TestKit = {path = "../TestKit"}
 Data = {path = "../Data"}
 
 [compat]
+NumericsCore = "0.1"
 julia = "1.10"
 
 # TestKit (+its Data spine) is a TEST-ONLY GrTools dep powering the §7.7 hygiene gates

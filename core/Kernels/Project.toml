@@ -23,6 +23,10 @@ KernelsAMDGPUExt = "AMDGPU"
 KernelsCUDAExt = "CUDA"
 
 [compat]
+AMDGPU = "1"
+CUDA = "5"
+KernelAbstractions = "0.9"
+NumericsCore = "0.1"
 julia = "1.10"
 
 # TestKit (+its Data spine) is a TEST-ONLY GrTools dep powering the §7.7 hygiene gates (test/hygiene.jl).

@@ -51,6 +51,13 @@ MetricReconstruction = {path = "../MetricReconstruction"}
 # so the package no longer needs packages/* to test.
 
 [compat]
+Data = "0.1"
+HDF5 = "0.17"
+Harmonics = "0.1"
+MetricReconstruction = "0.1"
+NumericsCore = "0.1"
+Perturbation = "0.1"
+Spacetime = "0.1"
 julia = "1.10"
 
 [extras]

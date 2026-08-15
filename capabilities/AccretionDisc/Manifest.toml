@@ -2,7 +2,7 @@
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "767ecf1ea0321e65d730df1e1cef00250acb02fc"
+project_hash = "a710a2093abd0e1df6c0b7656f235dc17df07a1e"
 
 [[deps.AccretionDisc]]
 deps = ["Data", "HDF5", "Harmonics", "LinearAlgebra", "MetricReconstruction", "NumericsCore", "Perturbation", "Printf", "Spacetime"]
@@ -107,7 +107,7 @@ uuid = "0234f1f7-429e-5d53-9886-15a909be8d59"
 version = "2.1.2+0"
 
 [[deps.Harmonics]]
-deps = ["BigSpecial", "LinearAlgebra", "NumericsCore", "Wigner"]
+deps = ["LinearAlgebra", "NumericsCore"]
 path = "../Harmonics"
 uuid = "abf3daaf-bc8b-489b-a3fd-54920b7d8f29"
 version = "0.1.0"
@@ -259,7 +259,7 @@ uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
 version = "1.3.0"
 
 [[deps.NumericsCore]]
-deps = ["LinearAlgebra", "Printf"]
+deps = ["LinearAlgebra"]
 path = "../../core/NumericsCore"
 uuid = "54f76139-0f7a-42ab-9084-b9cc78b29132"
 version = "0.1.0"

@@ -26,6 +26,9 @@ NumericsCore = {path = "../NumericsCore"}
 TestKit = {path = "../TestKit"}
 
 [compat]
+HDF5 = "0.17"
+JLD2 = "0.6"
+NumericsCore = "0.1"
 julia = "1.10"
 
 # Test characterization grounds the HDF5/JLD2 reader-writer bodies via ROUND-TRIP (write a schema
