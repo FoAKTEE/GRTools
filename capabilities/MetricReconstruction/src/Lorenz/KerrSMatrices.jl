@@ -204,7 +204,7 @@ end
 """
     tetrad_lplp_kerr(a, r0, lp, m, r; recs, S, ls) -> Complex
 
-The spherical-l' projected h_{l+l+}(r) tetrad component at a≠0:  Σ_l S^{(s)}_{lplp}(l,l')·R^{(s)}_{lplp}\[l\](r).
+The spherical-l' projected h_{l+l+}(r) tetrad component at a≠0:  Σ_l S^{(s)}_{lplp}(l,l')·R^{(s)}_{lplp}[l] (r).
 """
 function tetrad_lplp_kerr(a, r0, lp, m, r; recs=nothing, S=nothing, ls=nothing)
     recs, S, ls = _ensure_components_inputs(a, r0, m, lp, recs, S, ls)

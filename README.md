@@ -1,5 +1,8 @@
 # GrTools.jl
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.1.0-informational.svg)](CHANGELOG.md)
+
 **A next-generation Julia toolkit for black-hole perturbation theory and
 extreme-mass-ratio-inspiral (EMRI) science.**
 
@@ -159,8 +162,17 @@ eigenvalue convention `λ = E − 2mγ + γ²` with `λ(0) = l(l+1) − s(s+1)`.
 full statement (including the `m < 0` parity surface and ε↔ω maps) is in
 `docs/src/topics/conventions.md`.
 
+## Status
+
+GrTools is at **v0.1.0** — the first public release. The public API of every
+package is exercised by its test suite and documented on its docs page; the
+`Known limitations` section of [CHANGELOG.md](CHANGELOG.md) lists the
+components still in development. Pre-1.0, minor versions may include breaking
+changes, which will always be called out in the changelog.
+
 ## Contributing and citing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the layout, design rules, and PR
-checklist, and [CITATION.cff](CITATION.cff) to cite the suite. Licensed under
+checklist; [CHANGELOG.md](CHANGELOG.md) for release history; and
+[CITATION.cff](CITATION.cff) to cite the suite. Licensed under
 the [MIT License](LICENSE).

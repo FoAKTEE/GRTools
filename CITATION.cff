@@ -5,7 +5,7 @@ type: software
 authors:
   - name: "GrTools contributors"
 version: 0.1.0
-date-released: 2026-08-14
+date-released: 2026-08-15
 abstract: >-
   GrTools is a next-generation suite of Julia packages for black-hole
   perturbation theory:
