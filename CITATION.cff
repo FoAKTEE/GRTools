@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use GrTools in your research, please cite it as below."
-title: "GrTools.jl: a next-generation Julia toolkit for black-hole perturbation theory"
+title: "GRTools: a next-generation Julia toolkit for black-hole perturbation theory"
 type: software
 authors:
   - name: "GrTools contributors"

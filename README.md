@@ -1,4 +1,4 @@
-# GrTools.jl
+# GRTools
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.1.0-informational.svg)](CHANGELOG.md)
@@ -52,12 +52,13 @@ Clone and instantiate — packages reference each other with relative-path
 `[sources]` entries, so no registry setup is needed:
 
 ```bash
-git clone <this-repo> GrTools.jl
-cd GrTools.jl
+git clone <this-repo> GRTools
+cd GRTools
 julia --project=. -e 'using Pkg; Pkg.instantiate()'
 ```
 
-Then either load the whole suite through the umbrella package:
+Then either load the whole suite through the umbrella package (the repository
+is `GRTools`; the Julia umbrella module is `GrTools`):
 
 ```julia
 using GrTools
