@@ -1,6 +1,6 @@
 name = "EMRIWaveforms"
 uuid = "3c1a9e74-6b52-4d8f-9a0c-2f7e51d4b6a8"
-authors = ["GrTools capability migration (Claude)"]
+authors = ["GrTools contributors"]
 version = "0.1.0"
 
 # Tier-5 capability (design §4.8, §6.8): the EMRI trajectory + observed-waveform pipeline,

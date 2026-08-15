@@ -1,6 +1,6 @@
 name = "ModifiedGravity"
 uuid = "3a8f1d62-9c47-4e5b-8a10-2f6b7c4d9e03"
-authors = ["GrTools capability migration (Claude)"]
+authors = ["GrTools contributors"]
 version = "0.1.0"
 
 # Tier-4 beyond-GR (modified Teukolsky) source machinery (design §4.7) — the THIN research surface

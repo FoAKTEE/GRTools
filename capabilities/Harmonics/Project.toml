@@ -1,6 +1,6 @@
 name = "Harmonics"
 uuid = "abf3daaf-bc8b-489b-a3fd-54920b7d8f29"
-authors = ["GrTools capability migration (Claude)"]
+authors = ["GrTools contributors"]
 version = "0.1.0"
 
 # Tier-2 spine root (design §4.2): the angular-eigenfunction FOUNDATION — SWSH eigenvalues +

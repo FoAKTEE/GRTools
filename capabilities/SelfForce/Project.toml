@@ -1,6 +1,6 @@
 name = "SelfForce"
 uuid = "3a1d9c64-7e02-4b8f-9d31-2c6f0a5e7b48"
-authors = ["GrTools capability migration (Claude)"]
+authors = ["GrTools contributors"]
 version = "0.1.0"
 
 # Tier-5 1st+2nd-order gravitational self-force capability (design §4.5): the GSF corpus that

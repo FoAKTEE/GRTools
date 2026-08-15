@@ -1,6 +1,6 @@
 name = "Spacetime"
 uuid = "6cd685be-be12-48c2-bc38-9d046c4f5e88"
-authors = ["GrTools capability migration (Claude)"]
+authors = ["GrTools contributors"]
 version = "0.1.0"
 
 [deps]

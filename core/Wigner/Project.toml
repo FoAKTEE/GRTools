@@ -1,6 +1,6 @@
 name = "Wigner"
 uuid = "6ff5feb8-af12-4c65-941e-1525bdfc7120"
-authors = ["GrTools capability migration (Claude)"]
+authors = ["GrTools contributors"]
 version = "0.1.0"
 
 # Tier-1 core stratum (C2). deps = NumericsCore ONLY (design §5.3) — the angular-momentum

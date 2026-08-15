@@ -1,6 +1,6 @@
 name = "EllipticCore"
 uuid = "e8851893-f00c-4fc3-abda-c275a669a970"
-authors = ["GrTools capability migration"]
+authors = ["GrTools contributors"]
 version = "0.1.0"
 
 # Tier-1 core stratum: generic complex-parametric 2D hp-DG elliptic solver — ZERO physics

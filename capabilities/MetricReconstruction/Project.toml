@@ -1,6 +1,6 @@
 name = "MetricReconstruction"
 uuid = "c7b6efb7-e918-408f-a652-a8355248f733"
-authors = ["GrTools capability migration (Claude)"]
+authors = ["GrTools contributors"]
 version = "0.1.0"
 
 # Tier-4 metric-perturbation capability (design §4.4): the reconstruction of the linear metric

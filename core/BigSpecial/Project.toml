@@ -1,6 +1,6 @@
 name = "BigSpecial"
 uuid = "60bbc8d6-d7db-4da8-98fc-f8225939f22c"
-authors = ["GrTools capability migration (Claude)"]
+authors = ["GrTools contributors"]
 version = "0.1.0"
 
 [deps]

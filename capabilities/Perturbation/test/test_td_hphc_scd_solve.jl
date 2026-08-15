@@ -28,7 +28,7 @@
 # the symbolic→numeric pipeline as unimplemented ("would require the reference spectral solver or an
 # independent implementation of its radial and angular pseudospectral pipeline"). We therefore REPORT
 # |R_TD|/arg(R_TD) vs R_++ with the full chain and mark the absolute match [CONVENTION-DELTA] +
-# [BLOCKING] (Fable adjudicates); we do NOT tune toward 0.137. The DECISIVELY-gated F7-2 claims are the
+# [BLOCKING] (open, awaiting the contour prescription); we do NOT tune toward 0.137. The DECISIVELY-gated F7-2 claims are the
 # falloff derivation, the exact bilinearity, the drive/free frequency structure, and BigFloat cleanliness.
 #
 # Standalone: `julia --project -e 'include("test/test_td_hphc_scd_solve.jl")'`. Full suite = REVIEWER.
@@ -169,7 +169,7 @@ const R_NP_ANCHOR = 0.15336093643573906 * cis(-0.06847861768503925)   # nonprece
         println("            OWNER = Ma–Yang ψ^(2)=Γ̄⁴Ψ₄^(2) (Γ̄⁴=r⁴ at a=0) + Σ·16/Δ⁶ scaled source, complex")
         println("                    CONTOUR amplitude (teukolsky-category.tex:657 / eq:app-pp-scaled-source).")
         println("  [G-F7-2d] [BLOCKING] The absolute-magnitude bridge needs the Ma–Yang frequency-domain contour")
-        println("            prescription (the owner md marks it unimplemented). Reported not tuned — Fable adjudicates.")
+        println("            prescription (the owner md marks it unimplemented). Reported not tuned — left open.")
     end
 
     # ---- G-F7-2e: BigFloat smoke (the pipeline runs at Complex{BigFloat}, matches Float64) ---------

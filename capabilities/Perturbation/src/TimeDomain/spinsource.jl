@@ -272,7 +272,7 @@ end
 DERIVED-C (header (4)): the (ψ, π, χ) jump amplitudes at the particle interface in the
 RT chart, such that the enforced jumps are Ĵ·e^{−iωT}·ramp(T). From the monochromatic
 steady state ψ(T,R) = ψ̂(r(R))e^{−iω(T+F(R))}: Ĵψ = [ψ̂]e^{−iωF(R₀)}, Ĵπ = iωĴψ,
-Ĵχ = ([ψ̂′_r](dr/dR)₀ − iωF′(R₀)[ψ̂])e^{−iωF(R₀)}.
+Ĵχ = (\[ψ̂′_r\](dr/dR)₀ − iωF′(R₀)[ψ̂])e^{−iωF(R₀)}.
 """
 function _rt_jump_state(J)
     R0 = rt_R_of_r(J.r0)

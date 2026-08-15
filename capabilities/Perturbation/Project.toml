@@ -1,6 +1,6 @@
 name = "Perturbation"
 uuid = "12c091d5-3f53-42c4-bffe-b2905e161585"
-authors = ["GrTools capability migration (Claude)"]
+authors = ["GrTools contributors"]
 version = "0.1.0"
 
 # Tier-3 vacuum/test perturbed-field solver (design §4.3): the Teukolsky-radial engine + MST

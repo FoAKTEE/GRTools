@@ -1,6 +1,6 @@
 name = "NumericsCore"
 uuid = "54f76139-0f7a-42ab-9084-b9cc78b29132"
-authors = ["GrTools capability migration (Claude)"]
+authors = ["GrTools contributors"]
 version = "0.1.0"
 
 [deps]

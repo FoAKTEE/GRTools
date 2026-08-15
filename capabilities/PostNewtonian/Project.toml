@@ -1,6 +1,6 @@
 name = "PostNewtonian"
 uuid = "74b58e6d-f201-41d9-a4c5-e15407757458"
-authors = ["GrTools capability migration (Claude)"]
+authors = ["GrTools contributors"]
 version = "0.1.0"
 
 # Tier-4 capability (design §4.6): the PN-series engine and the Symbolics QUARANTINE. Fuses the two

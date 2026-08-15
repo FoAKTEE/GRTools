@@ -1,7 +1,7 @@
 name = "Kernels"
 uuid = "d9c6b49b-1aa6-4fec-800e-eecae98eeb2e"
 version = "0.1.0"
-authors = ["GrTools capability migration (Claude)"]
+authors = ["GrTools contributors"]
 
 [deps]
 KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"

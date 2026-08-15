@@ -272,7 +272,7 @@ setprecision(BigFloat, 256)
         # R_+−(ours)/R_+−(tab) tests the owner-convention hypothesis (5/√2)·conj(ω_L)/ω_L.  CONFIRMED at
         # χ=0 to <0.1% magnitude / <0.01 rad — the residual is the owner's UNVERIFIED +− source→R
         # normalization (owner-scoped, comparison/2410-channel-fit-check.md), NOT a transform defect.  The
-        # χ-DRIFT arm is [FUTURE] (needs the Kerr +− projection), so this is NOT [BLOCKING-Fable].
+        # χ-DRIFT arm is [FUTURE] (needs the Kerr +− projection), so this is NOT a blocking gate.
         @testset "Q5-STAGE-2 +− dichotomy (χ=0: owner-convention (5/√2)conj(ω)/ω)" begin
             Rpm_tab = 0.01651 * cis(0.05858)
             rpm = qqnm_ratio(p, p, :pm, 4; a=big"0.0", n=48, T=C)

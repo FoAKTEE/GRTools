@@ -1,6 +1,6 @@
 name = "Hybrid"
 uuid = "271ffa06-0127-4767-93fc-413a2d73c6e8"
-authors = ["GrTools capability migration (Claude)"]
+authors = ["GrTools contributors"]
 version = "0.1.0"
 
 # Tier-5 capability (design §4.9): the WaSABI self-force / post-Newtonian HYBRID waveform engine.

@@ -1,6 +1,6 @@
 name = "AccretionDisc"
 uuid = "41b4f346-9cfd-4132-92af-b9cd45d2bbed"
-authors = ["GrTools capability migration (Claude)"]
+authors = ["GrTools contributors"]
 version = "0.1.0"
 
 # Tier-6 EMRI-accretion-disc capability (design §4.10), the TOP of the capability DAG (nothing
