@@ -13,7 +13,7 @@ pressureless analytic baselines it is compared against).  Drivers here are THIN.
 | 2  | fig:spirals_conv — m_max convergence | `fig02.jl` | — | heavy | not started | — | |
 | 3  | fig:angular_momentum_balance         | `fig03.jl` | `expected/fig03.json` | heavy | **solid** | **match** | a•=15M, χ=0, h0=0.05, (𝔭,𝔮)=(0,0), m=1:120. Balance (71) away from corotation 4.0e-5; the corotation spike is gated on the invariant ∫(dF_J/dr−d𝔗/dr)dr = 0.0266073 F_{J,0} = T_L−T of (75) to 2.7e-5 (its plotted height is a plot-sampling number). 605 s at -t4. |
 | 4  | fig:dtdr_ap — torque density vs a•    | `fig04.jl` | — | heavy | not started | — | |
-| 5  | fig:TGR_vs_TNewt                     | `fig05.jl` | — | heavy | not started | — | |
+| 5  | fig:TGR_vs_TNewt                     | `fig05.jl` | `expected/fig05.json` | heavy | **solid** | **match** | T_GR/T_Newt vs χ (10 points, −0.9…0.9) for the five (𝔭,𝔮) at h₀=0.05, a•=12M, b=0.6, m=1:80, grid (30,30,3000). T_Newt is the FULLY Newtonian pipeline (`SpiralWaves` `model = :newtonian`, EGD::sw-newtonian-limit) and is χ-independent by construction. Caption claim M:930-932 (𝔭<0 enhances, 𝔭≥0 suppresses) PASSES on all 50 markers. Against the published markers (read at 200 dpi, ±0.015): 46/50 within 0.05, mean |Δ| ≤ 0.034 per series. FINDING: the (1.5,0) series drifts to −0.107 at χ=+0.9 (−12 %), not a T_Newt normalisation (the factor is not constant along the series) — see the evidence dir. 3470 s at -t8. |
 | 6  | fig:torque_chi_ap                    | `fig06.jl` | — | heavy | not started | — | |
 | 7  | fig:torque_ap_h0                     | `fig07.jl` | — | heavy | not started | — | |
 | 8  | fig:m_95_plot — m95 violins          | `fig08.jl` | — | heavy | not started | — | |

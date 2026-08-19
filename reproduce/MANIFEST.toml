@@ -410,3 +410,14 @@ expected = "arXiv-2608.17003/expected/fig10.json"
 depends = ["AccretionDisc", "Spacetime"]
 status = "preliminary"
 notes = "EGD::fig10-per-mode-reversal. Fig. 10 (fig:LR_torque_and_reversal, M:1007-1012): per-mode Lindblad torque T_{L,m} (75) in F_{J,0}h0 vs m for (p,h0) in {(5,0.03),(5,0.05),(0,0.03),(0,0.05)}, chi=0, q=0, a=15M, b=0.6. Plotted m=4:40 (the reference figure's first marker is m=4); the totals are summed over m=1..ceil(4/h0) at the paper's reference grid triple (240,240,24000) (A:140). Printed numbers M:1014 all PASS: last m with T_{L,m}<0 is 10 (h0=0.05, paper 'm<~10') and 16 (h0=0.03, paper 'm<~15'); the total torque T (74) is +1.539 and +1.841 F_{J,0}h0 > 0. VLM verdict match on structure (all checklist items). PRELIMINARY because of a recorded FINDING: our T_{L,m} runs ~13% below a pixel read-back of the published figure at low m (ours/ref 0.87 at m=4-10, 0.92 at m=20, 1.02 at m=40), so the p=5 zero crossings sit 1-2 modes later than in the published figure; the domain-truncation and boundary-branch (E-M4) hypotheses were tested and refuted. Second finding: the Lindblad-only mode sum Sum_m T_{L,m} is negative for p=5 (-0.338, -0.138) because of the m=1,2,3 modes that the figure does not plot; over the figure's own range m>=4 it is positive (+0.516, +0.318). ~28 min at -t8; --regen and --check both green."
+
+[[result]]
+paper = "2608.17003"
+id = "fig05"
+kind = "figure"
+script = "arXiv-2608.17003/fig05.jl"
+tier = "heavy"
+expected = "arXiv-2608.17003/expected/fig05.json"
+depends = ["AccretionDisc", "Spacetime"]
+status = "solid"
+notes = "fig:TGR_vs_TNewt (M:927-932) - the ratio of the relativistic total torque (74) to the NEWTONIAN one vs the SMBH spin, 10 spins x 5 disc profiles at h0=0.05, a.=12M, b=0.6, m=1:80, grid (30,30,3000). The denominator is the fully Newtonian pipeline of EGD::sw-newtonian-limit (SpiralWaves model = :newtonian): Newtonian rotation/epicycle, the Plummer-softened potential, the printed (50), the covariant delta-u_phi (erratum E-M1) and the Goldreich-Tremaine torque density - chi-INDEPENDENT by construction, which the published figure itself forces. The caption claim (p<0 enhances, p>=0 suppresses the torque relative to Newtonian) is asserted for all 50 markers and passes. Against the published markers (read at 200 dpi, +-0.015) 46/50 agree within 0.05; FINDING: the (1.5,0) series drifts to -0.107 (-12%) at chi=+0.9. VLM verdict match. 3470 s at -t8."
