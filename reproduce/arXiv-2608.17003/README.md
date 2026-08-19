@@ -17,13 +17,13 @@ pressureless analytic baselines it is compared against).  Drivers here are THIN.
 | 6  | fig:torque_chi_ap                    | `fig06.jl` | — | heavy | not started | — | |
 | 7  | fig:torque_ap_h0                     | `fig07.jl` | — | heavy | not started | — | |
 | 8  | fig:m_95_plot — m95 violins          | `fig08.jl` | — | heavy | not started | — | |
-| 9  | fig:num_vs_analytical                | `fig09.jl` | — | heavy | **blocked** | — | analytic half landed (`Modes.hkr_*`); the numerical T_L needs `SpiralWaves.solve_mode`/diagnostics (EGD::sw-mode-solver, EGD::sw-diagnostics) |
+| 9  | fig:num_vs_analytical                | `fig09.jl` | `expected/fig09.json` | heavy | **preliminary** | **partial** (reduced a• grid) | Analytic branch = `Modes.hkr_lindblad_torque` (arXiv:2510.03564 (18b)+(20) summed by (24)); numerical branch = `SpiralWaves.torque_survey` (Eq. 75); cutoff m₄₅ from our own mode sum. ALL FIVE printed numbers PASS: m₄₅h₀ = 0.35 (paper 0.35), (0,0) ratio 1.4844 @ 12M (1.5) and 0.9235 @ 100M (0.92), (0,1) band [0.8737, 0.9363] ([0.88, 0.96]). REDUCED to 7 a• points (paper ~19) for compute; m NOT reduced (top-10 of 100 modes ≤ 1.01e-3 of the torque). Bit-identical across two independent runs. 5350 s at -t8. |
 | 10 | fig:LR_torque_and_reversal           | `fig10.jl` | `expected/fig10.json` | heavy | **preliminary** | **match** (structure) | T_{L,m} for (𝔭,h₀) ∈ {(5,0.03),(5,0.05),(0,0.03),(0,0.05)}, χ=0, 𝔮=0, a•=15M, b=0.6; plotted m=4:40, totals summed to ⌈4/h₀⌉ at the reference grid (240,240,24000). M:1014 PASSES (last m with T_{L,m}<0 = 10 at h₀=0.05 and 16 at h₀=0.03; total torque (74) = +1.539/+1.841 F_{J,0}h₀ > 0). FINDING: our T_{L,m} is ≈13 % below the published figure at low m (ratio 0.87 at m=4–10 → 1.02 at m=40); domain-extent and boundary-branch hypotheses refuted (evidence dir). ~28 min at -t8. |
 | 11 | fig:convergence                      | `fig11.jl` | — | heavy | not started | — | |
 | 12 | fig:pole_disp_errors                 | `fig12.jl` | — | heavy | not started | — | |
 | 13 | fig:variation_with_respect_to_b      | `fig13.jl` | — | heavy | not started | — | |
 | 14 | fig:m95_vs_b                         | `fig14.jl` | — | heavy | not started | — | |
-| —  | printed-number gate                  | `check_printed_numbers.jl` | none (by design) | fast | **HOLE** (18/18 uncovered) | n/a | asserts every printed number of the paper that the figure goldens cover |
+| —  | printed-number gate                  | `check_printed_numbers.jl` | none (by design) | fast | **HOLE** (14 PASS / 0 FAIL / 4 uncovered) | n/a | asserts every printed number of the paper that the figure goldens cover; still waiting on fig08 (m₉₅ band) and fig13/fig14 (softening) |
 
 `_profile_assembly.jl` is a paper-local, PRESENTATION-side include shared by `fig03.jl` and
 `fig04.jl` (so the assembly is written once): it runs the m-loop over `SpiralWaves.solve_mode` and
