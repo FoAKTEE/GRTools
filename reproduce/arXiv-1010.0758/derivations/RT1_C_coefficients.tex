@@ -1,0 +1,41 @@
+% emri-disk reproduction — arXiv:1010.0758 RT1 (matrix #13): circular-orbit C-coefficients κ, Z.
+% Source: eq:C002, eq:C020, eq:wupt, eq:kappaR, eq:ZR (l.235-290). Modality: SymbolicDerivation (verified to
+% machine precision: κ=√(C020 C002)=epicyclic Ω_r). external-free [COMPUTE]. Iter 12.
+\documentclass{article}
+\usepackage{amsmath}
+\begin{document}
+
+\section*{Circular-orbit C-coefficients and the epicyclic SHO (1010.0758 RT1)}
+
+Expanding $H_0$ about a circular orbit gives a simple-harmonic oscillator
+$H_0=\tfrac12 C_{020}(\Delta r+\tfrac{C_{110}}{C_{020}}\diamondsuit p_\phi)^2+\tfrac12C_{002}p_r^2$ with the
+coefficients (in terms of $\mathcal{E},\mathcal{L},\Omega$ and the metric functions $\nu,\psi,\tilde\mu,
+\bar\omega$):
+\begin{align}
+  w^t &= [\,\rme^{2\nu}-\rme^{2\psi}(\Omega-\bar\omega)^2\,]^{-1/2}, &
+  C_{002} &= \frac{\rme^{-2\tilde\mu}}{\mu\,w^t}, \\
+  C_{200} &= \mu^{-1}\rme^{-2\nu-2\psi}(w^t)^{-3}, &
+  C_{110} &= \Omega'-\rme^{-2\nu-2\psi}(w^t)^{-3}\mathcal{L}', \\
+  C_{020} &= -\mu\,\Omega'\mathcal{L}'+\mu\,\rme^{-2\nu-2\psi}(w^t)^{-3}\mathcal{L}'^{\,2}, &
+  \kappa &=\sqrt{C_{020}C_{002}},\quad \mu\mathcal{Z}=\sqrt{C_{020}/C_{002}} .
+\end{align}
+
+\paragraph{Verification (Schwarzschild, $\bar\omega=0$, $\rme^{2\nu}=1-2/r$, $\rme^{2\psi}=r^2$,
+$\rme^{2\tilde\mu}=(1-2/r)^{-1}$).} Evaluating the formulas:
+\begin{center}
+\begin{tabular}{lccc}
+\hline
+$r/M$ & $\kappa=\sqrt{C_{020}C_{002}}$ & $\Omega_r$ (\texttt{KerrGeodesics}) & $w^t$ vs $(1-3/r)^{-1/2}$ \\
+\hline
+8  & 0.02209709 & 0.02209709 & 1.264911 = 1.264911 \\
+10 & 0.02000000 & 0.02000000 & 1.195229 = 1.195229 \\
+15 & 0.01333333 & 0.01333333 & 1.118034 = 1.118034 \\
+30 & 0.00544331 & 0.00544331 & 1.054093 = 1.054093 \\
+\hline
+\end{tabular}
+\end{center}
+$\kappa=\sqrt{C_{020}C_{002}}$ equals the radial epicyclic frequency to machine precision ($|\Delta|\lesssim
+10^{-18}$), and $w^t$ matches the closed form $(1-3/r)^{-1/2}$. \textbf{[SOLID]} (the C-coefficient substrate
+of the resonant-torque formalism, data computed by the Julia port).
+
+\end{document}

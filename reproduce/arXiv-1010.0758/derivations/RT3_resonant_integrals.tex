@@ -1,0 +1,29 @@
+% emri-disk reproduction — arXiv:1010.0758 RT3 (matrix #15): Green's-function trajectory jumps + resonant integrals.
+% Source: eq:int-r/eq:int-pr/eq:int-p (l.553-575), trajectory eq T^(m)=im Σ_X ∂_X H_1^* ΔX (l.584). Modality:
+% SymbolicDerivation. external-free [COMPUTE]. Iter 17.
+\documentclass{article}
+\usepackage{amsmath}
+\begin{document}
+
+\section*{Trajectory jumps and resonant integrals (1010.0758 RT3)}
+
+Near a resonance the radial action variable obeys the SHO law $\dot Z=-\rmi\kappa Z$ (so $|Z|$ is conserved),
+and the first-order trajectory jumps $\Delta X(t_2)$ for $X\in\{r,p_r,\phi,p_\phi\}$ all factor as
+\begin{equation}
+  \Delta X(t_2)=\frac{1-\rme^{-\rmi D(R)\Delta t}}{2D(R)}\,[\,\text{bracket}_X\,],
+\end{equation}
+with the brackets given in \texttt{eq:int-r/pr/p} (bilinear in the $C$-coefficients and the $H_1^{(m)}$
+derivatives). The resonant prefactor comes from the basic integral
+\begin{equation}
+  \int_0^{\Delta t}\rme^{-\rmi D(R)t'}\,\rmd t'=\frac{1-\rme^{-\rmi D(R)\Delta t}}{\rmi D(R)} .
+\end{equation}
+Inserting the jumps into $T^{(m)}=\rmi m\sum_X \partial_X H_1^{(m)\ast}\,\Delta X(t_2)$ reproduces
+\texttt{eq:torque-1} by construction; its collapse to $\pm\sqrt{C_{020}/C_{002}}\,|\mathcal{S}^{(m)}|^2$ is
+verified in RT4 (\texttt{RT4\_master\_torque\_collapse.tex}).
+
+\paragraph{Verification.} The resonant integral $\int_0^{\Delta t}\rme^{-\rmi Dt'}\rmd t'$ matches
+$(1-\rme^{-\rmi D\Delta t})/(\rmi D)$ to $2.4\times10^{-11}$ (Gauss--Kronrod, 3000 random $D,\Delta t$); the SHO
+solution $Z(t)=Z_0\rme^{-\rmi\kappa t}$ conserves $|Z|$ to $4.4\times10^{-16}$. \textbf{[SOLID]} (the
+jump$\to$\texttt{eq:torque-1}$\to$\texttt{eq:TM} chain is closed by RT4).
+
+\end{document}

@@ -1,0 +1,35 @@
+% emri-disk reproduction — arXiv:1010.0758 RT6 (matrix #19, HEADLINE, R3): gauge-invariance of S^(m).
+% Source: eq:SM-simple (l.1039-1045) + resonance condition (l.1050). Modality: SymbolicDerivation (identity
+% verified to machine precision = independent-verifier trail for R3). external-free [COMPUTE]. Iter 9.
+\documentclass{article}
+\usepackage{amsmath}
+\begin{document}
+
+\section*{Gauge-invariance of the resonant amplitude (1010.0758 RT6 — headline)}
+
+For a pure-gauge metric perturbation $h_{ab}=-\nabla_a\xi_b-\nabla_b\xi_a$, the interaction amplitude reduces
+to (\texttt{eq:SM-simple})
+\begin{align}
+  \mathcal{S} &= \rmi\frac{m}{\mathcal{L}'}(-\mathcal{E}\xi^t+\mathcal{L}\xi^\phi)\,
+                 \bigl[m(\Omega-\Omega_{\rm s})\mp\kappa\bigr]
+     + \rmi\,\frac{-\kappa\pm m(\Omega-\Omega_{\rm s})}{\mathcal{Z}}
+                 (-\mathcal{E}\xi^t_{,r}+\mathcal{L}\xi^\phi_{,r}) \nonumber\\
+     &\quad + \bigl[m(\Omega-\Omega_{\rm s})\mp\kappa\bigr]\,\xi^r .
+\end{align}
+Every term carries a factor $[m(\Omega-\Omega_{\rm s})\mp\kappa]$ or $[-\kappa\pm m(\Omega-\Omega_{\rm s})]$.
+At — and only at — the resonance location, $m(\Omega-\Omega_{\rm s})=\pm\kappa$ (\texttt{eq:D}=0), both
+factors vanish, so
+\begin{equation}
+  \boxed{\;\mathcal{S}^{(m)}\big|_{\rm pure\ gauge}=0 \quad\text{iff}\quad m(\Omega-\Omega_{\rm s})=\pm\kappa\;}
+\end{equation}
+Since the torque formula (\texttt{eq:TX1}) carries a $\delta$-function enforcing resonant evaluation, the
+\emph{resonant} torque is gauge-invariant.
+
+\paragraph{Verification (independent-verifier trail, R3).} $\mathcal{S}$ of \texttt{eq:SM-simple} was evaluated
+for random $\xi^t,\xi^\phi,\xi^r,\xi^t_{,r},\xi^\phi_{,r}$ and random $\mathcal{E},\mathcal{L},\mathcal{L}',
+\mathcal{Z},\Omega,\kappa$, integer $m$, both resonance signs (16 cases). Off-resonance $|\mathcal{S}|\sim
+\mathcal{O}(10^2)$ (nonzero); on-resonance ($\Omega_{\rm s}=\Omega\mp\kappa/m$) $|\mathcal{S}|\le6.2\times
+10^{-16}$ (machine-precision zero). \textbf{[SOLID]} — the gauge-invariance theorem, the second headline of
+Paper I, reproduced.
+
+\end{document}

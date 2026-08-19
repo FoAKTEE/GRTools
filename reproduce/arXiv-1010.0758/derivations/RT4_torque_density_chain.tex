@@ -1,0 +1,38 @@
+% emri-disk reproduction — arXiv:1010.0758 RT4 chain completion (matrix #18): eq:T-total -> eq:TX1 -> eq:dTdr.
+% Source: l.633-675. Modality: SymbolicDerivation + NumericalSimulation. external-free [COMPUTE]. Iter 13.
+% Completes the master-torque chain (iter 8 did eq:torque-1 -> eq:TM) through to the torque DENSITY.
+\documentclass{article}
+\usepackage{amsmath}
+\begin{document}
+
+\section*{From master torque to torque density (1010.0758 RT4, chain completion)}
+
+\paragraph{Total torque.} Using ${\cal S}^{(-m)}=-{\cal S}^{(m)\ast}$ (so $|{\cal S}^{(-m)}|^2=|{\cal S}^{(m)}|^2$)
+and that $D(R)$ flips sign between the $m$ and $-m$ resonances,
+\begin{equation}
+  T=T^{(m)}+T^{(-m)}
+   =\pm\rmi\Bigl[\tfrac{m(1-\rme^{-\rmi D\Delta t})}{2D}+\tfrac{m(1-\rme^{+\rmi D\Delta t})}{-2D}\Bigr]
+     \sqrt{\tfrac{C_{020}}{C_{002}}}|{\cal S}^{(m)}|^2
+   =\mp m\,\frac{\sin(D\Delta t)}{D}\sqrt{\tfrac{C_{020}}{C_{002}}}|{\cal S}^{(m)}|^2 .
+\end{equation}
+The bracket equals $\rmi m\,\sin(D\Delta t)/D$ identically (verified to machine precision: $|{\rm err}|=0$ over
+5000 random $D,\Delta t,m$).
+
+\paragraph{Resonance $\delta$-limit.} Since $\int\frac{\sin(D\Delta t)}{D}\,\rmd R=\frac{\pi}{|D'|}$, near
+resonance $\frac{\sin(D\Delta t)}{D}\to\frac{\pi}{|D'|}\delta(R-R_{\rm r})$ (verified numerically: with
+$D=D'(R-R_{\rm r})$, $\int\frac{\sin(D\Delta t)}{D}\rmd R=78.549$ vs $\pi/0.04=78.540$, and $31.4154$ vs
+$\pi/0.1=31.4159$). Hence
+\begin{equation}
+  T=\mp\frac{\pi m}{|D'|}\,\mu{\cal Z}\,|{\cal S}^{(m)}|^2\,\delta(R-R_{\rm r}) \tag{\texttt{eq:TX1}}.
+\end{equation}
+
+\paragraph{Torque density.} With $\rmd\mu/\rmd r=2\pi r\,w^t\Sigma$ for a thin disc of surface density $\Sigma$,
+\begin{equation}
+  \frac{\rmd T}{\rmd r}=\mp\frac{2\pi^2 m}{|D'|}\,r\,w^t\,{\cal Z}\,\Sigma\,|{\cal S}^{(m)}|^2\,
+  \delta(r-R_{\rm r}) \tag{\texttt{eq:dTdr}}.
+\end{equation}
+\textbf{[SOLID]} — the full relativistic Lindblad torque-density chain
+$\texttt{eq:torque-1}\to\texttt{eq:TM}\to\texttt{eq:T-total}\to\texttt{eq:TX1}\to\texttt{eq:dTdr}$ reproduced
+(the master collapse was verified in Iter 8; this completes the chain to the torque density).
+
+\end{document}

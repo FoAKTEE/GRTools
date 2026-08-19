@@ -1,0 +1,34 @@
+% emri-disk reproduction — arXiv:1010.0758 RT2 (matrix #14): perturbation Hamiltonian H_1.
+% Source: eq:H1-1 -> eq:H1 (l.310-323). Modality: SymbolicDerivation (verified: maintains the mass-shell to
+% O(h²), i.e. exact at linear order). external-free [COMPUTE]. Iter 11.
+\documentclass{article}
+\usepackage{amsmath}
+\begin{document}
+
+\section*{Linear perturbation Hamiltonian (1010.0758 RT2)}
+
+Take $t$ as the independent variable, so the Hamiltonian is $H=-p_t$ with $p_t$ fixed by the mass-shell
+$g^{\alpha\beta}p_\alpha p_\beta=-\mu^2$ at fixed spatial momenta $p_i$. Varying the mass-shell,
+\begin{equation}
+  \delta g^{\alpha\beta}p_\alpha p_\beta + 2g^{\alpha\beta}p_\alpha\,\delta p_\beta = 0 ,
+\end{equation}
+and restricting the last term to $\beta=t$ (since $p_i$ are held fixed) gives
+\begin{equation}
+  \delta p_t = -\frac{1}{2p^t}\,\delta g^{\alpha\beta}p_\alpha p_\beta
+             = \frac{h^{\alpha\beta}p_\alpha p_\beta}{2p^t},
+\end{equation}
+using $\delta g^{\alpha\beta}=-g^{\alpha\kappa}g^{\beta\lambda}\delta g_{\kappa\lambda}=-h^{\alpha\beta}$
+(the negative of $h$ with raised indices). Hence the linear-in-$h$ perturbation Hamiltonian is
+\begin{equation}
+  \boxed{\,H_1 = \frac{h^{\alpha\beta}p_\alpha p_\beta}{2p^t}\,}\qquad(\texttt{eq:H1}).
+\end{equation}
+
+\paragraph{Verification.} For a random near-Minkowski inverse metric $g^{\alpha\beta}$, a random small
+symmetric $h_{\alpha\beta}$ (raised to $h^{\alpha\beta}$), and momenta $p_\alpha$ on the unperturbed shell,
+shifting $p_t\to p_t+\delta p_t$ with $\delta p_t=h^{\alpha\beta}p_\alpha p_\beta/(2p^t)$ and the spatial
+$p_i$ fixed leaves the \emph{perturbed} shell $(g^{\alpha\beta}-h^{\alpha\beta})p'_\alpha p'_\beta+\mu^2$
+nonzero only at $\mathcal{O}(h^2)$: over $h\in\{10^{-3},\dots,10^{-6}\}$ the residual$/h^2$ is constant
+($\approx1.2\text{–}3\times10^2$), confirming $H_1$ is exact at linear order. \textbf{[SOLID]} (data computed
+by the Julia port).
+
+\end{document}

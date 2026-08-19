@@ -1,0 +1,138 @@
+% emri-disk reproduction — arXiv:1010.0758 RT7 (Paper-II bridge, R3): epicyclic-geodesic forms of S^(m).
+% Source: subsection "Epicyclic geodesic formulation", eq:IT/eq:ITSM/eq:SMIT/eq:SP (l.1056-1155).
+% Modality: SymbolicDerivation + NumericalSimulation (representation identities checked to machine precision
+% on Schwarzschild M=1, r=8, random complex perturbation amplitudes, both resonance branches).
+% external-free [COMPUTE].
+\documentclass{article}
+\usepackage{amsmath}
+\newcommand{\rmi}{\mathrm{i}}
+\newcommand{\rmd}{\mathrm{d}}
+\newcommand{\rme}{\mathrm{e}}
+\newcommand{\mass}{\mu}
+\newcommand{\mmu}{\tilde\mu}
+\newcommand{\oomega}{\bar\omega}
+\begin{document}
+
+\section*{Epicyclic-geodesic representation of $\mathcal{S}^{(m)}$ (1010.0758 RT7 --- Paper-II bridge)}
+
+This is the relation that lets Paper~II compute the resonant amplitude $\mathcal{S}^{(m)}$ from a
+\emph{gravitational waveform} (a power/stress-energy integral over a slightly-eccentric geodesic) instead of
+from the metric perturbation directly. Three relations are reproduced: \texttt{eq:IT} (worldline integral
+$=$ stress-energy integral), \texttt{eq:ITSM} ($I_{\rm T}=-2\pi(\mathcal{Z}/\kappa)\mathcal{S}^{(m)}$), and
+\texttt{eq:SP} ($\mathcal{S}^{(m)}=\tfrac{2\rmi}{m\Omega_{\rm s}\mass\mathcal{Z}\epsilon}\mathcal{P}$).
+
+\paragraph{Ingredients (reused, [SOLID]).} $\kappa=\sqrt{C_{020}C_{002}}$, $\mass\mathcal{Z}=\sqrt{C_{020}/C_{002}}$
+(RT1); $H_1=h^{\alpha\beta}p_\alpha p_\beta/(2p^t)$ (RT2); $w^t=\rme^{-2\nu}(\mathcal{E}-\oomega\mathcal{L})$,
+$w_t=-\mathcal{E}$, $w_\phi=\mathcal{L}$, $w_r=0$. The chosen gauge is $h^{tt}=h^{t\phi}=h^{\phi\phi}=0$ (exists
+when $\det\mathbf{A}\neq0$; extended to $\det\mathbf{A}=0$ by analytic continuation in a spacetime parameter
+$P$, since both $I_{\rm T}$ and $\mathcal{S}^{(m)}$ are analytic in $P$ --- the paper's argument, used verbatim).
+
+\subsection*{1. eq:IT --- worldline integral $=$ stress-energy integral}
+
+The epicyclic geodesic oscillating between $R\mp\epsilon$ is, to first order in $\epsilon$,
+$r=R+\epsilon\cos\kappa t$, $p_r=\mass\epsilon\mathcal{Z}\sin\kappa t$,
+$\phi=\Omega t+\epsilon(C_{110}/\kappa)\sin\kappa t$, $p_\phi=\mass\mathcal{L}$. The worldline integral over one
+radial period is
+\begin{equation}
+  \epsilon I_{\rm T}=\int_{t_1}^{t_1+2\pi/\kappa} h_{\alpha\beta}\frac{u^\alpha u^\beta}{u^t}\,\rmd t
+  =\mass^{-1}\int_{\mathcal V} h^{(m)}_{\alpha\beta}\tilde T^{\alpha\beta}\sqrt{-\det g}\,\rmd^4\mathbf{x}.
+  \tag{\texttt{eq:IT}}
+\end{equation}
+\emph{Derivation of the second equality.} For a point particle
+$\tilde T^{\alpha\beta}(x)=\mass\int u^\alpha u^\beta\,\delta^4(x-z(\tau))/\sqrt{-\det g}\,\rmd\tau$, so
+$\mass^{-1}\int h_{\alpha\beta}\tilde T^{\alpha\beta}\sqrt{-\det g}\,\rmd^4x
+=\int h_{\alpha\beta}(z(\tau))u^\alpha u^\beta\,\rmd\tau
+=\int h_{\alpha\beta}u^\alpha u^\beta\,(\rmd\tau/\rmd t)\,\rmd t$, and $\rmd\tau/\rmd t=1/u^t$ gives the first
+form. \texttt{eq:IT} is gauge-invariant: under $h_{\alpha\beta}\to h_{\alpha\beta}-\xi_{\alpha;\beta}-\xi_{\beta;\alpha}$
+the change $\Delta(\epsilon I_{\rm T})=-2\mass^{-1}\int\xi^{(m)}_{\alpha;\beta}\tilde T^{\alpha\beta}\sqrt{-\det g}\,\rmd^4x$
+integrates by parts onto $\tilde T^{\alpha\beta}{}_{;\beta}=0$ (geodesic), and the boundary terms at $t_1$ and
+$t_1+2\pi/\kappa$ cancel by helical periodicity [$t\to t+2\pi/\kappa$, $\phi\to\phi+\Omega\,2\pi/\kappa
+=\phi+\Omega_{\rm s}2\pi/\kappa\mp2\pi/m$]; hence $\Delta I_{\rm T}=0$.
+
+\subsection*{2. eq:ITSM --- $I_{\rm T}=-2\pi(\mathcal{Z}/\kappa)\mathcal{S}^{(m)}$}
+
+In the gauge $h^{tt}=h^{t\phi}=h^{\phi\phi}=0$, \texttt{eq:FSM} collapses (only the $\rmi h^{(m)r\alpha}w_\alpha$
+term survives) to
+\begin{equation}
+  \mathcal{S}^{(m)}=\rmi\,\frac{h^{(m)r\alpha}w_\alpha}{w^t}.
+\end{equation}
+In the same gauge only $h_{rt},h_{r\phi}$ contribute to $I_{\rm T}$ (the $h_{tt},h_{t\phi},h_{\phi\phi}$
+components vanish; $h_{rr}(u^r)^2=\mathcal{O}(\epsilon^2)$). With $u^r=\rme^{-2\mmu}u_r$ and
+$u_r=p_r/\mass=\epsilon\mathcal{Z}\sin\kappa t$,
+\begin{equation}
+  I_{\rm T}=2\rme^{-2\mmu}\mathcal{Z}\int_{t_1}^{t_1+2\pi/\kappa}\sin(\kappa t)\,
+  \frac{h_{r\alpha}w^\alpha}{w^t}\,\rmd t.
+\end{equation}
+Raising the index with $\rme^{-2\mmu}h_{r\alpha}w^\alpha=h^{r\alpha}w_\alpha$ (diagonal $g_{rr}=\rme^{2\mmu}$;
+one finds $h_{r\alpha}w^\alpha=g_{rr}h^{r}{}_\alpha w^\alpha=\rme^{2\mmu}h^{r\beta}w_\beta$) turns the integrand
+into $h^{r\alpha}w_\alpha/w^t=-\rmi\mathcal{S}^{(m)}|_0\,\rme^{\rmi m(\phi-\Omega_{\rm s}t)}$, so
+\begin{equation}
+  I_{\rm T}=-2\rmi\,\mathcal{Z}\,\mathcal{S}^{(m)}|_0\int_{t_1}^{t_1+2\pi/\kappa}
+  \sin(\kappa t)\,\rme^{\rmi m(\phi-\Omega_{\rm s}t)}\,\rmd t.
+\end{equation}
+On the trajectory $\phi-\Omega_{\rm s}t=(\Omega-\Omega_{\rm s})t+\mathcal{O}(\epsilon)$, and on resonance
+$m(\Omega-\Omega_{\rm s})=\pm\kappa$. Writing $\sin\kappa t=(\rme^{\rmi\kappa t}-\rme^{-\rmi\kappa t})/2\rmi$, the
+period integral keeps only the stationary exponent and evaluates to $-\rmi\pi/\kappa$ (lower sign / OLR), so
+\begin{equation}
+  \boxed{\;I_{\rm T}=-2\rmi\mathcal{Z}\,\mathcal{S}^{(m)}\cdot\Bigl(-\frac{\rmi\pi}{\kappa}\Bigr)
+  =-2\pi\frac{\mathcal{Z}}{\kappa}\mathcal{S}^{(m)}\;}\qquad(\texttt{eq:ITSM}).
+\end{equation}
+Because both sides are gauge-invariant, this holds in every gauge (and, by analytic continuation, where
+$\det\mathbf{A}=0$). Inverting gives the stress-energy form of $\mathcal{S}^{(m)}$, and projecting the
+$-m\Omega_{\rm s}$ Fourier mode of $\tilde T^{\alpha\beta}$ makes the $t$-integral trivial
+($-\tfrac{\kappa}{2\pi}\cdot\tfrac{2\pi}{\kappa}=-1$):
+\begin{equation}
+  \mathcal{S}^{(m)}=\frac{-1}{\epsilon\mass\mathcal{Z}}\int h^{(m)}_{\alpha\beta}
+  \tilde T^{[-m\Omega_{\rm s}]\alpha\beta}\sqrt{-\det g}\,\rmd^3\mathbf{x}.
+  \tag{\texttt{eq:SMIT}}
+\end{equation}
+
+\subsection*{3. eq:SP --- $\mathcal{S}^{(m)}$ from the radiated power}
+
+The mean power transferred per radial cycle is $\mathcal{P}=\tfrac{\kappa}{2\pi}\int\dot H_1\,\rmd t$; since
+$H_1^{(m)}\propto\rme^{\rmi m(\phi-\Omega_{\rm s}t)}$, the dot pulls down $-\rmi m\Omega_{\rm s}$, and
+$\int h^{(m)\alpha\beta}u_\alpha u_\beta/(2u^t)\,\rmd t=\tfrac12\epsilon I_{\rm T}$ (the same worldline integral),
+so
+\begin{equation}
+  \mathcal{P}=\frac{\rmi m\Omega_{\rm s}\mass\kappa}{4\pi}\,\epsilon I_{\rm T}.
+\end{equation}
+Solving for $\mathcal{S}^{(m)}$ via \texttt{eq:ITSM} ($\epsilon I_{\rm T}=-2\pi(\mathcal{Z}/\kappa)
+\epsilon\mathcal{S}^{(m)}/\epsilon$, i.e. $I_{\rm T}=-2\pi(\mathcal{Z}/\kappa)\mathcal{S}^{(m)}$):
+\begin{equation}
+  \mathcal{S}^{(m)}=\frac{2\rmi}{m\Omega_{\rm s}\mass\mathcal{Z}\epsilon}\,\mathcal{P}\qquad(\texttt{eq:SP}),
+\end{equation}
+which is an algebraic identity: $\tfrac{2\rmi}{m\Omega_{\rm s}\mass\mathcal{Z}\epsilon}\cdot
+\tfrac{\rmi m\Omega_{\rm s}\mass\kappa}{4\pi}\epsilon I_{\rm T}=-\tfrac{\kappa}{2\pi\mathcal{Z}}I_{\rm T}$, the
+exact inverse of \texttt{eq:ITSM}.
+
+\paragraph{Verification (Schwarzschild $M=1$, $r=8$, $m=3$; both branches).}
+On the Schwarzschild background the C-coefficients reproduce the standard epicyclic frequency
+$\kappa^2=\Omega^2(1-6/r)$ to machine precision. With random complex contravariant gauge amplitudes
+$h^{tr},h^{r\phi}$ at $r=8$:
+\begin{itemize}
+\item \texttt{eq:IT}: the point-particle stress-energy integral and the worldline integral
+$\int h_{\alpha\beta}u^\alpha u^\beta/u^t\,\rmd t$ agree (reduction via $\rmd\tau/\rmd t=1/u^t$) to
+rel.\ residual $<10^{-12}$.
+\item \texttt{eq:ITSM}: $I_{\rm T}$ from the worldline integral (QuadGK over one period) equals
+$-2\pi(\mathcal{Z}/\kappa)\mathcal{S}^{(m)}$ with ratio $1.000000000000000$ on the OLR ($m(\Omega-\Omega_{\rm s})
+=-\kappa$) branch; the ILR ($+\kappa$) branch gives the same magnitude with overall sign $+1$ (the sine integral
+is $+\rmi\pi/\kappa$ there). Magnitude $|I_{\rm T}|=|2\pi(\mathcal{Z}/\kappa)\mathcal{S}^{(m)}|$ holds to
+$1\times10^{-16}$ independently of whether $u^r$ is taken as $\rme^{-2\mmu}u_r$ (proper-time, paper's form) or
+as $u^t\,\rmd r/\rmd t$.
+\item \texttt{eq:SP}: $\mathcal{S}^{(m)}$ rebuilt from $\mathcal{P}$ via \texttt{eq:SP} reproduces
+$\mathcal{S}^{(m)}|_0$ to ratio $1.000000000000000$ ($<6\times10^{-16}$).
+\end{itemize}
+\textbf{[SOLID]} --- all three Paper-II bridge relations reproduced (symbolic collapse $+$ machine-precision
+numeric identity).
+
+\paragraph{One honest caveat (sign convention, not an error).} The literal trajectory statement
+$r=R+\epsilon\cos\kappa t$ gives $\rmd r/\rmd t=-\epsilon\kappa\sin\kappa t$, while the paper's
+$p_r=+\mass\epsilon\mathcal{Z}\sin\kappa t$ with $u^r=\rme^{-2\mmu}u_r$ gives
+$u^r=+\rme^{-2\mmu}\epsilon\mathcal{Z}\sin\kappa t=+w^t\kappa\,\epsilon\sin\kappa t$ (using the identity
+$\rme^{-2\mmu}\mathcal{Z}=w^t\kappa$, verified). These two are $u^r=u^t\,\rmd r/\rmd t$ with $u^t=w^t$, i.e.
+$u^r$ is the \emph{proper-time} derivative --- fully consistent, the relative sign being the convention on
+$p_r$/$\epsilon$ and the $\pm$ resonance branch. Since the torque uses $|\mathcal{S}^{(m)}|^2$
+(\texttt{eq:TX1}), this overall sign is physically immaterial; the paper writes \texttt{eq:ITSM} in its OLR
+form, which the numeric check reproduces exactly.
+
+\end{document}

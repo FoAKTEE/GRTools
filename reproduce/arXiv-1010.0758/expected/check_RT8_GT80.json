@@ -1,0 +1,21 @@
+{
+  "generated_at_commit": "bd7371a00ecc879f06ae63933edfe93c9d56f6f3",
+  "id": "check_RT8_GT80",
+  "julia": "1.12.6",
+  "paper": "1010.0758",
+  "script_sha256": "4a2fd5fdb0248a12779cf88cb975bf709a4df3d7369cfb1205db312fbf52a4bf",
+  "values": {
+    "GT80_bessel_K0_2over3": 0.6967699885980613,
+    "GT80_bessel_K1_2over3": 1.0658787418850444,
+    "GT80_bessel_moment": 6.048740435766848,
+    "GT80_coefficient_limit_relerr": 5.999620726008376e-6,
+    "GT80_coefficient_r1e3": 0.39269135812706396,
+    "GT80_coefficient_r1e6": 0.395059358174528,
+    "kappa_over_Omega_r1e6": 0.9999969999955,
+    "oortA_over_Omega_r1e6": -0.7499999999288857,
+    "sigma_ILR_m2to5": [0.6299625249442617, 0.7631438283692155, 0.8254824788908617, 0.861774376013261],
+    "sigma_ILR_max_relerr": 3.1747970641804994e-6,
+    "sigma_OLR_m2to5": [1.310370030436595, 1.2114132285538828, 1.1603968084025076, 1.1292429013233334],
+    "sigma_OLR_max_relerr": 5.08762791031061e-7
+  }
+}

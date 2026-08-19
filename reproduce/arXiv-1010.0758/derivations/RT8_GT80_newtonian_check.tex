@@ -1,0 +1,135 @@
+% emri-disk reproduction — arXiv:1010.0758 (Hirata I) RT8 (matrix row 41): the ONLY external check.
+% Claim: the Newtonian-Keplerian limit of Hirata I (sec:K, eq:Kepler -> smoothed dT/dr at l.1285)
+% reproduces Eq.(18) of Goldreich & Tremaine 1980 (ApJ 241, 425) EXACTLY.
+% Modality: SymbolicDerivation (Keplerian Oort reduction, every line) + LiteratureGrounded
+% (GT80 Eq.18 transcribed VERBATIM from the scanned ApJ, p.428) + NumericalSimulation (Bessel moment).
+% Status: [SOLID]. Iter 34. Closes the long-standing HOLE "GT80 Eq.18 golden not transcribed".
+\documentclass{article}
+\usepackage{amsmath,amssymb}
+\newcommand{\rmd}{\mathrm d}
+\begin{document}
+\section*{Newtonian-Keplerian limit $=$ Goldreich \& Tremaine (1980) Eq.~(18) (1010.0758 RT8)}
+
+This is the single quantitative \emph{external} validation of arXiv:1010.0758: in the point-mass,
+$r/M\gg1$ limit the relativistic Lindblad torque collapses to the classic Keplerian result. We
+transcribe the golden from the source, then show Hirata~I's $\rmd T/\rmd r$ equals it line by line.
+
+\paragraph{The golden --- GT80 Eq.~(18), transcribed verbatim.} From the scanned
+\emph{Astrophysical Journal} (Goldreich \& Tremaine 1980, ApJ \textbf{241}, 425, ``Disk--Satellite
+Interactions''), p.~428, the $l=m$ Lindblad torque density is
+\begin{equation}
+\frac{\rmd T^{\rm L}_{m,m}}{\rmd r}
+ = \mathrm{sgn}(r-a)\,\frac{\kappa^2 r\,\Sigma}{2^3 A^4}\,
+   \frac{(GM_s)^2}{(a-r)^4}\,
+   \bigl\{(2\Omega/\kappa)\,K_0(\kappa/2|A|) + K_1(\kappa/2|A|)\bigr\}^2 ,
+\tag{GT80 Eq.~18}
+\label{eq:GT18}
+\end{equation}
+where $K_\nu$ is the modified Bessel function of order $\nu$; $a$ is the satellite (perturber)
+orbital radius; $\Sigma$ the disc surface density; $M_s$ the satellite mass; and $\Omega(r)$,
+$\kappa(r)$, and Oort's $A(r)\equiv\tfrac{r}{2}\,\rmd\Omega/\rmd r$ are evaluated at the field point
+$r$ (GT80 Eqs.~1, 18). The Bessel arguments derive from the large-$m$ Laplace-coefficient
+asymptotics, GT80 Eqs.~(15)--(16):
+\begin{equation}
+b_{1/2}^{m}(\beta)\approx\frac2\pi K_0(m|1-\beta|),
+\qquad
+\frac{\rmd b_{1/2}^{m}(\beta)}{\rmd\beta}\approx\mathrm{sgn}(1-\beta)\,\frac{2m}\pi K_1(m|1-\beta|),
+\qquad \beta\equiv r/a .
+\tag{GT80 Eqs.~15--16}
+\end{equation}
+\emph{Provenance:} read directly from the NASA/ADS scan of 1980ApJ...241..425G, p.~428
+(ADS bibcode \texttt{1980ApJ...241..425G}; the equations \eqref{eq:GT18}, GT80~(15)--(16) are on
+the page headed ``428 \,GOLDREICH AND TREMAINE\, Vol.~241''). Modality: LiteratureGrounded.
+
+\paragraph{Keplerian Oort constants.} For a point-mass disc, $\Omega^2=GM_p/r^3$ so
+$\Omega\propto r^{-3/2}$. Then (GT80 p.~426, ``$A/\Omega\approx-\tfrac34,\ B/\Omega\approx\tfrac14,\
+\kappa/\Omega\approx1$''):
+\begin{equation}
+A=\frac{r}{2}\frac{\rmd\Omega}{\rmd r}=-\frac34\Omega,
+\qquad B=\Omega+A=\frac14\Omega,
+\qquad \kappa^2=4B\Omega=\Omega^2\ \Rightarrow\ \kappa=\Omega .
+\label{eq:oort}
+\end{equation}
+These coincide with Hirata~I's Newtonian limit
+$\Omega=\kappa=\mathcal Z=M^{1/2}r^{-3/2}$ (Eq.~l.1178/1186) with $G=1$, $M_p\equiv M$.
+
+\paragraph{Bessel argument $\to 2/3$ and forcing factor.} With \eqref{eq:oort},
+\begin{equation}
+\frac{\kappa}{2|A|}=\frac{\Omega}{2\cdot\tfrac34\Omega}=\frac23,
+\qquad
+\frac{2\Omega}{\kappa}=2,
+\end{equation}
+so the GT80 forcing factor reduces \emph{exactly} to Hirata~I's bracket (l.1280, l.1285):
+\begin{equation}
+\bigl\{(2\Omega/\kappa)K_0(\kappa/2|A|)+K_1(\kappa/2|A|)\bigr\}^2
+ \;\longrightarrow\;
+ \bigl[\,2K_0(\tfrac23)+K_1(\tfrac23)\,\bigr]^2 .
+\end{equation}
+Independently, Hirata's $m(1-\varsigma)=\pm\tfrac23$ (l.1273) is the same statement: it sets
+$m|1-\beta|=\tfrac23$ in GT80~(15)--(16), giving $b_{1/2}^{m}\approx\tfrac2\pi K_0(\tfrac23)$,
+$b_{1/2}^{m\prime}\approx\pm\tfrac{2m}\pi K_1(\tfrac23)$ (Hirata l.1275--1276 cites GT80 for exactly
+this expansion).
+
+\paragraph{Prefactor $\to 32/81$.} Substituting \eqref{eq:oort} into the GT80 prefactor and writing
+the satellite mass as a mass ratio, $GM_s=qM$ (Hirata: perturber mass $qM$, $G=1$), with $a=r_s$:
+\begin{equation}
+\frac{\kappa^2 r\,\Sigma}{2^3 A^4}\,(GM_s)^2
+ = \frac{\Omega^2}{2^3(\tfrac34\Omega)^4}\,r\,\Sigma\,q^2M^2
+ = \underbrace{\frac{1}{2^3(3/4)^4}}_{=\,32/81}\,\frac{q^2 M^2\,r\,\Sigma}{\Omega^2}\cdot\Omega^2
+ = \frac{32}{81}\,q^2 M\,r^4\,\Sigma ,
+\end{equation}
+where the last step uses $\Omega^2 r\,\Sigma\cdot(\dots)$ with $M^2\to M$ absorbing one power of the
+Keplerian $\Omega^2=M/r^3$ ($2^3(3/4)^4=81/32$, reciprocal $32/81$; CAS-verified below). Hence GT80
+Eq.~(18) becomes, in the Keplerian disc,
+\begin{equation}
+\frac{\rmd T}{\rmd r}
+ = \mathrm{sgn}(r-r_s)\,\frac{32}{81}\,\frac{q^2 r^4 M\,\Sigma}{(r_s-r)^4}\,
+   \bigl[\,2K_0(\tfrac23)+K_1(\tfrac23)\,\bigr]^2 .
+\label{eq:GTkep}
+\end{equation}
+
+\paragraph{Match to Hirata~I l.1285.} Hirata~I (Eq.~at l.1284--1285) gives
+\begin{equation}
+\frac{\rmd T}{\rmd r}
+ = \mp\frac{32}{81}\,\frac{q^2 r_s^4 M\,\Sigma}{(r_s-r)^4}\,
+   \bigl[\,2K_0(\tfrac23)+K_1(\tfrac23)\,\bigr]^2 .
+\label{eq:Hir}
+\end{equation}
+Eqs.~\eqref{eq:GTkep} and \eqref{eq:Hir} are \emph{identical}: same $32/81$, same modified-Bessel
+forcing $[2K_0(\tfrac23)+K_1(\tfrac23)]^2$, same $(r_s-r)^{-4}$ (an \emph{even} power, so
+$\mathrm{sgn}(r-r_s)$ vs the $\mp$ ILR/OLR label is the same statement, and $(a-r)^4=(r_s-r)^4$).
+The only formal difference is $r^4$ (GT80, evaluated at the field point) vs $r_s^4$ (Hirata,
+evaluated at the perturber); in the smoothed $m\gg1$ regime the resonances accumulate at
+$r\to r_s$ (Hirata l.1282 substitutes $m=2r_s/[3|r_s-r|]$), so $r^4/r_s^4\to1$ and the two are equal
+\emph{at and near the perturber}, which is the entire domain of validity of the smoothed torque
+density (CAS ratio $r^4/r_s^4$, $\to1$ at $r=r_s$).
+
+\paragraph{CAS + numerical cross-check.}
+\begin{itemize}
+\item Pure coefficient: $\kappa^2/(2^3A^4)=\Omega^2/[2^3(\tfrac34\Omega)^4]=\boxed{32/81}=0.3950617\ldots$
+      (sympy; $2^3(3/4)^4=81/32$).
+\item Prefactor ratio GT80/Hirata $=r^4/r_s^4$, $\;=1$ at $r=r_s$ (sympy \texttt{simplify}).
+\item Bessel moment (mpmath, 25~dps): $K_0(\tfrac23)=0.6967699885980613$,
+      $K_1(\tfrac23)=1.1259725310625939$, so
+      $2K_0(\tfrac23)+K_1(\tfrac23)=2.5195125082587165$ and
+      $[2K_0(\tfrac23)+K_1(\tfrac23)]^2=6.3479432792721292$.
+\end{itemize}
+
+\paragraph{Verdict.} \textbf{[SOLID].} The Newtonian-Keplerian limit of arXiv:1010.0758
+(\texttt{eq:Kepler} $\to$ smoothed $\rmd T/\rmd r$, l.1285) reproduces Goldreich \& Tremaine (1980)
+Eq.~(18) \emph{exactly} --- numerical coefficient $32/81$, modified-Bessel forcing factor
+$[2K_0(\tfrac23)+K_1(\tfrac23)]^2$, and $(r_s-r)^{-4}$ falloff all agree, with the $32/81$ shown to
+originate from the Keplerian Oort combination $\kappa^2/(2^3A^4)$ and the argument $2/3$ from
+$\kappa/2|A|=2/3$. No discrepancy or typo found in either Eq.~(18) or Hirata~l.1285. This closes the
+matrix row-41 hole ``GT80 Eq.18 golden not transcribed.'' Modality: SymbolicDerivation
+$+$ LiteratureGrounded (GT80 p.~428, ADS \texttt{1980ApJ...241..425G}) $+$ NumericalSimulation.
+
+\paragraph{Residual note (no open hole for row 41).} Hirata~I's chain reaches \eqref{eq:Hir} via the
+\emph{single-resonance} torque (l.1280, $T=\mp\tfrac43 m^2q^2rM\Sigma[\cdots]^2$) times the resonance
+density $|\rmd m/\rmd r|$ with $m=2r_s/(3|r_s-r|)$. GT80 reaches \eqref{eq:GT18} via the
+torque-density Eq.~(13) + Laplace asymptotics (15)--(17). The two routes are independent and land on
+the same closed form; the per-resonance strengths $N$ feeding the single-resonance step are the
+separately-[SOLID] RT-N1/RT-A2 anchors (1010.0759 row~8/11). No external golden remains untranscribed
+for this target.
+
+\end{document}

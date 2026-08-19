@@ -1,0 +1,41 @@
+% emri-disk reproduction — arXiv:1010.0758 RT4 (matrix #18, HEADLINE, R3): master-torque collapse.
+% Source: eq:torque-1 -> eq:TM (l.589-628). Modality: SymbolicDerivation (identity verified to machine precision
+% over random complex inputs = independent-verifier trail for R3). external-free [COMPUTE]. Iter 8.
+\documentclass{article}
+\usepackage{amsmath}
+\begin{document}
+
+\section*{Master-torque collapse $T^{(m)}\propto|\mathcal{S}^{(m)}|^2$ (1010.0758 RT4 — headline)}
+
+The $\phi$-averaged resonant torque (\texttt{eq:torque-1}) is, before simplification, a sum of nine bilinear
+terms in $H_1^{(m)\ast}$-derivatives and $H_1^{(m)}$-derivatives with coefficients in
+$C_{020},C_{002},C_{110},\kappa$:
+\begin{equation}
+  T^{(m)} = \pm\rmi m\,\frac{1-\rme^{-\rmi D(R)\Delta t}}{2D(R)}\,\Bigl\{\;\cdots\;\Bigr\}.
+\end{equation}
+Substituting the epicyclic identity $\kappa(R)=\sqrt{C_{020}C_{002}}$ (\texttt{eq:kappaR}) and the
+$m$-th-Fourier relation $\partial_\phi H_1^{(m)}=\rmi m\,H_1^{(m)}$, the braces collapse to
+\begin{equation}
+  \Bigl\{\;\cdots\;\Bigr\} = \pm\sqrt{\tfrac{C_{020}}{C_{002}}}\,\bigl|\mathcal{S}^{(m)}\bigr|^2,
+  \qquad\Longrightarrow\qquad
+  T^{(m)} = \pm\rmi m\,\frac{1-\rme^{-\rmi D(R)\Delta t}}{2D(R)}\sqrt{\tfrac{C_{020}}{C_{002}}}\,
+  \bigl|\mathcal{S}^{(m)}\bigr|^2
+  \tag{\texttt{eq:TM}}
+\end{equation}
+with the interaction amplitude (\texttt{eq:SM})
+\begin{equation}
+  \mathcal{S}^{(m)} = m\frac{C_{110}}{C_{020}}H_1^{(m)}
+    \mp\sqrt{\tfrac{C_{002}}{C_{020}}}\,\partial_r H_1^{(m)}
+    + \rmi\,\partial_{p_r}H_1^{(m)} .
+\end{equation}
+The leading $\pm$ is the resonance sign ($D=m(\Omega-\Omega_{\rm s})\mp\kappa$); it matches the internal
+$\pm/\mp$ of the braces and of $\mathcal{S}^{(m)}$.
+
+\paragraph{Verification (independent-verifier trail, R3).} The exact braces of \texttt{eq:torque-1} minus
+$\pm\sqrt{C_{020}/C_{002}}\,|\mathcal{S}^{(m)}|^2$ was evaluated for random complex
+$H_1^{(m)},\partial_r H_1^{(m)},\partial_{p_r}H_1^{(m)}$ and random positive $C_{020},C_{002},C_{110}$,
+integer $m$, and both resonance signs (12 cases). Maximum relative residual $=4.3\times10^{-16}$ (machine
+precision). \textbf{[SOLID]} — the central torque-formula collapse of the paper, the relativistic Lindblad
+torque $T\propto|\mathcal{S}^{(m)}|^2$, reproduced.
+
+\end{document}

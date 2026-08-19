@@ -1,0 +1,36 @@
+% emri-disk reproduction — arXiv:1010.0758 RT9 (matrix #20): disc-heating emergent flux (no-viscosity).
+% Source: eq:cM/cL/cE (l.1355-1373), eq:flux-diss/FluxReq (l.1412-1417). Modality: SymbolicDerivation
+% (2×2 linear-system solve + circular-orbit identity, verified machine precision). external-free [COMPUTE]. Iter 16.
+\documentclass{article}
+\usepackage{amsmath}
+\begin{document}
+
+\section*{Disc-heating emergent flux, no-viscosity limit (1010.0758 RT9)}
+
+For an inviscid disc ($W_\phi{}^r=0$), the angular-momentum (\texttt{eq:cL}) and energy (\texttt{eq:cE})
+conservation laws — with rest-mass conservation (\texttt{eq:cM}) used to eliminate $\dot\Sigma$ — reduce to a
+$2\times2$ linear system for the radial drift $u^r$ and the emergent flux $F$:
+\begin{equation}
+  \begin{pmatrix} r\mathcal{L}'\Sigma & 2r\mathcal{L}\\[2pt] r\mathcal{E}'\Sigma & 2r\mathcal{E}\end{pmatrix}
+  \begin{pmatrix} u^r\\ F\end{pmatrix}
+  = \frac{1}{2\pi}\frac{\rmd T}{\rmd r}\begin{pmatrix} 1\\ \Omega_{\rm s}\end{pmatrix}.
+\end{equation}
+Cramer's rule gives (\texttt{eq:flux-diss}, \texttt{eq:FluxReq})
+\begin{equation}
+  u^r=\frac{1}{2\pi r\Sigma}\frac{\rmd T}{\rmd r}\,\frac{\mathcal{E}-\Omega_{\rm s}\mathcal{L}}
+       {\mathcal{E}\mathcal{L}'-\mathcal{L}\mathcal{E}'},
+  \qquad
+  F=\frac{1}{4\pi r}\frac{\rmd T}{\rmd r}\,\frac{\Omega_{\rm s}\mathcal{L}'-\mathcal{E}'}
+       {\mathcal{E}\mathcal{L}'-\mathcal{L}\mathcal{E}'} .
+\end{equation}
+The denominator simplifies via the circular-orbit identity $\mathcal{E}'=\Omega\mathcal{L}'$ (so
+$\mathcal{E}\mathcal{L}'-\mathcal{L}\mathcal{E}'=\mathcal{L}'(\mathcal{E}-\Omega\mathcal{L})$).
+
+\paragraph{Verification.}
+(a) $\mathcal{E}'=\Omega\mathcal{L}'$ for Schwarzschild ($\mathcal{E}'=(r-6)/[2r^{3/2}(r-3)^{3/2}]$,
+$\mathcal{L}'=(r-6)/[2(r-3)^{3/2}]$, $\Omega=r^{-3/2}$): $\max|\mathcal{E}'-\Omega\mathcal{L}'|=8.7\times10^{-19}$.
+(b) Solving the $2\times2$ system numerically for random $(\mathcal{E},\mathcal{L},\mathcal{L}',\mathcal{E}',
+\Omega_{\rm s},\Sigma,\rmd T/\rmd r)$ reproduces the closed forms for $u^r,F$ to $5.6\times10^{-12}$ (2000
+trials). \textbf{[SOLID]} (data computed by the Julia port).
+
+\end{document}

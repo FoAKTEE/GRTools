@@ -1,0 +1,113 @@
+% RT5 — explicit resonant amplitude S^(m) in the metric perturbation.
+% Reproduces arXiv:1010.0758 eq:SM-explicit (l.737) and eq:FSM (l.749) from
+% eq:SM (l.622) + H_1 = h^{ab}p_a p_b/(2 p^t) (eq:H1, l.322).
+% Status: SOLID for eq:FSM (machine/FD precision).  eq:SM-explicit reproduced EXCEPT a
+% factor-2 TYPO in its printed i-term, oracle-proven against the paper's own eq:722 + eq:FSM.
+%
+% Numeric oracle:  results/emri-disk/figures/RT5_check.jl  (+ RT5_iterm.jl, RT5_internal.jl,
+% RT5_drdiag.jl).  Run: julia --project=results/emri-disk/figures RT5_check.jl
+% Background: Schwarzschild equatorial, M_BH=1, particle mass mu=1, wbar=0; random symmetric
+% contravariant h^{ab}(r) (affine in r); derivatives by 4th-order central FD.
+
+\subsection*{RT5: assembling \texorpdfstring{$\mathcal{S}^{(m)}$}{S(m)} in the metric perturbation}
+
+% ---------------------------------------------------------------------------
+% Ingredients (all verbatim from P1.tex)
+% ---------------------------------------------------------------------------
+% eq:SM (l.622):
+%   S^(m) = m (C110/C020) H1^(m)  ∓ sqrt(C002/C020) ∂_r H1^(m)  + i ∂_{p_r} H1^(m)
+%         = -(m/(mu L')) H1^(m)   ∓ (1/(mu Z)) ∂_r H1^(m)       + i ∂_{p_r} H1^(m)
+% using  C110/C020 = -1/(mu L')   (eq:X4: C020 + mu L' C110 = 0)
+%        sqrt(C002/C020) = 1/(mu Z),  mu Z = sqrt(C020/C002)   (eq:ZR)
+%
+% eq:H1 (l.322):  H1 = h^{ab} p_a p_b/(2 p^t),  p_a = (p_t, p_r, p_phi) = (-mu E, p_r, mu L).
+% On the circular orbit  H0 = mu E(R),  p_phi = mu L(R),  and  p^t = mu e^{-2nu}(E - wbar L).
+%
+% CRUCIAL (this is the iter-18 error, now fixed):  ∂_r and ∂_{p_r} in eq:SM are PARTIAL
+% derivatives at FIXED canonical momenta p_a.  On a circular orbit ∂H0/∂r = 0 (P1.tex l.705),
+% so the momentum values E(R), L(R) are CONSTANTS under ∂_r — they must NOT be differentiated.
+% Only the explicit r-dependence of h^{ab}(r), of e^{2nu}(r), and of the denominator p^t(r)
+% is differentiated.  (Differentiating E(r),L(r) gives a spurious total/along-orbit derivative
+% and corrupts the real part of S^(m).)
+
+\paragraph{Closed forms used (P1.tex).}
+\begin{align}
+H_1 &= \frac{\mu}{2}\,\rme^{2\nu}\,
+       \frac{h^{tt}\mathcal{E}^2 - 2h^{t\phi}\mathcal{E}\mathcal{L} + h^{\phi\phi}\mathcal{L}^2}
+            {\mathcal{E}-\bar\omega\mathcal{L}}
+       && \text{(l.688)}\\
+\frac{\partial H_1}{\partial r}
+   &= \frac{\mu}{2}\rme^{2\nu}
+      \frac{h^{tt}{}_{,r}\mathcal{E}^2 - 2h^{t\phi}{}_{,r}\mathcal{E}\mathcal{L}
+            + h^{\phi\phi}{}_{,r}\mathcal{L}^2}{\mathcal{E}-\bar\omega\mathcal{L}}
+   + \Bigl(2\nu_{,r}+\tfrac{\bar\omega_{,r}\mathcal{L}}{\mathcal{E}-\bar\omega\mathcal{L}}\Bigr)H_1
+      && \text{(l.706--711)}\\
+\frac{\partial H_1}{\partial p_r}
+   &= \frac{\rme^{2\nu}}{\mathcal{E}-\bar\omega\mathcal{L}}
+      \bigl(-h^{tr}\mathcal{E} + h^{r\phi}\mathcal{L}\bigr)
+      && \text{(l.722--725)}
+\end{align}
+% Numeric oracle (RT5_diag.jl / RT5_drdiag.jl): with the FIXED-MOMENTUM partial, the numeric
+% ∂_r H1 and ∂_{p_r} H1 reproduce l.706 and l.722 to FD precision (ratio 1.0000).
+
+% ---------------------------------------------------------------------------
+% Reduction to eq:SM-explicit
+% ---------------------------------------------------------------------------
+% Substitute the three closed forms into eq:SM, and factor out the common prefactor
+%   P := e^{2nu}/[2(E - wbar L)].
+% Using H1 = mu P (h^{tt}E^2 - 2 h^{tphi}EL + h^{phiphi}L^2) and C110/C020 = -1/(mu L'),
+%   m (C110/C020) H1 = -m/(mu L') * mu P [angular block] = P * (-m/L') [angular block]  (mu cancels)
+% and the (2 nu_,r + ...) H1 piece of ∂_r H1 combines with the -m/L' term into the bracket A.
+% The mu^{-1} from 1/(mu Z) cancels the explicit mu in ∂_r H1, leaving 1/Z (eq uses 1/Z, mu Z=sqrt(..)).
+% Result (eq:SM-explicit, l.729--737):
+%   S^(m) = P { [ -m/L' ∓ (1/Z)(2 nu_,r + wbar_,r L/(E-wbar L)) ]
+%                  [ h^{tt}E^2 - 2 h^{tphi}EL + h^{phiphi}L^2 ]
+%               ∓ (1/Z)[ h^{tt}_,r E^2 - 2 h^{tphi}_,r EL + h^{phiphi}_,r L^2 ]
+%               + (i-term) }.
+%
+% The angular block equals h^{ab} p_a p_b at p_r=0 (the off-diagonal carries the SYMMETRIC
+% factor 2, -2 h^{tphi}EL).  Under the SAME double-sum convention,
+%   ∂_{p_r}[h^{ab} p_a p_b] = 2(-h^{tr}E + h^{rphi}L),   so   ∂_{p_r}H1 = P^{-1}*P*... gives
+%   i ∂_{p_r}H1 = P * 2(-i h^{tr}E + i h^{rphi}L)            [RT5_internal.jl: match=true]
+% => the CONSISTENT i-term inside the braces is  -2i h^{tr}E + 2i h^{rphi}L.
+%
+% ** The printed eq:SM-explicit (P1.tex l.736) reads  -i h^{(m)tr}E + i h^{(m)rphi}L,
+%    which is exactly HALF of the consistent value: a factor-2 TYPO in the i-term. **
+%    (RT5_check.jl: real & _,r parts match eq:SM-explicit EXACTLY; the imaginary part is off
+%     by exactly 0.5000 at every r; RT5_iterm.jl: ratio 0.5000.)
+
+% ---------------------------------------------------------------------------
+% eq:FSM is the CORRECT compact form (SOLID, machine precision)
+% ---------------------------------------------------------------------------
+% Multiplying eq:SM-explicit through by w^t = e^{-2nu}(E - wbar L) collapses the prefactor P
+% and the angular/r blocks into 4-velocity contractions h^{ab}w_a w_b (with w_a=(-E,0,L)):
+%   w^t S^(m) = [ -m/L' ∓ (1/Z)(2 nu_,r + wbar_,r L/(E-wbar L)) ] (1/2) h^{ab}w_a w_b
+%               ∓ (1/(2Z)) h^{ab}_,r w_a w_b + i h^{r a} w_a.        (eq:FSM, l.742--749)
+% The i-term here is  i h^{r a} w_a = i(-h^{tr}E + h^{rphi}L), and
+%   w^t * (i ∂_{p_r}H1) = i h^{r a} w_a  EXACTLY (RT5_iterm.jl: ratio 1.0000).
+% Hence eq:FSM is internally consistent with eq:SM and is the form to USE.  The factor-2 in
+% the i-term lives ONLY in the expanded eq:SM-explicit; eq:FSM (which the paper states it uses
+% "in proving gauge invariance and in practical applications", l.751) is correct.
+
+\paragraph{Numeric verification (RT5\_check.jl).}
+% Schwarzschild equatorial, M_BH=1, mu=1, wbar=0; random symmetric h^{ab}(r) (seed 20260601),
+% affine in r; partials by 4th-order central finite differences (∂_r, ∂_{p_r} at FIXED momenta).
+% Compared eq:SM (assembled) against eq:SM-explicit and eq:FSM over r∈{7,8,12,20,40},
+% sign∈{±}, m∈{2,-3,5}:
+%   eq:SM  vs  eq:FSM         :  MAX rel error 4.5e-9   (FD-limited)  -> VERIFIED.
+%   eq:SM  vs  eq:SM-explicit :  real & _,r parts EXACT; imaginary part exactly 1/2 of eq:SM
+%                                at every point -> the documented i-term factor-2 typo.
+
+\paragraph{Conclusion.}
+% RT5 RESOLVED.  The iter-18 "factor-2" was a CONFLATION of two distinct issues:
+%   (1) a real ERROR in the prior attempt — taking ∂_r H1 as a total/along-orbit derivative
+%       (differentiating E(r),L(r)) instead of the Hamiltonian PARTIAL at fixed momenta.  Fixing
+%       this makes the REAL and _,r parts of eq:SM-explicit reproduce EXACTLY.
+%   (2) a genuine factor-2 TYPO in the PUBLISHED eq:SM-explicit i-term (l.736): it should read
+%       -2i h^{(m)tr}E + 2i h^{(m)rphi}L (twice the printed value), as required by the paper's
+%       own ∂_{p_r}H1 (eq:722), by the symmetric double-sum convention already used in its
+%       angular block, AND by the correct compact form eq:FSM (which reproduces eq:SM to
+%       machine precision).
+% Modality: SymbolicDerivation + NumericalSimulation (machine/FD precision).
+% Predecessors: RT1 (C-coeffs), RT2 (H_1), RT4 (master-torque collapse).
+% R2.
