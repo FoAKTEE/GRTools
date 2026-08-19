@@ -70,6 +70,10 @@ using .SpiralWaves: DiscBackground, rotation_profile, Omega, omega_d, Omega_emri
 using .SpiralWaves: gamma1, dlogp_dr_over_enthalpy, kappa2, r_isco, softening_length, F_J0, F_J1
 export DiscBackground, rotation_profile, Omega, omega_d, Omega_emri, eps_profile, pressure
 export gamma1, dlogp_dr_over_enthalpy, kappa2, r_isco, softening_length, F_J0, F_J1
+using .SpiralWaves: SpiralGrid, build_grid, corotation_radius, corotation_block, smoothmin
+using .SpiralWaves: wkb_wavenumber, wkb_wavenumber2, wkb_wavenumber_floored, WKBRegion, wkb_region, cell_count
+export SpiralGrid, build_grid, corotation_radius, corotation_block, smoothmin
+export wkb_wavenumber, wkb_wavenumber2, wkb_wavenumber_floored, WKBRegion, wkb_region, cell_count
 
 export Modes, Force, SpiralWaves
 

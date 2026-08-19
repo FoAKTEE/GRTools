@@ -18,14 +18,16 @@ using TestKit
     landed_background = [:DiscBackground, :rotation_profile, :Omega, :omega_d, :Omega_emri, :eps_profile,
                          :pressure, :gamma1, :dlogp_dr_over_enthalpy, :kappa2, :r_isco, :softening_length,
                          :F_J0, :F_J1, :disc_OmegaK, :kappar2, :csound, :eden0]     # EGD::sw-background
-    @test Set(names(SW)) == Set(vcat(:SpiralWaves, landed_background))
+    landed_grid = [:SpiralGrid, :build_grid, :corotation_radius, :corotation_block, :smoothmin,
+                   :wkb_wavenumber, :wkb_wavenumber2, :wkb_wavenumber_floored, :WKBRegion, :wkb_region,
+                   :cell_count]                                                      # EGD::sw-grid
+    @test Set(names(SW)) == Set(vcat(:SpiralWaves, landed_background, landed_grid))
     @test SW.PAPER == "arXiv:2608.17003"
     @test SW.sw_version() isa VersionNumber
-    @test SW.sw_version() == v"0.2.0"
+    @test SW.sw_version() == v"0.3.0"
     # no placeholder physics: none of the UNLANDED planned node entry points exist yet
     for sym in (:master_matrices, :master_matrices_newtonian, :emri_source, :singular_field,
-                :build_grid, :SpiralGrid, :corotation_radius, :solve_mode, :ModeSolution,
-                :torque_balance, :torque_survey)
+                :solve_mode, :ModeSolution, :torque_balance, :torque_survey)
         @test !isdefined(SW, sym)
     end
     # SparseArrays is a declared hard dep (and resolvable from the package env)

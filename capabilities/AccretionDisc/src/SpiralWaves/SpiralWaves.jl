@@ -17,8 +17,9 @@ dependency ORDER and is uncommented as each node lands — no stub is shipped ah
     #                            #      azimuthal m (main.tex Sec. master-eqs) + WKB/Lindblad forms
     # include("source.jl")       # EGD: the EMRI potential Φ_m source — s₀² approximation
     #                            #      (appendix.tex Sec. ssq-expr), softening ε, worldline v^μ
-    # include("grid.jl")         # EGD: adaptive radial grid — corotation layer + WKB oscillation
-    #                            #      resolution, Landau-type corotation regularization
+    # include("grid.jl")         # EGD::sw-grid LANDED (v0.3.0): adaptive radial grid (App. C) — r_c (61),
+    #                            #      sinh corotation block (C4-5), WKB k (C2,C6), Δr_WKB/smoothMin (C7-10),
+    #                            #      cubic-spline node placement, per-mode domain (C1-3); NumericsCore
     # include("solver.jl")       # EGD: implicit two-first-order-equation integrator, sparse
     #                            #      (SparseArrays) banded assembly, boundary conditions
     # include("diagnostics.jl")  # EGD: energy / angular-momentum balance laws, torque per m,
@@ -45,9 +46,9 @@ const PAPER = "arXiv:2608.17003"
     sw_version() -> VersionNumber
 
 Version of the `SpiralWaves` submodule API (bumped as DAG nodes land; `v"0.1.0"` = scaffold,
-`v"0.2.0"` = background).
+`v"0.2.0"` = background, `v"0.3.0"` = grid).
 """
-sw_version() = v"0.2.0"
+sw_version() = v"0.3.0"
 
 # ---- EGD::sw-background — disc equilibrium (Sec. II.A) -------------------------------------------
 include("background.jl")
@@ -55,5 +56,10 @@ export DiscBackground, rotation_profile, Omega, omega_d, Omega_emri, eps_profile
 export dlogp_dr_over_enthalpy, kappa2, r_isco, softening_length, F_J0, F_J1
 # the EXISTING Modes generics gain DiscBackground methods (one name = one concept); re-exported here
 export disc_OmegaK, kappar2, csound, eden0
+
+# ---- EGD::sw-grid — adaptive corotation/WKB radial grid (App. C) ---------------------------------
+include("grid.jl")
+export SpiralGrid, build_grid, corotation_radius, corotation_block, smoothmin
+export wkb_wavenumber, wkb_wavenumber2, wkb_wavenumber_floored, WKBRegion, wkb_region, cell_count
 
 end # module SpiralWaves
