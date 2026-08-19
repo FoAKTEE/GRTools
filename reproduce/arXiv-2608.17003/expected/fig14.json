@@ -1,0 +1,31 @@
+{
+  "generated_at_commit": "1754c13fa5f3268c612811175e4d6410669078d3",
+  "id": "fig14",
+  "julia": "1.12.6",
+  "paper": "2608.17003",
+  "script_sha256": "5697d73668ee0ddf1af872784cb6771a26c9f27a83e6bff7bf1be2fdc3f510a8",
+  "values": {
+    "a_emri": 30.0,
+    "b_grid": [0.3, 0.4, 0.5, 0.6, 0.7, 0.8],
+    "chi": 0.0,
+    "grid_nC": 6000,
+    "grid_nL": 60,
+    "h0": 0.05,
+    "m95": [54, 51, 48, 44, 41, 38],
+    "m95_h0": [2.7, 2.5500000000000003, 2.4000000000000004, 2.2, 2.0500000000000003, 1.9000000000000001],
+    "m95_h0_Ksens_b03": 2.9000000000000004,
+    "m95_lindblad": [45, 42, 40, 37, 35, 32],
+    "m95_monotone_decreasing": true,
+    "m95_reduced_resolution": [54, 38],
+    "m95_ref_resolution": [54, 38],
+    "m95h0_b03": 2.7,
+    "m95h0_b08": 1.9000000000000001,
+    "m_max_over_h0": 4.0,
+    "p_disk": 0.0,
+    "printed_checks_pass": true,
+    "q_disk": 0.0,
+    "resolution_check_pass": true,
+    "tail_fraction_max": 0.011084401205417826,
+    "truncation_estimate_max": 0.014746649902384295
+  }
+}

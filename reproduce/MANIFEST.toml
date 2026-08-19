@@ -488,3 +488,14 @@ expected = "arXiv-2608.17003/expected/fig02.json"
 depends = ["AccretionDisc", "Spacetime"]
 status = "solid"
 notes = "fig:spirals_conv (M:861-866): the p=2, q=1, h0=0.1 disc at a_bullet = 15M drawn at m_max = 10/30/120, top row chi=-0.9 on the +-40M frame, bottom row chi=+0.9 zoomed to +-10M. Each row solves m = 1..120 ONCE (SpiralWaves.wake_modes) and every column is a partial sum of those cached solutions -- no mode is solved twice. VLM verdict MATCH. PRINTED NUMBER M:893 (the gate's M893-ringing claim): the relative L2 distance of the truncated image from the m_max = 120 image is 0.5095 at m_max = 10 and 0.1245 at 30, so residual(30) < residual(10)/3 = 0.1698 PASSES; residual(40) = 0.0615 < 0.10 ('most of the large-scale Fourier ringing subsides by m >= 40'), and the full ladder 0.746/0.510/0.250/0.125/0.061/0.015/0.002 over m_max = 5/10/20/30/40/60/90 is monotone (chi=+0.9 zoom: 0.796/0.521/0.217/0.091/0.038/0.007/0.0005). The WINDING does not move with the ceiling -- turns(18M->35M) = -1.475/-1.482/-1.483 against the published raster's -1.445/-1.478/-1.456 tracked in pixel space (worst |delta| 0.030 turns), and -2.351/-2.361/-2.363 over r in [3,9]M for the zoom row. The m_max = 120 column of the chi=-0.9 row is the same configuration as fig01 panel 3 and reproduces its numbers independently (dU in [-0.2820, 1.7001], rms 0.1965, clipped 1.916%). App.-C triple (120,120,12000) as in fig01 (see that row). 1801 s at -t8, max solver residual 9.2e-10. Golden 35 KB; the PNG is 751 KB (a six-panel colour raster, the bottom row fully covered; the published original is 2.03 MB)."
+
+[[result]]
+paper = "2608.17003"
+id = "fig14"
+kind = "figure"
+script = "arXiv-2608.17003/fig14.jl"
+tier = "heavy"
+expected = "arXiv-2608.17003/expected/fig14.json"
+depends = ["AccretionDisc", "Spacetime"]
+status = "solid"
+notes = "EGD::fig14-m95-vs-b. Fig. 14 (fig:m95_vs_b, A:153-160): m_95*h0 vs the Plummer softening b in {0.3..0.8} for p=q=chi=0, a=30M, h0=0.05; m_95 = the smallest m at which the cumulative per-mode TOTAL torque (74) reaches 95% of the sum over m=1..ceil(4/h0)=80. A:164 PASSES: 2.70 at b=0.3 and 1.90 at b=0.8 (paper 2.9 -> 1.95, tol +-0.25), monotone decreasing. A pixel read-back of the published figure (2.90,2.70,2.45,2.25,2.10,1.95) differs from ours by exactly one mode (0.05) at four of the six b values. MEASURED FINDING: m_95 is defined against the sum over all COMPUTED modes, so it depends on the ceiling - at ceil(6/h0)=120 the b=0.3 point gives m_95*h0 = 2.900, exactly the published value (registered as m95_h0_Ksens_b03); the pre-registered K=4 is kept and the sensitivity registered rather than absorbed. This also has the right size and sign to explain the 0.3-1.7% deficit of fig13 against its reference. Grid (60,60,6000) with an in-driver cross-check at the reference triple (240,240,24000): the same m_95 = 54 and 38. ~13 min at -t8 for --regen."
