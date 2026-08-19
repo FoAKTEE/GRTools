@@ -9,7 +9,7 @@ pressureless analytic baselines it is compared against).  Drivers here are THIN.
 
 | # | figure / check | driver | golden | tier | status | VLM verdict | notes |
 |---|---|---|---|---|---|---|---|
-| 1  | fig:spirals — δU maps                | `fig01.jl` | — | heavy | not started | — | |
+| 1  | fig:spirals — δU maps                | `fig01.jl` | `expected/fig01.json` | heavy | **solid** | **match** | 2×3 δU M/m• maps, a•=15M, m=1:120, App.-C triple (120,120,12000), polar mesh r_ISCO…40M on 601² px. Winding compared with the published raster BY NUMBER (arm tracked in `spiral_grid.png` itself): turns(18M→35M) = −0.718/−1.084/−1.483 (χ=−0.9), −0.707/−1.067/−1.461 (χ=+0.9) vs published −0.721/−1.097/−1.504, −0.707/−1.081/−1.425 — worst \|Δ\| 0.036 turns. All three caption claims are driver gates and pass. Amplitude agrees to 4–6 % in the one unclipped column. 3936 s at -t8. |
 | 2  | fig:spirals_conv — m_max convergence | `fig02.jl` | — | heavy | not started | — | |
 | 3  | fig:angular_momentum_balance         | `fig03.jl` | `expected/fig03.json` | heavy | **solid** | **match** | a•=15M, χ=0, h0=0.05, (𝔭,𝔮)=(0,0), m=1:120. Balance (71) away from corotation 4.0e-5; the corotation spike is gated on the invariant ∫(dF_J/dr−d𝔗/dr)dr = 0.0266073 F_{J,0} = T_L−T of (75) to 2.7e-5 (its plotted height is a plot-sampling number). 605 s at -t4. |
 | 4  | fig:dtdr_ap — torque density vs a•    | `fig04.jl` | — | heavy | not started | — | |
