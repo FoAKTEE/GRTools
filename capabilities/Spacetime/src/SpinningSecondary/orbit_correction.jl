@@ -285,3 +285,30 @@ function spin_orbit_numeric(orbitCorrection, spar)
             ES = orbitCorrection.ES, LS = orbitCorrection.LS,
             OrbitCorrection = orbitCorrection.OrbitCorrection)
 end
+
+"""
+    shifted_geodesic_correction(orbitCorrection) -> NamedTuple
+
+The SHIFTED-GEODESIC (SG) member of a `spin_orbit_correction` object: the same correction with its
+LIBRATION zeroed, i.e. `rS = zS = UrS = UzS = 0` while the time and azimuth deltas `ΔtS`, `ΔφS`
+(and every other field, in particular the frequency corrections) are untouched.
+
+The linear-in-spin orbit correction splits into a SECULAR piece — the shift of the turning points
+and of the Mino frequencies, which survives averaging over the two Darwin angles — and an
+OSCILLATORY libration `(rS, zS, UrS, UzS)` around it. Dropping the libration is exactly the
+"shifted geodesic" approximation of arXiv:2603.12189: the spinning body is treated as moving on a
+geodesic of shifted orbital parameters. It is the crudest member of the harmonic hierarchy whose
+next members are the correction truncated at `nmax = kmax = 4, 6, …`.
+
+Returned in the same shape as the input, so it can be handed straight to any consumer of a
+correction object (`spin_orbit_numeric`, the `Perturbation.SpinFluxes` mode entry points).
+Promoted out of the arXiv:2603.12189 figure scripts, where the wrapper was defined inline.
+"""
+function shifted_geodesic_correction(orbitCorrection)
+    oc = orbitCorrection.OrbitCorrection
+    return merge(orbitCorrection, (; OrbitCorrection = function (wr, wz)
+        c = oc(wr, wz)
+        z = zero(c.rS)
+        return (ΔtS = c.ΔtS, rS = z, zS = z, ΔφS = c.ΔφS, UrS = z, UzS = z)
+    end))
+end

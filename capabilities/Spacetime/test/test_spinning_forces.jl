@@ -205,6 +205,31 @@ include(joinpath(@__DIR__, "fixtures", "spacetime_spinforce_ref.jl"))  # SPINFOR
         @test isapprox(ocg.BLFrequenciesCorrection[1], g.BLc1; rtol = 1e-10)
     end
 
+    @testset "shifted_geodesic_correction: libration zeroed, secular part untouched" begin
+        # The SG member of arXiv:2603.12189: rS = zS = UrS = UzS = 0 with ΔtS/ΔφS and every other
+        # field (frequencies, constants, ES/LS) preserved. Promoted out of the figure scripts.
+        oc = SSF.spin_orbit_correction(0.9, 12.0, 0.2, sqrt(3) / 2, 4, 4)
+        sg = SSF.shifted_geodesic_correction(oc)
+        for wr in (0.0, 0.7, 2.4, 5.9), wz in (0.0, 1.3, 4.1)
+            c = oc.OrbitCorrection(wr, wz)
+            g = sg.OrbitCorrection(wr, wz)
+            @test g.rS == 0.0 && g.zS == 0.0 && g.UrS == 0.0 && g.UzS == 0.0
+            @test g.ΔtS === c.ΔtS
+            @test g.ΔφS === c.ΔφS
+        end
+        # the exact correction really does librate at this orbit, so the wrapper is not a no-op
+        @test maximum(abs(oc.OrbitCorrection(wr, wz).rS) for wr in 0:0.5:6, wz in 0:0.5:6) > 1e-6
+        # every non-closure field is carried through untouched
+        for k in keys(oc)
+            k === :OrbitCorrection && continue
+            @test getfield(sg, k) === getfield(oc, k)
+        end
+        # and the SG object is still a valid input to the downstream frequency assembly
+        n0 = SSF.spin_orbit_numeric(oc, 1e-3)
+        ns = SSF.spin_orbit_numeric(sg, 1e-3)
+        @test all(ns.BLFrequencies .=== n0.BLFrequencies)
+    end
+
     @testset "guards: kmax even, nmax > 0" begin
         @test_throws ArgumentError SSF.spin_orbit_correction(0.9, 12.0, 0.2, 0.5, 2, 3)
         @test_throws ArgumentError SSF.spin_orbit_correction(0.9, 12.0, 0.2, 0.5, 0, 2)
