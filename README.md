@@ -160,8 +160,8 @@ Tests are grounded: numerics are characterization-gated against stated oracles
 (published values, baked upstream fixtures with capture provenance, exact
 identities), tolerances go through TestKit's frozen tolerance classes, and
 several packages enforce their dependency budget as a test (`test/hygiene.jl`).
-CI runs the full 19-suite matrix (18 packages + umbrella) with four threads — see
-`.github/workflows/CI.yml`.
+CI runs the full 19-suite matrix (18 packages + umbrella) with four threads, plus
+a job that runs every `examples/` script — see `.github/workflows/CI.yml`.
 
 ## Reproducing published results
 

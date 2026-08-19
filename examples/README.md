@@ -1,7 +1,10 @@
 # GrTools examples
 
-Self-contained, runnable scripts demonstrating the suite. Each prints labeled
-results with built-in cross-checks against exact limits or identities.
+Self-contained, runnable scripts demonstrating the suite. Each is self-checking
+(asserted): it prints labeled results and asserts every printed cross-check against
+the exact limit or identity it quotes, so a script that prints a wrong number exits
+nonzero. The shared `check` / `check_close` helpers live in `_check.jl`; CI runs all
+seven scripts as a job.
 
 From the repository root (first run resolves and precompiles the suite):
 
