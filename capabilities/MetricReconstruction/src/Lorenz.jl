@@ -27,6 +27,7 @@ export closure_kerr, closure_a0
 include("Lorenz/KerrRadial.jl")           # a≠0 full radial reconstruction (P_{-2},P_{-1},h,κ)
 export reconstruct_kerr, HomFieldK, ScaledHomFieldK, KappaFieldK
 export valK, derK, der2K, κvalK, κderK, radial_gates_kerr, jump_data_kerr
+export KerrRadialOptions, kerr_radial_options, set_kerr_radial_options!
 
 include("Lorenz/SchwarzschildRadial.jl")  # a=0 radial reconstruction — surface + a→0 oracle
 export reconstruct, HomField, KappaField, val, der, der2, κval, κder, jump_data_radial, radial_gates

@@ -78,3 +78,63 @@ import MetricReconstruction.Lorenz as L
         @test maxrel < 1e-40   # full BigFloat precision inheritance (measured ~7.5e-74)
     end
 end
+
+# ---------------------------------------------------------------------------------------------
+# (5) NODE-COUNT OPTIONS gate (repro-audit G6): the Chebyshev node-count knobs used to be process
+#     ENV variables (KLC_NCHEB_FLOOR / KLC_NIN_FLOOR / KLC_NIN_FACTOR / KLC_NUP_FLOOR /
+#     KLC_NUP_FACTOR), so the numbers a run produced depended on invisible process state. They are
+#     now `KerrRadialOptions` fields. This gate pins (a) the defaults to the exact values those ENV
+#     variables defaulted to, (b) that NO KLC_* ENV read remains in the source, and (c) that the
+#     override paths (per-call `opts=`, process-wide `set_kerr_radial_options!`) actually take.
+# ---------------------------------------------------------------------------------------------
+@testset "KerrRadialOptions (ex-KLC_* environment knobs)" begin
+
+    @testset "defaults equal the previous ENV-free values" begin
+        o = L.KerrRadialOptions()
+        @test o.ncheb_floor == 30     # was get(ENV, "KLC_NCHEB_FLOOR", "30")
+        @test o.nin_floor   == 18     # was get(ENV, "KLC_NIN_FLOOR",   "18")
+        @test o.nin_factor  == 3      # was get(ENV, "KLC_NIN_FACTOR",  "3")
+        @test o.nup_floor   == 70     # was get(ENV, "KLC_NUP_FLOOR",   "70")
+        @test o.nup_factor  == 3      # was get(ENV, "KLC_NUP_FACTOR",  "3")
+        # the process-wide default IS the production struct at load time
+        @test L.kerr_radial_options() == L.KerrRadialOptions()
+    end
+
+    @testset "no KLC_* environment read survives in the source" begin
+        src = joinpath(pkgdir(MetricReconstruction), "src")
+        offenders = String[]
+        for (root, _, files) in walkdir(src), f in files
+            endswith(f, ".jl") || continue
+            txt = read(joinpath(root, f), String)
+            # the docstring of KerrRadialOptions names the retired variables; only a live
+            # `get(ENV, "KLC_...` / `ENV["KLC_...` read is a violation.
+            (occursin("get(ENV, \"KLC_", txt) || occursin("get(ENV,\"KLC_", txt) ||
+             occursin("ENV[\"KLC_", txt)) && push!(offenders, joinpath(root, f))
+        end
+        @test isempty(offenders)
+    end
+
+    @testset "overrides take (per-call struct + process-wide setter)" begin
+        o = L.KerrRadialOptions(; nin_floor = 24, nup_factor = 4)
+        @test o.nin_floor == 24 && o.nup_factor == 4
+        @test o.ncheb_floor == 30 && o.nin_factor == 3 && o.nup_floor == 70   # untouched fields
+        # `_branchK_leg_interp_big`'s default N follows the PROCESS option, not a frozen const.
+        old = L.kerr_radial_options()
+        try
+            L.set_kerr_radial_options!(; nin_floor = 21)
+            @test L.kerr_radial_options().nin_floor == 21
+            @test L.kerr_radial_options().nup_floor == old.nup_floor          # keyword form is a patch
+            m = only(methods(L._branchK_leg_interp_big))
+            @test Base.kwarg_decl(m) == [:N]
+        finally
+            L.set_kerr_radial_options!(old)
+        end
+        @test L.kerr_radial_options() == old
+    end
+
+    @testset "opts is threaded through the public radial API" begin
+        for f in (L.branchK, L.reconstruct_kerr)
+            @test any(m -> :opts in Base.kwarg_decl(m), methods(f))
+        end
+    end
+end

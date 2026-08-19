@@ -29,6 +29,7 @@ import Printf: @printf
 import Base.Threads
 
 export reconstruct_kerr, HomFieldK, KappaFieldK, valK, derK, der2K, κvalK, κderK, radial_gates_kerr, jump_data_kerr
+export KerrRadialOptions, kerr_radial_options, set_kerr_radial_options!
 
 # spin-general c=iK/Δ and c'(r)
 cfunK(r,a,ω,m)  = (Δ=r^2-2r+a^2; K=ω*(r^2+a^2)-a*m; im*K/Δ)
@@ -43,7 +44,59 @@ cpfunK(r,a,ω,m) = (Δ=r^2-2r+a^2; K=ω*(r^2+a^2)-a*m; Kp=2ω*r; Δp=2r-2; im*(K
 # at ~26 Chebyshev nodes and serve Float64 barycentric interpolants (rel ~8e-15); triggered DYNAMICALLY
 # on the span-max magnitude, not a fixed l. Full diagnosis: the F5 research note (progress/ dossiers).
 const _BIGMAG = 1e8          # |R^up| above which Float64 loses ≳8 relative digits ⇒ use the BigFloat-interp branch
-const _NCHEB  = parse(Int, get(ENV,"KLC_NCHEB_FLOOR","30"))  # Cheb nodes/leg floor (env-override; default 30 = F8-byte-identical)
+
+"""
+    KerrRadialOptions(; ncheb_floor=30, nin_floor=18, nin_factor=3, nup_floor=70, nup_factor=3)
+
+Chebyshev node-count knobs of the high-magnitude BigFloat-interpolant legs of [`branchK`](@ref).
+They are pure COST/ACCURACY dials — raising them costs BigFloat MST evaluations and tightens the
+interpolant; the defaults are the production values validated at F8 (byte-identical results).
+
+* `ncheb_floor` — nodes on the Float64-gate Up panel (`_branchK_up_interp`).
+* `nin_floor` / `nin_factor` — In-leg panel: `N_in = max(nin_floor, nin_factor*l)` (before the
+  √-span bump), i.e. the measured `N = 3ℓ` spectral law with an 18-node floor.
+* `nup_floor` / `nup_factor` — BigFloat s=0 Up-leg panel: `N = max(nup_floor, nup_factor*l)`.
+
+These were process ENV variables (`KLC_NCHEB_FLOOR`, `KLC_NIN_FLOOR`, `KLC_NIN_FACTOR`,
+`KLC_NUP_FLOOR`, `KLC_NUP_FACTOR`) until they were made explicit: an ENV knob that silently changes
+a numerical result cannot be reproduced from the tree. Pass `opts=` per call, or move the whole
+process with [`set_kerr_radial_options!`](@ref).
+"""
+Base.@kwdef struct KerrRadialOptions
+    ncheb_floor::Int = 30   # Float64-gate Up-panel Cheb nodes (F8-byte-identical)
+    nin_floor::Int   = 18   # In-leg Cheb-node floor: 18 nodes reach full precision (measured)
+    nin_factor::Int  = 3    # In-leg node law N_in = nin_factor*l  (3ℓ holds ≤1e-12 through ℓ≈56)
+    nup_floor::Int   = 70   # BigFloat s=0 Up-leg Cheb-node floor (F8-safe)
+    nup_factor::Int  = 3    # BigFloat s=0 Up-leg node law N = nup_factor*l
+end
+
+const _KERR_RADIAL_OPTIONS = Ref(KerrRadialOptions())
+
+"""
+    kerr_radial_options() -> KerrRadialOptions
+
+The process-wide default node-count options used when a call does not pass `opts=`.
+"""
+kerr_radial_options() = _KERR_RADIAL_OPTIONS[]
+
+"""
+    set_kerr_radial_options!(o::KerrRadialOptions) -> KerrRadialOptions
+    set_kerr_radial_options!(; kwargs...)          -> KerrRadialOptions
+
+Move the process-wide default (returns the value installed). The keyword form starts from the
+CURRENT default and overrides only the named fields; `set_kerr_radial_options!(KerrRadialOptions())`
+restores the production values.
+"""
+set_kerr_radial_options!(o::KerrRadialOptions) = (_KERR_RADIAL_OPTIONS[] = o)
+function set_kerr_radial_options!(; kwargs...)
+    cur = _KERR_RADIAL_OPTIONS[]
+    _KERR_RADIAL_OPTIONS[] = KerrRadialOptions(;
+        ncheb_floor = get(kwargs, :ncheb_floor, cur.ncheb_floor),
+        nin_floor   = get(kwargs, :nin_floor,   cur.nin_floor),
+        nin_factor  = get(kwargs, :nin_factor,  cur.nin_factor),
+        nup_floor   = get(kwargs, :nup_floor,   cur.nup_floor),
+        nup_factor  = get(kwargs, :nup_factor,  cur.nup_factor))
+end
 # bits sized to the |R^up| magnitude + working headroom; accuracy is N-limited, not bits-limited (measured).
 _bigprec_for_mag(magpow) = clamp(128 + 6*ceil(Int, magpow), 160, 320)   # magpow 13→206→bits 224; 33→bits 320
 
@@ -84,7 +137,7 @@ end
 # `rspan=(rlo,rhi)` is the radial domain the branch will be sampled over (the mode grid range). When the Float64
 # |R^up(rhi)| would exceed _BIGMAG, the up/inn legs are replaced by BigFloat-built Chebyshev interpolants (FAST +
 # full relative precision); otherwise the native Float64 MST closures are used unchanged.
-function branchK(s, l, m, a, ω, eig; rspan=nothing, r0=nothing)
+function branchK(s, l, m, a, ω, eig; rspan=nothing, r0=nothing, opts::KerrRadialOptions=kerr_radial_options())
     T = typeof(float(real(a)))
     R = eig === nothing ? TeukolskyRadial(s, l, m, a, ω) : TeukolskyRadial(s, l, m, a, ω; lambda=eig)
     # 2nd derivative from the package's EXACT Teukolsky radial ODE (_d2R_ode), valid for ALL spins, using the
@@ -103,7 +156,7 @@ function branchK(s, l, m, a, ω, eig; rspan=nothing, r0=nothing)
         rlo_b = max(Float64(rh0) + 0.05, Float64(real(rspan[1])) - 0.5)
         hi_b = s == 0 ? _KVOP_SPAN_HI : max(Float64(real(rspan[2])) + 0.5, rlo_b + 1.0)
         upI_b, updI_b = _branchK_up_interp_big(s, l, m, BigFloat(real(a)), BigFloat(real(ω)), R.Up.lambda,
-                                               R.Up.norm, R.Up.nu, rlo_b, hi_b, up, upd)
+                                               R.Up.norm, R.Up.nu, rlo_b, hi_b, up, upd; opts=opts)
         d2b(r) = _d2R_ode(upI_b(r), updI_b(r), s, m, a, BigFloat(real(r)), ω, real(R.Up.lambda))
         # In leg: Float64 fast path with a lazy BigLogRInterp fallback where Float64 |R^in| overflows
         # (high ℓ, r<r0); byte-identical where Float64 is finite.
@@ -119,7 +172,7 @@ function branchK(s, l, m, a, ω, eig; rspan=nothing, r0=nothing)
         _inI = Ref{Any}(nothing); _indI = Ref{Any}(nothing)
         # N_in = 3ℓ (floor 18): measured spectral law — N=18 leaves 1e-4..1e-3 inter-node error at ℓ≈50,
         # amplified ×1e4-1e5 by the tetrad-sector cancellations; 3ℓ holds ≤1e-12 through ℓ≈56.
-        _N_in = max(_NCHEB_IN, parse(Int, get(ENV, "KLC_NIN_FACTOR", "3"))*l)   # env knob (default 3 = production)
+        _N_in = max(opts.nin_floor, opts.nin_factor*l)                          # measured N=3ℓ law, floor 18
         # √-span node bump (capped ×1.6): the rh-extension region is smooth so needs fewer nodes/unit;
         # reference span anchored to r0 so _N_in is grid-invariant.
         _span_ref = log(in_hi_b) - log(r0 === nothing ? max(rlo_b, Float64(rh0)+0.05) : max(Float64(real(r0))-3.0, Float64(rh0)+0.05))
@@ -180,7 +233,7 @@ function branchK(s, l, m, a, ω, eig; rspan=nothing, r0=nothing)
     outer_native = s == 0 ? (up, upd, updd) : nothing
     eig_interp   = s == 0 ? λteuk : nothing
     upI, updI, upddI, big_atI = _branchK_up_interp(s, l, m, Float64(a), Float64(ω), rlo, rhi, magpow;
-                                                   outer_native=outer_native, eig=eig_interp)
+                                                   outer_native=outer_native, eig=eig_interp, opts=opts)
     (R=R, up=upI, upd=updI, updd=upddI, inn=inn, ind=ind, indd=indd, eig=(eig===nothing ? λteuk : eig), big_at=big_atI)
 end
 
@@ -198,10 +251,12 @@ function _up_val_der(farr, s, m, eps, kappa, tau, nu, zhat, Nmax, atol, rtol)
     (v, d)
 end
 
-# Up-leg high-magnitude path: one BigFloat R + one f_n array, sample L/Lp/Lpp at _NCHEB Chebyshev
+# Up-leg high-magnitude path: one BigFloat R + one f_n array, sample L/Lp/Lpp at `opts.ncheb_floor` Chebyshev
 # nodes over [rlo,rhi], phase-unwrap, return Float64 log-domain interpolant closures + BigFloat fallback.
 function _branchK_up_interp(s, l, m, a::Float64, ω::Float64, rlo::Float64, rhi::Float64, magpow::Real;
-                            outer_native=nothing, eig=nothing)
+                            outer_native=nothing, eig=nothing,
+                            opts::KerrRadialOptions=kerr_radial_options())
+    _NCHEB = opts.ncheb_floor
     bits = _bigprec_for_mag(magpow)
     ab = BigFloat(a; precision=bits); ωb = BigFloat(ω; precision=bits)
     R = setprecision(BigFloat, bits) do
@@ -270,7 +325,6 @@ end
 # BigFloat-type s=0 fast interp leg: per-node native BigFloat MST in the κ VoP quadgk is hours/mode —
 # sample the smooth Up leg ONCE on a log-r Chebyshev panel instead. Up span must NOT reach rh (a too-wide
 # log-r panel loses the accuracy the W̃ Wronskian cancellation needs; the In leg covers the rh region).
-const _NCHEB_BIG = parse(Int, get(ENV,"KLC_NUP_FLOOR","70"))  # BigFloat s=0 Up-leg Cheb-node floor (env-override; default 70 = F8-safe)
 const _KVOP_SPAN_HI = 120.0  # κ integration upper edge for the Up interp (Abel integrand <1e-24 past r∼100)
 
 # LOG-r barycentric interpolant returning Complex{BigFloat} value/derivative for a SMOOTH nonzero R(r).
@@ -293,7 +347,8 @@ end
 # Build the BigFloat s=0 Up-leg fast interp closures (value/deriv) over [lo,hi] in LOG-r. Shared f_n; value+deriv
 # in one pass (reuses _up_val_der). `nat_up/nat_upd` are the native BigFloat Up closures used out-of-span.
 function _branchK_up_interp_big(s, l, m, ab::BigFloat, ωb::BigFloat, λteuk, norm_up, nu,
-                                lo::Float64, hi::Float64, nat_up, nat_upd)
+                                lo::Float64, hi::Float64, nat_up, nat_upd;
+                                opts::KerrRadialOptions=kerr_radial_options())
     bits = precision(ab)
     kappa = sqrt(1 - ab^2); eps = 2ωb; tau = (eps - m*ab)/kappa; rm = 1 - kappa
     Nmax = 80; atol = BigFloat(1e-30; precision=bits); rtol = BigFloat(1e-30; precision=bits)
@@ -303,7 +358,7 @@ function _branchK_up_interp_big(s, l, m, ab::BigFloat, ωb::BigFloat, λteuk, no
                  (vd[1]/norm_up, vd[2]/norm_up))
     # N = 3l (floor 70): at high l the potential turning point r_t≈l/ω sits inside the span and a fixed N
     # leaves oscillatory inter-node error, amplified ×1e2-5e3 by the κ-sector cancellations (measured law).
-    N = max(_NCHEB_BIG, parse(Int, get(ENV, "KLC_NUP_FACTOR", "3"))*l)          # env knob (default 3 = production)
+    N = max(opts.nup_floor, opts.nup_factor*l)                                  # measured N=3ℓ law, floor 70
     uF = _cheb_nodes(log(lo), log(hi), N)        # log-r Cheb nodes (ascending ⇒ phase-unwrap valid)
     uB = BigFloat.(uF; precision=bits); xB = exp.(uB)
     L = Vector{Complex{BigFloat}}(undef, N); Lp = similar(L)
@@ -324,11 +379,11 @@ end
 
 # In-leg node count: the In leg is smooth/monotone so 18 nodes reach full precision (measured); each
 # node costs ~2 native BigFloat 2F1 evals, so N directly sets the panel build time.
-const _NCHEB_IN = parse(Int, get(ENV,"KLC_NIN_FLOOR","18"))  # In-leg Cheb-node floor (env-override; default 18 = F8-byte-identical; raise for low-ℓ/low-m anti-scallop)
 
 # Generic log-r Chebyshev BigFloat interpolant of a smooth nonzero radial function (the In leg at high ℓ
 # where Float64 overflows): sample once (threaded), phase-unwrap after the barrier, serve barycentric.
-function _branchK_leg_interp_big(Rfun, lo::Float64, hi::Float64; N::Int=_NCHEB_IN)
+function _branchK_leg_interp_big(Rfun, lo::Float64, hi::Float64;
+                                N::Int=kerr_radial_options().nin_floor)
     bits = precision(BigFloat)
     uF = _cheb_nodes(log(lo), log(hi), N)
     uB = BigFloat.(uF; precision=bits); xB = exp.(uB)
@@ -559,7 +614,8 @@ a≠0 reconstructed radial fields at (a,r0,l): `rec.Pm2,rec.Pm1,rec.h` are `HomF
 from `closure_kerr(...;return_aux=true)` to reuse one banded solve across l (and threads).
 """
 function reconstruct_kerr(a, r0, l; m=2, Rin_lo=nothing, Rout_hi=nothing, aux=nothing, sol=nothing,
-                          eps_scale=_RECON_EPS_SCALE[], rspan=_RECON_RSPAN[])
+                          eps_scale=_RECON_EPS_SCALE[], rspan=_RECON_RSPAN[],
+                          opts::KerrRadialOptions=kerr_radial_options())
     if aux === nothing || sol === nothing
         lmx = max(2*l, l+8)
         sol, aux = closure_kerr(a, r0, m; lmax=lmx, return_aux=true)
@@ -579,8 +635,9 @@ function reconstruct_kerr(a, r0, l; m=2, Rin_lo=nothing, Rout_hi=nothing, aux=no
     jd = (ω=ω, Δ0=bg.Δ0, a=aT, Pm2=(CT(J0m2),CT(J1m2)), Pm1=(CT(clo[1]),CT(clo[2])),
           h=(zero(CT),CT(J1h)), κ=(CT(clo[3]),CT(clo[4])), Λ=Λ, λ=λ, λ0=λ0, γll=γll, m=m)
 
-    brm2 = branchK(-2, l, m, aT, ω, Λ; rspan=rspan, r0=r0); brm1 = branchK(-1, l, m, aT, ω, λ; rspan=rspan, r0=r0)
-    br0  = branchK(0, l, m, aT, ω, λ0; rspan=rspan, r0=r0)
+    brm2 = branchK(-2, l, m, aT, ω, Λ; rspan=rspan, r0=r0, opts=opts)
+    brm1 = branchK(-1, l, m, aT, ω, λ; rspan=rspan, r0=r0, opts=opts)
+    br0  = branchK(0, l, m, aT, ω, λ0; rspan=rspan, r0=r0, opts=opts)
     Pm2 = HomFieldK{T}(r0, jump_ampsK(brm2,r0,jd.Pm2...)..., brm2)
     Pm1 = HomFieldK{T}(r0, jump_ampsK(brm1,r0,jd.Pm1...)..., brm1)
     h   = HomFieldK{T}(r0, jump_ampsK(br0, r0,jd.h...)...,  br0)

@@ -95,6 +95,37 @@ baked as literals in `test/` — the legacy oracles are not live test dependenci
   ``R^\mathrm{up}`` magnitude overflows, the radial legs switch to log-Chebyshev-barycentric
   BigFloat interpolants sampled once per mode.
 
+## Radial node-count options (`KerrRadialOptions`)
+
+Where the Float64 ``R^\mathrm{up}`` magnitude overflows, `Lorenz.branchK` replaces the affected
+legs with log-Chebyshev-barycentric panels sampled once per mode. Five integers set how many nodes
+those panels carry — a pure cost/accuracy dial, but one that CHANGES the numbers a run produces:
+
+| field | default | meaning |
+|---|---|---|
+| `ncheb_floor` | `30` | nodes on the Float64-gate Up panel (`_branchK_up_interp`) |
+| `nin_floor` | `18` | In-leg Chebyshev-node floor (18 nodes reach full precision, measured) |
+| `nin_factor` | `3` | In-leg node law `N_in = max(nin_floor, nin_factor*l)` (before the √-span bump) |
+| `nup_floor` | `70` | BigFloat ``s=0`` Up-leg node floor |
+| `nup_factor` | `3` | BigFloat ``s=0`` Up-leg node law `N = max(nup_floor, nup_factor*l)` |
+
+The defaults are the F8-validated production values. Override them per call, or for the process:
+
+```julia
+using MetricReconstruction: Lorenz
+rec = Lorenz.reconstruct_kerr(0.5, 6.0, 2; opts = Lorenz.KerrRadialOptions(; nin_floor = 24))
+
+old = Lorenz.kerr_radial_options()
+Lorenz.set_kerr_radial_options!(; nup_factor = 4)   # keyword form patches the current default
+Lorenz.set_kerr_radial_options!(old)                # restore
+```
+
+These five knobs were process environment variables (`KLC_NCHEB_FLOOR`, `KLC_NIN_FLOOR`,
+`KLC_NIN_FACTOR`, `KLC_NUP_FLOOR`, `KLC_NUP_FACTOR`) through v0.1.0. They no longer exist: a
+numerical result that silently depends on the environment of the process that produced it cannot be
+reproduced from the tree, so the knobs are now explicit arguments and `test/lorenz_kerr_radial.jl`
+gates both the defaults and the absence of any `KLC_*` read in `src/`.
+
 ## Public API
 
 ```@autodocs
