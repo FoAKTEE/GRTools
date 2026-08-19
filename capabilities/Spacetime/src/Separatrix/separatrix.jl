@@ -99,3 +99,58 @@ end
 FEW-convention alias of [`separatrix`](@ref) (`few.utils.utility.get_separatrix`).
 """
 @inline get_separatrix(a, e, x) = separatrix(a, e, x)
+
+# ── ISSO: the innermost STABLE SPHERICAL orbit (the e=0, inclined generalisation of the ISCO) ─────
+# Promoted from the arXiv:2506.20726 figure scripts (`repro_rISSOg.jl` / `repro_drISSO.jl`), where
+# the root-finder was figure-local. A spherical (r = const) geodesic of radius `r` and inclination
+# `x = cos I` carries the constants (E, Lz, Q) = constants_of_motion(a, r, 0, x); it is radially
+# STABLE while the radial potential obeys R''(r) < 0 and marginally stable (the ISSO) at R''(r) = 0.
+# With A = (Lz − aE)² + Q the potential expands to
+#   R(r) = (E² − 1) r⁴ + 2 r³ + (2a²E² − 2aELz − A − a²) r² + 2A r + a²(a²E² − 2aELz + Lz² − A),
+# so R''(r) = 12(E² − 1) r² + 12 r + 2(2a²E² − 2aELz − A − a²) is CLOSED FORM (the figure scripts
+# used a h=1e-4 finite difference; the analytic form removes that O(h²) bias). |x| = 1 reduces to
+# the Bardeen ISCO and a = 0 gives 6 for every inclination — both asserted in the test suite.
+
+"""
+    isso_radial_curvature(a, r, x) -> R''(r)
+
+Second derivative of the Kerr radial potential `R` at the spherical-orbit radius `r`, evaluated
+with the constants of motion `(E, Lz, Q)` of the spherical orbit `(a, r, e=0, x)` held fixed
+(M = 1, `x = cos I`). Negative ⇒ the spherical orbit is radially stable; the zero is the ISSO.
+"""
+function isso_radial_curvature(a, r, x)
+    En, Lz, Q = constants_of_motion(a, r, zero(r), x)
+    A = (Lz - a * En)^2 + Q
+    return 12 * (En^2 - 1) * r^2 + 12 * r + 2 * (2 * a^2 * En^2 - 2 * a * En * Lz - A - a^2)
+end
+
+"""
+    kerr_isso(a, x; rmax = 15) -> r_isso
+
+Innermost stable SPHERICAL orbit radius (M = 1) for spin `a` and inclination `x = cos I`: the
+radius where [`isso_radial_curvature`](@ref) changes sign (`R'' > 0` inside, `R'' < 0` outside).
+The equatorial limits reduce to the Bardeen ISCO, `kerr_isso(a, ±1) == kerr_isco(±a)`, and
+`kerr_isso(0, x) == 6` for every inclination. Bracketed bisection from just outside the outer
+horizon to `rmax`, guarded against the inner region where no bound spherical orbit exists
+(a failure of the constants there is treated as "unstable", i.e. inside the ISSO).
+
+Canonical home of the ISSO root-finder that was figure-local in the arXiv:2506.20726 scripts.
+"""
+function kerr_isso(a::Real, x::Real; rmax::Real = 15)
+    T = float(promote_type(typeof(a), typeof(x), typeof(rmax)))
+    a, x = T(a), T(x)
+    lo = 1 + sqrt(1 - a^2) + T(3) / 10        # just outside the outer horizon (R'' > 0 there)
+    hi = T(rmax)
+    curv(r) = try
+        T(isso_radial_curvature(a, r, x))
+    catch
+        one(T)                                 # no bound spherical orbit ⇒ treat as unstable
+    end
+    curv(hi) < 0 || throw(ArgumentError("kerr_isso: rmax=$(rmax) is not outside the ISSO (a=$a, x=$x)"))
+    for _ in 1:200
+        mid = (lo + hi) / 2
+        (mid == lo || mid == hi) && break
+        curv(mid) < 0 ? (hi = mid) : (lo = mid)
+    end
+    return (lo + hi) / 2
+end

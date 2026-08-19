@@ -77,3 +77,40 @@ _oracle_polar(p, a, e) = a^6*(-1 + e)^2*(1 + e)^4 + p^5*(-6 - 2e + p) +
         @test abs(_oracle_equat(ps, big"0.9", big"0.2")) < 1e-20      # BigFloat-precision root
     end
 end
+
+@testset "ISSO (innermost stable spherical orbit)" begin
+    # Grounded ANALYTIC: the ISSO is defined by R''(r)=0 with the spherical constants held fixed.
+    # (1) equatorial limit == Bardeen ISCO, (2) a=0 == 6 for every inclination, (3) the returned
+    # radius really zeroes the curvature, (4) monotone prograde→retrograde ordering.
+    @testset "equatorial limit kerr_isso(a,±1) == kerr_isco(±a)" begin
+        for a in (0.1, 0.3, 0.6, 0.9, 0.95)
+            @test isapprox(kerr_isso(a,  1.0), kerr_isco(a);  rtol = 1e-10)
+            @test isapprox(kerr_isso(a, -1.0), kerr_isco(-a); rtol = 1e-10)
+        end
+    end
+
+    @testset "Schwarzschild: kerr_isso(0,x) == 6 for every inclination" begin
+        for x in (-1.0, -0.5, 0.3, 0.5, 1.0)
+            @test isapprox(kerr_isso(1e-12, x), 6.0; rtol = 1e-9)
+        end
+    end
+
+    @testset "the root zeroes the radial curvature (and brackets it)" begin
+        for (a, x) in ((0.3, 0.5), (0.6, -0.4), (0.9, 0.8), (0.9, -0.9))
+            r = kerr_isso(a, x)
+            @test isapprox(isso_radial_curvature(a, r, x), 0.0; atol = 1e-8)
+            @test isso_radial_curvature(a, r + 1e-3, x) < 0     # outside: stable
+            @test isso_radial_curvature(a, r - 1e-3, x) > 0     # inside: unstable
+        end
+    end
+
+    @testset "prograde < polar < retrograde (published a=0.3/0.6/0.9 values)" begin
+        for a in (0.3, 0.6, 0.9)
+            @test kerr_isso(a, 1.0) < kerr_isso(a, 0.1) < kerr_isso(a, -1.0)
+        end
+        # arXiv:2506.20726 fig:rISSO (left panel) endpoints, from the legacy figure script
+        @test isapprox(kerr_isso(0.9,  1.0), 2.321; atol = 1e-3)
+        @test isapprox(kerr_isso(0.9, -1.0), 8.717; atol = 1e-3)
+        @test isapprox(kerr_isso(0.3,  1.0), 4.979; atol = 1e-3)
+    end
+end

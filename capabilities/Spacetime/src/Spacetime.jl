@@ -55,7 +55,7 @@ export geodesic_trajectory, geodesic_trajectory_radial, geodesic_trajectory_pola
 export geodesic_trajectory_equatorial, geodesic_proper_time
 
 include("Separatrix/separatrix.jl")
-export separatrix, kerr_isco, get_separatrix
+export separatrix, kerr_isco, get_separatrix, kerr_isso, isso_radial_curvature
 
 include("Geometry/christoffel.jl")
 export christoffel, christoffel_dr, christoffel_dtheta
