@@ -79,7 +79,12 @@ const M = AccretionDisc.Modes
         ca = M._c13_alpha(l, m, a, w; Nm = 300)
         # captured one-shot from packages/DiscModes _c13_alpha (Teukolsky MST oracle)
         @test ca.c13 ≈ (-23.58767132477094 - 100.88873420202292im) rtol = 1e-8
-        @test ca.alpha ≈ 2.8512019997500306e-5 rtol = 1e-8
+        # NOTE the horizon factor α is CORRECTED relative to the captured DiscModes literal
+        # (2.8512019997500306e-5): that value carries Γ = 4√(1−a²)/(r₊²+a²), i.e. Hirata's
+        # AS-PRINTED bracket, which fails the eq:cplex1 closure by up to 9.1e-5. With the
+        # Teukolsky–Press Γ = 2√(1−a²)/(r₊²+a²) the closure holds to ≤6e-13 (gate above) and
+        # α is 15.88× smaller. lindblad_torque shifts by only 2.0e-8 (α ≪ |c₁₃|²).
+        @test ca.alpha ≈ 1.7953595800524933e-6 rtol = 1e-8
     end
 
     @testset "lindblad_torque — live Perturbation overlap vs captured DiscModes + Hirata anchor" begin

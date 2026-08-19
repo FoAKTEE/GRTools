@@ -38,7 +38,13 @@ export A_m, B_m_corotation, B_m_wkb, B_m_full, corotation_exponent
 export dispersion, reduced_operator
 
 include("Forcing.jl")
-export lindblad_torque, forcing_Fm, laplace_b
+export lindblad_torque, forcing_Fm, laplace_b, laplace_b_deriv, c13_alpha
+export epicyclic_impedance, lindblad_detuning, lindblad_detuning_deriv
+export lindblad_strength, lindblad_strength_newtonian
+
+include("ThinDisc.jl")
+export NovikovThorneDisc, nt_isco, nt_factors, nt_surface_density, nt_scale_height, nt_aspect_ratio
+export ss_surface_density, ss_aspect_ratio, pressure_cutoff, total_lindblad_torque, powerlaw_fit
 
 include("PressurelessLindblad.jl")
 export SurfaceDensityProfile, PowerLawSigma
