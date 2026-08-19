@@ -145,21 +145,25 @@ function synthesize_cartesian(sols, xs::AbstractVector, ys::AbstractVector; comp
     rhi = r_hi === nothing ? maximum(mi.r_hi for mi in interps) : T(r_hi)
     rlo ≤ rhi || throw(ArgumentError("synthesize_cartesian: need r_lo ≤ r_hi, got ($(rlo), $(rhi))"))
     ws = T[mi.m == 0 ? one(T) : T(2) for mi in interps]
-    out = fill(T(blank), length(xs), length(ys))
-    for (j, y) in enumerate(ys)
-        yT = T(y)
-        for (i, x) in enumerate(xs)
-            xT = T(x)
-            r = hypot(xT, yT)
-            (r < rlo || r > rhi) && continue
-            Ψ = atan(yT, xT)
-            acc = zero(T)
-            for (k, mi) in enumerate(interps)
-                f = mi(r)
-                iszero(f) && continue
-                acc += ws[k] * real(f * cis(mi.m * Ψ))
-            end
-            out[i, j] = acc
+    nx, ny = length(xs), length(ys)
+    out = fill(T(blank), nx, ny)
+    # geometry once (the modes are then swept in the OUTER loop: one mode's spline arrays stay the
+    # working set for a whole pass, instead of striding through all of them at every pixel)
+    R = Matrix{T}(undef, nx, ny); Ψ = similar(R); inside = Matrix{Bool}(undef, nx, ny)
+    for j in 1:ny, i in 1:nx
+        xT, yT = T(xs[i]), T(ys[j])
+        r = hypot(xT, yT)
+        R[i, j] = r; Ψ[i, j] = atan(yT, xT)
+        inside[i, j] = !(r < rlo || r > rhi)
+        inside[i, j] && (out[i, j] = zero(T))
+    end
+    for (k, mi) in enumerate(interps)
+        w = ws[k]; m = mi.m
+        @inbounds for j in 1:ny, i in 1:nx
+            inside[i, j] || continue
+            f = mi(R[i, j])
+            iszero(f) && continue
+            out[i, j] += w * real(f * cis(m * Ψ[i, j]))
         end
     end
     out
