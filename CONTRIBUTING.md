@@ -81,6 +81,8 @@ git config commit.template .gitmessage
 The hook **rejects** a commit whose title fails the grammar, and **rejects** any
 message carrying AI/assistant attribution — `Co-Authored-By` trailers of any
 kind, or a mention of Claude / Anthropic / "generated with" / the robot emoji.
+(The agent-skills path `.claude/` is masked before that scan — a path is not an
+attribution.)
 Body and footer issues are warnings; `COMMIT_GATE_STRICT=1` escalates them to
 errors. Run it standalone with `.githooks/commit-msg <message-file>`
 (exit 0 = admit, 1 = reject).

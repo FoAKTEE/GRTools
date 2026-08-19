@@ -88,9 +88,12 @@ fi
 # --- 1b. Attribution ban (HARD) ----------------------------------------------
 # GRTools history carries no AI/assistant attribution: no Co-Authored-By trailer
 # of any kind, no Claude/Anthropic mention, no "generated with" blurb, no robot.
+# The agent-skills directory `.claude/` is a legitimate tracked path in this repo,
+# so it is masked out before the scan (a path is not an attribution).
 BANNED_RE='co-authored-by|claude|anthropic|generated with'
-banned_hits="$(printf '%s\n' "${LINES[@]}" | grep -inE "$BANNED_RE")"
-robot_hits="$(printf '%s\n' "${LINES[@]}" | grep -nF '🤖')"
+SCAN="$(printf '%s\n' "${LINES[@]}" | sed -E 's#\.claude#<agent-dir>#gI')"
+banned_hits="$(printf '%s\n' "$SCAN" | grep -inE "$BANNED_RE")"
+robot_hits="$(printf '%s\n' "$SCAN" | grep -nF '🤖')"
 if [ -n "$banned_hits" ] || [ -n "$robot_hits" ]; then
     err "attribution ban: no 'Co-Authored-By', 'Claude', 'Anthropic', 'generated with' or robot emoji"
     printf '%s\n%s\n' "$banned_hits" "$robot_hits" | grep -v '^$' | while IFS= read -r _hit; do
