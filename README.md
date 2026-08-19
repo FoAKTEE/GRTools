@@ -156,6 +156,9 @@ run stays green but does NOT exercise the parallel paths:
 JULIA_NUM_THREADS=4 julia --project=core/EllipticCore -e 'using Pkg; Pkg.test()'
 ```
 
+Load-sensitive performance assertions (wall-clock speedup) are off by default and
+are enabled with `GRTOOLS_PERF_TESTS=1`.
+
 Tests are grounded: numerics are characterization-gated against stated oracles
 (published values, baked upstream fixtures with capture provenance, exact
 identities), tolerances go through TestKit's frozen tolerance classes, and
