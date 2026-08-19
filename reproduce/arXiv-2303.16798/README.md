@@ -13,7 +13,7 @@ testset `emri-disk/packages/TeukolskySpinFluxes/test/runtests.jl:731-760` (both 
 | Table III (`tab:generic`), 24 rows | `check_tableIII.jl` | `tableIII` | fast | solid | 94 s |
 | `fig:fourier_coefficients` | `fig_fourier_coefficients.jl` | `fig_fourier_coefficients` | fast | solid | 47 s |
 | `fig:fluxes_spherical` (FSl{1,2,3}0k) | `fig_FSl0k_spherical.jl` | `fig_FSl0k_spherical` | fast | solid | 82 s |
-| `fig:comparison_spherical` | `fig_comparison_spherical.jl` | `fig_comparison_spherical` | heavy | **future** (no golden) | > 67 min, not completed |
+| `fig:comparison_spherical` | `fig_comparison_spherical.jl` | `fig_comparison_spherical` | heavy | **future** (no golden) | 79 min, not completed |
 | `fig:comparison_generic` (error_eccentric ×2) | `fig_error_eccentric.jl` | `fig_error_eccentric` | fast | solid | 220 s |
 
 The three published tables also live as a GrTools test file,
@@ -69,8 +69,8 @@ port discrepancy.
   (2,2,1,0), so the spread comes from an undocumented per-n figure-construction step, not from the
   flux; it is registered as the measured `per_n_spread_at_8deg_*` rather than reproduced.
 * **`fig:comparison_spherical`.** Driver complete, **not run to completion**: the 3570-mode scan
-  measured > 67 min at −t4 (the MST radial sums are slow at p = 15 with |k| ≤ 8) against a 30-minute
-  per-driver budget. It has no golden and `--check` exits 3 (HOLE); status `future` in the manifest.
+  measured 4716 s (79 min) at −t4 with one straggler job still running when it was killed — the MST
+  radial sums are slow at p = 15 with |k| ≤ 8 — against a 30-minute per-driver budget. It has no golden and `--check` exits 3 (HOLE); status `future` in the manifest.
 * **`fig:fourier_coefficients`.** Peak at n = ±1 ∝ e (residual 1.5e-3) and the truncation floor
   reproduce; only the e = 0.6 floor (4.5e-12) is resolvable in Float64. The e = 0.2 / 0.4 floors sit
   at 1.7e4–3.3e6 × ε·peak — the conditioning floor of the Float64 least-squares solve — whereas the

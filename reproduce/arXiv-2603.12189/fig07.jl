@@ -5,15 +5,17 @@
 #
 # The three approximations, all built from `Perturbation.KerrSpinOrbitCorrection`:
 #   SG          — the shifted geodesic: the exact nmax = kmax = 8 orbit correction with the
-#                 LIBRATION zeroed (rS = zS = UrS = UzS = 0), i.e. the secular shift only
+#                 LIBRATION zeroed (rS = zS = UrS = UzS = 0), i.e. the secular shift only, from
+#                 `Spacetime.SpinningSecondary.shifted_geodesic_correction` (promoted out of the
+#                 legacy figure scripts in this migration, with a test in the Spacetime suite)
 #   n^s = 4     — the orbit correction truncated at nmax = kmax = 4
 #   n^s = 6     — the orbit correction truncated at nmax = kmax = 6
 # The published message is the ordering SG > n^s = 4 > n^s = 6 at every p, i.e. the spinning
 # trajectory converges harmonic by harmonic and the shifted geodesic is the crudest member.
 #
-# THIN driver: the flux of each trajectory is `Perturbation._spin_mode_correction(oc, 2,2,0,0)`;
-# the only thing built here is the zeroed-libration wrapper around the exact correction closure,
-# which is a CHOICE OF INPUT to the package function, not physics.
+# THIN driver: the flux of each trajectory is `Perturbation._spin_mode_correction(oc, 2,2,0,0)`
+# and the shifted-geodesic trajectory is `Spacetime.SpinningSecondary.shifted_geodesic_correction`.
+# Zero physics is defined here.
 #
 #   julia --project=reproduce -t4 reproduce/arXiv-2603.12189/fig07.jl --check
 
@@ -26,6 +28,7 @@ ReproHarness.require_tier(opts, :fast)
 
 using GrTools
 using GrTools.Perturbation: KerrSpinOrbitCorrection, _spin_mode_correction
+using GrTools.Spacetime.SpinningSecondary: shifted_geodesic_correction
 using Plots
 include(joinpath(@__DIR__, "..", "_style", "mma_style.jl"))
 gr(); mma_defaults!()
@@ -34,11 +37,6 @@ const A, E, X = 0.9, 0.2, sqrt(3) / 2
 const PS = collect(6.0:0.5:15.0)
 const APPROX = (:SG, :h4, :h6)
 const CHAN = (:EI, :EH, :LI, :LH)
-
-zero_libration(oc) = merge(oc, (; OrbitCorrection = (wr, wz) -> begin
-    c = oc.OrbitCorrection(wr, wz)
-    (ΔtS = c.ΔtS, rS = 0.0, zS = 0.0, ΔφS = c.ΔφS, UrS = 0.0, UzS = 0.0)
-end))
 
 sflux(oc) = let md = _spin_mode_correction(oc, 2, 2, 0, 0)
     (EI = real(md.dE1I), EH = real(md.dE1H), LI = real(md.dL1I), LH = real(md.dL1H))
@@ -50,7 +48,7 @@ Threads.@threads for i in eachindex(PS)
     try
         oc8 = KerrSpinOrbitCorrection(A, p, E, X, 8, 8)
         fe = sflux(oc8)
-        for (v, o) in ((:SG, zero_libration(oc8)),
+        for (v, o) in ((:SG, shifted_geodesic_correction(oc8)),
                        (:h4, KerrSpinOrbitCorrection(A, p, E, X, 4, 4)),
                        (:h6, KerrSpinOrbitCorrection(A, p, E, X, 6, 6)))
             fa = sflux(o)

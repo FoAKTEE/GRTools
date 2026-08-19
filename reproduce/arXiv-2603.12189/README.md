@@ -15,6 +15,13 @@ Not yet ported (legacy status recorded in
 figs. 8/9 are `(p, e)` grids the legacy analysis measured as infeasible (days of compute); fig. 2
 right, fig. 4, fig. 5 and fig. 6 are heavy drivers still to be written.
 
+## Promotion made for these drivers (one home, no duplicates)
+
+* `Spacetime.SpinningSecondary.shifted_geodesic_correction` — commit `dd4965d`. The
+  shifted-geodesic trajectory (the orbit correction with its libration zeroed) was defined inline
+  in `repro_fig4_E1.jl` and `repro_fig7.jl`; it now has one package home with its own testset, and
+  swapping `fig07.jl` onto it reproduces the golden bitwise.
+
 ## What the drivers reproduce
 
 * **fig. 3** — the EXACT `(2,2,n,0)` linear-in-spin flux corrections versus the radial harmonic

@@ -10,8 +10,8 @@
 # the full-tensor entry point is a different spin contraction and does not limit to it.
 #
 # HEAVY, NO GOLDEN YET. 3570 spherical analytical modes (15 (p, I) points x 238 modes) whose MST
-# radial sums are slow at p = 15 with |k| <= 8: MEASURED > 67 min at -t4 without completing (one
-# straggler job still running when this migration ended), against a 30 min per-driver budget. The
+# radial sums are slow at p = 15 with |k| <= 8: MEASURED 4716 s (79 min) at -t4 with one straggler
+# job still running when it was killed, against a 30 min per-driver budget. The
 # driver is complete and was NOT run to completion, so there is no golden: --check exits 3 (HOLE)
 # rather than fabricating one. Generate it with `--regen --tier heavy` when the budget allows.
 #
@@ -25,7 +25,7 @@ ReproHarness.setup!()
 ReproHarness.require_tier(opts, :heavy)
 
 if opts.mode === :check && !isfile(ReproHarness.expected_path("2303.16798", "fig_comparison_spherical"))
-    ReproHarness.hole("no golden yet — the 3570-mode O(I^2) scan measured > 67 min at -t4 without " *
+    ReproHarness.hole("no golden yet — the 3570-mode O(I^2) scan measured 79 min at -t4 without " *
                       "completing; generate it with `--regen --tier heavy` (MANIFEST status: future)")
 end
 

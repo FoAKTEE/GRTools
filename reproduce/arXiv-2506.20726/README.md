@@ -39,10 +39,13 @@ driver or the waveform/LISA pipeline.
    The difference is smallest at the largest step and blows up as h shrinks — the signature of the
    FD second difference losing digits to cancellation, with the closed form sitting at the h → 0
    limit. So this is the legacy step error, not a disagreement about the ISSO.
-2. **The legacy root-finder is unusable in the Schwarzschild limit** — at a ≤ 1e-3 its radius lands
-   ~7e-6 *inside* the true ISSO, and the legacy `KerrGeoFrequencies` then hits `sqrt(<0)`. The
-   `check_isso_spin_shift` limit (−√(8/3)) is therefore reachable with `kerr_isso` and not with the
-   legacy in-script bisection.
+2. **The legacy root-finder degrades in the Schwarzschild limit.** Measured error of the legacy
+   FD radius against the exact `r_ISSO(a→0) = 6`: 3.3e-3 (a = 1e-3), 3.3e-4 (1e-4), 2.3e-5 (1e-5)
+   and −4.3e-6 (1e-6, i.e. it now overshoots) — the FD bias no longer shrinks like a², it is
+   round-off. At (a = 1e-4, x = 1) the resulting radius drives the legacy `KerrGeoFrequencies` into
+   `sqrt(<0)` and the legacy δr throws a `DomainError`, so the legacy path cannot produce that point
+   of the −√(8/3) limit at all. With `kerr_isso` the whole sequence is smooth and reaches
+   −√(8/3) to 1.4e-7.
 3. **Everything else is BITWISE identical to the legacy packages** (max rel = 0.0): `δJ_r` over the
    4 × 40 published (orbit, e) points, the `(rS, zS)` trajectory correction over all 400 `w_z`
    points, and `δr_ISSO` at the sampled x = −1, ≈0, +1 for all three spins when evaluated at the

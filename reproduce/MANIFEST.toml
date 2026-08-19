@@ -365,7 +365,7 @@ tier = "heavy"
 expected = "arXiv-2303.16798/expected/fig_comparison_spherical.json"
 depends = ["Perturbation", "Spacetime"]
 status = "future"
-notes = "fig:comparison_spherical - the O(I^2) convergence of the spherical linear-in-spin total flux to the equatorial circular flux at p = 5, 10, 15. The driver is complete but was NOT run to completion in this migration: 3570 spherical analytical modes whose MST radial sums are slow at p=15 with |k|<=8, MEASURED > 67 min at -t4 without finishing against a 30 min per-driver budget. There is therefore NO golden and --check exits 3 (HOLE) rather than fabricating one. Generate with --regen --tier heavy."
+notes = "fig:comparison_spherical - the O(I^2) convergence of the spherical linear-in-spin total flux to the equatorial circular flux at p = 5, 10, 15. The driver is complete but was NOT run to completion in this migration: 3570 spherical analytical modes whose MST radial sums are slow at p=15 with |k|<=8, MEASURED 79 min at -t4 (4716 s, killed while still running) without finishing against a 30 min per-driver budget. There is therefore NO golden and --check exits 3 (HOLE) rather than fabricating one. Generate with --regen --tier heavy."
 
 [[result]]
 paper = "2603.12189"
