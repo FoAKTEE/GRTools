@@ -25,6 +25,7 @@ using Spacetime
     include("test_kerr_equatorial_potentials.jl")   # EGD: Page–Thorne (ν,ψ,μ,ω̃) + d/dr + circular dt/dτ
     include("test_pn_kinematics.jl")
     include("test_spinning_secondary.jl")
+    include("test_spinning_actions.jl")   # linear-in-spin action parts + J/pex gauge transforms
     include("test_spinning_forces.jl")
     include("test_npghp.jl")            # NPGHP campaign Move B: G-B1..G-B5 (spin coeffs + {p,q} + HPHC chart)
 end

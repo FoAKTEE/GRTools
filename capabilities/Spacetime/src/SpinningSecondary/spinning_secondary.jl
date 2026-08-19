@@ -28,15 +28,21 @@ module SpinningSecondary
 
 using LinearAlgebra: pinv, norm     # M-matrix least-squares solve in the numeric correction engine
 
+using NumericsCore: ellipK, ellipE, ellipPi, RD    # action-Jacobian elliptic layer (Mathematica m=k²)
+
 using ..Spacetime: constants_of_motion, geodesic_energy, geodesic_angular_momentum, carter_constant,
                    kerr_frequencies, proper_frequency_factor, geodesic_trajectory_equatorial,
-                   geodesic_trajectory_radial, geodesic_trajectory_polar
+                   geodesic_trajectory_radial, geodesic_trajectory_polar, radial_roots
 
 export spin_linear_constants, spin_linear_frequencies, spin_mino_time_correction,
+       spin_linear_orbital_params,
+       spin_linear_actions, spin_actions_pex, spin_frequencies_action_gauge,
+       spin_action_jacobian, spin_frequency_jacobian, spin_orbital_params_jacobian,
        spin_orbit, spin_orbit_equatorial,
        spin_orbit_correction, spin_orbit_numeric
 
 include("linear_parts.jl")
+include("action_parts.jl")        # linear-in-spin action parts + the J / pex gauge transforms
 include("spin_deviations.jl")     # spin-curvature worldline deviations δt3/δr3/δz3/δφ3
 include("numeric_correction.jl")  # 47 force terms + Darwin-angle maps + 2-torus DFT + M-matrix solve
 include("orbit_correction.jl")    # 11 _oc_* helpers + spin_orbit_correction/_numeric assembly
