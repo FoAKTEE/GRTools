@@ -1,0 +1,27 @@
+# FIXTURES.toml — baked-fixture provenance ledger for capabilities/Hybrid
+# GRR::g2-fixture-capture-scripts / GRR::g14-oracle-scripts (repro-audit gaps G2, G13, G14).
+# Generated 2026-08-19; see docs/src/topics/fixtures.md for the status vocabulary and the repo-wide roll-up.
+#
+# status:
+#   regenerated-identical  capture re-run on 2026-08-19; fixture data bit-identical (only capture-date/
+#                          host comment lines may differ)
+#   reverified-identical   a NEW key-driven regenerator re-evaluated the oracle at every baked key
+#   tracked-generator      an in-tree generator/regenerator already existed
+#   tracked-notrerunnable  capture now tracked, but the oracle STATE it captured no longer exists
+#   tracked-notrerun       capture now tracked; re-run deferred (cost/corpus) [FUTURE]
+#   hole-script-lost       no capture script anywhere; values frozen [HOLE]
+#   upstream-copy          vendored upstream data; no generator applies
+#   shared-input           generator INPUT shared verbatim between capture and test
+
+package = "capabilities/Hybrid"
+generated = "2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/wasabi/README.md (covers the 23-file wasabi tree)"
+sha256 = "4f2b3a004d5089e69af9309735e7cc41485c7a429715daed61c4d01f4bc45689"
+bytes = 2499
+capture = ""
+oracle = "upstream WaSABI repository (AmplitudeModels + InspiralModels + sf data)"
+oracle_commit = "5a76f6f"
+status = "upstream-copy"
+note = "23 files; README.md in the same directory records the source repo URL, the upstream commit, the capture date and a cmp-verified copy check — the best data-provenance record in the repo"
