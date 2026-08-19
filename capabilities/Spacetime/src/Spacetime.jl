@@ -72,6 +72,12 @@ export kepler_omega, r0_of_omega, pn_x, kepler_Ω, r0_of_Ω
 include("Geodesics/circular_kinematics.jl")
 export kerr_circular_ut_uphi, kerr_varphi_offset, kerr_varphi_offset_dr
 
+# Page–Thorne-form potentials (ν, ψ, μ, ω̃) of the Kerr EQUATORIAL line element + analytic
+# r-derivatives + the named circular dt/dτ accessor (EGD spiral-wave pipeline, arXiv:2608.17003
+# eq (4) + A1a–e, main.tex:673). Over delta_kerr / kerr_circular_ut_uphi. Additive.
+include("Geometry/equatorial_potentials.jl")
+export kerr_equatorial_potentials, kerr_equatorial_potentials_dr, kerr_circular_dtdtau
+
 # Linear-in-spin secondary corrections, namespaced `Spacetime.SpinningSecondary.*` to avoid the
 # root-package `SpinningOrbit` module-name collision (design §4.1). Not re-exported to top level.
 include("SpinningSecondary/spinning_secondary.jl")
