@@ -1,0 +1,27 @@
+# Test-only environment for `Wigner` (repro-audit G8). Pkg prefers this over the package's
+# [extras]/[targets] when it exists, and — together with the committed `test/Manifest.toml` —
+# it PINS the test closure exactly, so a green suite here is reproducible on another machine
+# instead of resolving whatever the registry offers that day.
+#
+# WignerSymbols is TEST-ONLY by design: the 3j/6j/CG/Wigner-D machinery is hand-rolled, so the
+# runtime package carries no WignerSymbols dependency (design §7.4 / L4) — it appears here only
+# as the characterization oracle.
+[deps]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+WignerSymbols = "9f57e263-0b3d-5e2e-b1be-24f2bb48858b"
+TestKit = "a6b7dd63-3a78-412f-8db2-e0e7b8b9a65d"
+Data = "2e9be357-8831-4976-ad1c-c30f98102c3a"
+NumericsCore = "54f76139-0f7a-42ab-9084-b9cc78b29132"
+
+# Paths are relative to THIS file (core/Wigner/test/).
+[sources]
+TestKit = {path = "../../TestKit"}
+Data = {path = "../../Data"}
+NumericsCore = {path = "../../NumericsCore"}
+
+[compat]
+Data = "0.1"
+NumericsCore = "0.1"
+TestKit = "0.1"
+WignerSymbols = "2"
+julia = "1.10"

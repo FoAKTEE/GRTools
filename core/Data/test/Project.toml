@@ -1,0 +1,32 @@
+# Test-only environment for `Data` (repro-audit G8). Pkg prefers this over the package's
+# [extras]/[targets] when it exists, and — together with the committed `test/Manifest.toml` —
+# it PINS the test closure exactly, so the suite resolves offline to the SAME versions on any
+# machine instead of taking whatever the registry offers that day.
+#
+# The test FILES load `DelimitedFiles`/`Artifacts` by name (they cross-check Data's readers against
+# raw `readdlm` and the artifact resolver), so both are declared here: with a test/Project.toml the
+# environment is exactly this file plus the package under test, NOT the package's own [deps].
+# HDF5/JLD2 are LIVE test deps on purpose: declaring them here is what fires Data's weakdep
+# extensions (DataHDF5Ext / DataJLD2Ext) under test. `Pkg` powers the artifact-path gate.
+[deps]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+Artifacts = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
+DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
+HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
+JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
+TestKit = "a6b7dd63-3a78-412f-8db2-e0e7b8b9a65d"
+NumericsCore = "54f76139-0f7a-42ab-9084-b9cc78b29132"
+
+# Paths are relative to THIS file (core/Data/test/).
+[sources]
+TestKit = {path = "../../TestKit"}
+NumericsCore = {path = "../../NumericsCore"}
+
+[compat]
+DelimitedFiles = "1"
+HDF5 = "0.17"
+JLD2 = "0.6"
+NumericsCore = "0.1"
+TestKit = "0.1"
+julia = "1.10"

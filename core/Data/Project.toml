@@ -26,9 +26,11 @@ NumericsCore = {path = "../NumericsCore"}
 TestKit = {path = "../TestKit"}
 
 [compat]
+# test-only extras are pinned here as well as in test/Project.toml (the fallback path).
 HDF5 = "0.17"
 JLD2 = "0.6"
 NumericsCore = "0.1"
+TestKit = "0.1"
 julia = "1.10"
 
 # Test characterization grounds the HDF5/JLD2 reader-writer bodies via ROUND-TRIP (write a schema
