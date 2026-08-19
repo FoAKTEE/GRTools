@@ -46,6 +46,7 @@ Runtime-HDF5-free.
 | `Resonances.jl` | `lindblad_residual`, `corotation_residual`, `wronskian`, `lindblad_locations` |
 | `ReducedODE.jl` | `A_m`, `B_m_corotation`, `B_m_wkb`, `B_m_full`, `corotation_exponent`, `dispersion`, `reduced_operator` (``D = \kappa^2 - \tilde\omega^2``) |
 | `Forcing.jl` | `lindblad_torque`, `forcing_Fm` (``\mathfrak{F}_m``), `laplace_b` |
+| `PressurelessLindblad.jl` | the CLOSED-FORM pressureless Kerr Lindblad torque of arXiv:2510.03564 (the comparison baseline of arXiv:2608.17003 Fig. 9): `hkr_shear_argument` (``X``), `hkr_b0`/`hkr_b1`/`hkr_b2`, `hkr_lindblad_power_quadratic`/`_linear` (Eqs. 18a/18b), `hkr_lindblad_torque_rate` (Eq. 20), `hkr_lindblad_torque_mode`/`hkr_lindblad_torque` (2608 Eqs. 77/78), `hkr_mode_cutoff`/`hkr_mode_cutoff_powerlaw`/`HKR_M45_COEFFICIENT` (2608 Eqs. 79/80, 2510 Eq. 23), `hkr_torque_reversal_criterion`/`hkr_torque_reversal_radius` (``\mathcal{G}_1``, Eq. 25), and the `PowerLawSigma` surface-density profile. Distinct from the `Forcing.jl` Hirata GW-overlap kernel and the `ThinDisc.jl` mode-sum: different model, different evidence chain, `hkr_`-prefixed names. ``K_{0,1}`` comes from `SpecialFunctions` and is injectable (no BigFloat `besselk`). |
 
 ### `Force` — circular-equatorial Kerr thin-disc torque front-end (from legacy `DiscEMRIForce`)
 
