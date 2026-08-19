@@ -17,8 +17,11 @@ dependency ORDER and is uncommented as each node lands — no stub is shipped ah
     #                            #      system dy/dr = C y + S, y = (δÛ, −iδû^r) (47) — relativistic C, S
     #                            #      GENERATED from the supplementary notebook (master_generated.jl, route
     #                            #      R1), Newtonian (50a-g), Landau shift (62-63), dΩ/dr; over background + grid
-    # include("source.jl")       # EGD: the EMRI potential Φ_m source — s₀² approximation
-    #                            #      (appendix.tex Sec. ssq-expr), softening ε, worldline v^μ
+    # include("source.jl")       # EGD::sw-singular-source LANDED (v0.5.0): the singular field h_μν (52) of
+    #                            #      the circular EMRI worldline (53)-(55), s0² (58)/(B1), softening (59),
+    #                            #      cosine Fourier modes (60) + analytic ∂_r by the periodic trapezoid
+    #                            #      rule (node count from the analytic strip), covariant + contravariant,
+    #                            #      grid-vectorised `source_modes`; over background
     # include("grid.jl")         # EGD::sw-grid LANDED (v0.3.0): adaptive radial grid (App. C) — r_c (61),
     #                            #      sinh corotation block (C4-5), WKB k (C2,C6), Δr_WKB/smoothMin (C7-10),
     #                            #      cubic-spline node placement, per-mode domain (C1-3); NumericsCore
@@ -48,9 +51,9 @@ const PAPER = "arXiv:2608.17003"
     sw_version() -> VersionNumber
 
 Version of the `SpiralWaves` submodule API (bumped as DAG nodes land; `v"0.1.0"` = scaffold,
-`v"0.2.0"` = background, `v"0.3.0"` = grid, `v"0.4.0"` = master matrices).
+`v"0.2.0"` = background, `v"0.3.0"` = grid, `v"0.4.0"` = master matrices, `v"0.5.0"` = singular source).
 """
-sw_version() = v"0.4.0"
+sw_version() = v"0.5.0"
 
 # ---- EGD::sw-background — disc equilibrium (Sec. II.A) -------------------------------------------
 include("background.jl")
@@ -70,5 +73,12 @@ export wkb_wavenumber, wkb_wavenumber2, wkb_wavenumber_floored, WKBRegion, wkb_r
 include("master.jl")
 export MasterInputs, master_inputs, master_matrices, master_matrices_newtonian, delta_u_phi_newtonian
 export landau_shift, dOmega_dr
+
+# ---- EGD::sw-singular-source — the EMRI singular field and its Fourier modes (Sec. II.D, App. B) -----
+# (depends on background.jl only: softening_length, Omega_emri; the modes feed master_inputs(; hmodes))
+include("source.jl")
+export SingularFieldCoeffs, singular_field_coeffs, worldline_velocity, s0_squared, s0_squared_dr
+export singular_field, singular_field_mode, source_modes, source_modes!, raise_modes
+export strip_halfwidth, trapezoid_nodes
 
 end # module SpiralWaves

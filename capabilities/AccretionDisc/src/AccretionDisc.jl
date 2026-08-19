@@ -78,6 +78,12 @@ using .SpiralWaves: MasterInputs, master_inputs, master_matrices, master_matrice
 using .SpiralWaves: landau_shift, dOmega_dr
 export MasterInputs, master_inputs, master_matrices, master_matrices_newtonian, delta_u_phi_newtonian
 export landau_shift, dOmega_dr
+using .SpiralWaves: SingularFieldCoeffs, singular_field_coeffs, worldline_velocity, s0_squared, s0_squared_dr
+using .SpiralWaves: singular_field, singular_field_mode, source_modes, source_modes!, raise_modes
+using .SpiralWaves: strip_halfwidth, trapezoid_nodes
+export SingularFieldCoeffs, singular_field_coeffs, worldline_velocity, s0_squared, s0_squared_dr
+export singular_field, singular_field_mode, source_modes, source_modes!, raise_modes
+export strip_halfwidth, trapezoid_nodes
 
 export Modes, Force, SpiralWaves
 
