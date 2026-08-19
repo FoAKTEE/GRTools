@@ -344,3 +344,36 @@ expected = "arXiv-2603.12189/expected/fig03.json"
 depends = ["Perturbation", "Spacetime"]
 status = "solid"
 notes = "fig:fluxcomparen - the EXACT linear-in-spin flux corrections of the (2,2,n,0) modes vs n = 1..11 against the SHIFTED-GEODESIC approximation, four channels, at a=0.9, p=12, e=0.2, x=sqrt(3)/2. SG tracks the exact correction to 5.0e-5 / 7.7e-6 / 5.2e-5 / 7.7e-6 at n=1 and deviates to 5.1% / 6.4% / 5.1% / 6.4% at n=11 - the published message. VLM comparison of fig03.png against the legacy fig3.png: SAME. 124 s at -t4."
+
+[[result]]
+paper = "2303.16798"
+id = "fig_error_eccentric"
+kind = "figure"
+script = "arXiv-2303.16798/fig_error_eccentric.jl"
+tier = "fast"
+expected = "arXiv-2303.16798/expected/fig_error_eccentric.json"
+depends = ["Perturbation", "Spacetime"]
+status = "solid"
+notes = "fig:comparison_generic panels error_eccentric_l2m2 and _l5m4 - the per-mode relative difference |1 - F(I)/F(0)| vs inclination for n = 0..4, k = 0 at a=0.9, p=12, e=0.3. Published O(I^2) message reproduced exactly: log-log slopes 1.9957-1.9967 (l2m2) and 1.9615-1.9788 (l5m4). Uses the omega-derivative step h=1e-5 (not the 3e-4 default, which floors these 1e-5..1e-4 differences). KNOWN GAP carried from the legacy reproduction: the published panels spread the n-curves over ~22x, the validated flux gives 1.42x (l2m2) / 1.49x (l5m4); the inclined per-mode flux is oracle-matched against the BHPToolkit Mathematica source at (2,2,0,0) and (2,2,1,0), so the spread is an undocumented per-n figure-construction step, not the flux. 220 s at -t4."
+
+[[result]]
+paper = "2303.16798"
+id = "fig_comparison_spherical"
+kind = "figure"
+script = "arXiv-2303.16798/fig_comparison_spherical.jl"
+tier = "heavy"
+expected = "arXiv-2303.16798/expected/fig_comparison_spherical.json"
+depends = ["Perturbation", "Spacetime"]
+status = "future"
+notes = "fig:comparison_spherical - the O(I^2) convergence of the spherical linear-in-spin total flux to the equatorial circular flux at p = 5, 10, 15. The driver is complete but was NOT run to completion in this migration: 3570 spherical analytical modes whose MST radial sums are slow at p=15 with |k|<=8, MEASURED > 67 min at -t4 without finishing against a 30 min per-driver budget. There is therefore NO golden and --check exits 3 (HOLE) rather than fabricating one. Generate with --regen --tier heavy."
+
+[[result]]
+paper = "2603.12189"
+id = "fig07"
+kind = "figure"
+script = "arXiv-2603.12189/fig07.jl"
+tier = "fast"
+expected = "arXiv-2603.12189/expected/fig07.json"
+depends = ["Perturbation", "Spacetime"]
+status = "solid"
+notes = "fig:comparepvalues_leadingharmonics - the error of three approximate spinning trajectories (shifted geodesic; the orbit correction truncated at n^s=k^s=4 and 6) against the exact n^s=k^s=8 trajectory, for the (2,2,0,0) mode over p in [6,15], in four flux channels. The published ordering SG > n^s=4 > n^s=6 holds at 19/19 points in all four channels. At p=6 the E-infinity errors are 1.92e-6 / 3.24e-10 / 4.79e-13. 206 s at -t4."

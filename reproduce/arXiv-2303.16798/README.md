@@ -13,8 +13,8 @@ testset `emri-disk/packages/TeukolskySpinFluxes/test/runtests.jl:731-760` (both 
 | Table III (`tab:generic`), 24 rows | `check_tableIII.jl` | `tableIII` | fast | solid | 94 s |
 | `fig:fourier_coefficients` | `fig_fourier_coefficients.jl` | `fig_fourier_coefficients` | fast | solid | 47 s |
 | `fig:fluxes_spherical` (FSl{1,2,3}0k) | `fig_FSl0k_spherical.jl` | `fig_FSl0k_spherical` | fast | solid | 82 s |
-| `fig:comparison_spherical` | `fig_comparison_spherical.jl` | `fig_comparison_spherical` | heavy | see below | — |
-| `fig:comparison_generic` (error_eccentric ×2) | `fig_error_eccentric.jl` | `fig_error_eccentric` | heavy | see below | — |
+| `fig:comparison_spherical` | `fig_comparison_spherical.jl` | `fig_comparison_spherical` | heavy | **future** (no golden) | > 67 min, not completed |
+| `fig:comparison_generic` (error_eccentric ×2) | `fig_error_eccentric.jl` | `fig_error_eccentric` | fast | solid | 220 s |
 
 The three published tables also live as a GrTools test file,
 `capabilities/Perturbation/test/test_published_tables_2303_16798.jl` (commit `8bb3a57`), so the
@@ -61,6 +61,16 @@ port discrepancy.
   the per-l argmax in 6/8, 7/8 and 8/8 of the l-columns. A VLM comparison of the regenerated
   `FSl20k.png` against the legacy render finds them indistinguishable (same `TemperatureMap`
   colorbar, same peak cell, same warm ridge, same deep-blue lobes).
+* **`fig:comparison_generic` (error_eccentric).** The O(I²) message reproduces exactly: log-log
+  slopes 1.9957–1.9967 (l = 2, m = 2) and 1.9615–1.9788 (l = 5, m = 4) over I = 0.5°…8°. **Known
+  gap, carried unchanged from the legacy reproduction:** the published panels spread the five
+  n-curves over ≈ 22×, whereas the validated flux gives 1.42× (l2m2) and 1.49× (l5m4). The inclined
+  per-mode flux is oracle-matched against the BHPToolkit Mathematica source at (2,2,0,0) and
+  (2,2,1,0), so the spread comes from an undocumented per-n figure-construction step, not from the
+  flux; it is registered as the measured `per_n_spread_at_8deg_*` rather than reproduced.
+* **`fig:comparison_spherical`.** Driver complete, **not run to completion**: the 3570-mode scan
+  measured > 67 min at −t4 (the MST radial sums are slow at p = 15 with |k| ≤ 8) against a 30-minute
+  per-driver budget. It has no golden and `--check` exits 3 (HOLE); status `future` in the manifest.
 * **`fig:fourier_coefficients`.** Peak at n = ±1 ∝ e (residual 1.5e-3) and the truncation floor
   reproduce; only the e = 0.6 floor (4.5e-12) is resolvable in Float64. The e = 0.2 / 0.4 floors sit
   at 1.7e4–3.3e6 × ε·peak — the conditioning floor of the Float64 least-squares solve — whereas the

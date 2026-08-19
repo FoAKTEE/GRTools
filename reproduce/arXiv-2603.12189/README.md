@@ -6,7 +6,7 @@ Legacy sources: `emri-disk/results/gw-flux/figures/2603.12189/repro_*.jl` (read-
 | published object | driver | result id | tier | status | wall (-t4) | vs legacy |
 |---|---|---|---|---|---|---|
 | fig. 3 `fig:fluxcomparen` | `fig03.jl` | `fig03` | fast | solid | 124 s | VLM: SAME |
-| fig. 7 `fig:comparepvalues_leadingharmonics` | `fig07.jl` | `fig07` | heavy | see MANIFEST | — | — |
+| fig. 7 `fig:comparepvalues_leadingharmonics` | `fig07.jl` | `fig07` | fast | solid | 206 s | — |
 
 `[N/A]`: fig. 1a–e are schematic cartoons with no data.
 `[FUTURE]`: figs. 11 and 12 (inspiral dephasing) need the un-ported 0PA driver.
@@ -29,4 +29,6 @@ right, fig. 4, fig. 5 and fig. 6 are heavy drivers still to be written.
 * **fig. 7** — the error of three approximate spinning trajectories (shifted geodesic, and the
   orbit correction truncated at n^s = k^s = 4 and 6) against the exact n^s = k^s = 8 trajectory,
   for the single (2,2,0,0) mode over p ∈ [6, 15]. The driver registers, per point, whether the
-  published ordering SG > n^s=4 > n^s=6 holds.
+  published ordering SG > n^s=4 > n^s=6 holds: it does, at **19/19 points in all four channels**.
+  At p = 6 the E-at-infinity errors are 1.92e-6 (SG), 3.24e-10 (n^s=4) and 4.79e-13 (n^s=6) — three
+  to four decades per added harmonic pair.

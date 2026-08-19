@@ -22,7 +22,7 @@ using .ReproHarness
 
 opts = ReproHarness.parse_args()
 ReproHarness.setup!()
-ReproHarness.require_tier(opts, :heavy)
+ReproHarness.require_tier(opts, :fast)
 
 using GrTools
 using GrTools.Perturbation: KerrSpinOrbitCorrection, _spin_mode_correction
