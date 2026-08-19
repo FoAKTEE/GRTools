@@ -42,6 +42,7 @@ row per tracked artifact:
 |---|---|
 | `regenerated-identical` | the capture was re-run on 2026-08-19 and the fixture data came back bit-identical (only capture-date/host comment lines may differ) |
 | `reverified-identical` | the original capture is lost, but a **new key-driven regenerator** re-evaluated the oracle at every baked key and every value matched exactly |
+| `reverified-tolerance` | same, but the re-evaluation matched only *within the fixture's own test tolerance* — the last-bit deviation and its bound are recorded in the row's `note`, and the fixture was **not** refreshed |
 | `tracked-generator` | an in-tree generator or regenerator already existed before this pass |
 | `tracked-notrerunnable` | the capture script is now tracked, but the oracle *state* it captured no longer exists (it was a pre-refactor snapshot); re-running is impossible **by construction** |
 | `tracked-notrerun` | the capture script is now tracked; the re-run was deferred (cost or missing corpus) — a `[FUTURE]` obligation |
@@ -82,28 +83,30 @@ the fixture, and investigate which side moved.
 
 ## Roll-up (2026-08-19)
 
-| package | rows | regen-identical | reverified-identical | tracked-generator | tracked-notrerun | tracked-notrerunnable | hole-script-lost | upstream-copy | shared-input |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `capabilities/AccretionDisc` | 5 | 5 | – | – | – | – | – | – | – |
-| `capabilities/EMRIWaveforms` | 2 | – | – | – | – | 1 | 1 | – | – |
-| `capabilities/Harmonics` | 6 | 1 | 1 | – | – | – | 4 | – | – |
-| `capabilities/Hybrid` | 1 | – | – | – | – | – | – | 1 | – |
-| `capabilities/MetricReconstruction` | 2 | 1 | – | – | – | – | 1 | – | – |
-| `capabilities/ModifiedGravity` | 3 | – | – | – | – | – | – | 3 | – |
-| `capabilities/Perturbation` | 28 | 3 | – | 3 | 8 | – | 14 | – | – |
-| `capabilities/PostNewtonian` | 1 | – | – | 1 | – | – | – | – | – |
-| `capabilities/ScalarSelfForce` | 11 | – | – | 10 | – | – | – | 1 | – |
-| `capabilities/SelfForce` | 35 | 7 | – | – | 2 | – | 13 | 13 | – |
-| `capabilities/Spacetime` | 7 | 2 | – | – | – | – | 4 | 1 | – |
-| `core/BigSpecial` | 1 | – | – | – | – | – | 1 | – | – |
-| `core/Data` | 1 | – | – | – | – | 1 | – | – | – |
-| `core/Kernels` | 5 | 1 | – | 1 | – | 2 | – | – | 1 |
-| `core/NumericsCore` | 4 | 2 | 2 | – | – | – | – | – | – |
-| `core/Wigner` | 1 | – | – | – | – | – | 1 | – | – |
-| **total** | **113** | **22** | **3** | **15** | **10** | **4** | **39** | **19** | **1** |
+| package | rows | regen-identical | reverified-identical | reverified-tolerance | tracked-generator | tracked-notrerun | tracked-notrerunnable | hole-script-lost | upstream-copy | shared-input |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `capabilities/AccretionDisc` | 5 | 5 | – | – | – | – | – | – | – | – |
+| `capabilities/EMRIWaveforms` | 2 | – | – | – | – | – | 1 | 1 | – | – |
+| `capabilities/Harmonics` | 6 | 1 | 1 | – | – | – | – | 4 | – | – |
+| `capabilities/Hybrid` | 1 | – | – | – | – | – | – | – | 1 | – |
+| `capabilities/MetricReconstruction` | 2 | 1 | – | – | – | – | – | 1 | – | – |
+| `capabilities/ModifiedGravity` | 3 | – | – | – | – | – | – | – | 3 | – |
+| `capabilities/Perturbation` | 28 | 10 | 3 | 1 | 3 | 1 | – | 10 | – | – |
+| `capabilities/PostNewtonian` | 1 | – | – | – | 1 | – | – | – | – | – |
+| `capabilities/ScalarSelfForce` | 11 | – | – | – | 10 | – | – | – | 1 | – |
+| `capabilities/SelfForce` | 35 | 7 | – | – | – | 2 | – | 13 | 13 | – |
+| `capabilities/Spacetime` | 7 | 2 | – | – | – | – | – | 4 | 1 | – |
+| `core/BigSpecial` | 1 | – | – | – | – | – | – | 1 | – | – |
+| `core/Data` | 1 | – | – | – | – | – | 1 | – | – | – |
+| `core/Kernels` | 5 | 1 | – | – | 1 | – | 2 | – | – | 1 |
+| `core/NumericsCore` | 4 | 2 | 2 | – | – | – | – | – | – | – |
+| `core/Wigner` | 1 | – | – | – | – | – | – | 1 | – | – |
+| **total** | **113** | **29** | **6** | **1** | **15** | **3** | **4** | **35** | **19** | **1** |
 
-25 fixture groups were re-derived from their oracle in this pass and **every one came back
-bit-identical** — nothing verified here has drifted from the oracle it claims. Concretely:
+36 fixture rows have been re-derived from their oracle, and **35 of them came back
+bit-identical** — nothing bit-verified here has drifted from the oracle it claims. The single
+exception (`leg_amplitudes.jl`, below) agrees to `5.7e-15` relative, three to eight orders inside
+the tolerance its own tests assert. Concretely:
 
 * `dg_lgl_ref.jl`, `numericscore_fd_uniform_ref.jl`, `sphere_collocation_ref.jl`,
   `npghp_np0_fixture.jl`, `td_hphc_recon_upstream.jl` — byte-identical files;
@@ -120,6 +123,28 @@ bit-identical** — nothing verified here has drifted from the oracle it claims.
   the test bodies;
 * six of the eight `SelfForce` `h1lorenz/h1-l*.h5` modes (`l0m0, l1m0, l1m1, l2m0, l2m1, l2m2`) —
   every dataset and attribute equal; the two `l = 3` modes exceeded the re-run budget.
+* the six `Perturbation` `td_*.jl` DG time-domain fixtures — byte-identical; the whole
+  `capture_td_dg.jl` script (six fixtures, `tf ≈ 1000` evolutions) re-runs in **3 m 59 s**, so the
+  earlier cost deferral was an unmeasured estimate;
+* `td_hphc_upstream.jl` — both halves: `bake_hphc_coeffs.jl` reproduced the `HPHC_COEFF` block
+  byte-for-byte, and `run.jl` (600-step evolution, 3.4 s) + `build_fixture.jl` reproduced the
+  intermediate `te_evolution_fixture.txt` byte-for-byte, with all 320 baked `HPHC_EVO` values
+  bitwise equal;
+* `leg_flux.jl` — the new `capture/regen_leg_flux.jl` reads the baked keys plus the
+  `(λ, Z^∞, Z^H)` sample list out of `test_fluxes.jl` and re-evaluates legacy
+  `Teukolsky.energy_flux` / `angular_momentum_flux`: 24 literals, 0 differing;
+* `leg_scattering.jl` — `capture/regen_leg_scattering.jl` re-evaluates legacy
+  `ScatteringPhaseMST.starobinsky_constant` / `_brefl_over_binc` / `mst_coefficient` /
+  `scattering_phase_numerical` at every baked key: 23 literals across four tables, 0 differing;
+* `leg_pointparticle.jl` — `capture/regen_leg_pointparticle.jl` rebuilds all twelve baked modes from the
+  legacy `TeukolskyPointParticleMode{Circular,Eccentric,Spherical,Generic}` constructors: 80 literals,
+  0 differing;
+* `leg_amplitudes.jl` — the new `capture/regen_leg_amplitudes.jl` re-evaluates legacy
+  `TeukolskyRadial` + `_mst_amplitudes` at all 74 baked literals: 65 bitwise identical, 9 differing
+  in the last bits (worst relative deviation `5.72e-15`, versus the `rtol 1e-7` / `1e-10` the tests
+  assert). Two runs give byte-identical output, so this is legacy-environment drift since the July
+  capture, not nondeterminism; the exact cause is **not** identified and the fixture was not
+  refreshed.
 
 One mapping error was caught by the re-run and is worth recording, because a careless refresh would
 have corrupted a fixture: `capture_h1.jl` originally wrote into `test/fixtures/h1/`, but that
@@ -130,9 +155,12 @@ against `h1/` shows a spurious structural mismatch (16 vs 24 rows, two extra dat
 
 ## The holes, stated plainly
 
-* **`hole-script-lost` (39 rows).** The largest groups are the twelve `Perturbation/leg_*.jl`
-  legacy-Teukolsky fixtures (headers say "regenerate via `scratchpad gen.jl`"; no such file exists
-  anywhere), the four remaining `Harmonics` spheroidal fixtures (`capture_swsh.jl`), the ten
+* **`hole-script-lost` (35 rows).** The largest groups are the eight remaining
+  `Perturbation/leg_*.jl` legacy-Teukolsky fixtures (headers say "regenerate via
+  `scratchpad gen.jl`"; no such file exists anywhere — four of the original twelve, `leg_flux.jl`,
+  `leg_amplitudes.jl`, `leg_scattering.jl` and `leg_pointparticle.jl`, now have new key-driven
+  regenerators), the four remaining `Harmonics`
+  spheroidal fixtures (`capture_swsh.jl`), the ten
   `SelfForce` `h1/` six-column corpus slices and the three `src_*.h5` source fixtures
   (`capture_ms.jl`), and the four `Spacetime` KerrGeodesics/SpinningOrbit reference tables. In every
   one of these the **oracle is still resolvable**, so each is a bounded regenerator task on the
@@ -143,11 +171,12 @@ against `h1/` shows a spurious structural mismatch (16 vs 24 rows, two extra dat
   `R2_COUPLING_SPEC`). Their scripts are tracked for the record, but they cannot be re-run: the
   code they measured is the code the change removed. `fdspa_ref.jl` is the happy exception — its
   front door still exists and delegates to the hoisted kernel, and the re-run matched exactly.
-* **`tracked-notrerun` (10 rows).** Scripts are now tracked; re-running them costs more than this
-  pass budgeted: the six `td_*` DG time-domain fixtures and `td_hphc_upstream.jl` need full
-  `tf ≈ 1000` / 600-step evolutions, the two `l = 3` `h1lorenz/` modes need long `H1Lorenz` solves
-  (measured: > 29 min for the first one, versus ~10 s each for `l ≤ 2`), and
-  `rt_coeffs_reference.jl` did not finish a 20-minute sympy `collect` over the full jet.
+* **`tracked-notrerun` (3 rows).** Scripts are now tracked; re-running them costs more than this
+  pass budgeted: the two `l = 3` `h1lorenz/` modes need long `H1Lorenz` solves (measured: > 29 min
+  for the first one, versus ~10 s each for `l ≤ 2`), and `rt_coeffs_reference.jl` did not finish a
+  20-minute (nor a second, 10-minute) sympy `collect` over the full jet. The `td_*` DG fixtures and
+  `td_hphc_upstream.jl` were in this class on the first pass on an *estimated* cost; measured, they
+  re-run in four minutes, and they are now `regenerated-identical`.
 
 ## Related pages
 

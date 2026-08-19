@@ -1,0 +1,299 @@
+# FIXTURES.toml — baked-fixture provenance ledger for capabilities/Perturbation
+# GRR::g2-fixture-capture-scripts / GRR::g14-oracle-scripts (repro-audit gaps G2, G13, G14).
+# Generated 2026-08-19; see docs/src/topics/fixtures.md for the status vocabulary and the repo-wide roll-up.
+#
+# status:
+#   regenerated-identical  capture re-run on 2026-08-19; fixture data bit-identical (only capture-date/
+#                          host comment lines may differ)
+#   reverified-identical   a NEW key-driven regenerator re-evaluated the oracle at every baked key
+#   reverified-tolerance   same, but the re-evaluation matched only WITHIN the fixture's own test
+#                          tolerance; the last-bit deviation and its bound are recorded in `note`
+#   tracked-generator      an in-tree generator/regenerator already existed
+#   tracked-notrerunnable  capture now tracked, but the oracle STATE it captured no longer exists
+#   tracked-notrerun       capture now tracked; re-run deferred (cost/corpus) [FUTURE]
+#   hole-script-lost       no capture script anywhere; values frozen [HOLE]
+#   upstream-copy          vendored upstream data; no generator applies
+#   shared-input           generator INPUT shared verbatim between capture and test
+
+package = "capabilities/Perturbation"
+generated = "2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/leg_amplitudes.jl"
+sha256 = "60fdc42ef951768d5850ba46f1797cb717dd80162ac623fb358bfa29d5334cd6"
+bytes = 4217
+capture = "test/fixtures/capture/regen_leg_amplitudes.jl (NEW key-driven regenerator; the original gen.jl is lost)"
+oracle = "legacy packages/Teukolsky (+ packages/TeukolskySpinFluxes for the flux tables) on the exact argument grids of the corresponding test_*.jl"
+oracle_commit = "e1fc76aa"
+status = "reverified-tolerance"
+note = "2026-08-19: NEW regenerator re-evaluates legacy packages/Teukolsky TeukolskyRadial + _mst_amplitudes at every baked key: 74 literals checked, 65 bitwise identical, 9 differ in the last bits (worst relative deviation 5.72e-15, on UpInc/UpRef of (-1,2,1,0.9,0.2) and (0,2,2,0.5,0.2)) - three to eight orders inside the fixture own test tolerances (rtol 1e-7 for REF_AMP1, 1e-10 for REF_AMP2). Run-to-run deterministic (two identical runs), so the residual is drift of the legacy environment since the July capture, not nondeterminism; the exact cause is NOT identified [HOLE]. No fixture value was overwritten"
+
+[[fixture]]
+file = "test/fixtures/leg_flux.jl"
+sha256 = "ba1d1fe90d576d4a1ccd4e58f20b9bce9b961d42e2bd46db5043150e8b660578"
+bytes = 1064
+capture = "test/fixtures/capture/regen_leg_flux.jl (NEW key-driven regenerator; the original gen.jl is lost)"
+oracle = "legacy packages/Teukolsky (+ packages/TeukolskySpinFluxes for the flux tables) on the exact argument grids of the corresponding test_*.jl"
+oracle_commit = "e1fc76aa"
+status = "reverified-identical"
+note = "2026-08-19: NEW regenerator reads the baked keys + the (lambda,ZI,ZH) sample list out of test/test_fluxes.jl and re-evaluates legacy packages/Teukolsky energy_flux/angular_momentum_flux at exactly those arguments: 24 literals checked, 0 differing, worst relative deviation 0.0"
+
+[[fixture]]
+file = "test/fixtures/leg_pointparticle.jl"
+sha256 = "9e08998cf3c07ada10ef73c82ebea9a2e74d61acd486666eddda4c63c933bd8d"
+bytes = 3147
+capture = "test/fixtures/capture/regen_leg_pointparticle.jl (NEW key-driven regenerator; the original gen.jl is lost)"
+oracle = "legacy packages/Teukolsky (+ packages/TeukolskySpinFluxes for the flux tables) on the exact argument grids of the corresponding test_*.jl"
+oracle_commit = "e1fc76aa"
+status = "reverified-identical"
+note = "2026-08-19: NEW regenerator rebuilds every baked mode from the legacy packages/Teukolsky constructors (Circular 6 modes x 9 fields, Eccentric 4 x 5, Spherical 3, Generic 3; the Spherical/Generic arguments come from test_pointparticle.jl:42,48): 80 literals checked, 0 differing, worst relative deviation 0.0"
+
+[[fixture]]
+file = "test/fixtures/leg_radial_heunc.jl"
+sha256 = "6b3002f16f176c4148436f121e27f009bd5288413c98f5548287d554401b9cd6"
+bytes = 3354
+capture = ""
+oracle = "legacy packages/Teukolsky (+ packages/TeukolskySpinFluxes for the flux tables) on the exact argument grids of the corresponding test_*.jl"
+oracle_commit = "e1fc76aa"
+status = "hole-script-lost"
+note = "every leg_*.jl header says 'regenerate via scratchpad gen.jl against the same legacy commit'; no file named gen.jl exists in emri-disk/scratchpad, in emri-disk git history, or in this tree. The oracle is still resolvable but the capture grids are only implicit in the test bodies (BigFloat/MST heavy) — a regenerator is a FUTURE item. Values frozen 2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/leg_radial_hypergeom.jl"
+sha256 = "bd6a1651fb4d14d990afd8ae4730d52058865fc16d4ca7194c06ea0c0ff23347"
+bytes = 20022
+capture = ""
+oracle = "legacy packages/Teukolsky (+ packages/TeukolskySpinFluxes for the flux tables) on the exact argument grids of the corresponding test_*.jl"
+oracle_commit = "e1fc76aa"
+status = "hole-script-lost"
+note = "every leg_*.jl header says 'regenerate via scratchpad gen.jl against the same legacy commit'; no file named gen.jl exists in emri-disk/scratchpad, in emri-disk git history, or in this tree. The oracle is still resolvable but the capture grids are only implicit in the test bodies (BigFloat/MST heavy) — a regenerator is a FUTURE item. Values frozen 2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/leg_radial_mst.jl"
+sha256 = "16e0464f99b083da3a93d70c68a5cf6da69562f2dc899a58bfe5b19d9ea5d075"
+bytes = 166534
+capture = ""
+oracle = "legacy packages/Teukolsky (+ packages/TeukolskySpinFluxes for the flux tables) on the exact argument grids of the corresponding test_*.jl"
+oracle_commit = "e1fc76aa"
+status = "hole-script-lost"
+note = "every leg_*.jl header says 'regenerate via scratchpad gen.jl against the same legacy commit'; no file named gen.jl exists in emri-disk/scratchpad, in emri-disk git history, or in this tree. The oracle is still resolvable but the capture grids are only implicit in the test bodies (BigFloat/MST heavy) — a regenerator is a FUTURE item. Values frozen 2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/leg_radial_radial.jl"
+sha256 = "19fa2f62b711457403577b03f38046af40b24d29ef8d8522e6d5c50d7d5c4186"
+bytes = 4523
+capture = ""
+oracle = "legacy packages/Teukolsky (+ packages/TeukolskySpinFluxes for the flux tables) on the exact argument grids of the corresponding test_*.jl"
+oracle_commit = "e1fc76aa"
+status = "hole-script-lost"
+note = "every leg_*.jl header says 'regenerate via scratchpad gen.jl against the same legacy commit'; no file named gen.jl exists in emri-disk/scratchpad, in emri-disk git history, or in this tree. The oracle is still resolvable but the capture grids are only implicit in the test bodies (BigFloat/MST heavy) — a regenerator is a FUTURE item. Values frozen 2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/leg_radial_sn.jl"
+sha256 = "bfe2bbc2487e8d341603bcf7aa4d2b83d0d8e952bcef539b50df61cc47d34707"
+bytes = 6846
+capture = ""
+oracle = "legacy packages/Teukolsky (+ packages/TeukolskySpinFluxes for the flux tables) on the exact argument grids of the corresponding test_*.jl"
+oracle_commit = "e1fc76aa"
+status = "hole-script-lost"
+note = "every leg_*.jl header says 'regenerate via scratchpad gen.jl against the same legacy commit'; no file named gen.jl exists in emri-disk/scratchpad, in emri-disk git history, or in this tree. The oracle is still resolvable but the capture grids are only implicit in the test bodies (BigFloat/MST heavy) — a regenerator is a FUTURE item. Values frozen 2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/leg_radial_static.jl"
+sha256 = "7732c141a85094eef519a04afbd024dff121a59be1f36f4d948afaf8b4e83e5f"
+bytes = 48161
+capture = ""
+oracle = "legacy packages/Teukolsky (+ packages/TeukolskySpinFluxes for the flux tables) on the exact argument grids of the corresponding test_*.jl"
+oracle_commit = "e1fc76aa"
+status = "hole-script-lost"
+note = "every leg_*.jl header says 'regenerate via scratchpad gen.jl against the same legacy commit'; no file named gen.jl exists in emri-disk/scratchpad, in emri-disk git history, or in this tree. The oracle is still resolvable but the capture grids are only implicit in the test bodies (BigFloat/MST heavy) — a regenerator is a FUTURE item. Values frozen 2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/leg_radial_teuk_deriv.jl"
+sha256 = "a773fc743bfa96c51908a8cfc59314bfae8a7936170eaf1ba67ff3c6d6b02c81"
+bytes = 2498
+capture = ""
+oracle = "legacy packages/Teukolsky (+ packages/TeukolskySpinFluxes for the flux tables) on the exact argument grids of the corresponding test_*.jl"
+oracle_commit = "e1fc76aa"
+status = "hole-script-lost"
+note = "every leg_*.jl header says 'regenerate via scratchpad gen.jl against the same legacy commit'; no file named gen.jl exists in emri-disk/scratchpad, in emri-disk git history, or in this tree. The oracle is still resolvable but the capture grids are only implicit in the test bodies (BigFloat/MST heavy) — a regenerator is a FUTURE item. Values frozen 2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/leg_renorm_angmom.jl"
+sha256 = "6c2e80bdc8d12351b38d2b505597076e07ca1689358909b34cc3a8cacab29097"
+bytes = 46244
+capture = ""
+oracle = "legacy packages/Teukolsky (+ packages/TeukolskySpinFluxes for the flux tables) on the exact argument grids of the corresponding test_*.jl"
+oracle_commit = "e1fc76aa"
+status = "hole-script-lost"
+note = "every leg_*.jl header says 'regenerate via scratchpad gen.jl against the same legacy commit'; no file named gen.jl exists in emri-disk/scratchpad, in emri-disk git history, or in this tree. The oracle is still resolvable but the capture grids are only implicit in the test bodies (BigFloat/MST heavy) — a regenerator is a FUTURE item. Values frozen 2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/leg_scattering.jl"
+sha256 = "7f0c0f875911a97659269129f0421a0e48e6754ad88cafdb28185d45c206a98d"
+bytes = 2132
+capture = "test/fixtures/capture/regen_leg_scattering.jl (NEW key-driven regenerator; the original gen.jl is lost)"
+oracle = "legacy packages/Teukolsky (+ packages/TeukolskySpinFluxes for the flux tables) on the exact argument grids of the corresponding test_*.jl"
+oracle_commit = "e1fc76aa"
+status = "reverified-identical"
+note = "2026-08-19: NEW regenerator re-evaluates legacy packages/ScatteringPhaseMST starobinsky_constant / _brefl_over_binc / mst_coefficient / scattering_phase_numerical at every baked key (the non-key kwargs n/nUp come from test_scattering.jl:30-31,34,42): REF_STAR 5, REF_BREFL 3, REF_MSTC 12, REF_SPN 3 = 23 literals checked, 0 differing, worst relative deviation 0.0"
+
+[[fixture]]
+file = "test/fixtures/leg_radial_jet.jl"
+sha256 = "6a1484087273f7ec838e19a91f5ff9f08ffe76dab7c69a3dad3eb3316bc9d4bb"
+bytes = 30508
+capture = ""
+oracle = "PRE-MOVE MetricReconstruction.Radiation.radial_jet"
+oracle_commit = ""
+status = "hole-script-lost"
+note = "header names scratchpad/capture_radial_jet.jl (lost); the pre-move oracle no longer exists either (radial_jet now lives in Perturbation.Radial) — double HOLE, values frozen 2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/gsn_oracle.jl"
+sha256 = "f2868449356d6cf25c0a49723b70c3b6c2ae839e312ffc21a30c1380ef0df763"
+bytes = 107819
+capture = ""
+oracle = "ref-code/ricokaloklo-GeneralizedSasakiNakamura.jl v0.8.5"
+oracle_commit = "982b087"
+status = "hole-script-lost"
+note = "no capture script named anywhere; the fixture header pins the oracle commit and the port itself was produced by scratchpad/gsn-port/extract_gsn.py (present in emri-disk/scratchpad but a SOURCE translator, not the fixture generator)"
+
+[[fixture]]
+file = "test/fixtures/spin_cg_reference.jl"
+sha256 = "8fefa23af68d2fa1d97355d1757198a79b514c159dd8ebd4827df1bb52a2eeb0"
+bytes = 96493
+capture = "test/fixtures/capture/capture_spin_cg_fixture.jl"
+oracle = "core/Wigner.clebsch_gordan (BigInt-exact Racah); CG form of arXiv:1702.04204 Eq. (34)"
+oracle_commit = "in-tree"
+status = "regenerated-identical"
+note = "re-run 2026-08-19 -> data byte-identical (the only textual difference is the 'grtools'->'GrTools' rename applied to the header when the repo was extracted)"
+
+[[fixture]]
+file = "test/fixtures/rt_coeffs_reference.jl"
+sha256 = "e94f3cc34cf50028fe8d324c31c5817993e16803a80034f951208c8d164279e1"
+bytes = 20349
+capture = "test/fixtures/capture/derive_rt_coeffs.py"
+oracle = "INDEPENDENT sympy re-derivation of the RT-chart m-mode Teukolsky coefficients (arXiv:1301.1591 Eq. (15)); no external oracle file"
+oracle_commit = "sympy 1.12 at capture"
+status = "tracked-notrerun"
+note = "re-run attempted twice (2026-08-19) under sympy 1.14 and did not finish inside a 20 min / 10 min budget (symbolic collect over the full jet); left as a FUTURE re-verification. The tracked copy carries ONE deviation from the original one-shot: the output path (which resolved relative to the scratchpad location and no longer exists) now honours GRTOOLS_FIXTURE_OUT_DIR, default the sibling test/fixtures directory"
+
+[[fixture]]
+file = "test/fixtures/td_mode1d.jl"
+sha256 = "2c87644f62f94a42f25631b3f09befac3c563676dcf83dec9ceb0425f8387015"
+bytes = 1426
+capture = "test/fixtures/capture/capture_td_dg.jl"
+oracle = "/data/haiyangw/claude/DG-Teulolsky in its own env — Mode1D Schwarzschild l=0 Price tail"
+oracle_commit = "0a88967"
+status = "regenerated-identical"
+note = "re-run 2026-08-19 (capture_td_dg.jl against DG-Teulolsky @0a88967, whole script 3m59s for all six fixtures, GRTOOLS_FIXTURE_OUT_DIR to a scratch dir) -> BYTE-IDENTICAL. The earlier >5 min cost estimate was not measured; the per-capture wall times are substitution 0.7 s, mode1d 34.5 s, flux1d 44.0 s, selfforce 31.1 s, kerrtail 71.0 s, kerrflux 55.8 s"
+
+[[fixture]]
+file = "test/fixtures/td_flux1d.jl"
+sha256 = "c1978aefa9dbf25d5f26e2e1b814a5c1b4cda343bb7cca46ce2eb482fa84c7c3"
+bytes = 1307
+capture = "test/fixtures/capture/capture_td_dg.jl"
+oracle = "/data/haiyangw/claude/DG-Teulolsky in its own env — Flux1D s=0 Schwarzschild circular (2,2) rp=10 fluxes"
+oracle_commit = "0a88967"
+status = "regenerated-identical"
+note = "re-run 2026-08-19 (capture_td_dg.jl against DG-Teulolsky @0a88967, whole script 3m59s for all six fixtures, GRTOOLS_FIXTURE_OUT_DIR to a scratch dir) -> BYTE-IDENTICAL. The earlier >5 min cost estimate was not measured; the per-capture wall times are substitution 0.7 s, mode1d 34.5 s, flux1d 44.0 s, selfforce 31.1 s, kerrtail 71.0 s, kerrflux 55.8 s"
+
+[[fixture]]
+file = "test/fixtures/td_selfforce.jl"
+sha256 = "d828b87d83e068d53d81c0b00b55c7d09061bd659a68a6ae3aa337e8d0ea31b5"
+bytes = 454
+capture = "test/fixtures/capture/capture_td_dg.jl"
+oracle = "/data/haiyangw/claude/DG-Teulolsky in its own env — Flux1D dissipative self-force F_t^{22} at the particle"
+oracle_commit = "0a88967"
+status = "regenerated-identical"
+note = "re-run 2026-08-19 (capture_td_dg.jl against DG-Teulolsky @0a88967, whole script 3m59s for all six fixtures, GRTOOLS_FIXTURE_OUT_DIR to a scratch dir) -> BYTE-IDENTICAL. The earlier >5 min cost estimate was not measured; the per-capture wall times are substitution 0.7 s, mode1d 34.5 s, flux1d 44.0 s, selfforce 31.1 s, kerrtail 71.0 s, kerrflux 55.8 s"
+
+[[fixture]]
+file = "test/fixtures/td_kerrtail.jl"
+sha256 = "297255e67a98d9604ab6140f53f074890e81ec53355794697719772ee51d7e97"
+bytes = 2601
+capture = "test/fixtures/capture/capture_td_dg.jl"
+oracle = "/data/haiyangw/claude/DG-Teulolsky in its own env — KerrModes m=0 coupled Kerr tail a=0.9"
+oracle_commit = "0a88967"
+status = "regenerated-identical"
+note = "re-run 2026-08-19 (capture_td_dg.jl against DG-Teulolsky @0a88967, whole script 3m59s for all six fixtures, GRTOOLS_FIXTURE_OUT_DIR to a scratch dir) -> BYTE-IDENTICAL. The earlier >5 min cost estimate was not measured; the per-capture wall times are substitution 0.7 s, mode1d 34.5 s, flux1d 44.0 s, selfforce 31.1 s, kerrtail 71.0 s, kerrflux 55.8 s"
+
+[[fixture]]
+file = "test/fixtures/td_kerrflux.jl"
+sha256 = "b7455882e325389ec077b1595b14ebc14e6663551550279103a41ac848145e1d"
+bytes = 1933
+capture = "test/fixtures/capture/capture_td_dg.jl"
+oracle = "/data/haiyangw/claude/DG-Teulolsky in its own env — KerrFlux a=0.9 circular-orbit Edot^{11}"
+oracle_commit = "0a88967"
+status = "regenerated-identical"
+note = "re-run 2026-08-19 (capture_td_dg.jl against DG-Teulolsky @0a88967, whole script 3m59s for all six fixtures, GRTOOLS_FIXTURE_OUT_DIR to a scratch dir) -> BYTE-IDENTICAL. The earlier >5 min cost estimate was not measured; the per-capture wall times are substitution 0.7 s, mode1d 34.5 s, flux1d 44.0 s, selfforce 31.1 s, kerrtail 71.0 s, kerrflux 55.8 s"
+
+[[fixture]]
+file = "test/fixtures/td_substitution.jl"
+sha256 = "a044d4d8588faba46a9878e8b488ab43f18baf8454b26bfe795cd36bd924b0f0"
+bytes = 6173
+capture = "test/fixtures/capture/capture_td_dg.jl"
+oracle = "/data/haiyangw/claude/DG-Teulolsky in its own env — reuse-substitution ground truth (Ylm/tortoise/potential/...)"
+oracle_commit = "0a88967"
+status = "regenerated-identical"
+note = "re-run 2026-08-19 (capture_td_dg.jl against DG-Teulolsky @0a88967, whole script 3m59s for all six fixtures, GRTOOLS_FIXTURE_OUT_DIR to a scratch dir) -> BYTE-IDENTICAL. The earlier >5 min cost estimate was not measured; the per-capture wall times are substitution 0.7 s, mode1d 34.5 s, flux1d 44.0 s, selfforce 31.1 s, kerrtail 71.0 s, kerrflux 55.8 s"
+
+[[fixture]]
+file = "test/fixtures/td_hphc_upstream.jl"
+sha256 = "6743f3fa0dfa34237f6534234d445bc1749386b389b15a344ee18a50d16526ba"
+bytes = 22896
+capture = "test/fixtures/capture/run.jl + test/fixtures/capture/build_fixture.jl (block B) + test/fixtures/capture/bake_hphc_coeffs.jl (block A)"
+oracle = "ref-code/TeukEvolution.jl minimal linear psi4 run (a=0.7, nx=48, ny=24, nt=600) -> out_min CSVs"
+oracle_commit = "3c8e47f"
+status = "regenerated-identical"
+note = "re-run 2026-08-19 in a scratch copy of the capture env: (A) bake_hphc_coeffs.jl reproduced the HPHC_COEFF block (20 subsample points x 9 quantities) BYTE-IDENTICALLY; (B) run.jl (600-step evolution, 3.4 s) + build_fixture.jl reproduced the intermediate te_evolution_fixture.txt BYTE-IDENTICALLY and all 320 baked HPHC_EVO values (160 rows x re/im) are bitwise equal (max abs diff 0.0). The earlier cost deferral was not measured"
+
+[[fixture]]
+file = "test/fixtures/td_hphc_recon_upstream.jl"
+sha256 = "70c688d9d7c9b8895074c4cfc941047bfb92b94183deb1042d550eb14f373237"
+bytes = 48601
+capture = "test/fixtures/capture/bake_recon_assemblers.jl"
+oracle = "ref-code/TeukEvolution.jl/src/LinearEvolution.jl reconstruction RHS assemblers on seeded LCG fields"
+oracle_commit = "3c8e47f"
+status = "regenerated-identical"
+note = "re-run 2026-08-19 -> byte-identical"
+
+[[fixture]]
+file = "test/fixtures/td_qnm_a0_l2_m2_n0.jl"
+sha256 = "be1888160211c4c07c1d14fb1bdc584f9a784cb0205a3093d86c17d023a4bda2"
+bytes = 12629
+capture = "test/fixtures/capture/extract_qnm_n0.jl"
+oracle = "ref-code/TeukEvolution.jl/qnm/a0.0_l2_m2.h5 group [n=0] (TeukolskyQNMFunctions.jl generated)"
+oracle_commit = "3c8e47f"
+status = "regenerated-identical"
+note = "re-run 2026-08-19 reproduced the intermediate text source BYTE-IDENTICALLY and its sha256 0880c2a45ff565d1c04c1b55302ff3ec03e463bfdd17c03904654cbb3f35cd02 matches the value recorded in the fixture header; the final .jl bake step (scratchpad/f6_gen_fixture.jl) is itself lost [partial HOLE]"
+
+[[fixture]]
+file = "test/fixtures/qnm_fast_reference.jl"
+sha256 = "0123fc1183286c0dfe0ac679f6674fe2fbaa49c5759ce70a14d71ed85a9adb87"
+bytes = 7063
+capture = "test/oracles/gen_reference.py"
+oracle = "ref-code/qnm python package (Cook-Zalutskiy spectral-angular + Leaver CF), s=-2, M=1"
+oracle_commit = "f3abd18e"
+status = "tracked-generator"
+note = "generator now tracked under test/oracles/; the fixture header pins sha256 157b38c6... of the intermediate table scratchpad/qqnm_phase3/qnm_package_reference.txt (not re-run in this lane)"
+
+[[fixture]]
+file = "test/fixtures/qnm_hphc_mma_ref.jl"
+sha256 = "236a9428ec797d45038ddb63f4cf50ee85d0d6be0e8c806fe06be7b0ec110911"
+bytes = 2144
+capture = "test/oracles/mma_fixture.wls, test/oracles/run_qnm.wls"
+oracle = "QNM-Mathematica + BHPToolkit Teukolsky/SWSH, WL 14.3.0 (s=-2,l=2,m=2,n=0,a=0.7)"
+oracle_commit = "a74aadd"
+status = "tracked-generator"
+note = "wolframscript oracle scripts now tracked; not re-run (needs a Wolfram kernel)"
+
+[[fixture]]
+file = "test/fixtures/qqnm_source_tex_provenance.jl"
+sha256 = "5423a0490153767ae76e05b86682c2f697dcfdbfa3650fcb41db2fa6292ade79"
+bytes = 3127
+capture = ""
+oracle = "ref-code/QQNM-coeff/teukolsky-category/code/derive-spin2-*.m (owner's wolframscript derivations)"
+oracle_commit = ""
+status = "tracked-generator"
+note = "this file IS the offline provenance bridge: it freezes the sha256 of each source .tex and re-verifies the hashes whenever the ref-code tree is present"
