@@ -34,4 +34,5 @@ using AccretionDisc
     include("SpiralWaves/test_solver.jl")     # EGD::sw-mode-solver: implicit midpoint (64) + outgoing-wave BCs (66)-(68)
     include("SpiralWaves/test_diagnostics.jl") # EGD::sw-diagnostics: AMF (72a), torque (72b), (74), (75), m-cutoffs
     include("SpiralWaves/test_survey.jl")     # EGD::sw-survey-parallel: threaded m-sweep, configuration sweep
+    include("SpiralWaves/test_image_synthesis.jl") # EGD::sw-image-synthesis: mode-sum wake reconstruction (Figs. 1-2)
 end

@@ -34,13 +34,16 @@ using TestKit
                    :balance_residual, :corotation_split]                             # EGD::sw-diagnostics
     landed_survey = [:ModeTorque, :TorqueSurvey, :torque_survey, :survey_configs, :mode_torques,
                      :mode_lindblad_torques, :compute_budget]                  # EGD::sw-survey-parallel
+    landed_image = [:ModeInterp, :mode_interp, :synthesize, :polar_to_cartesian,
+                    :image_grid]                                              # EGD::sw-image-synthesis
     @test Set(names(SW)) == Set(vcat(:SpiralWaves, landed_background, landed_grid, landed_master,
-                                     landed_source, landed_solver, landed_diag, landed_survey))
+                                     landed_source, landed_solver, landed_diag, landed_survey,
+                                     landed_image))
     @test SW.PAPER == "arXiv:2608.17003"
     @test SW.sw_version() isa VersionNumber
-    @test SW.sw_version() == v"0.8.0"
+    @test SW.sw_version() == v"0.9.0"
     # no placeholder physics: none of the UNLANDED planned node entry points exist yet
-    for sym in (:emri_source, :torque_balance, :synthesize, :mode_interp, :image_grid)
+    for sym in (:emri_source, :torque_balance, :spiral_morphology, :pressureless_comparison)
         @test !isdefined(SW, sym)
     end
     # SparseArrays is a declared hard dep (and resolvable from the package env)

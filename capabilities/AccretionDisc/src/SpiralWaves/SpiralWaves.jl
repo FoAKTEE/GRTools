@@ -53,9 +53,9 @@ const PAPER = "arXiv:2608.17003"
 Version of the `SpiralWaves` submodule API (bumped as DAG nodes land; `v"0.1.0"` = scaffold,
 `v"0.2.0"` = background, `v"0.3.0"` = grid, `v"0.4.0"` = master matrices, `v"0.5.0"` = singular source,
 `v"0.6.0"` = mode solver, `v"0.7.0"` = diagnostics,
-`v"0.8.0"` = survey).
+`v"0.8.0"` = survey, `v"0.9.0"` = image synthesis).
 """
-sw_version() = v"0.8.0"
+sw_version() = v"0.9.0"
 
 # ---- EGD::sw-background — disc equilibrium (Sec. II.A) -------------------------------------------
 include("background.jl")
@@ -99,5 +99,9 @@ export total_torque, lindblad_torque, torque_units, m_cut, balance_residual, cor
 include("survey.jl")
 export ModeTorque, TorqueSurvey, torque_survey, survey_configs, mode_torques, mode_lindblad_torques
 export compute_budget
+
+# ---- EGD::sw-image-synthesis — mode-sum reconstruction of the wake (Figs. 1-2) --------------------
+include("image_synthesis.jl")
+export ModeInterp, mode_interp, synthesize, polar_to_cartesian, image_grid
 
 end # module SpiralWaves
