@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+# commit-msg — GRTools commit-message gate.
+#
+# VENDORED COPY of phys-agentic-loop `_common/hooks/commit-msg`, extended with the
+# GRTools attribution ban (section 1b): the message may not carry AI/assistant
+# attribution. Activated per-clone with `git config core.hooksPath .githooks`.
+# Grammar reference for this repo: CONTRIBUTING.md § "Commit messages".
+#
+# Enforces the title grammar of _common/contracts/commit_template.md (the
+# promoted, tracked form of the old progress/COMMIT_TEMPLATE.md). The title
+# grammar is a HARD gate (separability requirement); body/footer/claim-tag
+# checks are advisory warnings, escalated to errors under COMMIT_GATE_STRICT=1.
+#
+# Usage:
+#   - as a git hook: installed via core.hooksPath (see install.sh); git calls it
+#     with the message-file path as $1.
+#   - standalone / tests: `_common/hooks/commit-msg <message-file>`.
+#
+# Exit 0 = admit the commit; exit 1 = reject (bypass once with `git commit --no-verify`).
+
+MSG_FILE="$1"
+if [ -z "$MSG_FILE" ] || [ ! -f "$MSG_FILE" ]; then
+    printf '[commit-msg gate] no message file given\n' >&2
+    exit 0   # never block on our own misinvocation
+fi
+
+STRICT="${COMMIT_GATE_STRICT:-0}"
+
+# Allowed title types: Conventional Commits + repo taxonomy (diag/exp/chore)
+# + methodology-repo process types (infra/notes). Keep in sync with
+# commit_template.md §2/§3/§11.
+TYPES='feat|fix|perf|refactor|docs|test|build|ci|style|revert|diag|exp|chore|infra|notes'
+TITLE_RE="^(${TYPES})(\([^)]+\))?(!)?: .+$"
+BANG_RE="^(${TYPES})(\([^)]+\))?!: "
+KINDS='why|finding|change|run|result|verify|caveat|next|files'
+
+# Read message, dropping git comment lines (default comment char '#').
+LINES=()
+while IFS= read -r _line || [ -n "$_line" ]; do
+    case "$_line" in
+        '#'*) continue ;;
+    esac
+    LINES+=("$_line")
+done < "$MSG_FILE"
+
+# First non-blank line is the subject.
+subject=""
+subj_idx=-1
+idx=0
+for _l in "${LINES[@]}"; do
+    _stripped="${_l//[[:space:]]/}"
+    if [ -n "$_stripped" ]; then
+        subject="$_l"
+        subj_idx="$idx"
+        break
+    fi
+    idx=$((idx + 1))
+done
+
+# Empty / comment-only message: let git's own empty-message guard handle it.
+if [ -z "$subject" ]; then
+    exit 0
+fi
+
+# Bypass auto-generated messages git creates itself.
+case "$subject" in
+    "Merge "*|"Revert "*|"fixup! "*|"squash! "*|"amend! "*) exit 0 ;;
+esac
+
+errors=0
+warns=0
+err()  { printf '  \xe2\x9c\x97 %s\n' "$1" >&2; errors=$((errors + 1)); }
+warn() { printf '  \xe2\x9a\xa0 %s\n' "$1" >&2; warns=$((warns + 1)); }
+
+# --- 1. Title grammar (HARD) -------------------------------------------------
+if ! printf '%s' "$subject" | grep -Eq "$TITLE_RE"; then
+    err "title must be  <type>(<scope>)[!]: <summary>"
+    err "  type in {${TYPES}}"
+    err "  got: ${subject}"
+fi
+case "$subject" in
+    *.) warn "title ends with a period (template: no trailing period)" ;;
+esac
+if [ "${#subject}" -gt 100 ]; then
+    warn "title is ${#subject} chars (template targets a <=~72-char summary)"
+fi
+
+# --- 1b. Attribution ban (HARD) ----------------------------------------------
+# GRTools history carries no AI/assistant attribution: no Co-Authored-By trailer
+# of any kind, no Claude/Anthropic mention, no "generated with" blurb, no robot.
+BANNED_RE='co-authored-by|claude|anthropic|generated with'
+banned_hits="$(printf '%s\n' "${LINES[@]}" | grep -inE "$BANNED_RE")"
+robot_hits="$(printf '%s\n' "${LINES[@]}" | grep -nF '🤖')"
+if [ -n "$banned_hits" ] || [ -n "$robot_hits" ]; then
+    err "attribution ban: no 'Co-Authored-By', 'Claude', 'Anthropic', 'generated with' or robot emoji"
+    printf '%s\n%s\n' "$banned_hits" "$robot_hits" | grep -v '^$' | while IFS= read -r _hit; do
+        printf '      line %s\n' "$_hit" >&2
+    done
+fi
+
+# --- 2. Blank line after subject (Conventional Commits) ----------------------
+nxt=$((subj_idx + 1))
+if [ "$nxt" -lt "${#LINES[@]}" ]; then
+    nxt_stripped="${LINES[$nxt]//[[:space:]]/}"
+    [ -n "$nxt_stripped" ] && warn "no blank line between subject and body"
+fi
+
+# --- 3. Body object kinds + claim tags ---------------------------------------
+i=0
+for _l in "${LINES[@]}"; do
+    if [ "$i" -le "$subj_idx" ]; then i=$((i + 1)); continue; fi
+    if printf '%s' "$_l" | grep -Eq '^- [a-z]+:'; then
+        kind="$(printf '%s' "$_l" | sed -E 's/^- ([a-z]+):.*/\1/')"
+        if ! printf '%s' "$kind" | grep -Eq "^(${KINDS})$"; then
+            warn "unknown body object '- ${kind}:' (allowed: ${KINDS})"
+        fi
+        if [ "$kind" = "finding" ] || [ "$kind" = "result" ]; then
+            if ! printf '%s' "$_l" | grep -Eq '\[(SOLID|PRELIMINARY|HOLE|FUTURE)\]'; then
+                warn "'- ${kind}:' lacks a claim tag [SOLID|PRELIMINARY|HOLE|FUTURE]"
+            fi
+        fi
+    fi
+    i=$((i + 1))
+done
+
+# --- 4. '!' <-> BREAKING CHANGE coupling (§8) --------------------------------
+has_bang=0
+printf '%s' "$subject" | grep -Eq "$BANG_RE" && has_bang=1
+has_bc=0
+printf '%s\n' "${LINES[@]}" | grep -q '^BREAKING CHANGE:' && has_bc=1
+if [ "$has_bang" = 1 ] && [ "$has_bc" = 0 ]; then
+    warn "'!' in title but no 'BREAKING CHANGE:' footer (template sec.8)"
+fi
+if [ "$has_bc" = 1 ] && [ "$has_bang" = 0 ]; then
+    warn "'BREAKING CHANGE:' footer but no '!' in title (template sec.8)"
+fi
+
+# --- Verdict -----------------------------------------------------------------
+if [ "$STRICT" = "1" ] && [ "$warns" -gt 0 ]; then
+    errors=$((errors + warns))
+fi
+
+if [ "$errors" -gt 0 ]; then
+    printf '\n[commit-msg gate] REJECTED: %d error(s), %d warning(s)\n' "$errors" "$warns" >&2
+    printf '[commit-msg gate] spec: CONTRIBUTING.md (Commit messages)\n' >&2
+    printf '[commit-msg gate] bypass once: git commit --no-verify\n' >&2
+    exit 1
+fi
+
+if [ "$warns" -gt 0 ]; then
+    printf '[commit-msg gate] admitted with %d warning(s) \xe2\x80\x94 see CONTRIBUTING.md (Commit messages)\n' "$warns" >&2
+fi
+exit 0

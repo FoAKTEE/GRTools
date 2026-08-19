@@ -60,6 +60,31 @@ julia --project=docs docs/make.jl
 Every exported symbol needs a docstring (`checkdocs = :exports`); each package
 has one page under `docs/src/core/` or `docs/src/capabilities/`.
 
+## Commit messages
+
+Commit titles follow `<type>(<scope>)[!]: <imperative summary>` with
+`type ∈ {feat, fix, perf, refactor, docs, test, build, ci, style, revert, diag,
+exp, chore, infra, notes}`. The body, when present, is a markdown list of typed
+objects — `- why:`, `- finding:`, `- change:`, `- run:`, `- result:`,
+`- verify:`, `- caveat:`, `- next:`, `- files:` — one kind per line, with every
+`finding`/`result` carrying a claim tag `[SOLID|PRELIMINARY|HOLE|FUTURE]`.
+Footers are git trailers (`Refs:`, `Verify:`, `Claim:`, `BREAKING CHANGE:`).
+
+The grammar is enforced by the tracked hook [`.githooks/commit-msg`](.githooks/commit-msg).
+Activate it once per clone:
+
+```bash
+git config core.hooksPath .githooks
+git config commit.template .gitmessage
+```
+
+The hook **rejects** a commit whose title fails the grammar, and **rejects** any
+message carrying AI/assistant attribution — `Co-Authored-By` trailers of any
+kind, or a mention of Claude / Anthropic / "generated with" / the robot emoji.
+Body and footer issues are warnings; `COMMIT_GATE_STRICT=1` escalates them to
+errors. Run it standalone with `.githooks/commit-msg <message-file>`
+(exit 0 = admit, 1 = reject).
+
 ## Pull requests
 
 - One logical change per PR; include tests.

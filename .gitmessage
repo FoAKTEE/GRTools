@@ -1,0 +1,32 @@
+
+# ^ title above (this and the lines below are comments, stripped on commit):
+#   <type>(<scope>)[!]: <imperative summary, no period, <= ~72 chars>
+#   type   = feat|fix|perf|refactor|docs|test|build|ci|style|revert
+#          | diag|exp|chore        (repo taxonomy)
+#          | infra|notes           (methodology-repo process)
+#   scope  = figure/subsystem, comma-separated, no spaces (optional)
+#   !      = result-invalidating (pair with a BREAKING CHANGE: footer)
+#
+# Body (optional) — a markdown list of typed objects, one kind per line:
+#   - why:     trigger (user directive / prior result / idle-compute rationale)
+#   - finding: typed claim                                   [SOLID|PRELIMINARY|HOLE|FUTURE]
+#   - change:  concrete edit (file:line, new script, default, revert)
+#   - run:     compute job (run-id, scale, params, failure mode)
+#   - result:  outcome with numbers                          [SOLID|PRELIMINARY|HOLE|FUTURE]
+#   - verify:  method + modality + verdict (VLM / subagent / probe / residual)
+#   - caveat:  honest limitation / open hole / [FUTURE]
+#   - next:    planned next step / in-progress / awaiting
+#   - files:   files added / changed / removed
+#
+# Footers (git trailers, Token: value):
+#   Iter: <NNN[letter]>   |  Window: <N>
+#   Run: <id> - <desc>    |  Refs: <file:line; eq; paper l.NNN>
+#   Verify: <evidence, TRF-R>
+#   Claim: <LEVEL> - <gist>; Modality: <...>
+#   BREAKING CHANGE: <what prior result/default this invalidates>   (only with !)
+#
+# HARD ban (commit rejected): 'Co-Authored-By' trailers of any kind, and any
+# mention of Claude / Anthropic / 'generated with' / the robot emoji.
+#
+# Full spec: CONTRIBUTING.md, section "Commit messages".
+# Enforced by the commit-msg gate (.githooks/commit-msg, core.hooksPath=.githooks).
