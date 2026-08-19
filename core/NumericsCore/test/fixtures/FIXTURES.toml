@@ -1,0 +1,57 @@
+# FIXTURES.toml — baked-fixture provenance ledger for core/NumericsCore
+# GRR::g2-fixture-capture-scripts / GRR::g14-oracle-scripts (repro-audit gaps G2, G13, G14).
+# Generated 2026-08-19; see docs/src/topics/fixtures.md for the status vocabulary and the repo-wide roll-up.
+#
+# status:
+#   regenerated-identical  capture re-run on 2026-08-19; fixture data bit-identical (only capture-date/
+#                          host comment lines may differ)
+#   reverified-identical   a NEW key-driven regenerator re-evaluated the oracle at every baked key
+#   tracked-generator      an in-tree generator/regenerator already existed
+#   tracked-notrerunnable  capture now tracked, but the oracle STATE it captured no longer exists
+#   tracked-notrerun       capture now tracked; re-run deferred (cost/corpus) [FUTURE]
+#   hole-script-lost       no capture script anywhere; values frozen [HOLE]
+#   upstream-copy          vendored upstream data; no generator applies
+#   shared-input           generator INPUT shared verbatim between capture and test
+
+package = "core/NumericsCore"
+generated = "2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/dg_lgl_ref.jl"
+sha256 = "fba433636cf4aeb85f9c0f99ef10b695d7b6069dbf43b36b1433845507e333bc"
+bytes = 25717
+capture = "test/fixtures/capture/capture_dg_lgl_ref.jl"
+oracle = "DG-Teulolsky/src/DGCore.jl (RefElement LGL nodes/weights/D/M, N=2..16)"
+oracle_commit = "0a88967"
+status = "regenerated-identical"
+note = "re-run 2026-08-19 -> byte-identical to the committed fixture"
+
+[[fixture]]
+file = "test/fixtures/numericscore_fd_uniform_ref.jl"
+sha256 = "ebaa4ad9334a2d000e56235def53410a74b8c2f41964b469eb79a6fb45e47862"
+bytes = 17783
+capture = "test/fixtures/capture/bake_numericscore_fd.jl"
+oracle = "ref-code/TeukEvolution.jl/src/Radial.jl set_d1!/set_d2!/filter! + FastGaussQuadrature.gausslegendre(24)"
+oracle_commit = "3c8e47f"
+status = "regenerated-identical"
+note = "re-run 2026-08-19 -> byte-identical"
+
+[[fixture]]
+file = "test/fixtures/numericscore_swsh_ref.jl"
+sha256 = "e17bb3c6a2651a5c87584d7d5ef36e756ee4d4d034b1db78d1f1aaa47918fcb9"
+bytes = 5449
+capture = "capabilities/Harmonics/test/fixtures/capture/regen_swsh_ref.jl"
+oracle = "packages/SpinWeightedSpheroidalHarmonics SpinWeightedSphericalHarmonicY / _y_dtheta"
+oracle_commit = "e1fc76aa"
+status = "reverified-identical"
+note = "original capture scratchpad/gen_fixtures.jl LOST; NEW key-driven regenerator re-evaluated all 68 baked values (REF_Y 54, REF_Y_highl 6, REF_ydtheta 8) -> max |delta| = 0"
+
+[[fixture]]
+file = "test/fixtures/numericscore_carlson_ref.jl"
+sha256 = "d0d78d448163b48d2d273192bcc8a196217c2b72c7334905d28ec984510f25bf"
+bytes = 2656
+capture = "test/fixtures/capture/regen_carlson_ref.jl"
+oracle = "packages/KerrGeodesics _RC/_RF/_RD/_RJ, _ellipK/_ellipE/_ellipPi, _ellip*inc, _phi_reduce, _jacobi*"
+oracle_commit = "e1fc76aa"
+status = "reverified-identical"
+note = "original capture scratchpad/gen_fixtures.jl LOST; NEW regenerator re-evaluated all 49 baked literals on the test_carlson.jl grid -> 0 differing"
