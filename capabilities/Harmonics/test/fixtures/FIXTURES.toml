@@ -1,0 +1,77 @@
+# FIXTURES.toml — baked-fixture provenance ledger for capabilities/Harmonics
+# GRR::g2-fixture-capture-scripts / GRR::g14-oracle-scripts (repro-audit gaps G2, G13, G14).
+# Generated 2026-08-19; see docs/src/topics/fixtures.md for the status vocabulary and the repo-wide roll-up.
+#
+# status:
+#   regenerated-identical  capture re-run on 2026-08-19; fixture data bit-identical (only capture-date/
+#                          host comment lines may differ)
+#   reverified-identical   a NEW key-driven regenerator re-evaluated the oracle at every baked key
+#   tracked-generator      an in-tree generator/regenerator already existed
+#   tracked-notrerunnable  capture now tracked, but the oracle STATE it captured no longer exists
+#   tracked-notrerun       capture now tracked; re-run deferred (cost/corpus) [FUTURE]
+#   hole-script-lost       no capture script anywhere; values frozen [HOLE]
+#   upstream-copy          vendored upstream data; no generator applies
+#   shared-input           generator INPUT shared verbatim between capture and test
+
+package = "capabilities/Harmonics"
+generated = "2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/sphere_collocation_ref.jl"
+sha256 = "cbb242be3d14aa3822f96795e3c1bccdfe389e55faefb0c1c7cbe2b5b4139ea2"
+bytes = 255583
+capture = "test/fixtures/capture/bake_harmonics_sphere.jl"
+oracle = "ref-code/TeukEvolution.jl/src/Sphere.jl swal_* matrices + FastGaussQuadrature.gausslegendre(24)"
+oracle_commit = "3c8e47f"
+status = "regenerated-identical"
+note = "re-run 2026-08-19 -> byte-identical"
+
+[[fixture]]
+file = "test/fixtures/spherical_harmonics_ref.jl"
+sha256 = "72ea8484d02378426ec095ba9271e8cb9d51f2b08eb860f79bd19d8ba30f4fc3"
+bytes = 4255
+capture = "test/fixtures/capture/regen_swsh_ref.jl"
+oracle = "packages/SpinWeightedSpheroidalHarmonics SpinWeightedSphericalHarmonicY"
+oracle_commit = "e1fc76aa"
+status = "reverified-identical"
+note = "original capture scratchpad/capture_swsh.jl LOST; NEW key-driven regenerator re-evaluated all 60 baked FIXSPH_Y values -> max |delta| = 0"
+
+[[fixture]]
+file = "test/fixtures/spheroidal_harmonics_ref.jl"
+sha256 = "b00894767055b27875c010197b989b90e8a7f89976459e4c631d732c53a7be5e"
+bytes = 60076
+capture = ""
+oracle = "packages/SpinWeightedSpheroidalHarmonics — SpinWeightedSpheroidalHarmonicS on the test grid"
+oracle_commit = "e1fc76aa"
+status = "hole-script-lost"
+note = "header names scratchpad/capture_swsh.jl, which is lost. The ORACLE is still resolvable, so a key-driven regenerator on the pattern of capture/regen_swsh_ref.jl is a bounded FUTURE item; values frozen 2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/spheroidal_eigenvalues_ref.jl"
+sha256 = "00ce5f2e902c0a43daafa61dc541f8bf2239c27aeea77d900e1a966396ce0148"
+bytes = 22394
+capture = ""
+oracle = "packages/SpinWeightedSpheroidalHarmonics — SpinWeightedSpheroidalEigenvalue on the test grid"
+oracle_commit = "e1fc76aa"
+status = "hole-script-lost"
+note = "header names scratchpad/capture_swsh.jl, which is lost. The ORACLE is still resolvable, so a key-driven regenerator on the pattern of capture/regen_swsh_ref.jl is a bounded FUTURE item; values frozen 2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/spheroidal_eigenvalue_series_ref.jl"
+sha256 = "a1e1b7a4b7f5c38399cafe80e8bbaad241eb5ad4925736279ea7ba4cbde65ebc"
+bytes = 6555
+capture = ""
+oracle = "packages/SpinWeightedSpheroidalHarmonics — the small-gamma eigenvalue series coefficients"
+oracle_commit = "e1fc76aa"
+status = "hole-script-lost"
+note = "header names scratchpad/capture_swsh.jl, which is lost. The ORACLE is still resolvable, so a key-driven regenerator on the pattern of capture/regen_swsh_ref.jl is a bounded FUTURE item; values frozen 2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/spheroidal_eigenvalue_residual_ref.jl"
+sha256 = "8524d2eed5c64bd5acfc15ee0d4a7ec1b1a9ffa7be1930a2436b47a417b612d8"
+bytes = 5613
+capture = ""
+oracle = "packages/SpinWeightedSpheroidalHarmonics — the eigenvalue residual diagnostics"
+oracle_commit = "e1fc76aa"
+status = "hole-script-lost"
+note = "header names scratchpad/capture_swsh.jl, which is lost. The ORACLE is still resolvable, so a key-driven regenerator on the pattern of capture/regen_swsh_ref.jl is a bounded FUTURE item; values frozen 2026-08-19"
