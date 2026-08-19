@@ -1,0 +1,37 @@
+# FIXTURES.toml — baked-fixture provenance ledger for capabilities/MetricReconstruction
+# GRR::g2-fixture-capture-scripts / GRR::g14-oracle-scripts (repro-audit gaps G2, G13, G14).
+# Generated 2026-08-19; see docs/src/topics/fixtures.md for the status vocabulary and the repo-wide roll-up.
+#
+# status:
+#   regenerated-identical  capture re-run on 2026-08-19; fixture data bit-identical (only capture-date/
+#                          host comment lines may differ)
+#   reverified-identical   a NEW key-driven regenerator re-evaluated the oracle at every baked key
+#   tracked-generator      an in-tree generator/regenerator already existed
+#   tracked-notrerunnable  capture now tracked, but the oracle STATE it captured no longer exists
+#   tracked-notrerun       capture now tracked; re-run deferred (cost/corpus) [FUTURE]
+#   hole-script-lost       no capture script anywhere; values frozen [HOLE]
+#   upstream-copy          vendored upstream data; no generator applies
+#   shared-input           generator INPUT shared verbatim between capture and test
+
+package = "capabilities/MetricReconstruction"
+generated = "2026-08-19"
+
+[[fixture]]
+file = "test/lorenz_background.jl (baked KLC literals)"
+sha256 = "30c7f1752f2536f83eececcc3768ea5e8ca1dae73fe47cb1ce817b5a69152bf4"
+bytes = 3273
+capture = "test/fixtures/capture/capture_klc_literals.jl"
+oracle = "legacy packages/KerrLorenzCirc — frak_s/frak_s2/frak_c/frak_c2, jet_ops, orbit_background"
+oracle_commit = "b24f8356"
+status = "regenerated-identical"
+note = "re-run 2026-08-19: all 22 scalar literals printed by the capture are found verbatim in test/lorenz_background.jl + test/lorenz_operators.jl"
+
+[[fixture]]
+file = "test/lorenz_radial.jl (baked radial literals)"
+sha256 = "a68d16b41b0e678827dd92b04a35a401e6bec759956f1dcb27237f334f55e279"
+bytes = 4976
+capture = ""
+oracle = "legacy packages/KerrLorenzCirc radial reconstruction"
+oracle_commit = "b24f8356"
+status = "hole-script-lost"
+note = "header names scratchpad/capture_lorenzradial.jl, which is lost [FUTURE]"
