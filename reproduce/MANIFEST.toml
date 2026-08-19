@@ -399,3 +399,14 @@ expected = "arXiv-2510.02433/expected/figTorqueStrengths_enhanced.json"
 depends = ["AccretionDisc", "Perturbation", "Harmonics"]
 status = "preliminary"
 notes = "fig:TorqueStrengths + tab:FitParameters WITH the relativistic amplitude enhancement E(m,r0) = |lindblad_torque/lindblad_strength| measured on a 9x6x2 grid at a=0 with lmax = max(16, m+8). Wall clock ~35 min at -t4 under the mission's concurrent load (108 Teukolsky overlap calls at 12-130 s each, then five 50-point sweeps). MEASURED FINDING: E < 1 everywhere and falling with m (0.86/0.67/0.48/0.32 at m=2/5/8/10, r0=30M), so the enhancement FLATTENS the total-torque slope: n_r = 2.54/2.70/2.88/3.13 vs the published 3.57/3.66/3.77/3.92 and the un-enhanced 3.19/3.31/3.49/3.70. The legacy enhancement grid of 1.9-9.6 divided by the PURE-Newtonian N (fixed sigma_m), double-counting the relativistic resonance-geometry shift the hybrid kernel already carries. The ell-truncation was measured separately: lmax=12 is 52% low at m=10, converged by lmax=16."
+
+[[result]]
+paper = "2608.17003"
+id = "fig10"
+kind = "figure"
+script = "arXiv-2608.17003/fig10.jl"
+tier = "heavy"
+expected = "arXiv-2608.17003/expected/fig10.json"
+depends = ["AccretionDisc", "Spacetime"]
+status = "preliminary"
+notes = "EGD::fig10-per-mode-reversal. Fig. 10 (fig:LR_torque_and_reversal, M:1007-1012): per-mode Lindblad torque T_{L,m} (75) in F_{J,0}h0 vs m for (p,h0) in {(5,0.03),(5,0.05),(0,0.03),(0,0.05)}, chi=0, q=0, a=15M, b=0.6. Plotted m=4:40 (the reference figure's first marker is m=4); the totals are summed over m=1..ceil(4/h0) at the paper's reference grid triple (240,240,24000) (A:140). Printed numbers M:1014 all PASS: last m with T_{L,m}<0 is 10 (h0=0.05, paper 'm<~10') and 16 (h0=0.03, paper 'm<~15'); the total torque T (74) is +1.539 and +1.841 F_{J,0}h0 > 0. VLM verdict match on structure (all checklist items). PRELIMINARY because of a recorded FINDING: our T_{L,m} runs ~13% below a pixel read-back of the published figure at low m (ours/ref 0.87 at m=4-10, 0.92 at m=20, 1.02 at m=40), so the p=5 zero crossings sit 1-2 modes later than in the published figure; the domain-truncation and boundary-branch (E-M4) hypotheses were tested and refuted. Second finding: the Lindblad-only mode sum Sum_m T_{L,m} is negative for p=5 (-0.338, -0.138) because of the m=1,2,3 modes that the figure does not plot; over the figure's own range m>=4 it is positive (+0.516, +0.318). ~28 min at -t8; --regen and --check both green."

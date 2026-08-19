@@ -18,7 +18,7 @@ pressureless analytic baselines it is compared against).  Drivers here are THIN.
 | 7  | fig:torque_ap_h0                     | `fig07.jl` | — | heavy | not started | — | |
 | 8  | fig:m_95_plot — m95 violins          | `fig08.jl` | — | heavy | not started | — | |
 | 9  | fig:num_vs_analytical                | `fig09.jl` | — | heavy | **blocked** | — | analytic half landed (`Modes.hkr_*`); the numerical T_L needs `SpiralWaves.solve_mode`/diagnostics (EGD::sw-mode-solver, EGD::sw-diagnostics) |
-| 10 | fig:LR_torque_and_reversal           | `fig10.jl` | — | heavy | not started | — | |
+| 10 | fig:LR_torque_and_reversal           | `fig10.jl` | `expected/fig10.json` | heavy | **preliminary** | **match** (structure) | T_{L,m} for (𝔭,h₀) ∈ {(5,0.03),(5,0.05),(0,0.03),(0,0.05)}, χ=0, 𝔮=0, a•=15M, b=0.6; plotted m=4:40, totals summed to ⌈4/h₀⌉ at the reference grid (240,240,24000). M:1014 PASSES (last m with T_{L,m}<0 = 10 at h₀=0.05 and 16 at h₀=0.03; total torque (74) = +1.539/+1.841 F_{J,0}h₀ > 0). FINDING: our T_{L,m} is ≈13 % below the published figure at low m (ratio 0.87 at m=4–10 → 1.02 at m=40); domain-extent and boundary-branch hypotheses refuted (evidence dir). ~28 min at -t8. |
 | 11 | fig:convergence                      | `fig11.jl` | — | heavy | not started | — | |
 | 12 | fig:pole_disp_errors                 | `fig12.jl` | — | heavy | not started | — | |
 | 13 | fig:variation_with_respect_to_b      | `fig13.jl` | — | heavy | not started | — | |
