@@ -625,26 +625,29 @@ end
     # the two-pass sweep is element-parallel with no cross-element reductions, so the
     # threaded apply must be BITWISE identical to serial; the verification command runs
     # the suite under JULIA_NUM_THREADS=4
-    @test Threads.nthreads() ≥ 2
-    blk = mf_blk()
-    mesh = Mesh2D(blk, mf_els(), mf_ords())
-    ω = 0.9
-    fω(i, e) = FaceState(e.psi, e.nflux .- im * ω .* (i.psi .+ e.psi) ./ 2)
-    op = MeshOperator(ComplexF64, mesh, (mf_A11, mf_A22), (x, y) -> MF_βc, (mf_γ1, mf_γ2);
-                      C = MF_C,
-                      hooks = Dict((MFE11, 2, 2) => LinearizedHook(fω),
-                                   (MFE12, 2, 1) => LinearizedHook(fω)),
-                      bcs = mf_zerobcs(mesh))
-    n = mesh.ndofs
-    rng = MFRNG(0x00000000feed0075)
-    for _ in 1:3
-        u = mf_cvec!(rng, n)
-        ys = apply!(zeros(ComplexF64, n), op, u; threaded = false)
-        yt = apply!(zeros(ComplexF64, n), op, u; threaded = true)
-        @test yt == ys                               # bitwise
-        fs = apply_full!(zeros(ComplexF64, n), op, u; threaded = false)
-        ft = apply_full!(zeros(ComplexF64, n), op, u; threaded = true)
-        @test ft == fs
+    if Threads.nthreads() < 2
+        @test_skip "threaded apply == serial needs -t2"    # single-threaded run: no threaded/serial pair to compare
+    else
+        blk = mf_blk()
+        mesh = Mesh2D(blk, mf_els(), mf_ords())
+        ω = 0.9
+        fω(i, e) = FaceState(e.psi, e.nflux .- im * ω .* (i.psi .+ e.psi) ./ 2)
+        op = MeshOperator(ComplexF64, mesh, (mf_A11, mf_A22), (x, y) -> MF_βc, (mf_γ1, mf_γ2);
+                          C = MF_C,
+                          hooks = Dict((MFE11, 2, 2) => LinearizedHook(fω),
+                                       (MFE12, 2, 1) => LinearizedHook(fω)),
+                          bcs = mf_zerobcs(mesh))
+        n = mesh.ndofs
+        rng = MFRNG(0x00000000feed0075)
+        for _ in 1:3
+            u = mf_cvec!(rng, n)
+            ys = apply!(zeros(ComplexF64, n), op, u; threaded = false)
+            yt = apply!(zeros(ComplexF64, n), op, u; threaded = true)
+            @test yt == ys                               # bitwise
+            fs = apply_full!(zeros(ComplexF64, n), op, u; threaded = false)
+            ft = apply_full!(zeros(ComplexF64, n), op, u; threaded = true)
+            @test ft == fs
+        end
     end
 end
 

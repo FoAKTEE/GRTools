@@ -43,8 +43,11 @@ jobs:
           version: ${{ matrix.julia-version }}
       - uses: julia-actions/cache@v2
       - name: Run tests
+        env:
+          JULIA_NUM_THREADS: 4          # thread-parity gates are skipped (Broken) under 1 thread
         run: |
           julia --project=${{ matrix.package }} -e '
             using Pkg
             Pkg.instantiate()
             Pkg.test()'
+

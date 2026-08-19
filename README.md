@@ -147,11 +147,20 @@ Every package carries its own suite and runs standalone:
 julia --project=capabilities/Perturbation -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
 ```
 
+Run with `JULIA_NUM_THREADS=4` (as CI does). A few gates compare a threaded code
+path against its serial twin bitwise; under a single thread those comparisons are
+vacuous and report as `Broken` (skipped) rather than failing, so a single-threaded
+run stays green but does NOT exercise the parallel paths:
+
+```bash
+JULIA_NUM_THREADS=4 julia --project=core/EllipticCore -e 'using Pkg; Pkg.test()'
+```
+
 Tests are grounded: numerics are characterization-gated against stated oracles
 (published values, baked upstream fixtures with capture provenance, exact
 identities), tolerances go through TestKit's frozen tolerance classes, and
 several packages enforce their dependency budget as a test (`test/hygiene.jl`).
-CI runs the full 19-suite matrix (18 packages + umbrella) — see
+CI runs the full 19-suite matrix (18 packages + umbrella) with four threads — see
 `.github/workflows/CI.yml`.
 
 ## Reproducing published results

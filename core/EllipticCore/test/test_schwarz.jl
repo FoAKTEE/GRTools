@@ -285,17 +285,20 @@ end
 end
 
 @testset "THREADED sweep bitwise == serial (JULIA_NUM_THREADS=4)" begin
-    @test Threads.nthreads() ≥ 2
-    op = sw_mixed_op(SW_βH)                          # complex Helmholtz, overlaps live
-    n = op.mesh.ndofs
-    sm = SchwarzSmoother(op; overlap = 2)
-    rng = SWRNG(0x0000000073770005)
-    for _ in 1:3
-        u0 = sw_cvec!(rng, n)
-        b = sw_cvec!(rng, n)
-        us = smooth!(copy(u0), sm, b; passes = 2, threaded = false)
-        ut = smooth!(copy(u0), sm, b; passes = 2, threaded = true)
-        @test ut == us                               # bitwise
+    if Threads.nthreads() < 2
+        @test_skip "threaded sweep == serial needs -t2"    # single-threaded run: no threaded/serial pair to compare
+    else
+        op = sw_mixed_op(SW_βH)                          # complex Helmholtz, overlaps live
+        n = op.mesh.ndofs
+        sm = SchwarzSmoother(op; overlap = 2)
+        rng = SWRNG(0x0000000073770005)
+        for _ in 1:3
+            u0 = sw_cvec!(rng, n)
+            b = sw_cvec!(rng, n)
+            us = smooth!(copy(u0), sm, b; passes = 2, threaded = false)
+            ut = smooth!(copy(u0), sm, b; passes = 2, threaded = true)
+            @test ut == us                               # bitwise
+        end
     end
 end
 
