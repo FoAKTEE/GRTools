@@ -1,0 +1,37 @@
+# FIXTURES.toml — baked-fixture provenance ledger for capabilities/EMRIWaveforms
+# GRR::g2-fixture-capture-scripts / GRR::g14-oracle-scripts (repro-audit gaps G2, G13, G14).
+# Generated 2026-08-19; see docs/src/topics/fixtures.md for the status vocabulary and the repo-wide roll-up.
+#
+# status:
+#   regenerated-identical  capture re-run on 2026-08-19; fixture data bit-identical (only capture-date/
+#                          host comment lines may differ)
+#   reverified-identical   a NEW key-driven regenerator re-evaluated the oracle at every baked key
+#   tracked-generator      an in-tree generator/regenerator already existed
+#   tracked-notrerunnable  capture now tracked, but the oracle STATE it captured no longer exists
+#   tracked-notrerun       capture now tracked; re-run deferred (cost/corpus) [FUTURE]
+#   hole-script-lost       no capture script anywhere; values frozen [HOLE]
+#   upstream-copy          vendored upstream data; no generator applies
+#   shared-input           generator INPUT shared verbatim between capture and test
+
+package = "capabilities/EMRIWaveforms"
+generated = "2026-08-19"
+
+[[fixture]]
+file = "test/test_aak.jl (baked aak_summation literals)"
+sha256 = "fe613554d9598e7c373f2d8074668f735faf7285af5bbc08023aa16f9fc4f3f7"
+bytes = 9565
+capture = "core/Kernels/test/fixtures/capture/s4c_capture_fixtures.jl"
+oracle = "PRE-HOIST Kernels.aak_summation on the EMRIWaveforms test inputs"
+oracle_commit = "grtools 51efa9f"
+status = "tracked-notrerunnable"
+note = "same script and same abort as core/Kernels' s4c fixtures"
+
+[[fixture]]
+file = "test/test_generate.jl (python-oracle literals)"
+sha256 = "be4c7931e232dd5826509cd4bc069e0ad90d2691aa86004fd1aa5aefa5aaa6e6"
+bytes = 13202
+capture = ""
+oracle = "upstream FastEMRIWaveforms python (get_viewing_angles / ssb_polarization_angle / to_SSB_frame)"
+oracle_commit = "ce6e56ae"
+status = "hole-script-lost"
+note = "the literals are one-shot python evaluations against the upstream FEW functions; no script was written (repro-audit gap G14). The upstream mirror IS in ref-code, so a re-derivation is a FUTURE item"
