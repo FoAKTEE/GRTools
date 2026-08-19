@@ -32,6 +32,11 @@ Harmonics = "abf3daaf-bc8b-489b-a3fd-54920b7d8f29"
 Perturbation = "12c091d5-3f53-42c4-bffe-b2905e161585"
 MetricReconstruction = "c7b6efb7-e918-408f-a652-a8355248f733"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
+# SpecialFunctions: the modified Bessel K_{0,1} of the CLOSED-FORM pressureless Kerr Lindblad torque
+# (arXiv:2510.03564 Eqs. (18)-(20)) in Modes/PressurelessLindblad.jl. Light and already inside the
+# closure through Perturbation; K_nu is not a BigSpecial primitive, and a BigSpecial edge is banned
+# for this package by the §7.7 hygiene gate, so the kernel is injectable at the call site.
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 
 [sources]
 TestKit = {path = "../../core/TestKit"}
@@ -63,6 +68,7 @@ MetricReconstruction = "0.1"
 NumericsCore = "0.1"
 Perturbation = "0.1"
 Spacetime = "0.1"
+SpecialFunctions = "2"
 julia = "1.10"
 
 [extras]

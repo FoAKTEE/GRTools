@@ -15,6 +15,7 @@ using AccretionDisc
     include("Modes/test_resonances.jl")
     include("Modes/test_reducedode.jl")
     include("Modes/test_forcing.jl")
+    include("Modes/test_pressureless_lindblad.jl")  # EGD::analytic-lindblad-hegade: arXiv:2510.03564 (18a,18b,19,20,23,24,25,C1-C2)
     include("Force/test_loader.jl")
     include("Force/test_assemble.jl")
     include("Force/test_source_fluid.jl")

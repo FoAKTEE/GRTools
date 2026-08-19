@@ -9,7 +9,9 @@ WITHOUT heavy live deps:
   - the height-averaged κ²-dispersion reduced operator `D = κ² − ω̃²`.
   - `B_m`      — the disc-mode functions.
   - `𝔉_m`      — the forcing source.
-  - the Lindblad / corotation resonance torque.
+  - the Lindblad / corotation resonance torque (Hirata GW-overlap kernel), and the CLOSED-FORM
+    pressureless Kerr Lindblad torque of HegadeKR-Gammie-Yunes 2025 (arXiv:2510.03564) that
+    arXiv:2608.17003 Fig. 9 compares its linear theory against.
 
 Type-generic `{T}`; BigFloat-inherited.
 """
@@ -37,5 +39,15 @@ export dispersion, reduced_operator
 
 include("Forcing.jl")
 export lindblad_torque, forcing_Fm, laplace_b
+
+include("PressurelessLindblad.jl")
+export SurfaceDensityProfile, PowerLawSigma
+export surface_density, surface_density_dp, surface_density_slope
+export hkr_epicyclic_poly, hkr_binding_poly, hkr_delta_poly
+export hkr_shear_argument, hkr_b0, hkr_b1, hkr_b2
+export hkr_lindblad_power_quadratic, hkr_lindblad_power_linear, hkr_lindblad_torque_rate
+export hkr_lindblad_torque_mode, hkr_lindblad_torque
+export hkr_mode_cutoff, hkr_mode_cutoff_powerlaw, HKR_M45_COEFFICIENT
+export hkr_torque_reversal_criterion, hkr_torque_reversal_radius
 
 end # module Modes

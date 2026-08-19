@@ -30,6 +30,14 @@ using .Modes: lindblad_residual, corotation_residual, wronskian, lindblad_locati
 using .Modes: A_m, B_m_corotation, B_m_wkb, B_m_full, corotation_exponent
 using .Modes: dispersion, reduced_operator
 using .Modes: lindblad_torque, forcing_Fm, laplace_b
+using .Modes: SurfaceDensityProfile, PowerLawSigma
+using .Modes: surface_density, surface_density_dp, surface_density_slope
+using .Modes: hkr_epicyclic_poly, hkr_binding_poly, hkr_delta_poly
+using .Modes: hkr_shear_argument, hkr_b0, hkr_b1, hkr_b2
+using .Modes: hkr_lindblad_power_quadratic, hkr_lindblad_power_linear, hkr_lindblad_torque_rate
+using .Modes: hkr_lindblad_torque_mode, hkr_lindblad_torque
+using .Modes: hkr_mode_cutoff, hkr_mode_cutoff_powerlaw, HKR_M45_COEFFICIENT
+using .Modes: hkr_torque_reversal_criterion, hkr_torque_reversal_radius
 using .Modes: qinv_operator, q_operator
 using .Modes: disc_OmegaK_z, alpha_z, Uvec_z, pressure_z, eden_z
 using .Modes: qinv_operator_z, q_operator_z, heightavg
@@ -39,6 +47,14 @@ export lindblad_residual, corotation_residual, wronskian, lindblad_locations
 export A_m, B_m_corotation, B_m_wkb, B_m_full, corotation_exponent
 export dispersion, reduced_operator
 export lindblad_torque, forcing_Fm, laplace_b
+export SurfaceDensityProfile, PowerLawSigma
+export surface_density, surface_density_dp, surface_density_slope
+export hkr_epicyclic_poly, hkr_binding_poly, hkr_delta_poly
+export hkr_shear_argument, hkr_b0, hkr_b1, hkr_b2
+export hkr_lindblad_power_quadratic, hkr_lindblad_power_linear, hkr_lindblad_torque_rate
+export hkr_lindblad_torque_mode, hkr_lindblad_torque
+export hkr_mode_cutoff, hkr_mode_cutoff_powerlaw, HKR_M45_COEFFICIENT
+export hkr_torque_reversal_criterion, hkr_torque_reversal_radius
 export qinv_operator, q_operator
 export disc_OmegaK_z, alpha_z, Uvec_z, pressure_z, eden_z
 export qinv_operator_z, q_operator_z, heightavg

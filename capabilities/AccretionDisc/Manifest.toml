@@ -2,10 +2,10 @@
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "adf0c89b5de21d28b0c75e4d98b19000664773ee"
+project_hash = "456cab0e1a679bed0767724e6879d0199c8dda7e"
 
 [[deps.AccretionDisc]]
-deps = ["Data", "HDF5", "Harmonics", "LinearAlgebra", "MetricReconstruction", "NumericsCore", "Perturbation", "Printf", "Spacetime", "SparseArrays"]
+deps = ["Data", "HDF5", "Harmonics", "LinearAlgebra", "MetricReconstruction", "NumericsCore", "Perturbation", "Printf", "Spacetime", "SparseArrays", "SpecialFunctions"]
 path = "."
 uuid = "41b4f346-9cfd-4132-92af-b9cd45d2bbed"
 version = "0.1.0"

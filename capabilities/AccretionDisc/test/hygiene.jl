@@ -9,7 +9,8 @@ using TestKit
 ts_hygiene = @testset "hygiene (§7.7 gates)" begin
     TestKit.assert_dep_budget(joinpath(@__DIR__, "..", "Project.toml");
         allow=["LinearAlgebra", "Printf", "SparseArrays", "NumericsCore", "Data", "Spacetime",
-               "Harmonics", "Perturbation", "MetricReconstruction", "HDF5"],
+               "Harmonics", "Perturbation", "MetricReconstruction", "HDF5",
+               "SpecialFunctions"],
         forbid=["SelfForce", "Kernels", "Symbolics", "JLD2", "OrdinaryDiffEq*", "CUDA", "AMDGPU",
                 "KernelAbstractions", "WignerSymbols", "Roots", "NLsolve", "SciMLBase",
                 "BigSpecial", "Wigner"],
