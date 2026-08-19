@@ -8,7 +8,8 @@ Lindblad torque with its power-law fits.
 | `repro_LRlocation.jl` | `figLRlocation.jl` | `figLRlocation` | fast | solid | SAME (same root condition, same frequencies) |
 | `repro_discProfile.jl`, `lindblad_torque_lib.jl` | `figDiscProfile.jl` | `figDiscProfile` | fast | solid | SAME to 1e-11 (characterization test in `AccretionDisc/test/Modes/test_thindisc.jl`) |
 | `verify_RT_satscale.jl` | `check_satscale.jl` | `check_satscale` | fast | solid | SAME limit; small-m offsets DIFFER because the package uses the RELATIVISTIC κ (see below) |
-| `repro_TorqueStrengths.jl`, `lindblad_torque_lib.jl` | `figTorqueStrengths.jl` | `figTorqueStrengths` | fast (4m43s) | preliminary | SAME to 1e-6 for the un-enhanced kernel; the published slopes need the relativistic amplitude enhancement (below) |
+| `repro_TorqueStrengths.jl`, `lindblad_torque_lib.jl` | `figTorqueStrengths.jl` | `figTorqueStrengths` | fast (4m43s) | preliminary | SAME to 1e-6 for the un-enhanced kernel; the published slopes are steeper (below) |
+| `repro_TorqueStrengths.jl` + `relenh_grid.jl` | `figTorqueStrengths_enhanced.jl` | `figTorqueStrengths_enhanced` | heavy (~35 min) | preliminary | **DIFFERENT**: the self-consistent enhancement is < 1 and flattens the slope; the legacy grid (1.9–9.6) double-counted the geometry factor |
 
 The figure-local library `lindblad_torque_lib.jl` (160 lines: Novikov–Thorne Σ and h, the
 Shakura–Sunyaev overlay, the pressure cutoff, the signed per-mode strength, the total-torque
@@ -30,16 +31,26 @@ number below is a package call.
 
 ## Findings (not tuned away)
 
-1. **The un-enhanced kernel under-predicts the NT slopes by ~0.2–0.4, and the SS row is exact.**
+1. **The un-enhanced kernel under-predicts the NT slopes by ~0.2–0.4, and the SS row is exact — and
+   the relativistic amplitude correction does NOT close the gap.**
    Fitted n_r (this driver) vs published: a=0 **3.19** vs 3.57; a=0.3 **3.31** vs 3.66;
    a=0.6 **3.49** vs 3.77; a=0.9 **3.70** vs 3.92; **SS 4.387 vs 4.39 (rel 6e-4)**.
    The Shakura–Sunyaev disc is the case where Hirata's NEWTONIAN overlap amplitude is the correct
-   one, and it lands on the published slope; every relativistic-disc row is short by the
-   relativistic AMPLITUDE enhancement E(m,r) = |N_Teukolsky/N_Newtonian| that
-   `lindblad_strength` does not carry. The legacy analysis closed roughly half of the gap with an
-   a=0 enhancement grid (3.36 / 3.51 / 3.65 / 3.84 / 4.39). Registering the enhanced numbers needs
-   a heavy driver: the grid is ~108 `lindblad_torque` calls (m = 2…10 × 6 radii × ILR/OLR),
-   ≈ 5 min at −t4, plus the 4m43s curve sweep. **Open obligation, not a tuning knob.**
+   one, and it lands on the published slope; every relativistic-disc row is short.
+   The natural candidate was the relativistic AMPLITUDE enhancement E(m,r) = |N_Teukolsky /
+   N_Newtonian| that `lindblad_strength` does not carry, so `figTorqueStrengths_enhanced.jl`
+   (heavy tier) measures it directly from `lindblad_torque` / `lindblad_strength` on a
+   9 × 6 × 2 grid at a = 0. **It measures E < 1 everywhere, falling with m** (0.86 / 0.67 / 0.48 /
+   0.32 at m = 2 / 5 / 8 / 10, r₀ = 30M, ℓ-converged), so applying it *flattens* the slope instead
+   of steepening it. The legacy "enhancement" of 1.9–9.6 was computed against the PURE-Newtonian
+   N (fixed ς_m^∓ = ((m∓1)/m)^{2/3}), which double-counts the relativistic resonance-geometry
+   shift that the hybrid kernel already carries. **The published slope steepening is therefore not
+   explained by the Teukolsky amplitude — it remains an open obligation, not a tuning knob.**
+   Measured enhanced fits (converged grid, `lmax = max(16, m+8)`): n_r = **2.54 / 2.70 / 2.88 /
+   3.13** for a = 0 / 0.3 / 0.6 / 0.9 — i.e. the gap to the published 3.57 / 3.66 / 3.77 / 3.92
+   *widens* from −0.38 to −1.03 at a = 0. (ℓ-truncation matters and was measured independently: at
+   lmax = 12 the ratio is 52 % low at m = 10 and 32 % low at m = 8; E is converged by lmax = 16 for
+   m ≤ 10, and the converged grid reproduces the probe, E(m=10, r₀=30M) = 0.318 vs 0.3175.)
 2. **The torque amplitude A is not predicted in absolute units.** The paper's 10⁻⁹/q² axis is set by
    one global unit factor; here κ_U = 2.281e-18 is anchored to the published a=0 amplitude
    A = 2.33e-9, exactly as the legacy analysis did. The SPIN ORDERING is a prediction:

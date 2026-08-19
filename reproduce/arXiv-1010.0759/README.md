@@ -21,8 +21,10 @@ the paper's `c₁₃`, `α`, `Z^out/Z^down` to the GrTools Teukolsky engine.
   Published Kerr anchors r₀ = 250: 39.83 (a=+0.9, paper 39.8), 46.41 (a=−0.9, paper 46.4).
 * **ILR strengths** (tab:ilrS, fig:ilrplot right): the full Teukolsky overlap
   `P^{(m)} = −ω⁻² Σ_ℓ Z^down_ℓm (c₁₃ Z^out*_{1,ℓm} + α Z^down*_{1,ℓm})` → `S^{(m)}` → `N`.
-  Ratio to the published column: **m=1 ILR 0.99–1.00 for r₀ ≥ 12M**, **m=2 ILR 0.93–0.97**.
-  The two outliers (r₀ = 8, 9 for m=1) sit where the ILR is within 1M of the ISCO.
+  Ratio to the published column, row by row: **m=1 ILR 0.947–1.000 for r₀ ≥ 12M** (0.973–1.000 for
+  r₀ ≥ 30M), **m=2 ILR 0.919–0.966 for r₀ ≥ 9M**. The two outliers are m=1 at r₀ = 8 (1.197) and
+  r₀ = 9 (0.606), where the ILR sits within 1M of the ISCO and the published entries themselves
+  carry only three digits.
 * **Newtonian limit** (RT-N1): −2.356 / −7.504 / +0.1922 / +8.615 against the published
   −2.36 / −7.50 / 0.19 / 8.62, from the closed form `lindblad_strength_newtonian`.
 

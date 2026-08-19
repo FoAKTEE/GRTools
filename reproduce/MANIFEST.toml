@@ -377,3 +377,25 @@ expected = "arXiv-2603.12189/expected/fig07.json"
 depends = ["Perturbation", "Spacetime"]
 status = "solid"
 notes = "fig:comparepvalues_leadingharmonics - the error of three approximate spinning trajectories (shifted geodesic; the orbit correction truncated at n^s=k^s=4 and 6) against the exact n^s=k^s=8 trajectory, for the (2,2,0,0) mode over p in [6,15], in four flux channels. The published ordering SG > n^s=4 > n^s=6 holds at 19/19 points in all four channels. At p=6 the E-infinity errors are 1.92e-6 / 3.24e-10 / 4.79e-13. 206 s at -t4."
+
+[[result]]
+paper = "2608.17003"
+id = "fig03"
+kind = "figure"
+script = "arXiv-2608.17003/fig03.jl"
+tier = "heavy"
+expected = "arXiv-2608.17003/expected/fig03.json"
+depends = ["AccretionDisc", "Spacetime", "NumericsCore"]
+status = "solid"
+notes = "fig:angular_momentum_balance (M:903-908). Mode-summed torque density d(frak T)/dr (72b) and AMF density dF_J/dr (72a) in F_{J,1} vs r/a_bullet in [0.4,3] with the corotation inset; a_bullet=15M, chi=0, h0=0.05, (p,q)=(0,0), b=0.6, eps_p=1e-5, m=1:120, reference grid (240,240,24000). VLM verdict MATCH vs dT_dr_vs_dFdr.pdf: trough -6.3866 at r/a=0.9565 and crest +6.6127 at r/a=1.0455 (manual reads -6.3 at 0.96, +6.6 at 1.04 off the reference). Balance (71) away from corotation |dF_J/dr - d(frak T)/dr|/max|d(frak T)/dr| = 4.00e-5 (gate 1e-4). The corotation spike is gated on the RESOLUTION-INDEPENDENT invariant: the plotted deposition integral 0.02660725 F_{J,0} equals T_L - T of (75) from corotation_split to 2.7e-5; its plotted HEIGHT (56.8 at the plot cell 5e-4 a_bullet) is a plot-sampling number (the published ~45 corresponds to ~6e-4 a_bullet). 605 s at -t4; --check reproduces the golden bitwise (33/33, rel err 0)."
+
+[[result]]
+paper = "2510.02433"
+id = "figTorqueStrengths_enhanced"
+kind = "figure"
+script = "arXiv-2510.02433/figTorqueStrengths_enhanced.jl"
+tier = "heavy"
+expected = "arXiv-2510.02433/expected/figTorqueStrengths_enhanced.json"
+depends = ["AccretionDisc", "Perturbation", "Harmonics"]
+status = "preliminary"
+notes = "fig:TorqueStrengths + tab:FitParameters WITH the relativistic amplitude enhancement E(m,r0) = |lindblad_torque/lindblad_strength| measured on a 9x6x2 grid at a=0 with lmax = max(16, m+8). Wall clock ~35 min at -t4 under the mission's concurrent load (108 Teukolsky overlap calls at 12-130 s each, then five 50-point sweeps). MEASURED FINDING: E < 1 everywhere and falling with m (0.86/0.67/0.48/0.32 at m=2/5/8/10, r0=30M), so the enhancement FLATTENS the total-torque slope: n_r = 2.54/2.70/2.88/3.13 vs the published 3.57/3.66/3.77/3.92 and the un-enhanced 3.19/3.31/3.49/3.70. The legacy enhancement grid of 1.9-9.6 divided by the PURE-Newtonian N (fixed sigma_m), double-counting the relativistic resonance-geometry shift the hybrid kernel already carries. The ell-truncation was measured separately: lmax=12 is 52% low at m=10, converged by lmax=16."
