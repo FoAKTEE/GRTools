@@ -94,9 +94,38 @@ B = −e^{ψ−ν}ω̃', C = −(Π + ν')):
 For 𝔭 = 𝔮 = 0 this reduces to d/dr[1/(χ + r^{3/2})] = −(3/2)√r/(χ + r^{3/2})². Type-generic (the
 working type is the promotion of the background type and `r`). Conceptually a background quantity;
 it lives here because it is consumed only by the master system (a pure move to background.jl is a
-no-op refactor).
+no-op refactor). Shares [`rotation_derivs`](@ref) with [`dv_dr`](@ref) — one implementation.
 """
 function dOmega_dr(bg::DiscBackground{T}, r) where {T}
+    rotation_derivs(bg, r).dΩ
+end
+
+"""
+    dv_dr(bg::DiscBackground, r) -> dv/dr
+
+Radial derivative of the ZAMO fluid speed v(r) (10) of [`rotation_profile`](@ref) — the second
+background derivative the ROUTE-R2 expressions need (route R1 uses Ω' instead). Obtained from the same
+implicit differentiation of the hydrostatic-balance quadratic as [`dOmega_dr`](@ref)
+([`rotation_derivs`](@ref)), never a second derivation.
+"""
+dv_dr(bg::DiscBackground, r) = rotation_derivs(bg, r).dv
+
+"""
+    rotation_derivs(bg::DiscBackground, r) -> (v, dv, dΩ)
+
+The one implementation behind [`dv_dr`](@ref) and [`dOmega_dr`](@ref): implicit differentiation of the
+hydrostatic-balance quadratic A v² + B v + C = 0 of [`rotation_profile`](@ref) (A = Π + ψ',
+B = −e^{ψ−ν}ω̃', C = −(Π + ν')),
+
+    v' = −(A' v² + B' v + C') / (2A v + B),
+    A' = Π' + ψ'',  B' = −e^{ψ−ν}[(ψ' − ν') ω̃' + ω̃''],  C' = −(Π' + ν''),
+    Ω' = ω̃' + e^{ν−ψ} [v' + v (ν' − ψ')]                     (Ω = ω̃ + v e^{ν−ψ}, (10)).
+
+Π' from [`_dPi_dr`](@ref), the second derivatives of the potentials from [`_potentials_d2r`](@ref).
+For 𝔭 = 𝔮 = 0, Ω' reduces to d/dr[1/(χ + r^{3/2})] = −(3/2)√r/(χ + r^{3/2})². Type-generic (the
+working type is the promotion of the background type and `r`).
+"""
+function rotation_derivs(bg::DiscBackground{T}, r) where {T}
     S = promote_type(T, typeof(r))
     rr = convert(S, r)
     χ = convert(S, bg.χ)
@@ -114,7 +143,7 @@ function dOmega_dr(bg::DiscBackground{T}, r) where {T}
     dB = -e_ψν * ((d.dψ - d.dν) * d.dω̃ + d2.d2ω̃)
     dC = -(dΠ + d2.d2ν)
     dv = -(dA * v^2 + dB * v + dC) / (2 * A * v + B)
-    d.dω̃ + (dv + v * (d.dν - d.dψ)) / e_ψν
+    (v = v, dv = dv, dΩ = d.dω̃ + (dv + v * (d.dν - d.dψ)) / e_ψν)
 end
 
 # ---------------------------------------------------------------------------------------------
@@ -268,4 +297,49 @@ function delta_u_phi_newtonian(bg::DiscBackground{T}, m::Integer, r, y, Φ; land
     ωd = _omega_d_shifted(bg, m, rr, landau, rc)
     y1 = convert(Complex{S}, y[1]); y2 = convert(Complex{S}, y[2])
     m * (y1 + Φ) / (rr * ωd) + y2 * κ2 / (2 * ωd * Ω)
+end
+
+# ---------------------------------------------------------------------------------------------
+# route-R2 completion of the (47) reduction — the relativistic δû_φ (the notebook [HOLE])
+# ---------------------------------------------------------------------------------------------
+# `r2_generated.jl` is emitted by the emri-disk generator codes/cas/R2_to_julia.wls from the
+# INDEPENDENT CAS derivation R2_master_system.m (EGD::deriv-master-system-R2), through the SAME tree
+# walker (codes/cas/cas_to_julia.wl) that emits master_generated.jl — one generator, two inputs, no
+# second hand transcription. It supplies `_r2_delta_u_phi` (used here), and `_r2_amf` /
+# `_r2_torque_density` (used by diagnostics.jl). All three take the MasterInputs above plus the two
+# background scalars route R2 needs and route R1 does not: ω̃(r) and v'(r).
+
+include("r2_generated.jl")   # _r2_delta_u_phi, _r2_amf, _r2_torque_density — GENERATED, do not edit
+
+"""
+    r2_context(bg::DiscBackground, m, r; hmodes, landau = true, rc = nothing) -> (inp, omt, vp)
+
+The complete route-R2 input set at radius `r`: the [`MasterInputs`](@ref) of [`master_inputs`](@ref)
+(shared with route R1 — ONE inputs struct), the frame-dragging potential ω̃(r) and v'(r)
+([`dv_dr`](@ref)). Consumed by [`delta_u_phi`](@ref) and by the generated diagnostics kernels of
+`diagnostics.jl`; assemble it once per radius when several of them are needed.
+"""
+function r2_context(bg::DiscBackground{T}, m::Integer, r; hmodes, landau::Bool = true, rc = nothing) where {T}
+    S = promote_type(T, typeof(r))
+    rr = convert(S, r)
+    inp = master_inputs(bg, m, rr; hmodes = hmodes, landau = landau, rc = rc)
+    ω̃ = kerr_equatorial_potentials(convert(S, bg.χ), rr).ω̃
+    (inp, ω̃, dv_dr(bg, rr))
+end
+
+"""
+    delta_u_phi(bg::DiscBackground, m, r, y; hmodes, landau = true, rc = nothing) -> δû_φ
+
+RELATIVISTIC covariant azimuthal velocity perturbation δû_φ = g_{φμ}δû^μ + h_{φμ}u^μ — the eliminated
+φ-velocity of the (47) reduction, in the master variables y = (δÛ, −iδû^r). Generated from the route-R2
+derivation (`_r2_delta_u_phi`; the supplementary notebook of the paper provides no relativistic
+counterpart, which is why route R2 was derived). Affine in `y`.
+
+ERRATUM E-M1: the printed Newtonian (50a) is the ORTHONORMAL component; the covariant one is r·(50a),
+which is what this function reduces to as M/a• → 0 (see [`delta_u_phi_newtonian`](@ref)). The AMF (72a)
+consumes the COVARIANT component with u_φ = r²Ω.
+"""
+function delta_u_phi(bg::DiscBackground, m::Integer, r, y; hmodes, landau::Bool = true, rc = nothing)
+    inp, ω̃, vp = r2_context(bg, m, r; hmodes = hmodes, landau = landau, rc = rc)
+    _r2_delta_u_phi(inp, ω̃, vp, y[1], y[2])
 end

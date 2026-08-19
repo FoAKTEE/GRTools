@@ -22,16 +22,20 @@ using TestKit
                    :wkb_wavenumber, :wkb_wavenumber2, :wkb_wavenumber_floored, :WKBRegion, :wkb_region,
                    :cell_count]                                                      # EGD::sw-grid
     landed_master = [:MasterInputs, :master_inputs, :master_matrices, :master_matrices_newtonian,
-                     :delta_u_phi_newtonian, :landau_shift, :dOmega_dr]          # EGD::sw-master-matrices
+                     :delta_u_phi_newtonian, :landau_shift, :dOmega_dr,
+                     :delta_u_phi, :r2_context, :dv_dr, :rotation_derivs]        # EGD::sw-master-matrices (+R2)
     landed_source = [:SingularFieldCoeffs, :singular_field_coeffs, :worldline_velocity, :s0_squared,
                      :s0_squared_dr, :singular_field, :singular_field_mode, :source_modes, :source_modes!,
                      :raise_modes, :strip_halfwidth, :trapezoid_nodes]            # EGD::sw-singular-source
-    @test Set(names(SW)) == Set(vcat(:SpiralWaves, landed_background, landed_grid, landed_master, landed_source))
+    landed_solver = [:ModeSolution, :solve_mode, :midpoint_system, :solve_midpoint, :midpoint_residual,
+                     :eigen2, :outgoing_branch, :wkb_wavenumber_gr, :wkb_wavenumber2_gr]  # EGD::sw-mode-solver
+    @test Set(names(SW)) == Set(vcat(:SpiralWaves, landed_background, landed_grid, landed_master,
+                                     landed_source, landed_solver))
     @test SW.PAPER == "arXiv:2608.17003"
     @test SW.sw_version() isa VersionNumber
-    @test SW.sw_version() == v"0.5.0"
+    @test SW.sw_version() == v"0.6.0"
     # no placeholder physics: none of the UNLANDED planned node entry points exist yet
-    for sym in (:emri_source, :solve_mode, :ModeSolution, :torque_balance, :torque_survey)
+    for sym in (:emri_source, :torque_balance, :torque_density, :cumulative_torque, :torque_survey)
         @test !isdefined(SW, sym)
     end
     # SparseArrays is a declared hard dep (and resolvable from the package env)

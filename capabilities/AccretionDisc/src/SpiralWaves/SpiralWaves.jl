@@ -51,9 +51,10 @@ const PAPER = "arXiv:2608.17003"
     sw_version() -> VersionNumber
 
 Version of the `SpiralWaves` submodule API (bumped as DAG nodes land; `v"0.1.0"` = scaffold,
-`v"0.2.0"` = background, `v"0.3.0"` = grid, `v"0.4.0"` = master matrices, `v"0.5.0"` = singular source).
+`v"0.2.0"` = background, `v"0.3.0"` = grid, `v"0.4.0"` = master matrices, `v"0.5.0"` = singular source,
+`v"0.6.0"` = mode solver).
 """
-sw_version() = v"0.5.0"
+sw_version() = v"0.6.0"
 
 # ---- EGD::sw-background — disc equilibrium (Sec. II.A) -------------------------------------------
 include("background.jl")
@@ -72,6 +73,7 @@ export wkb_wavenumber, wkb_wavenumber2, wkb_wavenumber_floored, WKBRegion, wkb_r
 #  the notebook transcription emitted by the emri-disk generator codes/cas/R1_to_julia.wls)
 include("master.jl")
 export MasterInputs, master_inputs, master_matrices, master_matrices_newtonian, delta_u_phi_newtonian
+export delta_u_phi, r2_context, dv_dr, rotation_derivs
 export landau_shift, dOmega_dr
 
 # ---- EGD::sw-singular-source — the EMRI singular field and its Fourier modes (Sec. II.D, App. B) -----
@@ -80,5 +82,11 @@ include("source.jl")
 export SingularFieldCoeffs, singular_field_coeffs, worldline_velocity, s0_squared, s0_squared_dr
 export singular_field, singular_field_mode, source_modes, source_modes!, raise_modes
 export strip_halfwidth, trapezoid_nodes
+
+# ---- EGD::sw-mode-solver — implicit-midpoint global solve + outgoing-wave BCs (Sec. II.E) ---------
+# (needs master.jl for C, S and delta_u_phi, source.jl for the modes at the midpoints, grid.jl for r)
+include("solver.jl")
+export ModeSolution, solve_mode, midpoint_system, solve_midpoint, midpoint_residual
+export eigen2, outgoing_branch, wkb_wavenumber_gr, wkb_wavenumber2_gr
 
 end # module SpiralWaves
