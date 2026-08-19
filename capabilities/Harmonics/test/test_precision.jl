@@ -71,4 +71,67 @@ using Harmonics
             @test relerr_f64 > floor256 * 1e40                     # ceiling ≫ eigenvalue floor
         end
     end
+
+    # ---- (C) Leaver COEFFICIENT recurrence inherits the caller precision (repro-audit G10) -----
+    # `_swsh_leaver_coeffs` used to run its BigFloat recurrence at a HARD-CODED 256 bits, so a
+    # BigFloat-512 caller had its intermediate silently truncated — contradicting the "precision
+    # inherited end-to-end" contract. The working precision is now `max(256, precision(BigFloat))`.
+    @testset "Leaver coeff recurrence: max(256, precision(BigFloat))" begin
+        # (C1) the policy itself: 256 is a FLOOR, the ambient precision wins above it
+        for bits in (64, 128, 256)
+            setprecision(BigFloat, bits) do
+                @test Harmonics._leaver_coeff_precision() == 256
+            end
+        end
+        for bits in (512, 1024, 2048)
+            setprecision(BigFloat, bits) do
+                @test Harmonics._leaver_coeff_precision() == bits
+            end
+        end
+        @test Harmonics._leaver_coeff_precision() == max(256, precision(BigFloat))
+
+        # (C2) no hard-coded 256-bit intermediate survives in the source
+        src = read(joinpath(pkgdir(Harmonics), "src", "SpheroidalHarmonics.jl"), String)
+        @test !occursin("setprecision(BigFloat, 256)", src)
+
+        # (C3) SELF-CONVERGENCE of the Float64-capped output: raising the recurrence from 256 to
+        # 512/1024 bits does not move the returned coefficients or the harmonic value — the
+        # 256-bit floor was already converged for these modes, so the fix is result-neutral here
+        # while removing the truncation for callers that need more.
+        for (s, l, m, γ) in ((-2, 2, 2, 0.3), (-2, 4, 2, 0.5), (0, 3, 1, 0.7), (2, 5, -3, 1.1))
+            λ256, c256, k1, k2 = setprecision(BigFloat, 256) do
+                Harmonics._swsh_leaver_coeffs(s, l, m, γ)
+            end
+            for bits in (512, 1024)
+                λb, cb, k1b, k2b = setprecision(BigFloat, bits) do
+                    Harmonics._swsh_leaver_coeffs(s, l, m, γ)
+                end
+                @test (k1b, k2b) == (k1, k2)
+                @test λb == λ256                                   # Float64 γ ⇒ Float64 eigenvalue
+                @test length(cb) == length(c256)
+                @test maximum(abs, cb .- c256) <= 1e-15 * maximum(abs, c256)
+            end
+            # the callable Leaver harmonic agrees with the DEFAULT (Float64-ambient) evaluation
+            S_def = SpinWeightedSpheroidalHarmonicS(s, l, m, γ; method = :Leaver)
+            S_512 = setprecision(BigFloat, 512) do
+                SpinWeightedSpheroidalHarmonicS(s, l, m, γ; method = :Leaver)
+            end
+            for θ in (0.4, 1.1, 2.3)
+                v = S_def(θ, 0.6); w = S_512(θ, 0.6)
+                @test abs(w - v) <= 1e-15 * max(abs(v), 1e-300)
+            end
+        end
+
+        # (C4) the BigFloat EIGENVALUE tier stays at its own floor (unchanged by C1-C3):
+        # 512 vs 1024 bits self-converge far below 1e-70.
+        λ512 = setprecision(BigFloat, 512) do
+            SpinWeightedSpheroidalEigenvalue(-2, 4, 2, big"0.5")
+        end
+        λ1024 = setprecision(BigFloat, 1024) do
+            SpinWeightedSpheroidalEigenvalue(-2, 4, 2, big"0.5")
+        end
+        @test abs(λ512 - λ1024) / abs(λ1024) < 1e-70
+        @test abs(Float64(λ512) - Float64(SpinWeightedSpheroidalEigenvalue(-2, 4, 2, 0.5;
+                                                method = :Leaver))) < 1e-15 * abs(Float64(λ512))
+    end
 end

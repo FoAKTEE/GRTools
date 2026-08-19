@@ -168,20 +168,34 @@ struct SWSHSLeaverFunction
 end
 
 """
+    _leaver_coeff_precision() -> Int
+
+Working `BigFloat` precision of the Leaver coefficient recurrence: `max(256, precision(BigFloat))`.
+
+256 bits is a FLOOR, not a cap — the recurrence excites the dominant solution and the `normterm`
+sum cancels over ~10⁹, so it needs far more than the caller may have active; but a caller who has
+raised `setprecision` (BigFloat-512/1024 chains) must not have it silently truncated back to 256.
+This is the same `max(256, precision(BigFloat))` policy used by `Perturbation.renorm_angmom` and
+`MetricReconstruction.GHZ`.
+"""
+_leaver_coeff_precision() = max(256, precision(BigFloat))
+
+"""
     _swsh_leaver_coeffs(s, l, m, γ; numterms=:auto, maxterms=200) -> (λ, coeffs, 2k1, 2k2)
 
 Leaver-series coefficients & normalisation (Leaver 1985 Eq.20). `λ` from
 [`SpinWeightedSpheroidalEigenvalue`](@ref); the `₁F₁` norm term sum (Pochhammer/Γ reduced to
-integer factorials) is consumed from `NumericsCore.kummer_1F1`. Computed in `BigFloat` (the
-forward recurrence excites the dominant solution and the alternating `normterm` sum cancels over
-~10⁹ — Float64 would lose the overall scale), then returned as sign-fixed `Float64 coeffs/norm`.
+integer factorials) is consumed from `NumericsCore.kummer_1F1`. Computed in `BigFloat` at
+[`_leaver_coeff_precision`](@ref) (the forward recurrence excites the dominant solution and the
+alternating `normterm` sum cancels over ~10⁹ — Float64 would lose the overall scale), then returned
+as sign-fixed `Float64 coeffs/norm` (§4.2 value-tier ceiling).
 """
 function _swsh_leaver_coeffs(s::Integer, l::Integer, m::Integer, γ::Real;
                              numterms=:auto, maxterms::Integer=200)
     λf = SpinWeightedSpheroidalEigenvalue(s, l, m, γ)
     twok1 = abs(m - s)
     twok2 = abs(m + s)
-    coeffsbig = setprecision(BigFloat, 256) do
+    coeffsbig = setprecision(BigFloat, _leaver_coeff_precision()) do
         g = BigFloat(γ); λ = BigFloat(λf)
         k1 = big(twok1) / 2; k2 = big(twok2) / 2
         αn(n) = -2 * (n + 1) * (n + twok1 + 1)
