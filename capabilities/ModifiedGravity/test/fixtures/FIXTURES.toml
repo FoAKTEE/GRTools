@@ -1,0 +1,47 @@
+# FIXTURES.toml — baked-fixture provenance ledger for capabilities/ModifiedGravity
+# GRR::g2-fixture-capture-scripts / GRR::g14-oracle-scripts (repro-audit gaps G2, G13, G14).
+# Generated 2026-08-19; see docs/src/topics/fixtures.md for the status vocabulary and the repo-wide roll-up.
+#
+# status:
+#   regenerated-identical  capture re-run on 2026-08-19; fixture data bit-identical (only capture-date/
+#                          host comment lines may differ)
+#   reverified-identical   a NEW key-driven regenerator re-evaluated the oracle at every baked key
+#   tracked-generator      an in-tree generator/regenerator already existed
+#   tracked-notrerunnable  capture now tracked, but the oracle STATE it captured no longer exists
+#   tracked-notrerun       capture now tracked; re-run deferred (cost/corpus) [FUTURE]
+#   hole-script-lost       no capture script anywhere; values frozen [HOLE]
+#   upstream-copy          vendored upstream data; no generator applies
+#   shared-input           generator INPUT shared verbatim between capture and test
+
+package = "capabilities/ModifiedGravity"
+generated = "2026-08-19"
+
+[[fixture]]
+file = "test/data/i0.5_p12.0_e0_r20.0.dat"
+sha256 = "1f98ae2c06d1adb69b21081d23120782048600641d9d28499bbd0623195f38e9"
+bytes = 92863
+capture = "test/oracles/ring_functions_oracle.wl (companion)"
+oracle = "frozen upstream source tables (ring/disc source amplitudes)"
+oracle_commit = "9be1f980"
+status = "upstream-copy"
+note = "described in test/runtests.jl:12 as frozen .dat source tables; upstream origin is not pinned by a commit (repro-audit gap G13). The wolframscript oracles that evaluate the SAME closed forms are now tracked under test/oracles/"
+
+[[fixture]]
+file = "test/data/i0.5_p12.0_e0_r400.0.dat"
+sha256 = "5d48c4583a8b4675331db34a4bb3c24dc2977645a942f0bf6ca7b2313db5b34b"
+bytes = 32948
+capture = "test/oracles/ring_functions_oracle.wl (companion)"
+oracle = "frozen upstream source tables (ring/disc source amplitudes)"
+oracle_commit = "9be1f980"
+status = "upstream-copy"
+note = "described in test/runtests.jl:12 as frozen .dat source tables; upstream origin is not pinned by a commit (repro-audit gap G13). The wolframscript oracles that evaluate the SAME closed forms are now tracked under test/oracles/"
+
+[[fixture]]
+file = "test/data/i1.0_p12.0_e0_r20.0.dat"
+sha256 = "57a2fef8e7d1527079a70bfb125fef74b801c7b96409d329d69209b3a91e8156"
+bytes = 1712
+capture = "test/oracles/ring_functions_oracle.wl (companion)"
+oracle = "frozen upstream source tables (ring/disc source amplitudes)"
+oracle_commit = "9be1f980"
+status = "upstream-copy"
+note = "described in test/runtests.jl:12 as frozen .dat source tables; upstream origin is not pinned by a commit (repro-audit gap G13). The wolframscript oracles that evaluate the SAME closed forms are now tracked under test/oracles/"
