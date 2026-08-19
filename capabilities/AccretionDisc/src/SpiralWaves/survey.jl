@@ -67,23 +67,46 @@ mode_torques(s::TorqueSurvey) = [mt.T for mt in s.modes]
 "Per-mode Lindblad torques `T_{L,m}` in the order of `s.ms`."
 mode_lindblad_torques(s::TorqueSurvey) = [mt.T_L for mt in s.modes]
 
-# one mode, start to finish (pure: identical inputs ⇒ identical bits, on any thread)
+# one mode, start to finish (pure: identical inputs ⇒ identical bits, on any thread).
+# `model = :relativistic` runs the pipeline of solver.jl/diagnostics.jl, `:newtonian` the M/r → 0 one
+# of newtonian.jl (the T_Newt denominator of Fig. 5). The singular-field / potential projection (60) is
+# the dominant cost, so the NODE modes are computed ONCE and shared by the torque density and the AMF;
+# and unless the caller keeps the profiles, the AMF is evaluated at the FOUR nodes the (75) reduction
+# actually reads (the two domain edges and the two edges of the corotation window) instead of the whole
+# grid. Both shortcuts evaluate the same expressions on the same inputs, so the reduction is bitwise
+# identical to the `corotation_split(bg, sol; flux = amf(bg, sol), density = torque_density(bg, sol))`
+# it replaces (asserted in the tests).
 function _survey_one(bg::DiscBackground{T}, m::Integer; grid_kwargs, solve_kwargs, halfwidth,
-                     keep_profiles::Bool) where {T}
+                     keep_profiles::Bool, model::Symbol = :relativistic) where {T}
     t0 = time()
-    g = build_grid(bg, m; grid_kwargs...)
-    sol = solve_mode(bg, m; grid = g, threads = false, solve_kwargs...)
-    F = amf(bg, sol)
-    D = torque_density(bg, sol)
-    sp = corotation_split(bg, sol; halfwidth = halfwidth, flux = F, density = D)
-    mt = ModeTorque{T}(Int(m), sp.T, sp.T_L, sp.T_c, F[1], F[end], length(sol.r), sol.residual, time() - t0)
+    newt = model === :newtonian
+    g = newt ? newtonian_grid(bg, m; grid_kwargs...) : build_grid(bg, m; grid_kwargs...)
+    sol = newt ? newtonian_solve_mode(bg, m; grid = g, threads = false, solve_kwargs...) :
+                 solve_mode(bg, m; grid = g, threads = false, solve_kwargs...)
+    hm = newt ? _newtonian_node_modes(bg, sol, sol.r) : _node_modes(bg, sol, sol.r)
+    D = newt ? newtonian_torque_density(bg, sol; hmodes = hm) : torque_density(bg, sol; hmodes = hm)
+    𝔗 = cumulative_torque(bg, sol; density = D)
+    win = corotation_window(sol, halfwidth)
+    i1, i2, iN = first(win), last(win), length(sol.r)
+    if keep_profiles
+        F = newt ? newtonian_amf(bg, sol; hmodes = hm) : amf(bg, sol; hmodes = hm)
+        F1, Fw1, Fw2, FN = F[1], F[i1], F[i2], F[iN]
+    else
+        idx = [1, i1, i2, iN]
+        Fv = newt ? newtonian_amf(bg, sol, idx; hmodes = hm[idx]) : amf(bg, sol, idx; hmodes = hm[idx])
+        F = nothing
+        F1, Fw1, Fw2, FN = Fv[1], Fv[2], Fv[3], Fv[4]
+    end
+    mt = ModeTorque{T}(Int(m), 𝔗[iN] - 𝔗[1], FN - F1, (𝔗[i2] - 𝔗[i1]) - (Fw2 - Fw1),
+                       F1, FN, length(sol.r), sol.residual, time() - t0)
     prof = keep_profiles ? (r = sol.r, F_J = F, density = D) : nothing
     (mt, prof)
 end
 
 """
     torque_survey(bg::DiscBackground, ms; threads = true, keep_profiles = false, verbose = false,
-                  halfwidth = 3bg.σε, grid_kwargs = (;), solve_kwargs = (;)) -> TorqueSurvey
+                  halfwidth = 3bg.σε, model = :relativistic, grid_kwargs = (;), solve_kwargs = (;))
+        -> TorqueSurvey
 
 Solve every azimuthal mode in `ms` (each on its OWN adaptive grid, `grid_kwargs` forwarded to
 [`build_grid`](@ref), `solve_kwargs` to [`solve_mode`](@ref)) and reduce each to a [`ModeTorque`](@ref);
@@ -93,13 +116,19 @@ sum the per-mode torques SERIALLY in the order of `ms`.
 touches (its grid, its matrices, its source modes — the inner source projection is forced serial to
 avoid nested threading) and writes one disjoint slot, so the result is BITWISE identical to
 `threads = false`. `verbose = true` prints the [`compute_budget`](@ref) note before the loop.
+
+`model = :relativistic` (default) solves (47) with the relativistic C, S; `model = :newtonian` solves
+the Newtonian limit (50) on the Newtonian background with the Plummer potential (`newtonian.jl`) —
+the T_Newt denominator of Fig. 5. In the Newtonian model the result is independent of `bg.χ`.
 """
 function torque_survey(bg::DiscBackground{T}, ms::AbstractVector{<:Integer};
                        threads::Bool = true, keep_profiles::Bool = false, verbose::Bool = false,
-                       halfwidth = 3 * bg.σε, grid_kwargs = NamedTuple(),
+                       halfwidth = 3 * bg.σε, model::Symbol = :relativistic, grid_kwargs = NamedTuple(),
                        solve_kwargs = NamedTuple()) where {T}
     isempty(ms) && throw(ArgumentError("torque_survey: `ms` must be non-empty"))
     all(m -> m ≥ 1, ms) || throw(ArgumentError("torque_survey: every m must be ≥ 1"))
+    model in (:relativistic, :newtonian) ||
+        throw(ArgumentError("torque_survey: model must be :relativistic or :newtonian, got $(repr(model))"))
     budget = compute_budget()
     verbose && @info budget.note
     t0 = time()
@@ -110,14 +139,14 @@ function torque_survey(bg::DiscBackground{T}, ms::AbstractVector{<:Integer};
     if threads
         Threads.@threads :static for i in 1:n
             mt, pr = _survey_one(bg, ms[i]; grid_kwargs = grid_kwargs, solve_kwargs = solve_kwargs,
-                                 halfwidth = halfwidth, keep_profiles = keep_profiles)
+                                 halfwidth = halfwidth, keep_profiles = keep_profiles, model = model)
             @inbounds mts[i] = mt
             keep_profiles && (@inbounds profs[i] = pr)
         end
     else
         for i in 1:n
             mt, pr = _survey_one(bg, ms[i]; grid_kwargs = grid_kwargs, solve_kwargs = solve_kwargs,
-                                 halfwidth = halfwidth, keep_profiles = keep_profiles)
+                                 halfwidth = halfwidth, keep_profiles = keep_profiles, model = model)
             @inbounds mts[i] = mt
             keep_profiles && (@inbounds profs[i] = pr)
         end

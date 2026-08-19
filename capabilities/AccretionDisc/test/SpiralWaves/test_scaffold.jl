@@ -31,18 +31,25 @@ using TestKit
                      :eigen2, :outgoing_branch, :wkb_wavenumber_gr, :wkb_wavenumber2_gr]  # EGD::sw-mode-solver
     landed_diag = [:sqrt_minus_g, :amf, :amf_mode, :torque_density, :torque_density_mode,
                    :cumulative_torque, :total_torque, :lindblad_torque, :torque_units, :m_cut,
-                   :balance_residual, :corotation_split]                             # EGD::sw-diagnostics
+                   :balance_residual, :corotation_split, :corotation_window]         # EGD::sw-diagnostics
     landed_survey = [:ModeTorque, :TorqueSurvey, :torque_survey, :survey_configs, :mode_torques,
                      :mode_lindblad_torques, :compute_budget]                  # EGD::sw-survey-parallel
     landed_image = [:ModeInterp, :mode_interp, :synthesize, :synthesize_cartesian,
                     :polar_to_cartesian, :image_grid, :arm_phase,
                     :wake_modes]                                              # EGD::sw-image-synthesis
+    landed_newtonian = [:newtonian_Omega_emri, :newtonian_csound, :newtonian_pressure, :newtonian_gamma1,
+                        :newtonian_rotation, :newtonian_omega_d, :newtonian_corotation_radius,
+                        :newtonian_potential_coeffs, :newtonian_potential_mode, :newtonian_potential_modes,
+                        :newtonian_master_matrices, :newtonian_delta_u_phi, :newtonian_delta_sigma,
+                        :newtonian_grid, :newtonian_solve_mode, :newtonian_amf_mode,
+                        :newtonian_torque_density_mode, :newtonian_amf, :newtonian_torque_density,
+                        :newtonian_balance_residual]                          # EGD::sw-newtonian-limit
     @test Set(names(SW)) == Set(vcat(:SpiralWaves, landed_background, landed_grid, landed_master,
                                      landed_source, landed_solver, landed_diag, landed_survey,
-                                     landed_image))
+                                     landed_image, landed_newtonian))
     @test SW.PAPER == "arXiv:2608.17003"
     @test SW.sw_version() isa VersionNumber
-    @test SW.sw_version() == v"0.9.1"
+    @test SW.sw_version() == v"0.10.0"
     # no placeholder physics: none of the UNLANDED planned node entry points exist yet
     for sym in (:emri_source, :torque_balance, :spiral_morphology, :pressureless_comparison)
         @test !isdefined(SW, sym)

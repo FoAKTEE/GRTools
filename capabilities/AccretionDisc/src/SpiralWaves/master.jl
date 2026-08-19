@@ -265,19 +265,30 @@ relativistic matrices.
 """
 function master_matrices_newtonian(bg::DiscBackground{T}, m::Integer, r, Φ, dΦ; landau::Bool = true, rc = nothing) where {T}
     S = promote_type(T, typeof(r), typeof(Φ), typeof(dΦ))
-    rr = convert(S, r); Φh = convert(S, Φ); dΦh = convert(S, dΦ)
+    rr = convert(S, r)
     Ω = Omega(bg, rr); dΩ = dOmega_dr(bg, rr)
-    κ2 = _kappa2_fluid(Ω, rr, dΩ)
-    Σ = eps_profile(bg, rr); p = pressure(bg, rr); Γ1 = gamma1(bg, rr)
-    dp = -(bg.𝔭 + bg.𝔮) * p / rr
-    dΣ = -bg.𝔭 * Σ / rr
-    ωd = _omega_d_shifted(bg, m, rr, landau, rc)
+    _newtonian_entries(m, rr, Ω, _kappa2_fluid(Ω, rr, dΩ), eps_profile(bg, rr), -bg.𝔭 * eps_profile(bg, rr) / rr,
+                       pressure(bg, rr), -(bg.𝔭 + bg.𝔮) * pressure(bg, rr) / rr, gamma1(bg, rr),
+                       _omega_d_shifted(bg, m, rr, landau, rc), convert(S, Φ), convert(S, dΦ))
+end
+
+"""
+    _newtonian_entries(m, r, Ω, κ2, Σ, dΣ, p, dp, Γ1, ωd, Φ, dΦ) -> (C, S)
+
+The (50b)-(50g) algebra ITSELF, as a function of the local background scalars only — the ONE
+implementation behind both [`master_matrices_newtonian`](@ref) (the O(M/r) limit of the relativistic
+system, evaluated on the relativistic background of `bg`) and `newtonian_master_matrices` of
+`newtonian.jl` (the same equations on the purely NEWTONIAN background). `ωd` is the (possibly
+Landau-shifted, hence Complex) Doppler frequency (51); `Φ`, `dΦ` are the Fourier potential mode and
+its r-derivative.
+"""
+function _newtonian_entries(m::Integer, r::S, Ω, κ2, Σ, dΣ, p, dp, Γ1, ωd::Complex, Φ, dΦ) where {S<:Real}
     C = Matrix{Complex{S}}(undef, 2, 2)
-    C[1, 1] = 2 * m * Ω / (rr * ωd) + dp / (Γ1 * p) - dΣ / Σ
+    C[1, 1] = 2 * m * Ω / (r * ωd) + dp / (Γ1 * p) - dΣ / Σ
     C[1, 2] = -ωd + (κ2 + dp * (-Σ * dp / (Γ1 * p) + dΣ) / Σ^2) / ωd
-    C[2, 1] = -m^2 / (rr^2 * ωd) + ωd * Σ / (Γ1 * p)
-    C[2, 2] = -1 / rr - m * κ2 / (2 * rr * ωd * Ω) - dp / (Γ1 * p)
-    Svec = Complex{S}[2 * m * Φh * Ω / (rr * ωd) - dΦh, -m^2 * Φh / (rr^2 * ωd)]
+    C[2, 1] = -m^2 / (r^2 * ωd) + ωd * Σ / (Γ1 * p)
+    C[2, 2] = -1 / r - m * κ2 / (2 * r * ωd * Ω) - dp / (Γ1 * p)
+    Svec = Complex{S}[2 * m * Φ * Ω / (r * ωd) - dΦ, -m^2 * Φ / (r^2 * ωd)]
     (C, Svec)
 end
 
@@ -293,11 +304,18 @@ function delta_u_phi_newtonian(bg::DiscBackground{T}, m::Integer, r, y, Φ; land
     S = promote_type(T, typeof(r), real(typeof(Φ)), real(eltype(y)))
     rr = convert(S, r)
     Ω = Omega(bg, rr); dΩ = dOmega_dr(bg, rr)
-    κ2 = _kappa2_fluid(Ω, rr, dΩ)
-    ωd = _omega_d_shifted(bg, m, rr, landau, rc)
-    y1 = convert(Complex{S}, y[1]); y2 = convert(Complex{S}, y[2])
-    m * (y1 + Φ) / (rr * ωd) + y2 * κ2 / (2 * ωd * Ω)
+    _newtonian_delta_u_phi(m, rr, Ω, _kappa2_fluid(Ω, rr, dΩ), _omega_d_shifted(bg, m, rr, landau, rc),
+                           (convert(Complex{S}, y[1]), convert(Complex{S}, y[2])), Φ)
 end
+
+"""
+    _newtonian_delta_u_phi(m, r, Ω, κ2, ωd, y, Φ) -> δu_φ
+
+The (50a) algebra itself (ORTHONORMAL component, see ERRATUM E-M1), shared by
+[`delta_u_phi_newtonian`](@ref) and the Newtonian-background pipeline of `newtonian.jl`.
+"""
+_newtonian_delta_u_phi(m::Integer, r, Ω, κ2, ωd, y, Φ) =
+    m * (y[1] + Φ) / (r * ωd) + y[2] * κ2 / (2 * ωd * Ω)
 
 # ---------------------------------------------------------------------------------------------
 # route-R2 completion of the (47) reduction — the relativistic δû_φ (the notebook [HOLE])

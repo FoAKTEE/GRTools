@@ -35,4 +35,5 @@ using AccretionDisc
     include("SpiralWaves/test_diagnostics.jl") # EGD::sw-diagnostics: AMF (72a), torque (72b), (74), (75), m-cutoffs
     include("SpiralWaves/test_survey.jl")     # EGD::sw-survey-parallel: threaded m-sweep, configuration sweep
     include("SpiralWaves/test_image_synthesis.jl") # EGD::sw-image-synthesis: mode-sum wake reconstruction (Figs. 1-2)
+    include("SpiralWaves/test_newtonian.jl")  # EGD::sw-newtonian-limit: (50) on a Newtonian background (Fig. 5 T_Newt)
 end

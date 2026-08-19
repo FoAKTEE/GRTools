@@ -53,9 +53,10 @@ const PAPER = "arXiv:2608.17003"
 Version of the `SpiralWaves` submodule API (bumped as DAG nodes land; `v"0.1.0"` = scaffold,
 `v"0.2.0"` = background, `v"0.3.0"` = grid, `v"0.4.0"` = master matrices, `v"0.5.0"` = singular source,
 `v"0.6.0"` = mode solver, `v"0.7.0"` = diagnostics,
-`v"0.8.0"` = survey, `v"0.9.0"` = image synthesis, `v"0.9.1"` = its Cartesian/winding/mode-sweep front end).
+`v"0.8.0"` = survey, `v"0.9.0"` = image synthesis, `v"0.9.1"` = its Cartesian/winding/mode-sweep front end,
+`v"0.10.0"` = the Newtonian-limit pipeline (T_Newt of Fig. 5)).
 """
-sw_version() = v"0.9.1"
+sw_version() = v"0.10.0"
 
 # ---- EGD::sw-background — disc equilibrium (Sec. II.A) -------------------------------------------
 include("background.jl")
@@ -94,11 +95,25 @@ export eigen2, outgoing_branch, wkb_wavenumber_gr, wkb_wavenumber2_gr
 include("diagnostics.jl")
 export sqrt_minus_g, amf, amf_mode, torque_density, torque_density_mode, cumulative_torque
 export total_torque, lindblad_torque, torque_units, m_cut, balance_residual, corotation_split
+export corotation_window
 
 # ---- EGD::sw-survey-parallel — threaded m-sweep and configuration sweep (Sec. III) ----------------
 include("survey.jl")
 export ModeTorque, TorqueSurvey, torque_survey, survey_configs, mode_torques, mode_lindblad_torques
 export compute_budget
+
+# ---- EGD::sw-newtonian-limit — the M/r → 0 pipeline: (50) on a Newtonian background (Fig. 5) ------
+# (after diagnostics.jl: it reuses `_newtonian_entries`/`_newtonian_delta_u_phi` of master.jl, the
+#  `_kernel_integrals` projection of source.jl, the solver of solver.jl and `cumulative_torque` /
+#  `corotation_split` of diagnostics.jl — one scheme, two models)
+include("newtonian.jl")
+export newtonian_Omega_emri, newtonian_csound, newtonian_pressure, newtonian_gamma1
+export newtonian_rotation, newtonian_omega_d, newtonian_corotation_radius
+export newtonian_potential_coeffs, newtonian_potential_mode, newtonian_potential_modes
+export newtonian_master_matrices, newtonian_delta_u_phi, newtonian_delta_sigma
+export newtonian_grid, newtonian_solve_mode
+export newtonian_amf_mode, newtonian_torque_density_mode, newtonian_amf, newtonian_torque_density
+export newtonian_balance_residual
 
 # ---- EGD::sw-image-synthesis — mode-sum reconstruction of the wake (Figs. 1-2) --------------------
 include("image_synthesis.jl")

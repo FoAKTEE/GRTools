@@ -84,27 +84,41 @@ _node_modes(bg::DiscBackground, sol::ModeSolution, rs) =
                  mEMRI = sol.params.mEMRI)
 
 """
-    amf(bg::DiscBackground, sol::ModeSolution) -> Vector{T}
+    amf(bg::DiscBackground, sol::ModeSolution; hmodes = <source modes at the nodes>) -> Vector{T}
+    amf(bg::DiscBackground, sol::ModeSolution, idx; hmodes = <source modes at `sol.r[idx]`>) -> Vector{T}
 
-The angular-momentum flux F_J(r) (72a) of a solved mode at every grid node ([`amf_mode`](@ref)).
+The angular-momentum flux F_J(r) (72a) of a solved mode at every grid node ([`amf_mode`](@ref)), or
+only at the node indices `idx`. Pass `hmodes` (the singular-field Fourier modes at the corresponding
+radii, [`source_modes`](@ref)) to share ONE projection with [`torque_density`](@ref) — the projection
+(60) is the dominant cost of the diagnostics and is otherwise repeated per call. The indexed method
+exists because the (75) reduction needs F_J at FOUR nodes only (the two domain edges and the two edges
+of the corotation window), never on the whole grid; both methods evaluate exactly the same expression,
+so they agree bitwise.
 """
-function amf(bg::DiscBackground{T}, sol::ModeSolution{T}) where {T}
+function amf(bg::DiscBackground{T}, sol::ModeSolution{T};
+             hmodes::AbstractVector = _node_modes(bg, sol, sol.r)) where {T}
     p = sol.params
-    hm = _node_modes(bg, sol, sol.r)
-    [amf_mode(bg, sol.m, sol.r[i], (sol.y[1, i], sol.y[2, i]); hmodes = hm[i], landau = p.landau, rc = p.rc)
+    [amf_mode(bg, sol.m, sol.r[i], (sol.y[1, i], sol.y[2, i]); hmodes = hmodes[i], landau = p.landau, rc = p.rc)
      for i in eachindex(sol.r)]
 end
 
+function amf(bg::DiscBackground{T}, sol::ModeSolution{T}, idx::AbstractVector{<:Integer};
+             hmodes::AbstractVector = _node_modes(bg, sol, sol.r[idx])) where {T}
+    p = sol.params
+    [amf_mode(bg, sol.m, sol.r[i], (sol.y[1, i], sol.y[2, i]); hmodes = hmodes[j], landau = p.landau, rc = p.rc)
+     for (j, i) in enumerate(idx)]
+end
+
 """
-    torque_density(bg::DiscBackground, sol::ModeSolution) -> Vector{T}
+    torque_density(bg::DiscBackground, sol::ModeSolution; hmodes = <source modes at the nodes>) -> Vector{T}
 
 The torque density √−g⟨𝒯⟩(r) (the integrand of 72b) of a solved mode at every grid node
-([`torque_density_mode`](@ref)).
+([`torque_density_mode`](@ref)); `hmodes` as in [`amf`](@ref).
 """
-function torque_density(bg::DiscBackground{T}, sol::ModeSolution{T}) where {T}
+function torque_density(bg::DiscBackground{T}, sol::ModeSolution{T};
+                        hmodes::AbstractVector = _node_modes(bg, sol, sol.r)) where {T}
     p = sol.params
-    hm = _node_modes(bg, sol, sol.r)
-    [torque_density_mode(bg, sol.m, sol.r[i], (sol.y[1, i], sol.y[2, i]); hmodes = hm[i], landau = p.landau, rc = p.rc)
+    [torque_density_mode(bg, sol.m, sol.r[i], (sol.y[1, i], sol.y[2, i]); hmodes = hmodes[i], landau = p.landau, rc = p.rc)
      for i in eachindex(sol.r)]
 end
 
@@ -202,13 +216,26 @@ function corotation_split(bg::DiscBackground{T}, sol::ModeSolution{T};
                           flux::AbstractVector = amf(bg, sol),
                           density::AbstractVector = torque_density(bg, sol)) where {T}
     𝔗 = cumulative_torque(bg, sol; density = density)
-    rc = sol.params.rc
-    idx = findall(r -> abs(r - rc) ≤ halfwidth, sol.r)
-    isempty(idx) && throw(ArgumentError("corotation_split: no grid node within $halfwidth of r_c = $rc"))
-    i1, i2 = first(idx), last(idx)
+    win = corotation_window(sol, halfwidth)
+    i1, i2 = first(win), last(win)
     Δ𝔗 = 𝔗[i2] - 𝔗[i1]
     ΔF = flux[i2] - flux[i1]
     (T = 𝔗[end] - 𝔗[1], T_L = flux[end] - flux[1], T_c = Δ𝔗 - ΔF, Δ𝔗 = Δ𝔗, ΔF = ΔF, window = i1:i2)
+end
+
+"""
+    corotation_window(sol::ModeSolution, halfwidth) -> UnitRange
+
+Index range of the corotation neighbourhood |r − r_c| ≤ `halfwidth` on the solution's own grid
+(`r_c` = `sol.params.rc`, the radius the Landau shift was centred on). The ONE definition of that
+window, shared by [`corotation_split`](@ref) and by the survey reduction (which evaluates the AMF at
+its two edges only). Throws when no node lies inside.
+"""
+function corotation_window(sol::ModeSolution, halfwidth)
+    rc = sol.params.rc
+    idx = findall(r -> abs(r - rc) ≤ halfwidth, sol.r)
+    isempty(idx) && throw(ArgumentError("corotation_window: no grid node within $halfwidth of r_c = $rc"))
+    first(idx):last(idx)
 end
 
 """

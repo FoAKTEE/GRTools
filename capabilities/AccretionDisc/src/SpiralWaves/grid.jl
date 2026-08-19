@@ -369,12 +369,14 @@ end
 
 """
     build_grid(bg, m; nL=240, nR=240, nC=24000, n_anc=10_000, extent=:adaptive,
-               σ_wc_frac=1e-3, s_c=4, k_trust=10, phase_min=30) -> SpiralGrid
+               σ_wc_frac=1e-3, s_c=4, k_trust=10, phase_min=30, rc=nothing) -> SpiralGrid
 
 Generate the Appendix-C adaptive radial grid for azimuthal mode `m` of the background `bg`:
 
-1. `r_c` = [`corotation_radius`](@ref) (61); central block (C4)-(C5) with σ_wc = σ_wc_frac·r_c,
-   `s_c`, `nC` points on [r_c − σ_wc, r_c + σ_wc].
+1. `r_c` = [`corotation_radius`](@ref) (61) — or the explicit `rc` when given, for a model whose
+   corotation radius is NOT the relativistic root of (61) (the Newtonian-limit pipeline of
+   `newtonian.jl` passes its own r_c so that the sinh block is centred on ITS pole); central block
+   (C4)-(C5) with σ_wc = σ_wc_frac·r_c, `s_c`, `nC` points on [r_c − σ_wc, r_c + σ_wc].
 2. Domain: fiducial (C1) r_in = r_ISCO, r_out = 5a• (`extent = :fiducial`, used for the wake images);
    for `extent = :adaptive` (torques) refined by (C2)-(C3) on a geometric ancillary grid of `n_anc`
    points: r_WKB = the trusted point (k r > k_trust/h0) closest to corotation on each side, then
@@ -393,12 +395,12 @@ choices ([PRELIMINARY]) behind the under-specified steps of the appendix.
 """
 function build_grid(bg::DiscBackground{T}, m::Integer; nL::Integer = 240, nR::Integer = 240,
                     nC::Integer = 24000, n_anc::Integer = 10_000, extent::Symbol = :adaptive,
-                    σ_wc_frac = 1e-3, s_c = 4, k_trust = 10, phase_min = 30) where {T}
+                    σ_wc_frac = 1e-3, s_c = 4, k_trust = 10, phase_min = 30, rc = nothing) where {T}
     m ≥ 1 || throw(ArgumentError("build_grid: m ≥ 1 required"))
     extent in (:adaptive, :fiducial) || throw(ArgumentError("build_grid: extent must be :adaptive or :fiducial"))
     (nL ≥ 1 && nR ≥ 1 && nC ≥ 3) || throw(ArgumentError("build_grid: need nL, nR ≥ 1 and nC ≥ 3"))
     s_cT, k_trustT, phase_minT = T(s_c), T(k_trust), T(phase_min)
-    r_c = corotation_radius(bg, m)
+    r_c = rc === nothing ? corotation_radius(bg, m) : convert(T, rc)
     σ_wc = T(σ_wc_frac) * r_c
     blkC = corotation_block(r_c, σ_wc, s_cT, nC)
     r_Cin, r_Cout = blkC[1], blkC[end]
