@@ -12,7 +12,7 @@ testset `emri-disk/packages/TeukolskySpinFluxes/test/runtests.jl:731-760` (both 
 | Table II (`tab:spherical`), 12 rows | `check_tableII.jl` | `tableII` | fast | solid | 88 s |
 | Table III (`tab:generic`), 24 rows | `check_tableIII.jl` | `tableIII` | fast | solid | 94 s |
 | `fig:fourier_coefficients` | `fig_fourier_coefficients.jl` | `fig_fourier_coefficients` | fast | solid | 47 s |
-| `fig:fluxes_spherical` (FSl{1,2,3}0k) | `fig_FSl0k_spherical.jl` | `fig_FSl0k_spherical` | heavy | see below | — |
+| `fig:fluxes_spherical` (FSl{1,2,3}0k) | `fig_FSl0k_spherical.jl` | `fig_FSl0k_spherical` | fast | solid | 82 s |
 | `fig:comparison_spherical` | `fig_comparison_spherical.jl` | `fig_comparison_spherical` | heavy | see below | — |
 | `fig:comparison_generic` (error_eccentric ×2) | `fig_error_eccentric.jl` | `fig_error_eccentric` | heavy | see below | — |
 
@@ -25,6 +25,22 @@ reproduction is asserted by the package suite and not only by this tree.
 time-domain Teukolsky / full-MPD integrator, so the plotted quantity itself is unavailable.
 `CSlmnk_k` / `CSlmnk_n` and the generic `FSl{1,2,3}nk` landscapes are not yet ported (legacy
 runtimes 900 s+ each).
+
+## Against the legacy packages
+
+Recomputing the same quantities with `emri-disk/packages/TeukolskySpinFluxes` (max relative
+difference over all registered entries):
+
+| quantity | max rel diff | verdict |
+|---|---|---|
+| Table III `C^+_{S,lmnk}` (24 rows) | 1.2e-12 | SAME |
+| Table III `C^-_{S,lmnk}` (24 rows) | 1.7e-12 | SAME |
+| Table II `F^E_{S,m}` (12 rows) | 3.5e-12 | SAME |
+| Table II `F^{Jz}_{S,m}` (12 rows) | 4.8e-12 | SAME |
+
+i.e. agreement at the Float64 re-association level — the GrTools port is the same computation, and
+the residual differences against the *published* numbers below are the paper's own truncation, not a
+port discrepancy.
 
 ## Measured differences vs the published numbers (findings, not tuned)
 
@@ -40,6 +56,11 @@ runtimes 900 s+ each).
   corrected number.
 * **Table III.** Worst |ΔC^+|/|C^+| = 0.28 %, worst |ΔC^-| = 0.040 % over all 24 rows. Sign
   convention: C_GrTools = −C_paper (the flux |C|² is convention-independent).
+* **`fig:fluxes_spherical`.** The published claim is reproduced mode by mode: the global peak of
+  log10|F^E_{S,lm0k}| sits at (l = max(2,m), k = l − m) for m = 1, 2, 3, and the k = l − m ridge is
+  the per-l argmax in 6/8, 7/8 and 8/8 of the l-columns. A VLM comparison of the regenerated
+  `FSl20k.png` against the legacy render finds them indistinguishable (same `TemperatureMap`
+  colorbar, same peak cell, same warm ridge, same deep-blue lobes).
 * **`fig:fourier_coefficients`.** Peak at n = ±1 ∝ e (residual 1.5e-3) and the truncation floor
   reproduce; only the e = 0.6 floor (4.5e-12) is resolvable in Float64. The e = 0.2 / 0.4 floors sit
   at 1.7e4–3.3e6 × ε·peak — the conditioning floor of the Float64 least-squares solve — whereas the

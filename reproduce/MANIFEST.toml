@@ -311,3 +311,36 @@ expected = "arXiv-2601.19123/expected/figOperatorPlot.json"
 depends = ["AccretionDisc"]
 status = "preliminary"
 notes = "F2 fig:OperatorPlot, the LEADING GEOMETRIC potential B^(-2)_m/h^2 (promoted as AccretionDisc.B_m_geometric) for m = 1..15 at a=0.6, r_p=15M, h=0.1: zeros on the Lindblad turning points to 4e-15, corotation pole coefficient matching B_m_corotation to 1.5e-7. The warm +infinity pressure walls of the published figure need the unpublished height-averaged B^(0) [HOLE: H-DISC-FULLOP]."
+
+[[result]]
+paper = "2303.16798"
+id = "fig_FSl0k_spherical"
+kind = "figure"
+script = "arXiv-2303.16798/fig_FSl0k_spherical.jl"
+tier = "fast"
+expected = "arXiv-2303.16798/expected/fig_FSl0k_spherical.json"
+depends = ["Perturbation", "Spacetime"]
+status = "solid"
+notes = "fig:fluxes_spherical panels FSl10k / FSl20k / FSl30k - log10|F^E_{S,lm0k}| over the (l,k) plane at a=0.9, p=10, I=30deg, e=0. Published claim reproduced mode by mode: the global peak sits at (l = max(2,m), k = l - m) for all three m, and the k = l - m ridge is the per-l argmax in 6/8, 7/8 and 8/8 columns for m = 1, 2, 3. VLM comparison of FSl20k.png against the legacy render: SAME (identical colormap, peak, ridge and low-flux lobe). 82 s at -t4."
+
+[[result]]
+paper = "2603.13482"
+id = "fig_FE1_Cplus1_220k"
+kind = "figure"
+script = "arXiv-2603.13482/fig_FE1_Cplus1_220k.jl"
+tier = "fast"
+expected = "arXiv-2603.13482/expected/fig_FE1_Cplus1_220k.json"
+depends = ["Perturbation", "Spacetime"]
+status = "solid"
+notes = "fig:Clmnk_k, the green Analytical curves of both panels: |F^{E,1}_{220k}| and |C^{+,1}_{220k}| vs k = -10..10 at a=0.9, p=12, e=0.2, x=0.5, as the central spin finite difference (s=2e-6) of the PEX-gauge TeukolskySpinModeAnalytical. F^{E,1}(k=0) = 1.806e-7 (published ~1e-7), |C^{+,1}|(k=0) = 1.928e-5 (published ~3e-5); both peak at k=0 and fall by 21.4 and 7.3 decades to k=+10. The published Drummond-Hughes overlays at k^s_max = 8/16 are [FUTURE] (external un-vendored solver) and are not drawn. 136 s at -t4."
+
+[[result]]
+paper = "2603.12189"
+id = "fig03"
+kind = "figure"
+script = "arXiv-2603.12189/fig03.jl"
+tier = "fast"
+expected = "arXiv-2603.12189/expected/fig03.json"
+depends = ["Perturbation", "Spacetime"]
+status = "solid"
+notes = "fig:fluxcomparen - the EXACT linear-in-spin flux corrections of the (2,2,n,0) modes vs n = 1..11 against the SHIFTED-GEODESIC approximation, four channels, at a=0.9, p=12, e=0.2, x=sqrt(3)/2. SG tracks the exact correction to 5.0e-5 / 7.7e-6 / 5.2e-5 / 7.7e-6 at n=1 and deviates to 5.1% / 6.4% / 5.1% / 6.4% at n=11 - the published message. VLM comparison of fig03.png against the legacy fig3.png: SAME. 124 s at -t4."

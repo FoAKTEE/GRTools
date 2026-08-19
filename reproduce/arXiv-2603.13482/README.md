@@ -12,7 +12,7 @@ Against the legacy packages: the C̃ and J gauge curves are **bitwise identical*
 3 × 12 sampled `p − p_s`), and the separatrix agrees to 1.6e-11 — the legacy figure script bisected
 its own `r₃ → r₂` root predicate to that tolerance, `Spacetime.separatrix` is the package root.
 
-| `fig:Clmnk_k` green "Analytical" curves | `fig_FE1_Cplus1_220k.jl` | `fig_FE1_Cplus1_220k` | heavy | see below | — |
+| `fig:Clmnk_k` green "Analytical" curves | `fig_FE1_Cplus1_220k.jl` | `fig_FE1_Cplus1_220k` | fast | solid | 136 s |
 
 `[FUTURE]` figures of this paper (documented, not reproduced): `DeltaFE1_220k` (the plotted quantity
 IS the difference against the un-vendored Drummond–Hughes numeric solver), `Delta_Phi1_phi` and
@@ -44,3 +44,12 @@ Over `p − p_s ∈ [1e-4, 10]` the maximum |Ω¹| per gauge is
 which is the published message quantitatively: the C̃ gauge stays **bounded** while C and J blow up
 by five to six decades and the turning-point gauge grows mildly. The C̃ near/far ratio of 10.3 is the
 mild bump the published panel also shows at `p − p_s ≈ 1e-4…1e-3`, not a divergence.
+
+## `fig:Clmnk_k` — the Analytical curves
+
+Both green curves are the central finite difference in the spin parameter (step 2e-6) of the
+**pex-gauge** `TeukolskySpinModeAnalytical`; the CTilde-locked entry point is a different gauge and
+lands 8–25× off. Measured at k = 0: |F^{E,1}_{220k}| = 1.806e-7 (published ≈ 1e-7) and
+|C^{+,1}_{220k}| = 1.928e-5 (published ≈ 3e-5); both peak at k = 0 and fall by 21.4 and 7.3 decades
+to k = +10. The published Drummond–Hughes overlays at k^s_max = 8 / 16 come from an external
+un-vendored solver and are deliberately absent.
