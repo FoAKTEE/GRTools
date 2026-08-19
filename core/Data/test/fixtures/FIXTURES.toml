@@ -1,0 +1,27 @@
+# FIXTURES.toml — baked-fixture provenance ledger for core/Data
+# GRR::g2-fixture-capture-scripts / GRR::g14-oracle-scripts (repro-audit gaps G2, G13, G14).
+# Generated 2026-08-19; see docs/src/topics/fixtures.md for the status vocabulary and the repo-wide roll-up.
+#
+# status:
+#   regenerated-identical  capture re-run on 2026-08-19; fixture data bit-identical (only capture-date/
+#                          host comment lines may differ)
+#   reverified-identical   a NEW key-driven regenerator re-evaluated the oracle at every baked key
+#   tracked-generator      an in-tree generator/regenerator already existed
+#   tracked-notrerunnable  capture now tracked, but the oracle STATE it captured no longer exists
+#   tracked-notrerun       capture now tracked; re-run deferred (cost/corpus) [FUTURE]
+#   hole-script-lost       no capture script anywhere; values frozen [HOLE]
+#   upstream-copy          vendored upstream data; no generator applies
+#   shared-input           generator INPUT shared verbatim between capture and test
+
+package = "core/Data"
+generated = "2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/hdf5_readers_ref.jl"
+sha256 = "90e8803b9a6d587c4e5564d864b110aa173fe56a4b73111363e2042311610412"
+bytes = 7442
+capture = "test/fixtures/capture/s4b_capture_hdf5_fixture.jl"
+oracle = "PRE-MOVE EMRIWaveforms.AmplitudeModels._load_roman_nn + KerrAmpSpline.read_kerrampgrid/kerr_mode_table; FEW corpus ref-code/FastEMRIWaveforms/.fewdata"
+oracle_commit = "ce6e56ae"
+status = "tracked-notrerunnable"
+note = "the captured symbols moved into Data by the very change this fixture grounds (_load_roman_nn no longer exists in EMRIWaveforms), so the pre-move oracle cannot be re-run"
