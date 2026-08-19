@@ -1,0 +1,18 @@
+{
+  "generated_at_commit": "0b6844eca34df932171abbde98d80cb57c3e2c4f",
+  "id": "check_isco_markers",
+  "julia": "1.12.6",
+  "paper": "2601.19123",
+  "script_sha256": "659ee2aaa76bba0edf18a29adf1bd20644daf053640a33f9a60c3cf8445cd48c",
+  "values": {
+    "isco_a0.01": 5.967301050061479,
+    "isco_a0.6": 3.829069418813151,
+    "isco_a0.99": 1.4544979380596716,
+    "isco_extremal_limit": 1.0074156592401038,
+    "isco_retro_a-0.9": 8.717352279606489,
+    "isco_retro_a-0.99": 8.971861342546969,
+    "isco_retro_a0.0": 6.0,
+    "retrograde_max_relerr": 1.2410348813663375e-5,
+    "textbook_max_relerr": 8.838945324092447e-5
+  }
+}

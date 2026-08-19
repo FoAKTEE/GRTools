@@ -153,3 +153,161 @@ expected = "arXiv-2603.13482/expected/fig_delta_Omega.json"
 depends = ["Spacetime"]
 status = "solid"
 notes = "fig:delta_Omega - the linear-in-spin BL frequency corrections in all FOUR spin gauges (CTilde, turning-point p, constants C, actions J) vs p - p_s at a=0.95, e=0.5, x=0.5 (separatrix p_s = 4.036992). Published message reproduced quantitatively: max|Omega^1| = 0.049 (CTilde, bounded) vs 35 (p), 1.18e6 (C), 2.01e5 (J). All four gauges come from Spacetime.SpinningSecondary with ANALYTIC Jacobians; the legacy figure script built the p and C gauges from finite-difference Jacobians inline. 32 s at -t4."
+
+# ── arXiv:1010.0759 (Hirata II) — relativistic Lindblad resonances ─────────────────────────────
+[[result]]
+paper = "1010.0759"
+id = "check_RT_N1"
+kind = "check"
+script = "arXiv-1010.0759/check_RT_N1.jl"
+tier = "fast"
+expected = "arXiv-1010.0759/expected/check_RT_N1.json"
+depends = ["AccretionDisc"]
+status = "solid"
+notes = "RT-N1 Newtonian-limit strengths -2.356/-7.504/+0.1922/+8.615 vs the published -2.36/-7.50/0.19/8.62 (<=1.2%), the r0-independence of the closed form, and the RT-A2 Laplace identities. Locates the two published typos (missing m/(m-1) factor at l.1008; b'(sigma^-) instead of b'(sigma^+) in eq:smolr)."
+
+[[result]]
+paper = "1010.0759"
+id = "check_c13_alpha"
+kind = "check"
+script = "arXiv-1010.0759/check_c13_alpha.jl"
+tier = "fast"
+expected = "arXiv-1010.0759/expected/check_c13_alpha.json"
+depends = ["AccretionDisc", "Perturbation", "Harmonics", "NumericsCore"]
+status = "solid"
+notes = "The five convention reconciliations: eq:cplex1 closure |c13|^2+alpha=(2w)^6|aleph|^2/|C|^2 to 5.7e-13 (the GATE that fixes the Teukolsky-Press horizon factor; the as-printed bracket misses it by 9.1e-5), the Newtonian c13 power law, the Teukolsky-Starobinsky |C|^2 identity (exact), the SWSH sphere normalisation, and the end-to-end flux identity to 5e-16."
+
+[[result]]
+paper = "1010.0759"
+id = "tabIlrS"
+kind = "table"
+script = "arXiv-1010.0759/tabIlrS.jl"
+tier = "fast"
+expected = "arXiv-1010.0759/expected/tabIlrS.json"
+depends = ["AccretionDisc", "Perturbation", "Harmonics"]
+status = "solid"
+notes = "tab:ilrS 16 rows: all four location columns (max 5.6e-4 from the published rounding) and the m=1,2 ILR strengths (ratio to published 0.93-1.00 for r0>=12M). Wall clock 3m18s at -t4. The OLR strength column is NOT registered: eq:P-OLR is a Float64 near-cancellation (legacy ratios 1.5-260) and needs the BigFloat overlap."
+
+[[result]]
+paper = "1010.0759"
+id = "figIlrplot"
+kind = "figure"
+script = "arXiv-1010.0759/figIlrplot.jl"
+tier = "fast"
+expected = "arXiv-1010.0759/expected/figIlrplot.json"
+depends = ["AccretionDisc", "Perturbation", "Harmonics"]
+status = "solid"
+notes = "fig:ilrplot both panels (locations + log10|N| for m=1,2,3), 12 points/curve, PNG 69 KB beside the golden. Wall clock 3m11s at -t4. FINDING: N(m=3, r0=250) = -6.41 vs the published asymptote -7.50 (14%) at the lmax=24 truncation."
+
+[[result]]
+paper = "1010.0759"
+id = "figKerrm1"
+kind = "figure"
+script = "arXiv-1010.0759/figKerrm1.jl"
+tier = "fast"
+expected = "arXiv-1010.0759/expected/figKerrm1.json"
+depends = ["AccretionDisc", "Spacetime"]
+status = "solid"
+notes = "fig:kerrm1 left panel, m=1 ILR locations for 7 spins. Published anchors at r0=250: 39.828 (a=+0.9, paper 39.8), 46.410 (a=-0.9, paper 46.4), 43.249 (a=0, tab:ilrS 43.25). PNG 51 KB."
+
+[[result]]
+paper = "1010.0759"
+id = "figLkerr"
+kind = "figure"
+script = "arXiv-1010.0759/figLkerr.jl"
+tier = "fast"
+expected = "arXiv-1010.0759/expected/figLkerr.json"
+depends = ["AccretionDisc"]
+status = "solid"
+notes = "fig:lkerr (r0=50M) + fig:lkerr20 (r0=20M): m=1,2,3 inner and outer Lindblad radii vs spin, 37 spins. a=0 anchors reproduce the tab:ilrS rows. PNG 54 KB."
+
+# ── arXiv:1010.0758 (Hirata I) — derivation certificates + the GT80 external check ─────────────
+[[result]]
+paper = "1010.0758"
+id = "check_RT8_GT80"
+kind = "check"
+script = "arXiv-1010.0758/check_RT8_GT80.jl"
+tier = "fast"
+expected = "arXiv-1010.0758/expected/check_RT8_GT80.json"
+depends = ["AccretionDisc"]
+status = "solid"
+notes = "RT8, the paper's only external validation: the Keplerian limit of the GT80 Eq.(18) prefactor kappa^2 Omega^2/(2^3 A^4) -> 32/81 to 6.0e-6 at r=1e6 M from the package frequencies, kappa/Omega -> 1, Oort A/Omega -> -3/4, and the Lindblad ratios sigma_m^-+ -> ((m-+1)/m)^(2/3) to 3.2e-6. The modified-Bessel moment [2K0(2/3)+K1(2/3)]^2 is literature-grounded (certificate derivations/RT8_GT80_newtonian_check.tex), not recomputed: no GrTools package owns Bessel K."
+
+# ── arXiv:2510.02433 — Lindblad torques on EMRIs in relativistic thin discs ────────────────────
+[[result]]
+paper = "2510.02433"
+id = "figLRlocation"
+kind = "figure"
+script = "arXiv-2510.02433/figLRlocation.jl"
+tier = "fast"
+expected = "arXiv-2510.02433/expected/figLRlocation.json"
+depends = ["AccretionDisc", "Spacetime"]
+status = "solid"
+notes = "fig:LRlocations both panels (a/M = 0 and 0.9), |r_LR - r_s| for m = 2,3,4,8, inner and outer. PNG beside the golden."
+
+[[result]]
+paper = "2510.02433"
+id = "figDiscProfile"
+kind = "figure"
+script = "arXiv-2510.02433/figDiscProfile.jl"
+tier = "fast"
+expected = "arXiv-2510.02433/expected/figDiscProfile.json"
+depends = ["AccretionDisc", "Spacetime"]
+status = "solid"
+notes = "fig:discProfile: Novikov-Thorne Sigma(r) [g/cm^2] and h(r) for a/M = 0, 0.9 plus the Shakura-Sunyaev overlay. Landmarks Sigma_min = 1.212e5 at 13.41M (a=0) / 2.823e4 at 4.77M (a=0.9); h_max = 0.0563 at 18.72M / 0.1417 at 6.86M; the published anchor h(a=0,1000M)=0.0033 is exact by construction. Matches the legacy figure-local library to 1e-11 (characterization test test_thindisc.jl)."
+
+[[result]]
+paper = "2510.02433"
+id = "check_satscale"
+kind = "check"
+script = "arXiv-2510.02433/check_satscale.jl"
+tier = "fast"
+expected = "arXiv-2510.02433/expected/check_satscale.json"
+depends = ["AccretionDisc"]
+status = "solid"
+notes = "The three closed-form scalings: n_r = 3/2 - 2 Sigma_p = 9/2 for the radiation-pressure inner disc (and the package SS profile has exactly the log-slopes 3/2, -1); the pressure-modified Lindblad resonance saturates at |r_LR - r_s| -> 2H/3 (rel 1.5e-3 at m=5000); the cutoff crosses 1/2 at xi = m h = 0.3916. The small-m offsets differ from the legacy check because the package keeps the RELATIVISTIC kappa_r."
+
+[[result]]
+paper = "2510.02433"
+id = "figTorqueStrengths"
+kind = "figure"
+script = "arXiv-2510.02433/figTorqueStrengths.jl"
+tier = "fast"
+expected = "arXiv-2510.02433/expected/figTorqueStrengths.json"
+depends = ["AccretionDisc"]
+status = "preliminary"
+notes = "fig:TorqueStrengths (all-r panel) + tab:FitParameters (All rows). Wall clock 4m43s at -t4. FINDING: the un-enhanced kernel gives n_r = 3.19/3.31/3.49/3.70 for a = 0/0.3/0.6/0.9 vs the published 3.57/3.66/3.77/3.92, while the Shakura-Sunyaev row -- the one case where Hirata's Newtonian amplitude is the correct one -- lands on 4.387 vs the published 4.39 (6e-4). The missing ingredient is the relativistic amplitude enhancement |N_Teukolsky/N_Newtonian|, a heavy grid of ~108 lindblad_torque calls (~5 min at -t4), not yet driven. The absolute amplitude is fixed by one global unit factor anchored to the published A(a=0)=2.33e-9, as in the legacy analysis."
+
+# ── arXiv:2601.19123 — relativistic disc modes and the EMRI torque balance ─────────────────────
+[[result]]
+paper = "2601.19123"
+id = "figDampedRegions"
+kind = "figure"
+script = "arXiv-2601.19123/figDampedRegions.jl"
+tier = "fast"
+expected = "arXiv-2601.19123/expected/figDampedRegions.json"
+depends = ["AccretionDisc"]
+status = "solid"
+notes = "F3 fig:DampedRegions: the m = 1..15 Lindblad intervals at r_p = 15M for a = 0.01, 0.60, 0.99 and the Newtonian limit (the analytic ((m-+1)/m)^(2/3) limit of the same condition, checked to 3e-6 by arXiv-1010.0758/check_RT8_GT80.jl)."
+
+[[result]]
+paper = "2601.19123"
+id = "check_isco_markers"
+kind = "check"
+script = "arXiv-2601.19123/check_isco_markers.jl"
+tier = "fast"
+expected = "arXiv-2601.19123/expected/check_isco_markers.json"
+depends = ["Spacetime"]
+status = "solid"
+notes = "F7/F9 ISCO markers from the canonical Spacetime.kerr_isco: prograde a = 0.01/0.6/0.99 and the Bardeen textbook cross-checks (max rel 8.8e-5, limited by the 5-digit textbook entries), retrograde to 1.2e-5."
+
+[[result]]
+paper = "2601.19123"
+id = "figOperatorPlot"
+kind = "figure"
+script = "arXiv-2601.19123/figOperatorPlot.jl"
+tier = "fast"
+expected = "arXiv-2601.19123/expected/figOperatorPlot.json"
+depends = ["AccretionDisc"]
+status = "preliminary"
+notes = "F2 fig:OperatorPlot, the LEADING GEOMETRIC potential B^(-2)_m/h^2 (promoted as AccretionDisc.B_m_geometric) for m = 1..15 at a=0.6, r_p=15M, h=0.1: zeros on the Lindblad turning points to 4e-15, corotation pole coefficient matching B_m_corotation to 1.5e-7. The warm +infinity pressure walls of the published figure need the unpublished height-averaged B^(0) [HOLE: H-DISC-FULLOP]."
