@@ -1,0 +1,87 @@
+# FIXTURES.toml — baked-fixture provenance ledger for capabilities/Spacetime
+# GRR::g2-fixture-capture-scripts / GRR::g14-oracle-scripts (repro-audit gaps G2, G13, G14).
+# Generated 2026-08-19; see docs/src/topics/fixtures.md for the status vocabulary and the repo-wide roll-up.
+#
+# status:
+#   regenerated-identical  capture re-run on 2026-08-19; fixture data bit-identical (only capture-date/
+#                          host comment lines may differ)
+#   reverified-identical   a NEW key-driven regenerator re-evaluated the oracle at every baked key
+#   tracked-generator      an in-tree generator/regenerator already existed
+#   tracked-notrerunnable  capture now tracked, but the oracle STATE it captured no longer exists
+#   tracked-notrerun       capture now tracked; re-run deferred (cost/corpus) [FUTURE]
+#   hole-script-lost       no capture script anywhere; values frozen [HOLE]
+#   upstream-copy          vendored upstream data; no generator applies
+#   shared-input           generator INPUT shared verbatim between capture and test
+
+package = "capabilities/Spacetime"
+generated = "2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/npghp_np0_fixture.jl"
+sha256 = "cadedcd1b64462b1828fdaa214c82685bfbe8fc45ad73f2b58788f57fdc46810"
+bytes = 66336
+capture = "test/fixtures/capture/gen_np0_fixture.jl"
+oracle = "ref-code/TeukEvolution.jl/src/BackgroundNP.jl NP_0 (incl. the Float64 sqrt(2) quirk)"
+oracle_commit = "3c8e47f"
+status = "regenerated-identical"
+note = "re-run 2026-08-19 -> byte-identical"
+
+[[fixture]]
+file = "test/fixtures/spacetime_spinforce_ref.jl"
+sha256 = "c71032b3803617a4c662e57976b3b3ac000c724cd05843e326184a2919cef440"
+bytes = 11667
+capture = "test/fixtures/capture/capture_spinforce_s51.jl"
+oracle = "legacy packages/SpinningOrbit spin-curvature force + numeric-correction + orbit-correction, on the input tuples of the oracle's own Mathematica-verified suite"
+oracle_commit = "394b7844"
+status = "regenerated-identical"
+note = "re-run 2026-08-19 -> all numeric literals byte-identical; only the capture timestamp and the oracle-side wall-time comment differ"
+
+[[fixture]]
+file = "test/fixtures/spacetime_constants_ref.jl"
+sha256 = "46198edaecc10e3940fb2d2d806fcb774bd1ac5205490a15a1812aa37050ece6"
+bytes = 726
+capture = ""
+oracle = "legacy KerrGeodesics.{KerrGeoEnergy,KerrGeoAngularMomentum,KerrGeoCarterConstant} on the exact case grid of the paired test"
+oracle_commit = "e1fc76aa"
+status = "hole-script-lost"
+note = "header records the oracle and the grid but names no script, and none was found. Oracle still resolvable -> key-driven regenerator is a bounded FUTURE item; values frozen 2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/spacetime_frequencies_ref.jl"
+sha256 = "5455fd232a2d051f5b522d8e3f0ed274488ea28931e7d178d7380489d788483a"
+bytes = 2462
+capture = ""
+oracle = "legacy KerrGeodesics.{KerrGeoRadialRoots,KerrGeoFrequencies,KerrGeoProperFrequencyFactor} on the exact case grid of the paired test"
+oracle_commit = "e1fc76aa"
+status = "hole-script-lost"
+note = "header records the oracle and the grid but names no script, and none was found. Oracle still resolvable -> key-driven regenerator is a bounded FUTURE item; values frozen 2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/spacetime_trajectory_ref.jl"
+sha256 = "9428851c6a9402b60873da8c210cb3fbcea66f807925c2301ff6d4f798689483"
+bytes = 14094
+capture = ""
+oracle = "legacy KerrGeodesics.{KerrGeoTrajectory*,KerrGeoProperTime} on the exact case grid of the paired test"
+oracle_commit = "e1fc76aa"
+status = "hole-script-lost"
+note = "header records the oracle and the grid but names no script, and none was found. Oracle still resolvable -> key-driven regenerator is a bounded FUTURE item; values frozen 2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/spacetime_spinning_ref.jl"
+sha256 = "4344c9bba40ccdcec479b2242ff92b80091a4874979efff1ca298265380b8aa8"
+bytes = 5284
+capture = ""
+oracle = "legacy SpinningOrbit.{KerrSpinLinearParts,KerrSpinOrbit,KerrSpinOrbitEquatorial} on the exact case grid of the paired test"
+oracle_commit = "e1fc76aa"
+status = "hole-script-lost"
+note = "header records the oracle and the grid but names no script, and none was found. Oracle still resolvable -> key-driven regenerator is a bounded FUTURE item; values frozen 2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/npghp_mg_schw_literals.jl"
+sha256 = "a874d064a34182d6a029b2a4b3573b24350eead0a79b114405f7cffb478150eb"
+bytes = 1307
+capture = ""
+oracle = "ModifiedGravity/src/ghp_operators.jl schw_spincoeff closed forms (transcribed, not computed)"
+oracle_commit = ""
+status = "upstream-copy"
+note = "closed-form literals quoted verbatim from the source; no generator applies"
