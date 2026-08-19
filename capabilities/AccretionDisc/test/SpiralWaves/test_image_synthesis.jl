@@ -5,7 +5,12 @@
 #       sum f(r,Ψ) = Σ_m w_m Re[f̂_m e^{imΨ}] (w_0 = 1, w_{m≥1} = 2) to 1e-13;
 #   (c) a single mode gives 2|f̂| cos(mΨ + arg f̂) — the real-field ×2 convention of (45a)/(73);
 #   (d) the polar → Cartesian map and the fiducial image grid of (C1);
-#   (e) a REAL solved mode synthesises a finite, m-fold symmetric wake; BigFloat inherits.
+#   (e) a REAL solved mode synthesises a finite, m-fold symmetric wake; BigFloat inherits;
+#   (f) `synthesize_cartesian` equals `synthesize` at the SAME (r, Ψ) to roundoff and blanks the
+#       pixels outside the disc (the white region of Figs. 1-2);
+#   (g) `arm_phase` recovers the known winding of an analytic spiral f̂_m = e^{-ikr} (crest at
+#       Ψ = kr/m, so dΨ/dr = k/m) and unwraps across many turns;
+#   (h) `wake_modes` defaults to the fiducial image domain (C1) and is bitwise thread-independent.
 using Test
 using AccretionDisc
 using AccretionDisc.SpiralWaves
@@ -105,5 +110,86 @@ using AccretionDisc.SpiralWaves
             @test eltype(FB) === BigFloat
             @test all(isfinite, FB)
         end
+    end
+
+    @testset "(f) synthesize_cartesian: exact at the pixel, blanked outside the disc" begin
+        xs = collect(range(-42.0, 42.0; length = 57))
+        ys = collect(range(-42.0, 42.0; length = 53))
+        C = synthesize_cartesian(mods, xs, ys)
+        @test size(C) == (length(xs), length(ys))
+        rlo, rhi = rr[1], rr[end]
+        worst = 0.0
+        nin = 0
+        for (i, x) in enumerate(xs), (j, y) in enumerate(ys)
+            r = hypot(x, y)
+            if r < rlo || r > rhi
+                @test isnan(C[i, j])
+            else
+                nin += 1
+                ref = synthesize(mods, [r], [atan(y, x)])[1]
+                worst = max(worst, abs(C[i, j] - ref) / max(1.0, abs(ref)))
+            end
+        end
+        @info "synthesize_cartesian vs synthesize: $(nin) interior pixels, worst rel = $worst"
+        @test nin > 100
+        @test worst < 1e-14
+        # explicit radial window + a finite blank value
+        C2 = synthesize_cartesian(mods, xs, ys; r_lo = 20.0, r_hi = 30.0, blank = 0.0)
+        for (i, x) in enumerate(xs), (j, y) in enumerate(ys)
+            (hypot(x, y) < 20.0 || hypot(x, y) > 30.0) && @test C2[i, j] == 0.0
+        end
+        @test any(!iszero, C2)
+        @test_throws ArgumentError synthesize_cartesian((), xs, ys)
+        @test_throws ArgumentError synthesize_cartesian(mods, xs, ys; r_lo = 30.0, r_hi = 20.0)
+        # component 2 is honoured
+        @test synthesize_cartesian(mods, [25.0], [0.0]; component = 2)[1] ≈
+              synthesize(mods, [25.0], [0.0]; component = 2)[1]
+    end
+
+    @testset "(g) arm_phase: the winding curve of an analytic spiral" begin
+        Ψq = collect(range(0, 2π; length = 721)[1:720])
+        # one arm (m = 1): 2 cos(Ψ − k r) ⇒ crest at Ψ = k r, six full turns over the range
+        k = 0.8
+        rq = collect(range(10.0, 60.0; length = 101))
+        one_arm = [_mk(1, rq, x -> cis(-k * x), x -> ComplexF64(0, 0))]
+        φ = arm_phase(synthesize(one_arm, rq, Ψq), Ψq)
+        @test length(φ) == length(rq)
+        slope = (φ[end] - φ[1]) / (rq[end] - rq[1])
+        @info "arm_phase slope = $slope (exact k = $k); turns = $((φ[end] - φ[1]) / 2π)"
+        @test slope ≈ k rtol = 1e-3
+        @test maximum(i -> abs((φ[i] - φ[1]) - k * (rq[i] - rq[1])), eachindex(rq)) < 5e-3
+        @test abs((φ[end] - φ[1]) / 2π) > 6       # genuinely unwrapped across several turns
+        # a pure m = 3 pattern has m indistinguishable crests: the period is 2π/m
+        m2, k2 = 3, 0.8
+        rq2 = collect(range(10.0, 30.0; length = 41))
+        three = [_mk(m2, rq2, x -> cis(-k2 * x), x -> ComplexF64(0, 0))]
+        F3 = synthesize(three, rq2, Ψq)
+        φ3 = arm_phase(F3, Ψq; period = 2π / m2)
+        @test (φ3[end] - φ3[1]) / (rq2[end] - rq2[1]) ≈ k2 / m2 rtol = 1e-3
+        @test_throws DimensionMismatch arm_phase(F3, Ψq[1:end-1])
+        @test_throws ArgumentError arm_phase(F3, Ψq; period = 0)
+    end
+
+    @testset "(h) wake_modes: fiducial domain by default, thread-independent bits" begin
+        bg = DiscBackground(; χ = 0.3, aEMRI = 15.0, h0 = 0.08)
+        gk = (nL = 6, nR = 6, nC = 60, n_anc = 500)
+        ms = 1:5
+        par = wake_modes(bg, ms; grid_kwargs = gk, threads = true)
+        ser = wake_modes(bg, ms; grid_kwargs = gk, threads = false)
+        @test length(par) == length(ms)
+        @test [s.m for s in par] == collect(ms)
+        for (a, b) in zip(par, ser)
+            @test a.r == b.r && a.y == b.y        # BITWISE
+        end
+        # the default extent is the image domain (C1): every mode shares [r_ISCO, 5a•]
+        for s in par
+            @test first(s.r) ≈ r_isco(bg)
+            @test last(s.r) ≈ 5 * bg.aEMRI
+        end
+        # …and it can be overridden
+        ad = wake_modes(bg, 3:3; grid_kwargs = merge(gk, (extent = :adaptive,)), threads = false)
+        @test first(ad[1].r) > r_isco(bg) || last(ad[1].r) < 5 * bg.aEMRI
+        @test_throws ArgumentError wake_modes(bg, Int[])
+        @test_throws ArgumentError wake_modes(bg, [0, 1])
     end
 end

@@ -53,9 +53,9 @@ const PAPER = "arXiv:2608.17003"
 Version of the `SpiralWaves` submodule API (bumped as DAG nodes land; `v"0.1.0"` = scaffold,
 `v"0.2.0"` = background, `v"0.3.0"` = grid, `v"0.4.0"` = master matrices, `v"0.5.0"` = singular source,
 `v"0.6.0"` = mode solver, `v"0.7.0"` = diagnostics,
-`v"0.8.0"` = survey, `v"0.9.0"` = image synthesis).
+`v"0.8.0"` = survey, `v"0.9.0"` = image synthesis, `v"0.9.1"` = its Cartesian/winding/mode-sweep front end).
 """
-sw_version() = v"0.9.0"
+sw_version() = v"0.9.1"
 
 # ---- EGD::sw-background — disc equilibrium (Sec. II.A) -------------------------------------------
 include("background.jl")
@@ -102,6 +102,7 @@ export compute_budget
 
 # ---- EGD::sw-image-synthesis — mode-sum reconstruction of the wake (Figs. 1-2) --------------------
 include("image_synthesis.jl")
-export ModeInterp, mode_interp, synthesize, polar_to_cartesian, image_grid
+export ModeInterp, mode_interp, synthesize, synthesize_cartesian, polar_to_cartesian, image_grid
+export arm_phase, wake_modes
 
 end # module SpiralWaves
