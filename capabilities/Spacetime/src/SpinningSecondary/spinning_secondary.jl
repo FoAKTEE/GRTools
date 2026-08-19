@@ -37,6 +37,7 @@ using ..Spacetime: constants_of_motion, geodesic_energy, geodesic_angular_moment
 export spin_linear_constants, spin_linear_frequencies, spin_mino_time_correction,
        spin_linear_orbital_params,
        spin_linear_actions, spin_actions_pex, spin_frequencies_action_gauge,
+       spin_frequencies_constants_gauge, spin_frequencies_turning_point_gauge,
        spin_action_jacobian, spin_frequency_jacobian, spin_orbital_params_jacobian,
        spin_orbit, spin_orbit_equatorial,
        spin_orbit_correction, spin_orbit_numeric

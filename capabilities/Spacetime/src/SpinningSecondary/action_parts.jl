@@ -219,3 +219,29 @@ function spin_frequencies_action_gauge(a, p, e, x)
            spin_frequency_jacobian(a, p, e, x) *
            (collect(spin_linear_constants(a, p, e, x)) + spin_action_jacobian(a, p, e, x) \ J1C)
 end
+
+"""
+    spin_frequencies_constants_gauge(a, p, e, x) -> [δΩr, δΩθ, δΩφ]
+
+Linear-in-spin Boyer–Lindquist frequency correction in the CONSTANTS (C) gauge — the reference
+geodesic keeps `(En, Lz, K)` fixed: `Ω1C = Ω1CTilde − (∂Ω/∂C)·C1CTilde`. Diverges near the
+separatrix (Υr → 0 degenerates ∂Ω/∂C), unlike the CTilde gauge. arXiv:2603.13482 fig:delta_Omega.
+"""
+function spin_frequencies_constants_gauge(a, p, e, x)
+    return collect(spin_linear_frequencies(a, p, e, x)) -
+           spin_frequency_jacobian(a, p, e, x) * collect(spin_linear_constants(a, p, e, x))
+end
+
+"""
+    spin_frequencies_turning_point_gauge(a, p, e, x) -> [δΩr, δΩθ, δΩφ]
+
+Linear-in-spin Boyer–Lindquist frequency correction in the TURNING-POINT (p, "pex") gauge — the
+reference geodesic keeps `(p, e, x)` fixed: `Ω1p = Ω1CTilde − (∂Ω/∂(p,e,x))·pex1CTilde`, with
+`∂Ω/∂(p,e,x) = (∂Ω/∂C)·(∂(p,e,x)/∂C)⁻¹` from the analytic Jacobians (the legacy figure script used a
+finite-difference Jacobian). Diverges only mildly (∼(p−p_s)^(−1/2)). arXiv:2603.13482 fig:delta_Omega.
+"""
+function spin_frequencies_turning_point_gauge(a, p, e, x)
+    dOmega_dpex = spin_frequency_jacobian(a, p, e, x) / spin_orbital_params_jacobian(a, p, e, x)
+    return collect(spin_linear_frequencies(a, p, e, x)) -
+           dOmega_dpex * collect(spin_linear_orbital_params(a, p, e, x))
+end

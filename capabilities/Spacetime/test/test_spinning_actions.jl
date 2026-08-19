@@ -9,7 +9,10 @@ using Spacetime
 using Spacetime.SpinningSecondary: spin_linear_actions, spin_actions_pex,
                                    spin_frequencies_action_gauge, spin_action_jacobian,
                                    spin_frequency_jacobian, spin_orbital_params_jacobian,
-                                   spin_linear_orbital_params
+                                   spin_linear_orbital_params, spin_linear_frequencies,
+                                   spin_linear_constants,
+                                   spin_frequencies_constants_gauge,
+                                   spin_frequencies_turning_point_gauge
 
 # BAKED legacy fixture: (a, p, e, x) => (J1C, J1pex, Omega1J, pex1CTilde)
 const _ACTION_REF = (
@@ -75,6 +78,54 @@ const _ACTION_REF = (
             @test collect(spin_linear_orbital_params(a, p, e, 1.0)) ≈ collect(eq_ref(a, p, e)) rtol = 1e-12
             @test spin_linear_orbital_params(a, p, e, 1.0)[3] == 0
         end
+    end
+
+    @testset "C / pex frequency gauges agree with a finite-difference Jacobian" begin
+        # the analytic ∂Ω/∂C and ∂(p,e,x)/∂C must reproduce a central-difference Jacobian of
+        # kerr_frequencies / constants_of_motion (converted from (E,Lz,Q) to (E,Lz,K)) — the
+        # construction the legacy arXiv:2603.13482 figure script used, to FD accuracy (~1e-6).
+        freqvec(a, p, e, x) = (f = kerr_frequencies(a, p, e, x); [f.Omegar, f.Omegath, f.Omegaph])
+        constvec(a, p, e, x) = collect(constants_of_motion(a, p, e, x))
+        function fdjac(f, a, p, e, x; h = 1e-6)
+            J = zeros(3, 3)
+            J[:, 1] = (f(a, p + h, e, x) .- f(a, p - h, e, x)) ./ (2h)
+            J[:, 2] = (f(a, p, e + h, x) .- f(a, p, e - h, x)) ./ (2h)
+            J[:, 3] = (f(a, p, e, x + h) .- f(a, p, e, x - h)) ./ (2h)
+            J
+        end
+        for (a, p, e, x) in ((0.95, 6.0, 0.5, 0.5), (0.9, 10.0, 0.2, 0.7))
+            JO = fdjac(freqvec, a, p, e, x)
+            JC = fdjac(constvec, a, p, e, x)
+            En, Lz, _ = constants_of_motion(a, p, e, x)
+            JK = JC[3, :] .+ 2 * (Lz - a * En) * (JC[2, :] .- a * JC[1, :])       # Q → K
+            JCK = vcat(transpose(JC[1, :]), transpose(JC[2, :]), transpose(JK))
+            @test isapprox(spin_frequency_jacobian(a, p, e, x), JO / JCK; rtol = 1e-6, atol = 1e-8)
+            @test isapprox(spin_orbital_params_jacobian(a, p, e, x), inv(JCK); rtol = 1e-6, atol = 1e-8)
+            Om1 = collect(spin_linear_frequencies(a, p, e, x))
+            @test isapprox(spin_frequencies_constants_gauge(a, p, e, x),
+                           Om1 .- (JO / JCK) * collect(spin_linear_constants(a, p, e, x));
+                           rtol = 1e-6, atol = 1e-10)
+            @test isapprox(spin_frequencies_turning_point_gauge(a, p, e, x),
+                           Om1 .- JO * collect(spin_linear_orbital_params(a, p, e, x));
+                           rtol = 1e-6, atol = 1e-10)
+        end
+    end
+
+    @testset "near the separatrix CTilde stays finite while C / J / pex grow" begin
+        # the message of arXiv:2603.13482 fig:delta_Omega, at a=0.95, e=0.5, x=0.5
+        a, e, x = 0.95, 0.5, 0.5
+        ps = separatrix(a, e, x)
+        far  = ps + 10.0
+        near = ps + 1e-3
+        ctf = abs.(collect(spin_linear_frequencies(a, far, e, x)))
+        ctn = abs.(collect(spin_linear_frequencies(a, near, e, x)))
+        @test all(isfinite, ctn) && maximum(ctn) < 10 * maximum(ctf) + 1     # CTilde stays bounded
+        for f in (spin_frequencies_constants_gauge, spin_frequencies_action_gauge)
+            @test maximum(abs.(f(a, near, e, x))) > 1e3 * maximum(abs.(f(a, far, e, x)))
+        end
+        # the turning-point gauge diverges only mildly — much less than C / J
+        @test maximum(abs.(spin_frequencies_turning_point_gauge(a, near, e, x))) <
+              maximum(abs.(spin_frequencies_constants_gauge(a, near, e, x)))
     end
 
     @testset "δJ_r|_{p,e,x} is O(e²) near circularity (arXiv:2506.20726 fig:deltaJr)" begin
