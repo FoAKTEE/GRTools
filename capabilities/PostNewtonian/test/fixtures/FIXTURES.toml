@@ -1,0 +1,27 @@
+# FIXTURES.toml — baked-fixture provenance ledger for capabilities/PostNewtonian
+# GRR::g2-fixture-capture-scripts / GRR::g14-oracle-scripts (repro-audit gaps G2, G13, G14).
+# Generated 2026-08-19; see docs/src/topics/fixtures.md for the status vocabulary and the repo-wide roll-up.
+#
+# status:
+#   regenerated-identical  capture re-run on 2026-08-19; fixture data bit-identical (only capture-date/
+#                          host comment lines may differ)
+#   reverified-identical   a NEW key-driven regenerator re-evaluated the oracle at every baked key
+#   tracked-generator      an in-tree generator/regenerator already existed
+#   tracked-notrerunnable  capture now tracked, but the oracle STATE it captured no longer exists
+#   tracked-notrerun       capture now tracked; re-run deferred (cost/corpus) [FUTURE]
+#   hole-script-lost       no capture script anywhere; values frozen [HOLE]
+#   upstream-copy          vendored upstream data; no generator applies
+#   shared-input           generator INPUT shared verbatim between capture and test
+
+package = "capabilities/PostNewtonian"
+generated = "2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/pn_series_ops_oracle.json"
+sha256 = "dd95bee0fae08bc3884cb754c0885b29136093f84659a95733a48e860306ead9"
+bytes = 23004
+capture = "test/oracles/gen_pn_series_ops.wl"
+oracle = "wolframscript over the bundled BHPToolkit PN series (PNSeries op algebra + numeric probes)"
+oracle_commit = "29b9fa7d"
+status = "tracked-generator"
+note = "generator recovered from emri-disk/results/gw-flux/reference/gen and tracked under test/oracles/; not re-run (needs a Wolfram kernel)"
