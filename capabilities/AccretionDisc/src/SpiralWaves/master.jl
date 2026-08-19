@@ -1,0 +1,271 @@
+# SpiralWaves/master.jl — the two first-order master equations of arXiv:2608.17003 Sec. II.C
+# (main.tex:590-650): dy/dr = C·y + S with y = (δÛ, −iδû^r) (47)-(49), the relativistic C, S
+# TRANSCRIBED from the supplementary notebook (route R1, EGD::notebook-transcription-R1) by the
+# emri-disk generator codes/cas/R1_to_julia.wls into `master_generated.jl` (header cites the
+# notebook sha256), the Newtonian-limit matrices (50b-g) and δu_φ (50a), the Landau corotation
+# regularisation ω_d → ω_d + iε(r) (62)-(63) about the corotation radius r_c (61) of grid.jl. Consumes the
+# `DiscBackground` equilibrium of background.jl (Ω, v from the exact hydrostatic balance (11)) and
+# the Fourier metric-perturbation modes ĥ_m (a caller-supplied NamedTuple until source.jl lands).
+# Type-generic `{T}`; BigFloat precision is inherited. Additive (EGD::sw-master-matrices).
+#
+# STATUS NOTES (binding, see the node report):
+#   • the code is the route-R1 transcription; the independent CAS derivation (route R2,
+#     EGD::deriv-master-system-R2) and the R1 ≡ R2 gate (EGD::R1-vs-R2-gate) run in another lane — its
+#     report records PASS (R1 ≡ R2 symbolically ON-SHELL, i.e. on any background satisfying (11); off-shell
+#     the two routes differ by multiples of the (11) residual) and its 50-point on-shell fixture is baked
+#     into test_master.jl (fixtures/master_onshell_fixture.jl); until that gate row is admitted the
+#     relativistic entries are PRELIMINARY (fidelity grounded by the Newtonian-limit gate of the R1 report,
+#     the 40-point off-shell Mathematica fixture and the 50-point on-shell fixture);
+#   • the metric-perturbation inputs are the COVARIANT Fourier modes ĥ_μν (the gate showed the
+#     notebook's htt… are covariant; reading them as ĥ^{μν} breaks S0, S1 at O(1));
+#   • the relativistic δû_φ (eliminated φ-velocity) has NO counterpart in the notebook [HOLE]; only
+#     the Newtonian (50a) is provided here (`delta_u_phi_newtonian`), the relativistic one is left to
+#     the R2 node;
+#   • C, S are returned as a dense 2×2 `Matrix`/2-`Vector` (no StaticArrays: DESIGN §1 adds no
+#     registry dependency to AccretionDisc).
+
+"""
+    MasterInputs{T,C}
+
+The 26 scalar inputs of the relativistic master system at one radius (field names are exactly the
+identifiers of the generated `_master_entries`): `m` (azimuthal number), the Page–Thorne potentials
+and r-derivatives `nu, nu_r, psi, psi_r, mu, mu_r` and `omt_r` = dω̃/dr (4), `W` = 1/√(1−v²) (the
+Lorentz factor of (8)), `v` (10), the fluid angular velocity `Omega` and `Omega_r` = dΩ/dr, the
+(Landau-shifted, Complex) Doppler frequency `omega_d` = ω − mΩ (+ iε) (51), (62), the
+height-integrated pressure / energy density and derivatives `p, p_r, eps, eps_r`, `Gamma1` (22), and
+the COVARIANT Fourier metric-perturbation modes ĥ_μν `htt, htt_r, htphi, htphi_r, hphiphi, hphiphi_r,
+hrr, hzz` (ĥ_tr = ĥ_rφ = ĥ_φz = 0 for a circular equatorial orbit — `circmetriczero` of the notebook). `T` is
+the real working type, `C` the type of `omega_d` (`Complex{T}` with the Landau shift, `T` without).
+"""
+struct MasterInputs{T<:Real,C<:Number}
+    m::Int
+    nu::T; nu_r::T; psi::T; psi_r::T; mu::T; mu_r::T; omt_r::T
+    W::T; v::T; Omega::T; Omega_r::T
+    omega_d::C
+    p::T; p_r::T; eps::T; eps_r::T; Gamma1::T
+    htt::T; htt_r::T; htphi::T; htphi_r::T; hphiphi::T; hphiphi_r::T; hrr::T; hzz::T
+end
+
+include("master_generated.jl")      # _master_entries(::MasterInputs) — GENERATED, do not edit
+
+# ---------------------------------------------------------------------------------------------
+# background derivatives needed by C (Ω' appears in C01, C11 — the relativistic epicyclic term)
+# ---------------------------------------------------------------------------------------------
+
+"""
+    _dPi_dr(bg, r) -> d/dr [p'/(ε+p)]
+
+r-derivative of the hydrostatic source Π ≡ p'/(ε+p) = −(𝔭+𝔮) c_s²/[r(1+c_s²)]
+(`dlogp_dr_over_enthalpy`) with c_s² ∝ r^{−𝔮} (12c): Π' = (𝔭+𝔮) c_s² (1 + 𝔮 + c_s²)/[r²(1+c_s²)²].
+"""
+function _dPi_dr(bg::DiscBackground, r)
+    cs2 = csound(bg, r)^2
+    (bg.𝔭 + bg.𝔮) * cs2 * (1 + bg.𝔮 + cs2) / (r^2 * (1 + cs2)^2)
+end
+
+"""
+    _potentials_d2r(χ, r) -> (d2ν, d2ψ, d2μ, d2ω̃)
+
+Second r-derivatives of the Page–Thorne potentials, obtained from the Spacetime first-derivative
+primitive `kerr_equatorial_potentials_dr` by the COMPLEX-STEP rule f'(r) = Im f(r + ih)/h, which is
+exact to roundoff (no subtractive cancellation) because that primitive is a rational function of r
+(analytic, comparison-free). h = r·eps(T)^{3/4} keeps the O(h²) truncation term below eps(T) for
+every float type T while the imaginary part stays far above underflow. Kerr geometry is thus still
+reached ONLY through Spacetime (no second derivation of the A1a-e closed forms here).
+"""
+function _potentials_d2r(χ::T, r::T) where {T<:Real}
+    h = r * eps(T)^(3 // 4)
+    d = kerr_equatorial_potentials_dr(χ, Complex(r, h))
+    (d2ν = imag(d.dν) / h, d2ψ = imag(d.dψ) / h, d2μ = imag(d.dμ) / h, d2ω̃ = imag(d.dω̃) / h)
+end
+
+"""
+    dOmega_dr(bg::DiscBackground, r) -> dΩ/dr
+
+Exact radial derivative of the equilibrium angular velocity Ω(r) of [`rotation_profile`](@ref) by
+IMPLICIT differentiation of the hydrostatic-balance quadratic A v² + B v + C = 0 (A = Π + ψ',
+B = −e^{ψ−ν}ω̃', C = −(Π + ν')):
+
+    v' = −(A' v² + B' v + C') / (2A v + B),
+    A' = Π' + ψ'',  B' = −e^{ψ−ν}[(ψ' − ν') ω̃' + ω̃''],  C' = −(Π' + ν''),
+    Ω' = ω̃' + e^{ν−ψ} [v' + v (ν' − ψ')]                     (Ω = ω̃ + v e^{ν−ψ}, (10)).
+
+Π' from [`_dPi_dr`](@ref), the second derivatives of the potentials from [`_potentials_d2r`](@ref).
+For 𝔭 = 𝔮 = 0 this reduces to d/dr[1/(χ + r^{3/2})] = −(3/2)√r/(χ + r^{3/2})². Type-generic (the
+working type is the promotion of the background type and `r`). Conceptually a background quantity;
+it lives here because it is consumed only by the master system (a pure move to background.jl is a
+no-op refactor).
+"""
+function dOmega_dr(bg::DiscBackground{T}, r) where {T}
+    S = promote_type(T, typeof(r))
+    rr = convert(S, r)
+    χ = convert(S, bg.χ)
+    pot = kerr_equatorial_potentials(χ, rr)
+    d = kerr_equatorial_potentials_dr(χ, rr)
+    d2 = _potentials_d2r(χ, rr)
+    rp = rotation_profile(bg, rr)
+    v = rp.v
+    Π = dlogp_dr_over_enthalpy(bg, rr)
+    dΠ = _dPi_dr(bg, rr)
+    e_ψν = exp(pot.ψ - pot.ν)
+    A = Π + d.dψ
+    B = -e_ψν * d.dω̃
+    dA = dΠ + d2.d2ψ
+    dB = -e_ψν * ((d.dψ - d.dν) * d.dω̃ + d2.d2ω̃)
+    dC = -(dΠ + d2.d2ν)
+    dv = -(dA * v^2 + dB * v + dC) / (2 * A * v + B)
+    d.dω̃ + (dv + v * (d.dν - d.dψ)) / e_ψν
+end
+
+# ---------------------------------------------------------------------------------------------
+# Landau shift (62)-(63) about the corotation radius (61)
+# ---------------------------------------------------------------------------------------------
+
+# The corotation radius r_c (61) is `corotation_radius(bg, m)` of grid.jl (EGD::sw-grid) — ONE home;
+# the Landau shift below takes it as the keyword `rc` (default: solved on the fly).
+
+"""
+    landau_shift(bg::DiscBackground, m, r; rc = corotation_radius(bg, m)) -> ε(r)
+
+Landau pole displacement (63): ε(r) = εp Ω•(r_c) exp[−(r − r_c)²/(2σε²)] with Ω•(r_c) the circular
+Kerr frequency (13) at the corotation radius r_c (61) (`disc_OmegaK(bg, r_c)`), εp = `bg.εp`
+(nominal 1e-5) and σε = `bg.σε` (nominal 0.1 a•). Enters the master system as ω_d → ω_d + iε(r)
+(62) — see [`master_matrices`](@ref). Pass `rc` to avoid re-solving (61) at every radius.
+"""
+function landau_shift(bg::DiscBackground{T}, m::Integer, r; rc = corotation_radius(bg, m)) where {T}
+    S = promote_type(T, typeof(r), typeof(rc))
+    rr = convert(S, r); rcc = convert(S, rc)
+    bg.εp * disc_OmegaK(bg, rcc) * exp(-(rr - rcc)^2 / (2 * bg.σε^2))
+end
+
+# Landau-shifted (Complex) Doppler frequency at r; `landau=false` gives the real ω_d unchanged
+# (returned as Complex for a uniform return type of the matrices).
+function _omega_d_shifted(bg::DiscBackground, m::Integer, r, landau::Bool, rc)
+    ωd = omega_d(bg, m, r)
+    if landau
+        ε = rc === nothing ? landau_shift(bg, m, r) : landau_shift(bg, m, r; rc = rc)
+        return Complex(ωd, ε)
+    else
+        return Complex(ωd, zero(ωd))
+    end
+end
+
+# ---------------------------------------------------------------------------------------------
+# the relativistic master matrices (47) — route R1 transcription
+# ---------------------------------------------------------------------------------------------
+
+"""
+    master_inputs(bg::DiscBackground, m, r; hmodes, landau = true, rc = nothing) -> MasterInputs
+
+Assemble the [`MasterInputs`](@ref) of the relativistic master system at radius `r`: the Page–Thorne
+potentials and derivatives from `Spacetime.kerr_equatorial_potentials(_dr)`, (Ω, v, W = 1/√(1−v²))
+from [`rotation_profile`](@ref) and Ω' from [`dOmega_dr`](@ref), the power-law profiles (12a-c)
+(p' = −(𝔭+𝔮)p/r, ε' = −𝔭 ε/r) and Γ1 (22) from background.jl, the (Landau-shifted if `landau`)
+ω_d = m[Ω•(a•) − Ω(r)] + iε(r), and the COVARIANT Fourier metric-perturbation modes ĥ_μν from `hmodes`
+— any object with properties `htt, htt_r, htphi, htphi_r, hphiphi, hphiphi_r, hrr, hzz` (the `source.jl` node
+will provide it; until then the caller supplies a NamedTuple, e.g. the Newtonian-limit source
+`(htt = −2Φ̂, htt_r = −2Φ̂′, others 0)`).
+"""
+function master_inputs(bg::DiscBackground{T}, m::Integer, r; hmodes, landau::Bool = true, rc = nothing) where {T}
+    S = promote_type(T, typeof(r))
+    rr = convert(S, r)
+    χ = convert(S, bg.χ)
+    pot = kerr_equatorial_potentials(χ, rr)
+    d = kerr_equatorial_potentials_dr(χ, rr)
+    rp = rotation_profile(bg, rr)
+    W = 1 / sqrt(1 - rp.v^2)
+    ε = eps_profile(bg, rr); p = pressure(bg, rr)
+    p_r = -(bg.𝔭 + bg.𝔮) * p / rr
+    eps_r = -bg.𝔭 * ε / rr
+    ωd = _omega_d_shifted(bg, m, rr, landau, rc)
+    MasterInputs{S,Complex{S}}(
+        m, pot.ν, d.dν, pot.ψ, d.dψ, pot.μ, d.dμ, d.dω̃,
+        W, rp.v, rp.Ω, dOmega_dr(bg, rr), ωd,
+        p, p_r, ε, eps_r, gamma1(bg, rr),
+        convert(S, hmodes.htt), convert(S, hmodes.htt_r), convert(S, hmodes.htphi), convert(S, hmodes.htphi_r),
+        convert(S, hmodes.hphiphi), convert(S, hmodes.hphiphi_r), convert(S, hmodes.hrr), convert(S, hmodes.hzz))
+end
+
+"""
+    master_matrices(bg::DiscBackground, m, r; hmodes, landau = true, rc = nothing) -> (C, S)
+
+Relativistic master system (47) at radius `r` for azimuthal number `m`: `C::Matrix{Complex{T}}`
+(2×2) and `S::Vector{Complex{T}}` (2) such that d/dr (δÛ, −iδû^r) = C·(δÛ, −iδû^r) + S, with δÛ =
+δp̂/(ε+p) (48). Entries from the supplementary notebook of the paper (route R1, generated
+`_master_entries`; ĥ_tr = ĥ_rφ = 0). `landau=true` applies the corotation regularisation
+ω_d → ω_d + iε(r) (62)-(63) ([`landau_shift`](@ref); pass `rc` = the corotation radius to avoid
+re-solving (61) per call); `landau=false` evaluates the un-shifted system (singular at r_c).
+`hmodes` = the Fourier metric-perturbation modes at `r` (see [`master_inputs`](@ref)). Allocates the
+two small arrays only; type-generic (BigFloat inherits).
+"""
+function master_matrices(bg::DiscBackground{T}, m::Integer, r; hmodes, landau::Bool = true, rc = nothing) where {T}
+    inp = master_inputs(bg, m, r; hmodes = hmodes, landau = landau, rc = rc)
+    C00, C01, C10, C11, S0, S1 = _master_entries(inp)
+    S = promote_type(T, typeof(r))
+    C = Matrix{Complex{S}}(undef, 2, 2)
+    C[1, 1] = C00; C[1, 2] = C01; C[2, 1] = C10; C[2, 2] = C11
+    (C, Complex{S}[S0, S1])
+end
+
+# ---------------------------------------------------------------------------------------------
+# Newtonian limit (50a-g)
+# ---------------------------------------------------------------------------------------------
+
+# κ² = 4Ω² + 2rΩΩ' — the epicyclic frequency of the fluid rotation law (the Newtonian limit of the
+# relativistic C contains exactly this combination: R1 Newtonian-limit gate, R1 report §4); NOT the
+# geodesic `kappa2` of background.jl (which neglects the O(h0²) pressure correction).
+_kappa2_fluid(Ω, r, dΩ) = 4 * Ω^2 + 2 * r * Ω * dΩ
+
+"""
+    master_matrices_newtonian(bg::DiscBackground, m, r, Φ, dΦ; landau = true, rc = nothing) -> (C, S)
+
+Newtonian-limit master matrices (50b-g) of arXiv:2608.17003 with Σ ≡ ε (12a), p (12b), Γ1 (22),
+κ² = 4Ω² + 2rΩΩ' (the epicyclic frequency of the fluid rotation law Ω(r) of the background — the
+combination the relativistic C reduces to, R1 Newtonian-limit gate), ω_d = ω − mΩ (51) (Landau-shifted
+if `landau`), and the Fourier Newtonian potential of the EMRI Φ̂ = `Φ`, Φ̂′ = `dΦ`:
+
+    C00 = 2mΩ/(rω_d) + p'/(Γ1 p) − Σ'/Σ,
+    C01 = −ω_d + [κ² + p'(−Σp'/(Γ1 p) + Σ')/Σ²]/ω_d,
+    C10 = −m²/(r²ω_d) + ω_d Σ/(Γ1 p),
+    C11 = −1/r − mκ²/(2rω_dΩ) − p'/(Γ1 p),
+    S0  = 2mΦ̂Ω/(rω_d) − Φ̂′,          S1 = −m²Φ̂/(r²ω_d).
+
+Same return layout as [`master_matrices`](@ref) (2×2 `Matrix{Complex{T}}`, 2-`Vector{Complex{T}}`).
+Used by the Newtonian-solver comparison runs (Fig. 5) and as the O(M/a•) limit gate of the
+relativistic matrices.
+"""
+function master_matrices_newtonian(bg::DiscBackground{T}, m::Integer, r, Φ, dΦ; landau::Bool = true, rc = nothing) where {T}
+    S = promote_type(T, typeof(r), typeof(Φ), typeof(dΦ))
+    rr = convert(S, r); Φh = convert(S, Φ); dΦh = convert(S, dΦ)
+    Ω = Omega(bg, rr); dΩ = dOmega_dr(bg, rr)
+    κ2 = _kappa2_fluid(Ω, rr, dΩ)
+    Σ = eps_profile(bg, rr); p = pressure(bg, rr); Γ1 = gamma1(bg, rr)
+    dp = -(bg.𝔭 + bg.𝔮) * p / rr
+    dΣ = -bg.𝔭 * Σ / rr
+    ωd = _omega_d_shifted(bg, m, rr, landau, rc)
+    C = Matrix{Complex{S}}(undef, 2, 2)
+    C[1, 1] = 2 * m * Ω / (rr * ωd) + dp / (Γ1 * p) - dΣ / Σ
+    C[1, 2] = -ωd + (κ2 + dp * (-Σ * dp / (Γ1 * p) + dΣ) / Σ^2) / ωd
+    C[2, 1] = -m^2 / (rr^2 * ωd) + ωd * Σ / (Γ1 * p)
+    C[2, 2] = -1 / rr - m * κ2 / (2 * rr * ωd * Ω) - dp / (Γ1 * p)
+    Svec = Complex{S}[2 * m * Φh * Ω / (rr * ωd) - dΦh, -m^2 * Φh / (rr^2 * ωd)]
+    (C, Svec)
+end
+
+"""
+    delta_u_phi_newtonian(bg::DiscBackground, m, r, y, Φ; landau = true, rc = nothing) -> δu_φ
+
+Newtonian eliminated azimuthal velocity (50a), δu_φ = m δÛ/(rω_d) + m Φ̂/(rω_d) − iδû^r κ²/(2ω_dΩ),
+written in the master variables y = (δÛ, −iδû^r): δu_φ = m(y₁ + Φ̂)/(rω_d) + y₂ κ²/(2ω_dΩ), with
+κ² = 4Ω² + 2rΩΩ' and the (Landau-shifted if `landau`) ω_d. The RELATIVISTIC δû_φ has no
+counterpart in the supplementary notebook [HOLE — EGD::deriv-master-system-R2 provides it].
+"""
+function delta_u_phi_newtonian(bg::DiscBackground{T}, m::Integer, r, y, Φ; landau::Bool = true, rc = nothing) where {T}
+    S = promote_type(T, typeof(r), real(typeof(Φ)), real(eltype(y)))
+    rr = convert(S, r)
+    Ω = Omega(bg, rr); dΩ = dOmega_dr(bg, rr)
+    κ2 = _kappa2_fluid(Ω, rr, dΩ)
+    ωd = _omega_d_shifted(bg, m, rr, landau, rc)
+    y1 = convert(Complex{S}, y[1]); y2 = convert(Complex{S}, y[2])
+    m * (y1 + Φ) / (rr * ωd) + y2 * κ2 / (2 * ωd * Ω)
+end

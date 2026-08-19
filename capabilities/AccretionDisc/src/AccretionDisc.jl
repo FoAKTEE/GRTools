@@ -74,6 +74,10 @@ using .SpiralWaves: SpiralGrid, build_grid, corotation_radius, corotation_block,
 using .SpiralWaves: wkb_wavenumber, wkb_wavenumber2, wkb_wavenumber_floored, WKBRegion, wkb_region, cell_count
 export SpiralGrid, build_grid, corotation_radius, corotation_block, smoothmin
 export wkb_wavenumber, wkb_wavenumber2, wkb_wavenumber_floored, WKBRegion, wkb_region, cell_count
+using .SpiralWaves: MasterInputs, master_inputs, master_matrices, master_matrices_newtonian, delta_u_phi_newtonian
+using .SpiralWaves: landau_shift, dOmega_dr
+export MasterInputs, master_inputs, master_matrices, master_matrices_newtonian, delta_u_phi_newtonian
+export landau_shift, dOmega_dr
 
 export Modes, Force, SpiralWaves
 

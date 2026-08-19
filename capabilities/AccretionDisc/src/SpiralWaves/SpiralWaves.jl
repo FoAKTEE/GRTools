@@ -13,8 +13,10 @@ dependency ORDER and is uncommented as each node lands — no stub is shipped ah
     # include("background.jl")   # EGD::sw-background LANDED (v0.2.0): disc equilibrium on (ν,ψ,μ,ω̃) —
     #                            #      Ω(r), v, u^t, u_t, u_φ from the exact (11), power laws (12), Ω• (13),
     #                            #      Γ1 (22), κ², r_ISCO, F_{J,0/1} (76); over Spacetime.kerr_equatorial_potentials
-    # include("master.jl")       # EGD: the two first-order master equations for (δh, δu^r) per
-    #                            #      azimuthal m (main.tex Sec. master-eqs) + WKB/Lindblad forms
+    # include("master.jl")       # EGD::sw-master-matrices LANDED (v0.4.0): the 2×2 first-order master
+    #                            #      system dy/dr = C y + S, y = (δÛ, −iδû^r) (47) — relativistic C, S
+    #                            #      GENERATED from the supplementary notebook (master_generated.jl, route
+    #                            #      R1), Newtonian (50a-g), Landau shift (62-63), dΩ/dr; over background + grid
     # include("source.jl")       # EGD: the EMRI potential Φ_m source — s₀² approximation
     #                            #      (appendix.tex Sec. ssq-expr), softening ε, worldline v^μ
     # include("grid.jl")         # EGD::sw-grid LANDED (v0.3.0): adaptive radial grid (App. C) — r_c (61),
@@ -46,9 +48,9 @@ const PAPER = "arXiv:2608.17003"
     sw_version() -> VersionNumber
 
 Version of the `SpiralWaves` submodule API (bumped as DAG nodes land; `v"0.1.0"` = scaffold,
-`v"0.2.0"` = background, `v"0.3.0"` = grid).
+`v"0.2.0"` = background, `v"0.3.0"` = grid, `v"0.4.0"` = master matrices).
 """
-sw_version() = v"0.3.0"
+sw_version() = v"0.4.0"
 
 # ---- EGD::sw-background — disc equilibrium (Sec. II.A) -------------------------------------------
 include("background.jl")
@@ -61,5 +63,12 @@ export disc_OmegaK, kappar2, csound, eden0
 include("grid.jl")
 export SpiralGrid, build_grid, corotation_radius, corotation_block, smoothmin
 export wkb_wavenumber, wkb_wavenumber2, wkb_wavenumber_floored, WKBRegion, wkb_region, cell_count
+
+# ---- EGD::sw-master-matrices — relativistic master system (Sec. II.C) -----------------------------
+# (included AFTER grid.jl: the Landau shift uses grid.jl's `corotation_radius`; master_generated.jl is
+#  the notebook transcription emitted by the emri-disk generator codes/cas/R1_to_julia.wls)
+include("master.jl")
+export MasterInputs, master_inputs, master_matrices, master_matrices_newtonian, delta_u_phi_newtonian
+export landau_shift, dOmega_dr
 
 end # module SpiralWaves

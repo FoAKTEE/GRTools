@@ -26,4 +26,5 @@ using AccretionDisc
     include("SpiralWaves/test_scaffold.jl")   # arXiv:2608.17003 spiral-wave submodule: load + dep budget
     include("SpiralWaves/test_background.jl") # EGD::sw-background: disc equilibrium (Sec. II.A)
     include("SpiralWaves/test_grid.jl")       # EGD::sw-grid: adaptive corotation/WKB grid (App. C)
+    include("SpiralWaves/test_master.jl")     # EGD::sw-master-matrices: master system C, S (47), (50), Landau (62-63)
 end

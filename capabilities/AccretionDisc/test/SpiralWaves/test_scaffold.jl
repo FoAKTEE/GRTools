@@ -21,12 +21,14 @@ using TestKit
     landed_grid = [:SpiralGrid, :build_grid, :corotation_radius, :corotation_block, :smoothmin,
                    :wkb_wavenumber, :wkb_wavenumber2, :wkb_wavenumber_floored, :WKBRegion, :wkb_region,
                    :cell_count]                                                      # EGD::sw-grid
-    @test Set(names(SW)) == Set(vcat(:SpiralWaves, landed_background, landed_grid))
+    landed_master = [:MasterInputs, :master_inputs, :master_matrices, :master_matrices_newtonian,
+                     :delta_u_phi_newtonian, :landau_shift, :dOmega_dr]          # EGD::sw-master-matrices
+    @test Set(names(SW)) == Set(vcat(:SpiralWaves, landed_background, landed_grid, landed_master))
     @test SW.PAPER == "arXiv:2608.17003"
     @test SW.sw_version() isa VersionNumber
-    @test SW.sw_version() == v"0.3.0"
+    @test SW.sw_version() == v"0.4.0"
     # no placeholder physics: none of the UNLANDED planned node entry points exist yet
-    for sym in (:master_matrices, :master_matrices_newtonian, :emri_source, :singular_field,
+    for sym in (:emri_source, :singular_field, :singular_field_mode, :source_modes,
                 :solve_mode, :ModeSolution, :torque_balance, :torque_survey)
         @test !isdefined(SW, sym)
     end
