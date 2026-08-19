@@ -1,0 +1,25 @@
+{
+  "generated_at_commit": "bd7371a00ecc879f06ae63933edfe93c9d56f6f3",
+  "id": "check_c13_alpha",
+  "julia": "1.12.6",
+  "paper": "1010.0759",
+  "script_sha256": "f1bfde10e90aa55aa48aa611e8816f4c370d455b684e8bebde083b5b8ed00b6b",
+  "values": {
+    "Csq_l2m2_a05_w012": 492.5358676620529,
+    "TS_Csq_max_reldiff": 0.0,
+    "alpha_l2m2_a05_w012": -0.001728866446336625,
+    "c13_l2m2_a05_w012": {
+      "__type__": "Complex",
+      "im": -13.552693154046459,
+      "re": -4.366472261804179
+    },
+    "cplex1_closes": true,
+    "cplex1_worst_relerr": 5.707056760559452e-13,
+    "flux_identity_max_relerr_H": 5.062870800422986e-16,
+    "flux_identity_max_relerr_I": 4.280479052350604e-16,
+    "lambda_l2m2_a05_w012": 3.600939724525347,
+    "newtonian_c13_powerlaw_max_reldiff": 0.006439525078939412,
+    "newtonian_cplex1_max_relerr": 7.221368081443504e-14,
+    "swsh_sphere_norm": 1.0
+  }
+}
