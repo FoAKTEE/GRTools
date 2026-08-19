@@ -1,0 +1,67 @@
+# FIXTURES.toml — baked-fixture provenance ledger for capabilities/AccretionDisc
+# GRR::g2-fixture-capture-scripts / GRR::g14-oracle-scripts (repro-audit gaps G2, G13, G14).
+# Generated 2026-08-19; see docs/src/topics/fixtures.md for the status vocabulary and the repo-wide roll-up.
+#
+# status:
+#   regenerated-identical  capture re-run on 2026-08-19; fixture data bit-identical (only capture-date/
+#                          host comment lines may differ)
+#   reverified-identical   a NEW key-driven regenerator re-evaluated the oracle at every baked key
+#   tracked-generator      an in-tree generator/regenerator already existed
+#   tracked-notrerunnable  capture now tracked, but the oracle STATE it captured no longer exists
+#   tracked-notrerun       capture now tracked; re-run deferred (cost/corpus) [FUTURE]
+#   hole-script-lost       no capture script anywhere; values frozen [HOLE]
+#   upstream-copy          vendored upstream data; no generator applies
+#   shared-input           generator INPUT shared verbatim between capture and test
+
+package = "capabilities/AccretionDisc"
+generated = "2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/h1-l2m2.h5"
+sha256 = "4dab010d7a5ecfbc29bccf67c21be0b583c80bb0150bba626d6ff62828073900"
+bytes = 67160
+capture = "test/fixtures/capture/capture_s55_accretiondisc_force.jl"
+oracle = "byte-windowed copy of ref-code/h1Lorenz/run_r8/fields/h1-l2m2.h5 (iter94 corpus), r in [8,17.6] + 3 left points, taken by the legacy packages/DiscEMRIForce loader"
+oracle_commit = "fee0036b"
+status = "regenerated-identical"
+note = "re-run 2026-08-19: every HDF5 dataset and attribute of all five files compares equal (max abs dataset difference 0.0); the raw container bytes differ only in HDF5 metadata"
+
+[[fixture]]
+file = "test/fixtures/h1-l3m2.h5"
+sha256 = "22db7ab5410442cbac86b54d5e9c4df10606ac5d77396df0023c0cd2fcca44c5"
+bytes = 31224
+capture = "test/fixtures/capture/capture_s55_accretiondisc_force.jl"
+oracle = "byte-windowed copy of ref-code/h1Lorenz/run_r8/fields/h1-l3m2.h5 (iter94 corpus), r in [8,17.6] + 3 left points, taken by the legacy packages/DiscEMRIForce loader"
+oracle_commit = "fee0036b"
+status = "regenerated-identical"
+note = "re-run 2026-08-19: every HDF5 dataset and attribute of all five files compares equal (max abs dataset difference 0.0); the raw container bytes differ only in HDF5 metadata"
+
+[[fixture]]
+file = "test/fixtures/h1-l4m2.h5"
+sha256 = "4a5c6f38ef7064c4408eda1d61f2d7e4375561076463aa1e18b97c4e3e21b1fd"
+bytes = 67160
+capture = "test/fixtures/capture/capture_s55_accretiondisc_force.jl"
+oracle = "byte-windowed copy of ref-code/h1Lorenz/run_r8/fields/h1-l4m2.h5 (iter94 corpus), r in [8,17.6] + 3 left points, taken by the legacy packages/DiscEMRIForce loader"
+oracle_commit = "fee0036b"
+status = "regenerated-identical"
+note = "re-run 2026-08-19: every HDF5 dataset and attribute of all five files compares equal (max abs dataset difference 0.0); the raw container bytes differ only in HDF5 metadata"
+
+[[fixture]]
+file = "test/fixtures/h1-l5m2.h5"
+sha256 = "4dcbc6336b08929819b5118b0803fdbf27a97be5a79ad2f4762c01796dbdfa46"
+bytes = 31224
+capture = "test/fixtures/capture/capture_s55_accretiondisc_force.jl"
+oracle = "byte-windowed copy of ref-code/h1Lorenz/run_r8/fields/h1-l5m2.h5 (iter94 corpus), r in [8,17.6] + 3 left points, taken by the legacy packages/DiscEMRIForce loader"
+oracle_commit = "fee0036b"
+status = "regenerated-identical"
+note = "re-run 2026-08-19: every HDF5 dataset and attribute of all five files compares equal (max abs dataset difference 0.0); the raw container bytes differ only in HDF5 metadata"
+
+[[fixture]]
+file = "test/fixtures/h1-l6m2.h5"
+sha256 = "1b51ee89ba21032145bcbc0f284a97e33837578bf0d9d211940a75e605c3460f"
+bytes = 67160
+capture = "test/fixtures/capture/capture_s55_accretiondisc_force.jl"
+oracle = "byte-windowed copy of ref-code/h1Lorenz/run_r8/fields/h1-l6m2.h5 (iter94 corpus), r in [8,17.6] + 3 left points, taken by the legacy packages/DiscEMRIForce loader"
+oracle_commit = "fee0036b"
+status = "regenerated-identical"
+note = "re-run 2026-08-19: every HDF5 dataset and attribute of all five files compares equal (max abs dataset difference 0.0); the raw container bytes differ only in HDF5 metadata"
