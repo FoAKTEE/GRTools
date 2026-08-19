@@ -1,0 +1,24 @@
+# Reproduction environment for the published results tracked under reproduce/.
+# One environment for every paper directory: the GrTools umbrella (relative
+# path, so the exact working-tree code is what is reproduced) plus the plotting
+# stack.  Goldens are JSON written/read by `_lib/repro_harness.jl` with stdlib
+# TOML/DelimitedFiles only — no JSON package is needed to run `--check`.
+#
+# Instantiate offline (the Manifest is pinned and committed):
+#     JULIA_PKG_OFFLINE=true julia --project=reproduce -e 'using Pkg; Pkg.instantiate()'
+
+[deps]
+GrTools = "d866091c-02d1-4515-9122-6c0c359beda3"
+Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+SHA = "ea8e919c-243c-51af-8825-aaa63cd721ce"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+
+[sources]
+GrTools = {path = ".."}
+
+[compat]
+julia = "1.10"

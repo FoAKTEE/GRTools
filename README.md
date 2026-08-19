@@ -154,6 +154,24 @@ several packages enforce their dependency budget as a test (`test/hygiene.jl`).
 CI runs the full 19-suite matrix (18 packages + umbrella) — see
 `.github/workflows/CI.yml`.
 
+## Reproducing published results
+
+Every figure, table, or printed number that GrTools claims to reproduce lives under
+`reproduce/` as a thin driver plus a JSON golden, registered in
+`reproduce/MANIFEST.toml` and re-checked by `reproduce/run_all.jl`:
+
+```bash
+JULIA_PKG_OFFLINE=true julia --project=reproduce -e 'using Pkg; Pkg.instantiate()'
+julia --project=reproduce reproduce/run_all.jl --check                      # every fast-tier result
+julia --project=reproduce reproduce/run_all.jl --check --paper 2608.17003   # one paper
+julia --project=reproduce reproduce/run_all.jl --regen --only <id>          # rewrite one golden
+```
+
+See [reproduce/README.md](reproduce/README.md) for the layout (`reproduce/arXiv-<id>/`),
+the determinism policy (BLAS single-thread, thread-count invariance, pinned Manifest,
+Julia 1.12.6), the golden-size rule, and how to add a result (drivers stay thin — the
+physics lives in a capability package with tests).
+
 ## Conventions
 
 Geometric units `G = c = 1`, black-hole mass `M = 1` unless stated.

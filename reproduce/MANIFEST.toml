@@ -1,0 +1,35 @@
+# reproduce/MANIFEST.toml — registry of every reproduced published result.
+#
+# One [[result]] table per figure / table / numerical check.  `run_all.jl` iterates these
+# rows (filters: --paper, --only, --tier) and runs each `script` in a subprocess with
+# `--check` (default) or `--regen`.
+#
+# Schema (all keys required unless marked optional):
+#   paper    = "<arXiv id>"            paper identifier; directory is reproduce/arXiv-<id>/
+#                                      ("_selftest" and other "_"-prefixed ids are harness-internal)
+#   id       = "<result id>"           unique across the manifest; also the golden file stem
+#   kind     = "figure" | "table" | "check"
+#   script   = "<path>"                driver, relative to reproduce/ (THIN: zero physics inside)
+#   tier     = "fast" | "heavy"        fast: deterministic, < 5 min at -t4 (runs on every commit);
+#                                      heavy: longer runs, nightly / manual (--tier heavy)
+#   expected = "<path>"                golden JSON, relative to reproduce/ (≤ 200 KB); its header
+#                                      records julia version, generating commit, script sha256
+#   depends  = ["<Package>", ...]      GrTools packages whose physics the driver calls
+#   status   = "solid" | "preliminary" | "hole" | "future"
+#                                      mirrors the knowledge-ledger node status (never hand-promote:
+#                                      update the ledger, then this field)
+#   notes    = "<free text>"           optional: what is reproduced, tolerances, known gaps
+#
+# Drivers exit 0 on pass, 1 on mismatch, 2 on a missing golden / harness error, and 3 for a
+# documented HOLE/skip (reason printed) — see _lib/repro_harness.jl.
+
+[[result]]
+paper = "_selftest"
+id = "harness-selftest"
+kind = "check"
+script = "_selftest/selftest.jl"
+tier = "fast"
+expected = "_selftest/expected/harness-selftest.json"
+depends = ["Spacetime"]
+status = "solid"
+notes = "Harness self-test: Bardeen ISCO (Float64 + 256-bit BigFloat), Kerr frequencies, every golden value type (scalar/Bool/String/BigFloat/Complex/Vector/Matrix/non-finite) and a JSON round trip; rtol 1e-12."
