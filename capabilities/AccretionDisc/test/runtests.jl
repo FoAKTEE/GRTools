@@ -24,4 +24,5 @@ using AccretionDisc
     include("Force/test_kerr_frontend_numerics.jl")
     include("Force/test_kerr.jl")
     include("SpiralWaves/test_scaffold.jl")   # arXiv:2608.17003 spiral-wave submodule: load + dep budget
+    include("SpiralWaves/test_background.jl") # EGD::sw-background: disc equilibrium (Sec. II.A)
 end

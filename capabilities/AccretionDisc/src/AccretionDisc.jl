@@ -62,10 +62,14 @@ export ForcingInterp, build_forcing, forced_solve
 export f8_torque_balance, f8_torque_balance_ilr, f8_flux_crosscheck, f5_source
 export kerr_mode, kerr_modes
 
-# SpiralWaves submodule (arXiv:2608.17003 spiral-density-wave pipeline; scaffold — exports are
-# added per landed DAG node).
+# SpiralWaves submodule (arXiv:2608.17003 spiral-density-wave pipeline; exports are added per
+# landed DAG node — the Modes generics disc_OmegaK/kappar2/csound/eden0 gain DiscBackground methods).
 include("SpiralWaves/SpiralWaves.jl")
 using .SpiralWaves
+using .SpiralWaves: DiscBackground, rotation_profile, Omega, omega_d, Omega_emri, eps_profile, pressure
+using .SpiralWaves: gamma1, dlogp_dr_over_enthalpy, kappa2, r_isco, softening_length, F_J0, F_J1
+export DiscBackground, rotation_profile, Omega, omega_d, Omega_emri, eps_profile, pressure
+export gamma1, dlogp_dr_over_enthalpy, kappa2, r_isco, softening_length, F_J0, F_J1
 
 export Modes, Force, SpiralWaves
 

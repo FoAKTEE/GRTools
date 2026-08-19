@@ -10,9 +10,9 @@ gravitational potential of a circular equatorial EMRI).
 Design (one file per DAG node, each landed tests-first; the include list below is the planned
 dependency ORDER and is uncommented as each node lands — no stub is shipped ahead of its tests):
 
-    # include("background.jl")   # EGD: disc equilibrium on (ν,ψ,μ,ω̃) — Ω(r), v, u^t, enthalpy,
-    #                            #      sound speed / aspect ratio, κ², the dpdr equilibrium
-    #                            #      (main.tex:172-200); consumes Spacetime.kerr_equatorial_potentials
+    # include("background.jl")   # EGD::sw-background LANDED (v0.2.0): disc equilibrium on (ν,ψ,μ,ω̃) —
+    #                            #      Ω(r), v, u^t, u_t, u_φ from the exact (11), power laws (12), Ω• (13),
+    #                            #      Γ1 (22), κ², r_ISCO, F_{J,0/1} (76); over Spacetime.kerr_equatorial_potentials
     # include("master.jl")       # EGD: the two first-order master equations for (δh, δu^r) per
     #                            #      azimuthal m (main.tex Sec. master-eqs) + WKB/Lindblad forms
     # include("source.jl")       # EGD: the EMRI potential Φ_m source — s₀² approximation
@@ -36,6 +36,7 @@ module SpiralWaves
 
 using Spacetime
 using SparseArrays
+using ..Modes
 
 "The arXiv identifier of the paper this submodule reproduces."
 const PAPER = "arXiv:2608.17003"
@@ -43,8 +44,16 @@ const PAPER = "arXiv:2608.17003"
 """
     sw_version() -> VersionNumber
 
-Version of the `SpiralWaves` submodule API (bumped as DAG nodes land; `v"0.1.0"` = scaffold).
+Version of the `SpiralWaves` submodule API (bumped as DAG nodes land; `v"0.1.0"` = scaffold,
+`v"0.2.0"` = background).
 """
-sw_version() = v"0.1.0"
+sw_version() = v"0.2.0"
+
+# ---- EGD::sw-background — disc equilibrium (Sec. II.A) -------------------------------------------
+include("background.jl")
+export DiscBackground, rotation_profile, Omega, omega_d, Omega_emri, eps_profile, pressure, gamma1
+export dlogp_dr_over_enthalpy, kappa2, r_isco, softening_length, F_J0, F_J1
+# the EXISTING Modes generics gain DiscBackground methods (one name = one concept); re-exported here
+export disc_OmegaK, kappar2, csound, eden0
 
 end # module SpiralWaves
