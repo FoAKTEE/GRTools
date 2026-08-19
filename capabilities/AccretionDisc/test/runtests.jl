@@ -32,4 +32,5 @@ using AccretionDisc
     include("SpiralWaves/test_source.jl")     # EGD::sw-singular-source: singular field (52)-(60), (B1), Fourier modes
     include("SpiralWaves/test_r2_generated.jl") # EGD::sw-mode-solver: route-R2 generated δû_φ, AMF (72a), torque density (72b)
     include("SpiralWaves/test_solver.jl")     # EGD::sw-mode-solver: implicit midpoint (64) + outgoing-wave BCs (66)-(68)
+    include("SpiralWaves/test_diagnostics.jl") # EGD::sw-diagnostics: AMF (72a), torque (72b), (74), (75), m-cutoffs
 end

@@ -52,9 +52,9 @@ const PAPER = "arXiv:2608.17003"
 
 Version of the `SpiralWaves` submodule API (bumped as DAG nodes land; `v"0.1.0"` = scaffold,
 `v"0.2.0"` = background, `v"0.3.0"` = grid, `v"0.4.0"` = master matrices, `v"0.5.0"` = singular source,
-`v"0.6.0"` = mode solver).
+`v"0.6.0"` = mode solver, `v"0.7.0"` = diagnostics).
 """
-sw_version() = v"0.6.0"
+sw_version() = v"0.7.0"
 
 # ---- EGD::sw-background — disc equilibrium (Sec. II.A) -------------------------------------------
 include("background.jl")
@@ -88,5 +88,10 @@ export strip_halfwidth, trapezoid_nodes
 include("solver.jl")
 export ModeSolution, solve_mode, midpoint_system, solve_midpoint, midpoint_residual
 export eigen2, outgoing_branch, wkb_wavenumber_gr, wkb_wavenumber2_gr
+
+# ---- EGD::sw-diagnostics — AMF (72a), torque density/integral (72b), (74), (75), cutoffs ----------
+include("diagnostics.jl")
+export sqrt_minus_g, amf, amf_mode, torque_density, torque_density_mode, cumulative_torque
+export total_torque, lindblad_torque, torque_units, m_cut, balance_residual, corotation_split
 
 end # module SpiralWaves

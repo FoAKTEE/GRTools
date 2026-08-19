@@ -29,13 +29,16 @@ using TestKit
                      :raise_modes, :strip_halfwidth, :trapezoid_nodes]            # EGD::sw-singular-source
     landed_solver = [:ModeSolution, :solve_mode, :midpoint_system, :solve_midpoint, :midpoint_residual,
                      :eigen2, :outgoing_branch, :wkb_wavenumber_gr, :wkb_wavenumber2_gr]  # EGD::sw-mode-solver
+    landed_diag = [:sqrt_minus_g, :amf, :amf_mode, :torque_density, :torque_density_mode,
+                   :cumulative_torque, :total_torque, :lindblad_torque, :torque_units, :m_cut,
+                   :balance_residual, :corotation_split]                             # EGD::sw-diagnostics
     @test Set(names(SW)) == Set(vcat(:SpiralWaves, landed_background, landed_grid, landed_master,
-                                     landed_source, landed_solver))
+                                     landed_source, landed_solver, landed_diag))
     @test SW.PAPER == "arXiv:2608.17003"
     @test SW.sw_version() isa VersionNumber
-    @test SW.sw_version() == v"0.6.0"
+    @test SW.sw_version() == v"0.7.0"
     # no placeholder physics: none of the UNLANDED planned node entry points exist yet
-    for sym in (:emri_source, :torque_balance, :torque_density, :cumulative_torque, :torque_survey)
+    for sym in (:emri_source, :torque_balance, :torque_survey, :survey_configs, :synthesize)
         @test !isdefined(SW, sym)
     end
     # SparseArrays is a declared hard dep (and resolvable from the package env)
