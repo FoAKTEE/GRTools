@@ -1,0 +1,127 @@
+# FIXTURES.toml — baked-fixture provenance ledger for capabilities/ScalarSelfForce
+# GRR::g2-fixture-capture-scripts / GRR::g14-oracle-scripts (repro-audit gaps G2, G13, G14).
+# Generated 2026-08-19; see docs/src/topics/fixtures.md for the status vocabulary and the repo-wide roll-up.
+#
+# status:
+#   regenerated-identical  capture re-run on 2026-08-19; fixture data bit-identical (only capture-date/
+#                          host comment lines may differ)
+#   reverified-identical   a NEW key-driven regenerator re-evaluated the oracle at every baked key
+#   tracked-generator      an in-tree generator/regenerator already existed
+#   tracked-notrerunnable  capture now tracked, but the oracle STATE it captured no longer exists
+#   tracked-notrerun       capture now tracked; re-run deferred (cost/corpus) [FUTURE]
+#   hole-script-lost       no capture script anywhere; values frozen [HOLE]
+#   upstream-copy          vendored upstream data; no generator applies
+#   shared-input           generator INPUT shared verbatim between capture and test
+
+package = "capabilities/ScalarSelfForce"
+generated = "2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/effsource/calc_m_comoving.jl"
+sha256 = "67fcf9bd4d56702d0ef5664cc8a2b37342f67cfc3b65b434c7813b78fec01842"
+bytes = 698510
+capture = "test/fixtures/effsource/generator/{Makefile,capture.c}"
+oracle = "ref-code/EffectiveSource (Wardell-Warburton C effective source) built with gcc/make + GSL"
+oracle_commit = ""
+status = "tracked-generator"
+note = "BEST-IN-REPO pattern: test_effsource_fixtures.jl:318-345 re-runs the generator and asserts byte-identity whenever the toolchain and mirror are present"
+
+[[fixture]]
+file = "test/fixtures/effsource/calc_m_elliptic.jl"
+sha256 = "574be1a9297eb236398a9ac0d08970b604f658f2fe0306099ae5132fa1c264fa"
+bytes = 698716
+capture = "test/fixtures/effsource/generator/{Makefile,capture.c}"
+oracle = "ref-code/EffectiveSource (Wardell-Warburton C effective source) built with gcc/make + GSL"
+oracle_commit = ""
+status = "tracked-generator"
+note = "BEST-IN-REPO pattern: test_effsource_fixtures.jl:318-345 re-runs the generator and asserts byte-identity whenever the toolchain and mirror are present"
+
+[[fixture]]
+file = "test/fixtures/effsource/calc_m_series_comoving.jl"
+sha256 = "adc2ca7e18b700607ab62e657fc22a5e90ab7575ca1b7282a9198e3766b3439c"
+bytes = 110405
+capture = "test/fixtures/effsource/generator/{Makefile,capture.c}"
+oracle = "ref-code/EffectiveSource (Wardell-Warburton C effective source) built with gcc/make + GSL"
+oracle_commit = ""
+status = "tracked-generator"
+note = "BEST-IN-REPO pattern: test_effsource_fixtures.jl:318-345 re-runs the generator and asserts byte-identity whenever the toolchain and mirror are present"
+
+[[fixture]]
+file = "test/fixtures/effsource/effsource_configs.jl"
+sha256 = "ee8acf1e76ac9c95ac9756e2b86fe88f1dc212a804a23d1d4119e3009c5c50cd"
+bytes = 12954
+capture = "test/fixtures/effsource/generator/{Makefile,capture.c}"
+oracle = "ref-code/EffectiveSource (Wardell-Warburton C effective source) built with gcc/make + GSL"
+oracle_commit = ""
+status = "tracked-generator"
+note = "BEST-IN-REPO pattern: test_effsource_fixtures.jl:318-345 re-runs the generator and asserts byte-identity whenever the toolchain and mirror are present"
+
+[[fixture]]
+file = "test/fixtures/effsource/phis4d_comoving.jl"
+sha256 = "591de925b369510d2cb06bd41539abec552799a88591d43e5dfae8c2f1c69abe"
+bytes = 40668
+capture = "test/fixtures/effsource/generator/{Makefile,capture.c}"
+oracle = "ref-code/EffectiveSource (Wardell-Warburton C effective source) built with gcc/make + GSL"
+oracle_commit = ""
+status = "tracked-generator"
+note = "BEST-IN-REPO pattern: test_effsource_fixtures.jl:318-345 re-runs the generator and asserts byte-identity whenever the toolchain and mirror are present"
+
+[[fixture]]
+file = "test/fixtures/effsource/phis4d_elliptic.jl"
+sha256 = "5037bd8e9ad4147740abb565966d2081ac99f73c0cd441cc08bea51831794a65"
+bytes = 40574
+capture = "test/fixtures/effsource/generator/{Makefile,capture.c}"
+oracle = "ref-code/EffectiveSource (Wardell-Warburton C effective source) built with gcc/make + GSL"
+oracle_commit = ""
+status = "tracked-generator"
+note = "BEST-IN-REPO pattern: test_effsource_fixtures.jl:318-345 re-runs the generator and asserts byte-identity whenever the toolchain and mirror are present"
+
+[[fixture]]
+file = "test/fixtures/effsource/phis_m_comoving.jl"
+sha256 = "253b967323bf1a13662143cc60f7eb240147e8ff15849318c43ec26395c7623a"
+bytes = 140279
+capture = "test/fixtures/effsource/generator/{Makefile,capture.c}"
+oracle = "ref-code/EffectiveSource (Wardell-Warburton C effective source) built with gcc/make + GSL"
+oracle_commit = ""
+status = "tracked-generator"
+note = "BEST-IN-REPO pattern: test_effsource_fixtures.jl:318-345 re-runs the generator and asserts byte-identity whenever the toolchain and mirror are present"
+
+[[fixture]]
+file = "test/fixtures/effsource/phis_m_elliptic.jl"
+sha256 = "93d5f77426965e264be8d8264dd37ea8e6f1df157f6a752443f9ab982b012933"
+bytes = 105094
+capture = "test/fixtures/effsource/generator/{Makefile,capture.c}"
+oracle = "ref-code/EffectiveSource (Wardell-Warburton C effective source) built with gcc/make + GSL"
+oracle_commit = ""
+status = "tracked-generator"
+note = "BEST-IN-REPO pattern: test_effsource_fixtures.jl:318-345 re-runs the generator and asserts byte-identity whenever the toolchain and mirror are present"
+
+[[fixture]]
+file = "test/fixtures/orbits_circular.jl"
+sha256 = "4d807fcc3a95dfcaa021609607604a6b8dfb312f7c6299e4dd5a4bb752278c42"
+bytes = 9171
+capture = "test/fixtures/capture/capture_orbits_fixtures.jl"
+oracle = "ScalarSelfForce circular-orbit constructors (in-tree)"
+oracle_commit = "in-tree"
+status = "tracked-generator"
+note = "capture script was already tracked before this pass"
+
+[[fixture]]
+file = "test/fixtures/wb_reference.jl"
+sha256 = "effb761e4c1b50f9a52a019caebba77e88e35fcb742f4373f0620b965986a657"
+bytes = 9395
+capture = ""
+oracle = "Wardell-Barack (WB) published tables; extraction re-grep lives inside test_wb_fixtures.jl"
+oracle_commit = ""
+status = "tracked-generator"
+note = "header says the one-shot extraction script is lost, but the INDEPENDENT re-extractor is embedded in the test itself and runs whenever the tex mirror is present"
+
+[[fixture]]
+file = "test/fixtures/runtime_config/ScalarSelfForce.yaml"
+sha256 = "480aba9f8d6a7f14541b136cd2d7ba07d0a3d7cb022eba866978972f6a61b45d"
+bytes = 6562
+capture = ""
+oracle = "paper arXiv:2606.04998 runtime configuration twin"
+oracle_commit = ""
+status = "upstream-copy"
+note = "PROVENANCE.md + a sha256 pin asserted in test_runtime_config.jl"
