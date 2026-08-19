@@ -1,0 +1,27 @@
+# FIXTURES.toml — baked-fixture provenance ledger for core/Wigner
+# GRR::g2-fixture-capture-scripts / GRR::g14-oracle-scripts (repro-audit gaps G2, G13, G14).
+# Generated 2026-08-19; see docs/src/topics/fixtures.md for the status vocabulary and the repo-wide roll-up.
+#
+# status:
+#   regenerated-identical  capture re-run on 2026-08-19; fixture data bit-identical (only capture-date/
+#                          host comment lines may differ)
+#   reverified-identical   a NEW key-driven regenerator re-evaluated the oracle at every baked key
+#   tracked-generator      an in-tree generator/regenerator already existed
+#   tracked-notrerunnable  capture now tracked, but the oracle STATE it captured no longer exists
+#   tracked-notrerun       capture now tracked; re-run deferred (cost/corpus) [FUTURE]
+#   hole-script-lost       no capture script anywhere; values frozen [HOLE]
+#   upstream-copy          vendored upstream data; no generator applies
+#   shared-input           generator INPUT shared verbatim between capture and test
+
+package = "core/Wigner"
+generated = "2026-08-19"
+
+[[fixture]]
+file = "test/wignerD_reference.csv"
+sha256 = "3548c69e0e788c2c5cae6bb2c3430df7f0bcd6e1c1be7b61235dc4eb99e5ff20"
+bytes = 9320
+capture = ""
+oracle = "unrecorded"
+oracle_commit = ""
+status = "hole-script-lost"
+note = "no provenance header of any kind (repro-audit gap G13); a byte-equal twin is tracked at capabilities/SelfForce/test/fixtures/puncture/wignerD_reference.csv, whose sibling files are documented as copies of the legacy Punctures test fixtures"
