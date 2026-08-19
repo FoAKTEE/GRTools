@@ -1,0 +1,67 @@
+# FIXTURES.toml — baked-fixture provenance ledger for core/Kernels
+# GRR::g2-fixture-capture-scripts / GRR::g14-oracle-scripts (repro-audit gaps G2, G13, G14).
+# Generated 2026-08-19; see docs/src/topics/fixtures.md for the status vocabulary and the repo-wide roll-up.
+#
+# status:
+#   regenerated-identical  capture re-run on 2026-08-19; fixture data bit-identical (only capture-date/
+#                          host comment lines may differ)
+#   reverified-identical   a NEW key-driven regenerator re-evaluated the oracle at every baked key
+#   tracked-generator      an in-tree generator/regenerator already existed
+#   tracked-notrerunnable  capture now tracked, but the oracle STATE it captured no longer exists
+#   tracked-notrerun       capture now tracked; re-run deferred (cost/corpus) [FUTURE]
+#   hole-script-lost       no capture script anywhere; values frozen [HOLE]
+#   upstream-copy          vendored upstream data; no generator applies
+#   shared-input           generator INPUT shared verbatim between capture and test
+
+package = "core/Kernels"
+generated = "2026-08-19"
+
+[[fixture]]
+file = "test/fixtures/fdspa_inputs.jl"
+sha256 = "17a83ec3b7b0e405d0d1bc47147bc110b012a2fcdba29d9e82495511169527a1"
+bytes = 2951
+capture = "test/fixtures/capture/s4a_capture_fdspa_fixture.jl"
+oracle = "shared generator INPUT (also included verbatim by test_modesum.jl)"
+oracle_commit = ""
+status = "shared-input"
+note = "bit-identical inputs for capture and test; no transcription step"
+
+[[fixture]]
+file = "test/fixtures/fdspa_ref.jl"
+sha256 = "ba189681288b4f11860e5a94b5b668c9c1c878f9846025412df04d15d13ff9bd"
+bytes = 24720
+capture = "test/fixtures/capture/s4a_capture_fdspa_fixture.jl"
+oracle = "PRE-HOIST EMRIWaveforms.ModeSum.FEW.fd_interpolated_mode_sum"
+oracle_commit = "grtools 51efa9f-era"
+status = "regenerated-identical"
+note = "re-run 2026-08-19 through today's EMRIWaveforms front door (which now delegates to the hoisted Kernels kernel) -> data byte-identical; only the recorded emri-disk repo-state line differs"
+
+[[fixture]]
+file = "test/fixtures/aak_bessel_ref.jl"
+sha256 = "434f8700830ae2bab1cf845c419ec0b6aab41f86922b1dcd334d70070a25a248"
+bytes = 2845
+capture = "test/fixtures/capture/s4c_capture_fixtures.jl"
+oracle = "PRE-HOIST Kernels.ak_bessel_coeffs (SpecialFunctions.besselj) at the test-driven (n,e)"
+oracle_commit = "grtools 51efa9f"
+status = "tracked-notrerunnable"
+note = "re-run attempted 2026-08-19: the script first parses the pre-hoist inline 'cN = coupling(l3,m3,...)' lines out of core/Kernels/src/r2.jl; today's r2.jl expresses the same spec as R2_COUPLING_SPEC (0 matching lines), so the script aborts on its own structural assert. Oracle state gone by design"
+
+[[fixture]]
+file = "test/fixtures/r2_coupling_ref.jl"
+sha256 = "5647e6112f6bcb095996d6a067af3d043bd9cb43ddc297dab5dc4f706a18146f"
+bytes = 10990
+capture = "test/fixtures/capture/s4c_capture_fixtures.jl"
+oracle = "PRE-HOIST Wigner.coupling host-side arrays for every (n,branch) of test_r2.jl"
+oracle_commit = "grtools 51efa9f"
+status = "tracked-notrerunnable"
+note = "same abort as aak_bessel_ref.jl (shared script)"
+
+[[fixture]]
+file = "test/fixtures/r2_oracle_ref.jl"
+sha256 = "9433988e30b45f0190d765c0c7fcf7b8c5e91e9aeeabe8e68e2acadbc3fb5e7e"
+bytes = 26003
+capture = "test/test_r2.jl :: capture_r2_oracle"
+oracle = "ref-code/SecondOrderRicci R2_<n>.cc + Coupling.cc + utils.cc compiled via packages/SecondOrderRicci/test/oracle/r2_oracle.cpp (g++/GSL/Boost)"
+oracle_commit = "abeb8c0"
+status = "tracked-generator"
+note = "the regenerator is an in-test helper with ENV-overridable mirror paths (GRTOOLS_SECONDORDERRICCI_ROOT / GRTOOLS_R2_ORACLE_CPP); scratchpad/capture_r2.jl itself is lost but was mirrored into the test when the fixture landed"
