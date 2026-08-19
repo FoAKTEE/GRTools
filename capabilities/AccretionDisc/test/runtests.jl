@@ -23,4 +23,5 @@ using AccretionDisc
     include("Force/test_bigfloat.jl")
     include("Force/test_kerr_frontend_numerics.jl")
     include("Force/test_kerr.jl")
+    include("SpiralWaves/test_scaffold.jl")   # arXiv:2608.17003 spiral-wave submodule: load + dep budget
 end

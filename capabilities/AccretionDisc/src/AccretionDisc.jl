@@ -13,6 +13,10 @@ into two namespaced submodules:
     Lindblad/corotation resonance torque.
   - [`Force`](@ref) — the circular-equatorial Kerr thin-disc torque front-end, CONSUMING
     `MetricReconstruction.Lorenz.closure_kerr` / `reconstruct_kerr` (HDF5-backed captured data).
+  - [`SpiralWaves`](@ref) — the arXiv:2608.17003 relativistic spiral-density-wave pipeline on
+    the Page–Thorne equatorial line element (Lagrangian perturbation theory, two first-order
+    master equations, corotation regularization, adaptive grid, torque balance); built node by
+    node tests-first on `Spacetime.kerr_equatorial_potentials`.
 
 Every primitive is type-generic `{T}` so BigFloat precision is inherited.
 """
@@ -58,6 +62,11 @@ export ForcingInterp, build_forcing, forced_solve
 export f8_torque_balance, f8_torque_balance_ilr, f8_flux_crosscheck, f5_source
 export kerr_mode, kerr_modes
 
-export Modes, Force
+# SpiralWaves submodule (arXiv:2608.17003 spiral-density-wave pipeline; scaffold — exports are
+# added per landed DAG node).
+include("SpiralWaves/SpiralWaves.jl")
+using .SpiralWaves
+
+export Modes, Force, SpiralWaves
 
 end # module AccretionDisc

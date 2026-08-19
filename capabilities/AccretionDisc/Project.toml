@@ -16,10 +16,15 @@ version = "0.1.0"
 #             MetricReconstruction.Lorenz.closure_kerr / reconstruct_kerr (NOT SelfForce, NOT
 #             Kernels) + the a=0 Lorenz corpus; the spinning-BH fluid solve / torque balance.
 #             HDF5 is needed ONLY by this submodule (captured disc-mode data). From DiscEMRIForce.
+#   - SpiralWaves : the arXiv:2608.17003 relativistic spiral-density-wave pipeline (Page–Thorne
+#             equatorial potentials from Spacetime, two first-order master equations, corotation
+#             regularization, adaptive grid, sparse implicit solver — SparseArrays stdlib is
+#             declared for it). Scaffolded; nodes land tests-first.
 # Every primitive is type-generic {T} so BigFloat precision (256..2048-bit) is inherited.
 [deps]
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 NumericsCore = "54f76139-0f7a-42ab-9084-b9cc78b29132"
 Data = "2e9be357-8831-4976-ad1c-c30f98102c3a"
 Spacetime = "6cd685be-be12-48c2-bc38-9d046c4f5e88"
