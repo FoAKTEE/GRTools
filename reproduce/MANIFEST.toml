@@ -455,3 +455,25 @@ expected = "arXiv-2608.17003/expected/fig01.json"
 depends = ["AccretionDisc", "Spacetime"]
 status = "solid"
 notes = "fig:spirals (M:853-858): the 2x3 delta-U M/m_bullet maps of six discs at a_bullet = 15M, (p,q,h0) = (0,0,0.15) | (0,0,0.1) | (2,1,0.1) and chi = -+0.9, summed over m = 1..120 on the fiducial image domain (C1) and drawn on the published polar mesh r_ISCO..40M at 601x601 px. VLM verdict MATCH. The winding is compared with the published raster BY NUMBER (the arm is tracked in pixel space in spiral_grid.png itself): turns(18M->35M) = -0.718/-1.084/-1.483 (chi=-0.9) and -0.707/-1.067/-1.461 (chi=+0.9) against the published -0.721/-1.097/-1.504 and -0.707/-1.081/-1.425, worst |delta| = 0.036 turns (2.5%, tracker systematic +-0.03). All three caption claims are driver gates and pass: nothing is drawn inside the ISCO (n_inside_isco = 0 in all six panels); the co-orbital wake peak sits at (15.07, 0.00) in all six; |turns_outer| grows 1.001 -> 1.509 and 0.987 -> 1.488 as h0 goes 0.15 -> 0.10; at q = 1 the inner arm loosens (0.197 -> 0.162, 4.670 -> 2.623) while the outer arm tightens (1.509 -> 2.159, 1.488 -> 2.130). Amplitude, where the published render leaves it unclipped (the h0 = 0.15 column): co-orbital peak +0.578 / +0.540 against +0.604 / +0.566 decoded from the published colorbar (4-6%, within the antialiasing bias of that decode). RECORDED DIFFERENCE [PRELIMINARY]: the published area above the +-0.77 colour scale is ~2x ours (0.055/1.321/3.437% vs 0.022/0.505/1.916%) although the ordering and the peak amplitudes agree - our arm is narrower at the clip level; our own sampling and a lower published mode ceiling were both tested and rejected as causes. App.-C triple (120,120,12000), a documented and measured reduction of the reference triple (240,240,24000): a full reference-triple run of panels 1-2 reproduces every registered quantity to <= 1e-4 relative. 3936 s at -t8, max solver residual 2.1e-9. Golden 45 KB; the PNG is 455 KB (a six-panel colour raster; the published original is 1.26 MB)."
+
+[[result]]
+paper = "2608.17003"
+id = "fig04"
+kind = "figure"
+script = "arXiv-2608.17003/fig04.jl"
+tier = "heavy"
+expected = "arXiv-2608.17003/expected/fig04.json"
+depends = ["AccretionDisc", "Spacetime", "NumericsCore"]
+status = "solid"
+notes = "fig:dtdr_ap (M:915-922). Mode-summed torque density d(frak T)/dr in F_{J,1} vs (r/a_bullet - 1)/h0 in [-2,2] for a_bullet in {10,30,100,300,1000}M at chi=p=q=0, h0=0.05, b=0.6, eps_p=1e-5, m=1:120, reference grid (240,240,24000), 641 plot cells anchored on corotation. VLM verdict MATCH vs dT_dr_versus_ap.pdf; a tick-calibrated pixel read of the reference (NOTE its y VIEW is [-7.82, +7.87], not the +-7.5 tick range - calibrating on the frame biases every value low by 4.9%) gives a_bullet=10M crest +7.5000 at x=+0.8227 vs ours +7.4819 at +0.8375 (-0.24%), trough -7.4505 at -0.8605 vs ours -7.4505 at -0.8188 (0.00%), and a_bullet=1000M trough -4.9752 at -1.0118 vs ours -4.9721 at -0.9688 (+0.06%). All four M:919 printed numbers PASS: Newtonian peak offsets +1.0438 / -0.9688 (paper +-1.0 +-0.15), inward peak shift 0.1781 (paper 0.2 +-0.1; lobe-resolved outer +0.2063, inner +0.1500), peak growth factor 1.3767 (paper 1.5 +-0.25; the crest/crest ratio - the trough/trough ratio is 1.4985). MEASURED note: wkb_edge_density_fraction_max = 1.0 comes from the a_bullet=1000M m=1 mode whose (C2)-(C3) inner cut lands at r/a_bullet = 0.0067 near the ISCO, 130 h0-units outside the plotted window; every m >= 5 has edge fractions <= 8e-3. 3779 s at -t4."
+
+[[result]]
+paper = "2608.17003"
+id = "fig13"
+kind = "figure"
+script = "arXiv-2608.17003/fig13.jl"
+tier = "heavy"
+expected = "arXiv-2608.17003/expected/fig13.json"
+depends = ["AccretionDisc", "Spacetime"]
+status = "solid"
+notes = "EGD::fig13-torque-vs-b. Fig. 13 (fig:variation_with_respect_to_b, A:143-149): the total torque T (74) in F_{J,0}h0 vs the Plummer softening b in {0.3..0.8} for h0 in {0.05,0.075,0.1,0.125,0.15}, p=q=chi=0, a=100M; modes m=1..ceil(4/h0). Printed numbers A:164 PASS: T(h0=0.05) = 1.2610 at b=0.3 and 0.9714 at b=0.8 (paper 1.28 -> 0.97, tol +-0.12), and all five series decrease monotonically. A pixel read-back of the published figure agrees to within 1.7% (median 0.3-1.1%) with an IDENTICAL vertical ordering of the five series at all six b values; the residual deficit has the size and sign of the neglected mode-sum tail (<=1.4e-2), i.e. the paper likely summed more modes. Grid: (60,60,6000), one of the paper's own convergence-run triples (A:139); the driver re-runs two points at the reference triple (240,240,24000) and finds rel 2.3e-6 / 4.9e-6. ~33 min at -t8 for --regen; --check re-run queued after the heavy fig08 survey (the fig10 driver of the same pipeline reproduced its golden bitwise, rel err 0)."
