@@ -93,6 +93,30 @@ using Spacetime
         end
     end
 
+    @testset "d/dr: cancellation-free single-fraction forms == logarithmic sums; large-r accuracy" begin
+        # (a) the evaluated single-fraction forms equal the logarithmic-sum forms in BigFloat(256)
+        setprecision(BigFloat, 256) do
+            for a in (big"-0.9", big"0.0", big"0.5", big"0.998"), r in (big"2.5", big"12.0", big"1e3", big"1e6")
+                d = kerr_equatorial_potentials_dr(a, r)
+                Δ = delta_kerr(a, r); D = 2a^2 + 2r^2 + r * Δ; dΔ = 2(r - 1); dD = 3r^2 + a^2
+                @test abs(d.dν - (1 / r + dΔ / Δ - dD / D) / 2) < big"1e-70" * abs(d.dν)
+                @test abs(d.dψ - (dD / D - 1 / r) / 2) < big"1e-70" * abs(d.dψ)
+                @test abs(d.dμ - (1 / r - (r - 1) / Δ)) < big"1e-70" * abs(d.dμ)
+                @test abs(d.dω̃ + (2a / D) * dD / D) ≤ big"1e-70" * max(abs(d.dω̃), big"1e-300")
+            end
+        end
+        # (b) Float64 relative accuracy stays at a few eps out to r = 1e6 (the logarithmic sums lose
+        #     ~r·eps: 1e-13 at r = 1e3, 1e-10 at r = 1e6)
+        for a in (-0.9, 0.0, 0.5, 0.998), r in (1e2, 1e3, 1e4, 1e6)
+            d = kerr_equatorial_potentials_dr(a, r)
+            ref = setprecision(() -> kerr_equatorial_potentials_dr(big(a), big(r)), BigFloat, 256)
+            @test abs(d.dν - ref.dν) ≤ 8 * eps(Float64) * abs(ref.dν)
+            @test abs(d.dψ - ref.dψ) ≤ 8 * eps(Float64) * abs(ref.dψ)
+            @test abs(d.dμ - ref.dμ) ≤ 8 * eps(Float64) * abs(ref.dμ)
+            a == 0 || @test abs(d.dω̃ - ref.dω̃) ≤ 8 * eps(Float64) * abs(ref.dω̃)
+        end
+    end
+
     @testset "d/dr vs BigFloat(256) central FD (h = 1e-25, tol 1e-40 abs)" begin
         setprecision(BigFloat, 256) do
             for a in (big"-0.9", big"0.0", big"0.5", big"0.998"), r in (big"6.0", big"12.0", big"40.0")

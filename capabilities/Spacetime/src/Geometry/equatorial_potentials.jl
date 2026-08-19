@@ -44,8 +44,16 @@ Analytic radial derivatives of [`kerr_equatorial_potentials`](@ref) (M = 1), fro
 logarithmic forms e^{2ν} = rΔ/D, e^{2ψ} = D/r, e^{2μ} = r²/Δ, ω̃ = 2a/D with Δ' = 2(r−1),
 D' = 3r² + a²:
 
-    dν/dr = ½ (1/r + Δ'/Δ − D'/D),   dψ/dr = ½ (D'/D − 1/r),
-    dμ/dr = 1/r − (r−1)/Δ,           dω̃/dr = −ω̃ D'/D.
+    dν/dr = ½ (1/r + Δ'/Δ − D'/D) = [(r² + a²)² − 4a² r] / (r Δ D),
+    dψ/dr = ½ (D'/D − 1/r)        = (r³ − a²) / (r D),
+    dμ/dr = 1/r − (r−1)/Δ         = (a² − r) / (r Δ),
+    dω̃/dr = −ω̃ D'/D              = −2a (3r² + a²) / D².
+
+The right-hand forms are the EXACT single-fraction rearrangements (numerators expanded
+symbolically; a = 0 ⇒ 1/(r(r−2)), 1/r, −1/(r(r−2)), 0) and are the ones evaluated: the
+logarithmic sums cancel catastrophically at large r (the three O(1/r) terms of dν sum to
+O(1/r²), losing ~r·eps relative accuracy — 1e-13 at r = 10³ in Float64), whereas the
+single-fraction forms are cancellation-free (relative error a few eps at every r > r₊).
 
 Same domain (r > r₊) and type-genericity as the potentials (no `log`, so it is finite but
 sign-indefinite across the horizon).
@@ -53,15 +61,14 @@ sign-indefinite across the horizon).
 function kerr_equatorial_potentials_dr(a, r)
     T = float(promote_type(typeof(a), typeof(r)))
     aa, rr = T(a), T(r)
+    a2 = aa^2
     Δ = delta_kerr(aa, rr)
-    D = 2 * aa^2 + 2 * rr^2 + rr * Δ
-    dΔ = 2 * (rr - 1)
-    dD = 3 * rr^2 + aa^2
-    ω̃ = 2 * aa / D
-    (dν = (1 / rr + dΔ / Δ - dD / D) / 2,
-     dψ = (dD / D - 1 / rr) / 2,
-     dμ = 1 / rr - (rr - 1) / Δ,
-     dω̃ = -ω̃ * dD / D)
+    D = 2 * a2 + 2 * rr^2 + rr * Δ              # r³ + a² r + 2a²
+    dD = 3 * rr^2 + a2
+    (dν = ((rr^2 + a2)^2 - 4 * a2 * rr) / (rr * Δ * D),
+     dψ = (rr^3 - a2) / (rr * D),
+     dμ = (a2 - rr) / (rr * Δ),
+     dω̃ = -2 * aa * dD / D^2)
 end
 
 """
