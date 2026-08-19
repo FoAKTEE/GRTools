@@ -143,3 +143,44 @@ Four on-disk dialects, four deliberately separate readers — same-looking files
 The naming collision is intentional and disambiguated by module: `Data.read_mma_inputform` parses
 the *numeric* dialect; `PostNewtonian.MMAInputForm.read_mma_inputform` walks the *symbolic* one.
 Pick by what the file contains, not by its extension — WaSABI ships numeric `.m` files too.
+
+## Out-of-tree test oracles: the `GRTOOLS_*` roots and the strict switch
+
+Some test gates check a reader or a baked fixture against an asset that cannot live in the
+repository — a multi-gigabyte corpus, or a read-only mirror of a paper's source. Those gates are
+**opt-out by availability**, and every one of them resolves its root through a named environment
+variable with the capture-site path as default (`TestKit.oracle_root`):
+
+| variable | default (capture site) | gates it feeds |
+|---|---|---|
+| `GRTOOLS_DATADIR` | *(none — `datadir()` throws)* | runtime data root for `datapath`/`artifact_path` (not a test-only knob) |
+| `GRTOOLS_FEWDATA_DIR` | `…/emri-disk/ref-code/FastEMRIWaveforms/.fewdata` | `Data` `dlm`/`ampgrid`/`fluxgrid`/`kerrampgrid` on-disk groundings; `EMRIWaveforms` amplitude/flux/generate/kerrampspline gates |
+| `GRTOOLS_H1LORENZ_ROOT` | `…/emri-disk/ref-code/h1Lorenz` | `Data` `run_r8` h1 corpus layout gate (`run_r8/fields/h1-l2m2.h5` under the root) |
+| `GRTOOLS_REFPAPER_ROOT` | `…/emri-disk/ref-paper` | `ScalarSelfForce` yaml-mirror sha256 cross-check (arXiv:2606.04998) and WB tex extraction-equality (arXiv:1003.1860) |
+| `GRTOOLS_QQNM_COEFF_ROOT` | `…/emri-disk/ref-code/QQNM-coeff/teukolsky-category/coeff` | `Perturbation` QQNM generated-source sha256 re-verification |
+| `GRTOOLS_EFFSOURCE_ROOT` | `…/emri-disk/ref-code/EffectiveSource` | `ScalarSelfForce` effective-source fixture regeneration (also needs `gcc`/`make`/GSL) |
+| `GRTOOLS_SECONDORDERRICCI_ROOT`, `GRTOOLS_R2_ORACLE_CPP` | capture-site paths | `Kernels` R2 oracle *re-capture* only (never run by the suite) |
+
+A missing oracle never passes silently. `TestKit.oracle_or_skip(available, what; env)` records a
+`Broken` (`:skipped`) result carrying `what`, so the number of gates that did not run is visible in
+the `Broken` column of the Test summary:
+
+```julia
+using TestKit: oracle_root, oracle_or_skip
+const FEWDATA = oracle_root("GRTOOLS_FEWDATA_DIR", "/capture/site/.fewdata")
+if oracle_or_skip(isfile(f), "read_ampgrid vs raw HDF5"; env = "GRTOOLS_FEWDATA_DIR")
+    ...   # oracle-backed asserts
+end
+```
+
+Setting `GRTOOLS_STRICT_ORACLES=1` (also `true`/`yes`/`on`) promotes every such skip to a hard test
+**failure** — the mode to use when reproducing published numbers, where the corpora are required:
+
+```bash
+GRTOOLS_STRICT_ORACLES=1 GRTOOLS_FEWDATA_DIR=/mnt/corpora/.fewdata \
+  julia --project=core/Data -e 'using Pkg; Pkg.test()'
+```
+
+Relative `..` walk-ups out of a package tree are forbidden: they resolve to a non-existent path as
+soon as the package is checked out anywhere but the capture host, which turns the gate into a
+permanent no-op instead of a reported skip.

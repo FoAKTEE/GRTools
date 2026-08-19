@@ -4,11 +4,13 @@
 #    assert field/byte identity. HDF5 is loaded here to fire the weakdep extension.
 #  * h1_parity_fields / hret_block: the LITERAL legacy index tables (SecondOrderRicci read_h1.jl L10-18,
 #    Punctures subtraction.jl L23-46), transcribed as expected literals (pure closed form).
-#  * If the real run_r8 corpus is present, read h1-l2m2.h5 and assert the on-disk layout.
+#  * If the real run_r8 corpus is present (GRTOOLS_H1LORENZ_ROOT), read h1-l2m2.h5 and assert the
+#    on-disk layout; when absent the gate records a Broken (TestKit.oracle_or_skip), never a silent pass.
 
 using Test
 using Data
 using HDF5   # fires DataHDF5Ext — read_h1/write_mode_h5 bodies activate
+using TestKit: oracle_root, oracle_or_skip
 
 @testset "h1io" begin
     @testset "h1_parity_fields literal table" begin
@@ -73,9 +75,10 @@ using HDF5   # fires DataHDF5Ext — read_h1/write_mode_h5 bodies activate
     end
 
     @testset "real run_r8 corpus layout (if present)" begin
-        f = joinpath(@__DIR__, "..", "..", "..", "..",
-            "ref-code", "h1Lorenz", "run_r8", "fields", "h1-l2m2.h5")
-        if isfile(f)
+        f = joinpath(oracle_root("GRTOOLS_H1LORENZ_ROOT",
+                                 "/data/haiyangw/claude/emri-disk/ref-code/h1Lorenz"),
+                     "run_r8", "fields", "h1-l2m2.h5")
+        if oracle_or_skip(isfile(f), "run_r8 h1 corpus on-disk layout"; env = "GRTOOLS_H1LORENZ_ROOT")
             s = Data.read_h1(f)
             @test length(s.grid) == 6196
             @test s.r0index == 1049
@@ -86,8 +89,6 @@ using HDF5   # fires DataHDF5Ext — read_h1/write_mode_h5 bodies activate
             @test length(s.C_inf) == 10
             @test length(s.C_horiz) == 10
             @test validate_schema(s)
-        else
-            @info "run_r8 h1 corpus absent — skipping real-file layout grounding"
         end
     end
 end

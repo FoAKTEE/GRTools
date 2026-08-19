@@ -16,8 +16,9 @@
 using Test
 using EMRIWaveforms.AmplitudeModels.KerrAmpSpline
 using EMRIWaveforms.AmplitudeModels.KerrAmpSpline: _find_interval, _flat_to_cmat, kerr_mode_table
+using TestKit: oracle_root, oracle_or_skip
 
-const _FEWDATA_KAS = get(ENV, "GRTOOLS_FEWDATA_DIR",
+const _FEWDATA_KAS = oracle_root("GRTOOLS_FEWDATA_DIR",
     "/data/haiyangw/claude/emri-disk/ref-code/FastEMRIWaveforms/.fewdata")
 const _ZNAMPS = joinpath(_FEWDATA_KAS, "ZNAmps_l10_m10_n55_DS2Outer.h5")
 
@@ -161,7 +162,7 @@ const _TK = vcat(fill(0.0, 4), [0.12, 0.24, 0.36, 0.48, 0.6, 0.72, 0.84, 0.92], 
     # read_kerrampgrid — structural grounding vs the 4.8GB ZNAmps grid
     # =========================================================================
     @testset "read_kerrampgrid structural" begin
-        if isfile(_ZNAMPS)
+        if oracle_or_skip(isfile(_ZNAMPS), "read_kerrampgrid structural vs the ZNAmps grid"; env = "GRTOOLS_FEWDATA_DIR")
             # mode table replicates FEW KerrEccentricEquatorial ordering (m=0 first, then m>0)
             modes_all, index = kerr_mode_table(; lmax = 10, nmax = 55)
             @test length(modes_all) == 6993
@@ -191,8 +192,6 @@ const _TK = vcat(fill(0.0, 4), [0.12, 0.24, 0.36, 0.48, 0.6, 0.72, 0.84, 0.92], 
             vr = bisplev_clamped(g.twA, g.tuA, rec, 0.3, 0.4)
             vi = bisplev_clamped(g.twA, g.tuA, imc, 0.3, 0.4)
             @test isfinite(vr) && isfinite(vi)
-        else
-            @info "ZNAmps grid absent — skipping read_kerrampgrid structural test"
         end
     end
 end

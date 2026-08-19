@@ -7,9 +7,11 @@
 using Test
 using Data
 using HDF5   # fires DataHDF5Ext — read_ampgrid body activates
+using TestKit: oracle_root, oracle_or_skip
 
-const _AMPFILE = joinpath(@__DIR__, "..", "..", "..", "..",
-    "ref-code", "FastEMRIWaveforms", ".fewdata", "Teuk_amps_a0.0_lmax_10_nmax_30_new.h5")
+const _FEWDATA = oracle_root("GRTOOLS_FEWDATA_DIR",
+    "/data/haiyangw/claude/emri-disk/ref-code/FastEMRIWaveforms/.fewdata")
+const _AMPFILE = joinpath(_FEWDATA, "Teuk_amps_a0.0_lmax_10_nmax_30_new.h5")
 
 @testset "ampgrid" begin
     @testset "schwarzecc_amp_modes closed form" begin
@@ -30,7 +32,8 @@ const _AMPFILE = joinpath(@__DIR__, "..", "..", "..", "..",
     end
 
     @testset "read_ampgrid vs raw HDF5 (checksum-verified file)" begin
-        if isfile(_AMPFILE)
+        if oracle_or_skip(isfile(_AMPFILE), "read_ampgrid vs raw HDF5 (Teuk_amps grid)";
+                          env = "GRTOOLS_FEWDATA_DIR")
             # raw oracle
             valr, vali = h5open(_AMPFILE, "r") do f
                 @test size(f["grid"]) == (4, 1650)        # Julia-order read of the (1650,4) dataset
@@ -52,8 +55,6 @@ const _AMPFILE = joinpath(@__DIR__, "..", "..", "..", "..",
                 @test re[1][i, j] == valr[idx]
                 @test im[1][i, j] == vali[idx]
             end
-        else
-            @info "FEW amplitude grid absent — skipping read_ampgrid on-disk grounding"
         end
     end
 end

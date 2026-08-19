@@ -8,9 +8,11 @@
 using Test
 using Data
 using HDF5   # fires DataHDF5Ext — read_fluxgrid body activates
+using TestKit: oracle_root, oracle_or_skip
 
-const _FLUXFILE = joinpath(@__DIR__, "..", "..", "..", "..",
-    "ref-code", "FastEMRIWaveforms", ".fewdata", "KerrEccEqFluxData.h5")
+const _FEWDATA = oracle_root("GRTOOLS_FEWDATA_DIR",
+    "/data/haiyangw/claude/emri-disk/ref-code/FastEMRIWaveforms/.fewdata")
+const _FLUXFILE = joinpath(_FEWDATA, "KerrEccEqFluxData.h5")
 
 @testset "fluxgrid" begin
     @testset "FluxGridSchema round-trip" begin
@@ -21,7 +23,8 @@ const _FLUXFILE = joinpath(@__DIR__, "..", "..", "..", "..",
     end
 
     @testset "read_fluxgrid vs raw HDF5 (checksum-verified file)" begin
-        if isfile(_FLUXFILE)
+        if oracle_or_skip(isfile(_FLUXFILE), "read_fluxgrid vs raw HDF5 (KerrEccEqFluxData)";
+                          env = "GRTOOLS_FEWDATA_DIR")
             for (region, name, NU, NW, NZ) in (
                 (:A, "regionA", 129, 65, 65),
                 (:B, "regionB", 65, 33, 33),
@@ -46,13 +49,12 @@ const _FLUXFILE = joinpath(@__DIR__, "..", "..", "..", "..",
                 @test ch[:Ldot] == Lref
                 @test size(ch[:Edot]) == (NU, NW, NZ)
             end
-        else
-            @info "FEW flux grid absent — skipping read_fluxgrid on-disk grounding"
         end
     end
 
     @testset "read_fluxgrid downsample stride" begin
-        if isfile(_FLUXFILE)
+        if oracle_or_skip(isfile(_FLUXFILE), "read_fluxgrid downsample stride vs raw HDF5";
+                          env = "GRTOOLS_FEWDATA_DIR")
             ds = (2, 2, 2)
             schema, ch = Data.read_fluxgrid(_FLUXFILE, :A; downsample = ds)
             full_u = collect(range(0.0, 1.0; length = 129))

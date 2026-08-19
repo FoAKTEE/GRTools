@@ -5,17 +5,19 @@
 # EMRIWaveforms loaders (_load_roman_nn @ src/AmplitudeModels.jl:55, KerrAmpSpline.read_kerrampgrid @
 # src/KerrAmpSpline.jl:178, kerr_mode_table @ :137, repo commit f409fc7) BEFORE any code move — the
 # moved Data bodies must reproduce it BIT-EXACTLY (pure Float64 file reads, no arithmetic).
-# The on-disk grids are gitignored (ZNAmps is 4.74GB): absent files skip with @info, exactly like the
-# existing ampgrid/fluxgrid on-disk groundings.
+# The on-disk grids are gitignored (ZNAmps is 4.74GB): their root is GRTOOLS_FEWDATA_DIR and an absent
+# file records a Broken through TestKit.oracle_or_skip (GRTOOLS_STRICT_ORACLES=1 makes it a failure),
+# exactly like the ampgrid/fluxgrid on-disk groundings.
 
 using Test
 using Data
 using HDF5   # fires DataHDF5Ext — read_kerrampgrid / read_roman_nn bodies activate
+using TestKit: oracle_root, oracle_or_skip
 
 include(joinpath(@__DIR__, "fixtures", "hdf5_readers_ref.jl"))
 
-const _FEWDATA_KAG = joinpath(@__DIR__, "..", "..", "..", "..",
-    "ref-code", "FastEMRIWaveforms", ".fewdata")
+const _FEWDATA_KAG = oracle_root("GRTOOLS_FEWDATA_DIR",
+    "/data/haiyangw/claude/emri-disk/ref-code/FastEMRIWaveforms/.fewdata")
 const _ZNAMPS_KAG = joinpath(_FEWDATA_KAG, "ZNAmps_l10_m10_n55_DS2Outer.h5")
 const _NN_KAG = joinpath(_FEWDATA_KAG, "SchwarzschildEccentricInput.hdf5")
 
@@ -34,7 +36,8 @@ const _NN_KAG = joinpath(_FEWDATA_KAG, "SchwarzschildEccentricInput.hdf5")
     end
 
     @testset "read_kerrampgrid vs pre-change fixture" begin
-        if isfile(_ZNAMPS_KAG)
+        if oracle_or_skip(isfile(_ZNAMPS_KAG), "read_kerrampgrid vs the ZNAmps grid";
+                          env = "GRTOOLS_FEWDATA_DIR")
             g = Data.read_kerrampgrid(_ZNAMPS_KAG; modes = KERRAMP_REF.modes)
             @test g isa Data.KerrAmpGrid{Float64}
             @test g.modes == KERRAMP_REF.modes
@@ -53,13 +56,12 @@ const _NN_KAG = joinpath(_FEWDATA_KAG, "SchwarzschildEccentricInput.hdf5")
             for (i1, i2, i3, i4, v) in KERRAMP_REF.coeffsB_probes
                 @test g.coeffsB[i1, i2, i3, i4] == v
             end
-        else
-            @info "ZNAmps grid absent (gitignored 4.74GB) — skipping read_kerrampgrid fixture grounding"
         end
     end
 
     @testset "read_roman_nn vs pre-change fixture" begin
-        if isfile(_NN_KAG)
+        if oracle_or_skip(isfile(_NN_KAG), "read_roman_nn vs SchwarzschildEccentricInput.hdf5";
+                          env = "GRTOOLS_FEWDATA_DIR")
             nn = Data.read_roman_nn(_NN_KAG)
             @test length(nn.weights) == ROMAN_REF.num_layers
             @test length(nn.biases) == ROMAN_REF.num_layers
@@ -83,8 +85,6 @@ const _NN_KAG = joinpath(_FEWDATA_KAG, "SchwarzschildEccentricInput.hdf5")
             @test w === nn.weights && b === nn.biases && rb === nn.reduced_basis
             @test (tfi, bi, ntm) ==
                   (ROMAN_REF.transform_factor_inv, ROMAN_REF.break_index, ROMAN_REF.num_teuk_modes)
-        else
-            @info "SchwarzschildEccentricInput.hdf5 absent — skipping read_roman_nn fixture grounding"
         end
     end
 end

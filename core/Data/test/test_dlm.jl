@@ -8,15 +8,17 @@
 using Test
 using Data
 using DelimitedFiles: readdlm, writedlm
+using TestKit: oracle_root, oracle_or_skip
 
-const _FEWDATA = joinpath(@__DIR__, "..", "..", "..", "..",
-    "ref-code", "FastEMRIWaveforms", ".fewdata")
+const _FEWDATA = oracle_root("GRTOOLS_FEWDATA_DIR",
+    "/data/haiyangw/claude/emri-disk/ref-code/FastEMRIWaveforms/.fewdata")
 
 @testset "dlm" begin
     @testset "read_dat vs raw readdlm (checksum-verified files)" begin
         normf = joinpath(_FEWDATA, "AmplitudeVectorNorm.dat")
         fluxf = joinpath(_FEWDATA, "FluxNewMinusPNScaled_fixed_y_order.dat")
-        if isfile(normf) && isfile(fluxf)
+        if oracle_or_skip(isfile(normf) && isfile(fluxf),
+                          "read_dat vs raw readdlm on the FEW .dat files"; env = "GRTOOLS_FEWDATA_DIR")
             a = Data.read_dat(normf)
             @test a == readdlm(normf)                  # faithful to raw readdlm
             @test size(a) == (1650, 3)
@@ -25,8 +27,6 @@ const _FEWDATA = joinpath(@__DIR__, "..", "..", "..", "..",
             fl = Data.read_dat(fluxf)
             @test size(fl) == (1650, 4)
             @test fl[1, :] == [1.3686394259, 0.0, 5.3489022, 5.3489022]
-        else
-            @info "FEW .dat fixtures absent — skipping read_dat on-disk grounding"
         end
     end
 

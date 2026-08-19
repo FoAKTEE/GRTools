@@ -21,6 +21,7 @@
 using Test
 using SHA: sha256
 using Spacetime: kerr_isco   # package hard dep (solid ESSF::spacetime-circular-kinematics)
+using TestKit: oracle_root, oracle_or_skip
 
 # ---------------------------------------------------------------------------------------
 # Independent tex re-extraction (read-only on the mirror; pure Base).
@@ -29,8 +30,9 @@ using Spacetime: kerr_isco   # package hard dep (solid ESSF::spacetime-circular-
 # pass through untouched. A bare "-" cell is the printed below-ISCO marker.
 # ---------------------------------------------------------------------------------------
 
-const WB_TEX_MIRROR = normpath(joinpath(@__DIR__, "..", "..", "..", "..",
-    "ref-paper", "arxiv-1003.1860", "src", "Warburton.tex"))
+const WB_TEX_MIRROR = normpath(joinpath(
+    oracle_root("GRTOOLS_REFPAPER_ROOT", "/data/haiyangw/claude/emri-disk/ref-paper"),
+    "arxiv-1003.1860", "src", "Warburton.tex"))
 
 function wb_normalize_cell(raw::AbstractString)
     s = strip(raw)
@@ -153,7 +155,9 @@ end
         @test WB.wb_cell(WB.WB_FT, 0.9, 100.0).value == 3.32002917e-9
     end
 
-    if isfile(WB_TEX_MIRROR)
+    if oracle_or_skip(isfile(WB_TEX_MIRROR),
+                      "WB table extraction-equality vs the arXiv:1003.1860 tex mirror";
+                      env = "GRTOOLS_REFPAPER_ROOT")
         @testset "extraction equality vs read-only tex mirror" begin
             # (A) mirror pin — any tex drift forces a fixture review + hash re-record
             @test bytes2hex(sha256(read(WB_TEX_MIRROR))) == WB.WB_TEX_SHA256
@@ -176,8 +180,5 @@ end
                 end
             end
         end
-    else
-        @warn "WB tex mirror absent — extraction-equality re-grep skipped " *
-              "(fixture still pinned by its baked literals + spot pins)" WB_TEX_MIRROR
     end
 end

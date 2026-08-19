@@ -17,6 +17,9 @@ Public API:
     for NEW tests, ordered tightest→loosest.
   * `assert_can_only_tighten(class_tol, original_tol)` — CI guard that a new tol may only TIGHTEN.
   * `load_fixture(parts...)` — captured-fixture loader over `Data.datapath` + `Data.read_dat`.
+  * `oracle_root(envvar, default)` / `oracle_or_skip(available, what; env)` / `strict_oracles()` — the
+    out-of-tree oracle gate: named `GRTOOLS_*` roots, a `Broken`-counted skip when the corpus is
+    absent, and `GRTOOLS_STRICT_ORACLES=1` to promote that skip to a hard failure.
   * `characterization_snapshot` / `characterization_gate` — snapshot a reference function's
     full-precision output, then gate a candidate to the recorded ULP (a perturbed output FAILS).
   * `assert_dep_budget(project_toml_path; allow, forbid, must_declare, weakdeps_allow)` — §7.7
@@ -33,11 +36,13 @@ module TestKit
 
 include("oracle.jl")    # leaf: Test/Printf only — tolerance recording, classes, tighten-guard
 include("fixtures.jl")  # rides Data: fixture loader + characterization gate
+include("oracles.jl")  # leaf: Test only — GRTOOLS_* oracle-root resolution + visible skip gate
 include("hygiene.jl")   # leaf: TOML/Test only — §7.7 gates 1/2/5 dep-budget + closure-load checkers
 
 export @approx_oracle, oracle_records, reset_oracle_log!, OracleRecord,
     TOLERANCE_CLASSES, tolerance_class, assert_can_only_tighten,
     load_fixture,
+    strict_oracles, oracle_root, oracle_or_skip,
     CharacterizationSnapshot, characterization_snapshot, characterization_gate,
     assert_dep_budget, assert_not_loaded
 

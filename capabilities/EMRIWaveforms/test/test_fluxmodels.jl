@@ -18,11 +18,12 @@ using NumericsCore: GslBicubic, TricubicNotAKnot
 using EMRIWaveforms.Mappings: apex_of_uwyz, apex_of_UWYZ
 import Data
 using HDF5    # fires DataHDF5Ext — read_fluxgrid body activates
+using TestKit: oracle_root, oracle_or_skip
 
 const KB = EMRIWaveforms.FluxModels.KerrBackwards
 const FEW = EMRIWaveforms.FluxModels.FEW
 
-const _FEWDATA = get(ENV, "GRTOOLS_FEWDATA_DIR",
+const _FEWDATA = oracle_root("GRTOOLS_FEWDATA_DIR",
     "/data/haiyangw/claude/emri-disk/ref-code/FastEMRIWaveforms/.fewdata")
 const _SCHWARZ_DAT = joinpath(_FEWDATA, "FluxNewMinusPNScaled_fixed_y_order.dat")
 const _KERR_H5 = joinpath(_FEWDATA, "KerrEccEqFluxData.h5")
@@ -51,7 +52,7 @@ const _KERR_H5 = joinpath(_FEWDATA, "KerrEccEqFluxData.h5")
 
         # ---- traits ----
         @testset "ODEModel traits" begin
-            if isfile(_SCHWARZ_DAT)
+            if oracle_or_skip(isfile(_SCHWARZ_DAT), "KB.SchwarzEccFlux ODEModel traits"; env = "GRTOOLS_FEWDATA_DIR")
                 m = KB.SchwarzEccFlux(; file = _SCHWARZ_DAT)
                 @test KB.convert_Y(m) == false
                 @test KB.background(m) == :Schwarzschild
@@ -61,7 +62,7 @@ const _KERR_H5 = joinpath(_FEWDATA, "KerrEccEqFluxData.h5")
 
         # ---- (B) GslBicubic surface == raw .dat grid node value ----
         @testset "flux surface == raw grid node (Data.read_dat)" begin
-            if isfile(_SCHWARZ_DAT)
+            if oracle_or_skip(isfile(_SCHWARZ_DAT), "Schwarz flux surface == raw .dat grid node"; env = "GRTOOLS_FEWDATA_DIR")
                 raw = Data.read_dat(_SCHWARZ_DAT)
                 yc = Float64.(raw[:, 1]); ec = Float64.(raw[:, 2])
                 Ec = Float64.(raw[:, 3]); Lc = Float64.(raw[:, 4])
@@ -84,7 +85,7 @@ const _KERR_H5 = joinpath(_FEWDATA, "KerrEccEqFluxData.h5")
 
         # ---- (C) separatrix-guard zeroing at/below p = 6 + 2e ----
         @testset "separatrix guard zeroes at p <= 6 + 2e" begin
-            if isfile(_SCHWARZ_DAT)
+            if oracle_or_skip(isfile(_SCHWARZ_DAT), "Schwarz separatrix-guard zeroing"; env = "GRTOOLS_FEWDATA_DIR")
                 m = KB.SchwarzEccFlux(; file = _SCHWARZ_DAT)
                 e = 0.3
                 psep = 6.0 + 2.0 * e
@@ -98,7 +99,7 @@ const _KERR_H5 = joinpath(_FEWDATA, "KerrEccEqFluxData.h5")
 
         # ---- full deriv composition: finite, physical (inspiral ⇒ pdot < 0) ----
         @testset "deriv physical sanity above separatrix" begin
-            if isfile(_SCHWARZ_DAT)
+            if oracle_or_skip(isfile(_SCHWARZ_DAT), "Schwarz deriv physical sanity"; env = "GRTOOLS_FEWDATA_DIR")
                 m = KB.SchwarzEccFlux(; file = _SCHWARZ_DAT)
                 pdot, edot, xdot, Oph, Oth, Or = KB.schwarz_ecc_flux_deriv(m, 1e-5, 0.0, 10.0, 0.3, 1.0)
                 @test all(isfinite, (pdot, edot, xdot, Oph, Oth, Or))
@@ -125,7 +126,7 @@ const _KERR_H5 = joinpath(_FEWDATA, "KerrEccEqFluxData.h5")
 
         # ---- (B) loader composition + TricubicNotAKnot node-exactness ----
         @testset "flux surface == raw grid node (Data.read_fluxgrid)" begin
-            if isfile(_KERR_H5)
+            if oracle_or_skip(isfile(_KERR_H5), "Kerr flux surface == raw fluxgrid node"; env = "GRTOOLS_FEWDATA_DIR")
                 # ≥4 nodes/axis (5×5×5) — not-a-knot tricubic is singular at 3 nodes; fast.
                 ds = ((32, 16, 16), (16, 8, 8))
                 flux = FEW.KerrEccEqFlux(; convention = "ELQ", downsample = ds, file = _KERR_H5)
@@ -156,7 +157,7 @@ const _KERR_H5 = joinpath(_FEWDATA, "KerrEccEqFluxData.h5")
 
         # ---- traits ----
         @testset "ODEModel traits" begin
-            if isfile(_KERR_H5)
+            if oracle_or_skip(isfile(_KERR_H5), "FEW.KerrEccEqFlux ODEModel traits"; env = "GRTOOLS_FEWDATA_DIR")
                 flux = FEW.KerrEccEqFlux(; convention = "ELQ",
                                          downsample = ((32, 16, 16), (16, 8, 8)), file = _KERR_H5)
                 @test FEW.convert_Y(flux) == false

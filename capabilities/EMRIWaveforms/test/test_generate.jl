@@ -24,11 +24,15 @@ using NumericsCore: Gpc_in_m, MRSUN_SI
 using Random
 import Data
 using HDF5
+using TestKit: oracle_root, oracle_or_skip
 # Local FEW data corpus (.fewdata): override GRTOOLS_FEWDATA_DIR at sites with their
 # own mirror; when absent, the Data artifact/override chain stays authoritative.
-const _FEWDATA_GEN = get(ENV, "GRTOOLS_FEWDATA_DIR",
+const _FEWDATA_GEN = oracle_root("GRTOOLS_FEWDATA_DIR",
     "/data/haiyangw/claude/emri-disk/ref-code/FastEMRIWaveforms/.fewdata")
-isdir(_FEWDATA_GEN) && Data.set_datadir!(_FEWDATA_GEN)
+if oracle_or_skip(isdir(_FEWDATA_GEN), "FEW data root for the datadir-backed Generate gates";
+                  env = "GRTOOLS_FEWDATA_DIR")
+    Data.set_datadir!(_FEWDATA_GEN)
+end
 
 @testset "Generate" begin
 

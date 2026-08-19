@@ -6,7 +6,8 @@ using TestKit
         # `using TestKit` loaded the module + exported the public harness surface.
         for f in (:oracle_records, :reset_oracle_log!, :tolerance_class, :assert_can_only_tighten,
                   :load_fixture, :characterization_snapshot, :characterization_gate,
-                  :assert_dep_budget, :assert_not_loaded)
+                  :assert_dep_budget, :assert_not_loaded,
+                  :strict_oracles, :oracle_root, :oracle_or_skip)
             @test isdefined(TestKit, f)
         end
         @test isdefined(TestKit, Symbol("@approx_oracle"))
@@ -17,4 +18,5 @@ using TestKit
     include("test_oracle.jl")
     include("test_fixtures.jl")
     include("test_hygiene.jl")   # unit tests of the §7.7 checkers themselves
+    include("test_oracles.jl")   # unit tests of the GRTOOLS_* oracle gate
 end

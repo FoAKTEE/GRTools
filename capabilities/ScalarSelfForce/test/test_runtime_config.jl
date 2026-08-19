@@ -21,6 +21,7 @@
 #      BigFloat inheritance per the package type policy.
 
 using SHA: sha256
+using TestKit: oracle_root, oracle_or_skip
 
 @testset "runtime-config-fixture (Domain/config.jl yaml-twin)" begin
 
@@ -36,11 +37,13 @@ using SHA: sha256
         fixture = joinpath(@__DIR__, "fixtures", "runtime_config", "ScalarSelfForce.yaml")
         @test isfile(fixture)
         @test bytes2hex(sha256(read(fixture))) == YAML_SHA256
-        # cross-check the READ-ONLY ref-paper mirror when running inside the repo checkout
-        # (skipped silently when the package is tested standalone).
-        mirror = joinpath(@__DIR__, "..", "..", "..", "..",
-                          "ref-paper", "arxiv-2606.04998", "src", "anc", "ScalarSelfForce.yaml")
-        if isfile(mirror)
+        # cross-check the READ-ONLY ref-paper mirror; its root is GRTOOLS_REFPAPER_ROOT and an
+        # absent mirror records a Broken (GRTOOLS_STRICT_ORACLES=1 makes it a failure).
+        mirror = joinpath(oracle_root("GRTOOLS_REFPAPER_ROOT",
+                                      "/data/haiyangw/claude/emri-disk/ref-paper"),
+                          "arxiv-2606.04998", "src", "anc", "ScalarSelfForce.yaml")
+        if oracle_or_skip(isfile(mirror), "ScalarSelfForce.yaml ref-paper mirror sha256 cross-check";
+                          env = "GRTOOLS_REFPAPER_ROOT")
             @test bytes2hex(sha256(read(mirror))) == YAML_SHA256
         end
     end

@@ -25,8 +25,9 @@ using NumericsCore: BicubicNotAKnot, mode_index_table
 import Kernels
 import Data
 using HDF5    # fires DataHDF5Ext — read_ampgrid body activates
+using TestKit: oracle_root, oracle_or_skip
 
-const _FEWDATA = get(ENV, "GRTOOLS_FEWDATA_DIR",
+const _FEWDATA = oracle_root("GRTOOLS_FEWDATA_DIR",
     "/data/haiyangw/claude/emri-disk/ref-code/FastEMRIWaveforms/.fewdata")
 const _NN_FILE = joinpath(_FEWDATA, "SchwarzschildEccentricInput.hdf5")
 const _NORM_FILE = joinpath(_FEWDATA, "AmplitudeVectorNorm.dat")
@@ -55,7 +56,8 @@ const _AMP_FOR_NORM = 0.8199862969313243
     # backend=:kb reproduces the old KB raw-forward fixture.
     # =========================================================================
     @testset "RomanAmplitude unified" begin
-        if isfile(_NN_FILE) && isfile(_NORM_FILE)
+        if oracle_or_skip(isfile(_NN_FILE) && isfile(_NORM_FILE),
+                          "RomanAmplitude vs the numpy forward-pass oracle"; env = "GRTOOLS_FEWDATA_DIR")
             roman = RomanAmplitude(; nn_file = _NN_FILE, norm_file = _NORM_FILE)
             @test roman.break_index == 99
             @test roman.num_teuk_modes == 3843
@@ -130,7 +132,7 @@ const _AMP_FOR_NORM = 0.8199862969313243
     # Consolidated AmpInterpSchwarzEcc (BicubicNotAKnot over Data.read_ampgrid)
     # =========================================================================
     @testset "AmpInterpSchwarzEcc" begin
-        if isfile(_AMP_H5)
+        if oracle_or_skip(isfile(_AMP_H5), "AmpInterpSchwarzEcc node-exactness vs read_ampgrid"; env = "GRTOOLS_FEWDATA_DIR")
             modes = [(2, 2, 0), (2, 0, 0), (3, 3, -1)]
             schema, reM, imM = Data.read_ampgrid(_AMP_H5; modes = modes)
             amp = AmplitudeModels.AmpInterpSchwarzEcc(; modes = modes, file = _AMP_H5)
@@ -174,7 +176,8 @@ const _AMP_FOR_NORM = 0.8199862969313243
     # =========================================================================
     @testset "AmpInterpKerrEqEcc" begin
         ZNAMPS = joinpath(_FEWDATA, "ZNAmps_l10_m10_n55_DS2Outer.h5")
-        if isfile(ZNAMPS) && isfile(_AMP_H5)
+        if oracle_or_skip(isfile(ZNAMPS) && isfile(_AMP_H5),
+                          "AmpInterpKerrEqEcc a=0 vs the Schwarz surface"; env = "GRTOOLS_FEWDATA_DIR")
             _ZNAMPS = ZNAMPS
             kmodes = [(2, 2, 0), (3, 2, 1), (4, 3, 2), (5, 4, 0), (2, 2, 3)]
             amp = AmplitudeModels.AmpInterpKerrEqEcc(; modes = kmodes, file = _ZNAMPS)
@@ -224,8 +227,6 @@ const _AMP_FOR_NORM = 0.8199862969313243
             fix_2200 = 0.2719659067916051 - 0.07056392179527474im
             @test AmplitudeModels.get_amplitudes(sch, 10.0, 0.3)[1] ≈ fix_2200 rtol = 1e-12
             @test AmplitudeModels.get_amplitudes(amp, 0.0, 10.0, 0.3, 1)[1] ≈ fix_2200 rtol = 5e-3
-        else
-            @info "ZNAmps/Teuk grid absent — skipping AmpInterpKerrEqEcc grounding"
         end
     end
 
