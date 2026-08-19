@@ -54,3 +54,39 @@ import MetricReconstruction.Lorenz as L
     @test !haskey(L._MIXBAND_CACHE, recs)
     @test !haskey(L._DIAGBAND_CACHE, recs)
 end
+
+# G16 lock-regression gate for the OTHER KerrComponents global — the r-independent angular-matrix
+# memo `_ANGMAT_CACHE`. The wave-0 repro-audit listed it as non-thread-safe; it is NOT (the `get!`
+# has always run under `_ANG_LOCK`), so this PINS the property rather than fixing it. The bundle is
+# built once per (ls,m,aω,CT) and read from the threaded banded contraction, so a lost update hands
+# two callers DIFFERENT matrix objects for one key. aω = 0 keeps every build on the b = I shortcut
+# (no SWSH expansion), so 40 keys cost ~1 s serially.
+# MUTATION-TESTED: with `lock(_ANG_LOCK)` deleted from src/Lorenz/KerrComponents.jl this testset
+# died with a TaskFailedException out of `Dict.get!` (concurrent rehash) at -t4. Probabilistic, as
+# every race gate is.
+@testset "angular-matrix memo is race-free (G16 lock gate)" begin
+    ls_sets = ([2,3], [2,3,4], [2,3,4,5], [3,4], [3,4,5], [3,4,5,6], [4,5], [4,5,6])
+    keys40 = [(ls, m) for ls in ls_sets for m in -2:2]        # 40 distinct cache keys
+    lock(L._ANG_LOCK) do
+        empty!(L._ANGMAT_CACHE)
+    end
+    if Threads.nthreads() < 2
+        @test_skip "concurrent memo gate needs -t2"   # single-threaded run: no interleaving to expose
+    else
+        jobs = [i for _ in 1:5 for i in eachindex(keys40)]
+        got = Vector{Any}(undef, length(jobs))
+        Threads.@threads for k in eachindex(jobs)
+            ls, m = keys40[jobs[k]]
+            got[k] = L._angular_mats_kerr(ls, m, 0.0, ComplexF64)
+        end
+        canonical = Dict{Int,Any}()
+        for k in eachindex(jobs)
+            canonical[jobs[k]] = get(canonical, jobs[k], got[k])
+        end
+        @test all(k -> got[k] === canonical[jobs[k]], eachindex(jobs))  # ONE bundle per key
+        @test length(L._ANGMAT_CACHE) == length(keys40)                 # no insert lost
+    end
+    lock(L._ANG_LOCK) do
+        empty!(L._ANGMAT_CACHE)                             # leave no state for later testsets
+    end
+end

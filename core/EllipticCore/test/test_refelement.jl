@@ -185,6 +185,36 @@ end
     @test EllipticCore.refelement_cache_stats() == (hits = 3, misses = 4)
 end
 
+# G16 lock-regression gate (repro-audit G16 claimed this cache was racy; it is NOT — the lock has
+# been there since the package was written — so this testset pins the property instead of "fixing"
+# it). `refelement` is called from the THREADED DG matrix/apply layers, so a lost update would give
+# two callers DIFFERENT element objects for one key and build the same key twice.
+# MUTATION-TESTED: with `lock(_REFELEMENT_LOCK)` deleted from src/refelement.jl, the same 480 calls
+# at -t4 gave misses = 32 (not 12) and the ===-identity check FALSE. Probabilistic — it detects a
+# removed lock with high probability, it does not prove the absence of every interleaving.
+@testset "cache: concurrent refelement() is race-free (G16 lock gate)" begin
+    if Threads.nthreads() < 2
+        @test_skip "concurrent cache gate needs -t2"   # single-threaded run: no interleaving to expose
+    else
+        EllipticCore.refelement_cache_reset!()
+        Ns = collect(4:15)                                  # 12 distinct cache keys
+        jobs = [Ns[((k - 1) % length(Ns)) + 1] for k in 1:(40 * length(Ns))]
+        got = Vector{Any}(undef, length(jobs))
+        Threads.@threads for k in eachindex(jobs)
+            got[k] = refelement(Float64, jobs[k])
+        end
+        canonical = Dict{Int,Any}()
+        for k in eachindex(jobs)
+            canonical[jobs[k]] = get(canonical, jobs[k], got[k])
+        end
+        @test all(k -> got[k] === canonical[jobs[k]], eachindex(jobs))  # ONE object per key
+        st = EllipticCore.refelement_cache_stats()
+        @test st.misses == length(Ns)                       # every key built EXACTLY once
+        @test st.hits + st.misses == length(jobs)           # every call went through the cache
+        EllipticCore.refelement_cache_reset!()              # leave no state for later testsets
+    end
+end
+
 @testset "tensor-product index helpers (exhaustive, grounded on column-major)" begin
     for Nx in 1:6, Ny in 1:6
         L = LinearIndices((Nx, Ny))

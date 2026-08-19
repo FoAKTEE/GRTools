@@ -23,8 +23,10 @@ end
     @testset "pentadiagonal band LU == dense solve" begin
         rng = _qnm_lcg(0x1c1c1c1c2b2b2b2b)
         worst = 0.0
-        for _ in 1:60
-            n = 5 + (abs(rand(Int)) % 21)            # 5..25 (Int rand is fine; size only)
+        # Sizes 5..25 from a FIXED cycle (was `5 + abs(rand(Int)) % 21` — unseeded, so the grid
+        # actually exercised differed run to run and a failure could not be reproduced).
+        for trial in 1:60
+            n = 5 + ((7 * trial) % 21)               # 5..25, every residue hit, deterministic
             M = zeros(ComplexF64, n, n)
             for i in 1:n, j in 1:n
                 abs(i - j) <= 2 && (M[i, j] = complex(rng(), rng()))

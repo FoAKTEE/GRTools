@@ -74,4 +74,32 @@ import Perturbation   # Move C: radial_jet's radial/λ caches now live in Pertur
         @test isempty(Perturbation._radial_jet_cache)        # Move C: radial-solution cache moved to Perturbation
         @test isempty(Perturbation._radial_jet_lambda_cache) # Move C: radial_jet's internal λ cache moved too
     end
+
+    # G16 lock-regression gate. The wave-0 repro-audit listed `_LAMBDA_CACHE` as a non-thread-safe
+    # global; it is NOT (`teuk_lambda` has always done its `get!` under `_CACHE_LOCK`), so this
+    # testset PINS the property rather than fixing it. teuk_lambda is called from the threaded
+    # (l,m) mode sums, and a lost update/concurrent rehash would show up as a wrong value or a
+    # short table. MUTATION-TESTED: with `lock(_CACHE_LOCK)` deleted from src/Radiation/Modes.jl
+    # this testset died with an UndefRefError raised inside `Dict.get!` (concurrent rehash) at -t4.
+    # Probabilistic: it detects a removed lock with high probability, it does not prove
+    # race-freedom.
+    @testset "teuk_lambda memo is race-free (G16 lock gate)" begin
+        modes = [(-2, l, m, 0.1, 0.3) for l in 2:5 for m in -2:2 if abs(m) <= l]   # 20 distinct keys
+        clear_mode_caches!()
+        ref = [teuk_lambda(k...) for k in modes]                                    # serial reference
+        @test length(MetricReconstruction.Radiation._LAMBDA_CACHE) == length(modes)
+        if Threads.nthreads() < 2
+            @test_skip "concurrent memo gate needs -t2"  # single-threaded run: no interleaving to expose
+        else
+            clear_mode_caches!()
+            jobs = [i for _ in 1:20 for i in eachindex(modes)]
+            got = Vector{Any}(undef, length(jobs))
+            Threads.@threads for j in eachindex(jobs)
+                got[j] = teuk_lambda(modes[jobs[j]]...)
+            end
+            @test all(j -> got[j] === ref[jobs[j]], eachindex(jobs))                # BITWISE
+            @test length(MetricReconstruction.Radiation._LAMBDA_CACHE) == length(modes)
+        end
+        clear_mode_caches!()                                    # leave no state for later testsets
+    end
 end
