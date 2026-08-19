@@ -175,6 +175,64 @@ const MT = AccretionDisc.Modes
                                     enhancement = (m, r, kind) -> 2.0) ≈ 2 * base rtol = 1e-12
     end
 
+    @testset "lindblad_locations_pressure — Artymowicz saturation r_p ± 2H/3" begin
+        # Newtonian-limit gate (arXiv:2510.02433 l.514): with kappa = Omega and c_s = h r Omega the
+        # pressure-modified resonance saturates at |r − r_p| → 2H/3, H = h r_p (legacy
+        # verify_RT_satscale.out: m=5000, h=0.01, r_p=50 gives 0.33285 / 0.33396 vs 2H/3 = 1/3).
+        h0 = 0.01; rp = 50.0; H = h0*rp
+        dN = RelativisticDisc(a = 0.0, h0 = h0)
+        csN(r) = h0*r*(r^(-3/2))                       # Newtonian c_s = H Omega
+        for (m, tol) in ((50, 3.0), (200, 0.2), (1000, 0.02), (5000, 5e-3))
+            rI, rO = lindblad_locations_pressure(dN, rp, m; csound = csN)
+            @test isapprox(rO - rp, 2H/3; rtol = tol)
+            @test isapprox(rp - rI, 2H/3; rtol = tol)
+        end
+        rI, rO = lindblad_locations_pressure(dN, rp, 5000; csound = csN)
+        @test rO - rp ≈ 0.33285 atol = 5e-4          # legacy capture
+        @test rp - rI ≈ 0.33396 atol = 5e-4
+        # the resonances stay OUTSIDE the cold ones (pressure pushes them away from corotation? no:
+        # pressure moves them TOWARD the orbit for small m and saturates) — monotone approach:
+        prev = Inf
+        for m in (5, 10, 50, 200, 1000)
+            _, rOm = lindblad_locations_pressure(dN, rp, m; csound = csN)
+            @test rOm - rp < prev
+            prev = rOm - rp
+        end
+        # with c_s → 0 it reduces to the cold condition
+        c0, o0 = lindblad_locations(dN, rp, 3)
+        cp, op = lindblad_locations_pressure(dN, rp, 3; csound = r -> 0.0)
+        @test cp ≈ c0 rtol = 1e-9
+        @test op ≈ o0 rtol = 1e-9
+    end
+
+    @testset "B_m_geometric — leading geometric potential (fig:OperatorPlot)" begin
+        d = RelativisticDisc(a = 0.6, h0 = 0.1); rp = 15.0
+        for m in (1, 3, 8, 15)
+            rI, rO = lindblad_locations(d, rp, m)
+            # zeros AT the Lindblad turning points
+            for r1 in (rI, rO)
+                isnan(r1) && continue
+                @test abs(B_m_geometric(d, r1, rp, m)) < 1e-6
+            end
+            # sign flip across the ILR (evanescent between ILR and OLR)
+            if !isnan(rI)
+                @test B_m_geometric(d, rI - 0.05, rp, m) * B_m_geometric(d, rI + 0.05, rp, m) < 0
+            end
+            # corotation pole: (r−r_p)² B → the B_m_corotation coefficient
+            for δ in (1e-3, 1e-4)
+                lhs = δ^2 * B_m_geometric(d, rp + δ, rp, m) * d.h0^2
+                rhs = δ^2 * B_m_corotation(d, rp + δ, rp, m)
+                @test lhs ≈ rhs rtol = 1e-2
+            end
+        end
+        # explicit closed form (legacy fig:OperatorPlot formula)
+        a = 0.6; h = 0.1; r = 12.0; m = 3
+        Ok(x) = 1/(a + x^1.5)
+        k2(x) = (-3a^2*sqrt(x) + 8a*x + (x-6)*x^1.5)/(x^2.5*(a + x^1.5)^2)
+        Bref = -(k2(r) - m^2*(Ok(r) - Ok(rp))^2)/(m^2*(r^2 - 2r + a^2)*(Ok(r) - Ok(rp))^2)/h^2
+        @test B_m_geometric(d, r, rp, m) ≈ Bref rtol = 1e-12
+    end
+
     @testset "powerlaw_fit — exact on a synthetic power law" begin
         rs = collect(range(10.0, 100.0; length = 25))
         f = powerlaw_fit(rs, 2.5 .* (rs ./ 10) .^ 3.4)

@@ -61,6 +61,27 @@ function B_m_wkb(d::RelativisticDisc{T}, r, r_p, m; h = nothing) where {T}
 end
 
 """
+    B_m_geometric(d, r, r_p, m; h0=nothing)
+
+LEADING GEOMETRIC potential B^{(−2)}_m/h² of the reduced enthalpy-wave equation
+(arXiv:2601.19123 fig:OperatorPlot, eq:reduceeq at order h^{−2}):
+
+    B^{(−2)}_m(r)/h² = −[κ_r² − m²(Ω^k_r − Ω^k_{r_p})²] / [m² Δ_r (Ω^k_r − Ω^k_{r_p})²] / h²
+                     =  lindblad_residual / [m² Δ_r (Ω^k_r − Ω^k_{r_p})²] / h² .
+
+Its zeros are EXACTLY the Lindblad resonances (the [`wronskian`](@ref) numerator) and it has the
+−∞ corotation pole whose 1/(r−r_p)² coefficient is [`B_m_corotation`](@ref) — the closed form that
+reproduces the published "excitation" family. `h0` defaults to the disc aspect ratio `d.h0`. The
+warm +∞ pressure walls of the published figure need the unpublished height-averaged B^{(0)}
+[HOLE: H-DISC-FULLOP]; this is the honest leading-order piece.
+"""
+function B_m_geometric(d::RelativisticDisc{T}, r, r_p, m; h0 = nothing) where {T}
+    hh = h0 === nothing ? d.h0 : T(h0)
+    dOm = disc_OmegaK(d, r) - disc_OmegaK(d, r_p)
+    lindblad_residual(d, r, r_p, m) / (m^2 * delta_r(d, r) * dOm^2) / hh^2
+end
+
+"""
     B_m_full(d, r, r_p, m) -> B_m_wkb + B_m_corotation
 
 The density-wave B_m_wkb plus the 1/(r−r_p)² corotation singularity — correct Lindblad turning

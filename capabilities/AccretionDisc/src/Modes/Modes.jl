@@ -31,10 +31,10 @@ include("MasterPDE.jl")
 export master_radial_coeffs
 
 include("Resonances.jl")
-export lindblad_residual, corotation_residual, wronskian, lindblad_locations
+export lindblad_residual, corotation_residual, wronskian, lindblad_locations, lindblad_locations_pressure
 
 include("ReducedODE.jl")
-export A_m, B_m_corotation, B_m_wkb, B_m_full, corotation_exponent
+export A_m, B_m_corotation, B_m_wkb, B_m_full, B_m_geometric, corotation_exponent
 export dispersion, reduced_operator
 
 include("Forcing.jl")

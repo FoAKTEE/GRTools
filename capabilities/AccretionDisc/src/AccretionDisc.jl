@@ -27,7 +27,8 @@ using .Modes
 # Re-export the Modes background/resonance primitives at the package top level.
 using .Modes: RelativisticDisc, disc_OmegaK, kappar2, delta_r, csound, eden0, risco_disc
 using .Modes: lindblad_residual, corotation_residual, wronskian, lindblad_locations
-using .Modes: A_m, B_m_corotation, B_m_wkb, B_m_full, corotation_exponent
+using .Modes: lindblad_locations_pressure
+using .Modes: A_m, B_m_corotation, B_m_wkb, B_m_full, B_m_geometric, corotation_exponent
 using .Modes: dispersion, reduced_operator
 using .Modes: lindblad_torque, forcing_Fm, laplace_b
 using .Modes: SurfaceDensityProfile, PowerLawSigma
@@ -49,7 +50,8 @@ using .Modes: qinv_operator_z, q_operator_z, heightavg
 using .Modes: master_radial_coeffs
 export RelativisticDisc, disc_OmegaK, kappar2, delta_r, csound, eden0, risco_disc
 export lindblad_residual, corotation_residual, wronskian, lindblad_locations
-export A_m, B_m_corotation, B_m_wkb, B_m_full, corotation_exponent
+export lindblad_locations_pressure
+export A_m, B_m_corotation, B_m_wkb, B_m_full, B_m_geometric, corotation_exponent
 export dispersion, reduced_operator
 export lindblad_torque, forcing_Fm, laplace_b
 export SurfaceDensityProfile, PowerLawSigma
