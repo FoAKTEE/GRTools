@@ -1,0 +1,21 @@
+{
+  "generated_at_commit": "0b6844eca34df932171abbde98d80cb57c3e2c4f",
+  "id": "check_satscale",
+  "julia": "1.12.6",
+  "paper": "2510.02433",
+  "script_sha256": "35c157534a45ddcb4f9ba637efff96b16f64713953ecbea3b1e8392df02a6572",
+  "values": {
+    "SS_Sigma_logslope": 1.5000000000006664,
+    "SS_h_logslope": -1.000000000000222,
+    "cutoff_at_xi_0": 1.0,
+    "cutoff_at_xi_1": 0.10757656854799805,
+    "cutoff_at_xi_3": 0.0025635607123009074,
+    "cutoff_half_width": 0.39158206032779175,
+    "n_r_equals_9_over_2": true,
+    "n_r_radiation_pressure": 4.5,
+    "sat_inner_offsets": [6.40988356659939, 3.181377313084859, 0.7106648754540998, 0.368826060790326, 0.3353583993312128, 0.3339501769368667],
+    "sat_outer_offsets": [6.125139800551004, 3.1092011500767995, 0.7067092955379337, 0.3675371389825628, 0.3342401481254029, 0.33283875256619666],
+    "sat_outer_relerr_m5000": 0.0014837423014099627,
+    "sat_target_2H_over_3": 0.3333333333333333
+  }
+}
