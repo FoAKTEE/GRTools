@@ -33,3 +33,13 @@ expected = "_selftest/expected/harness-selftest.json"
 depends = ["Spacetime"]
 status = "solid"
 notes = "Harness self-test: Bardeen ISCO (Float64 + 256-bit BigFloat), Kerr frequencies, every golden value type (scalar/Bool/String/BigFloat/Complex/Vector/Matrix/non-finite) and a JSON round trip; rtol 1e-12."
+
+[[result]]
+paper = "2608.17003"
+id = "check-printed-numbers"
+kind = "check"
+script = "arXiv-2608.17003/check_printed_numbers.jl"
+tier = "fast"
+depends = ["AccretionDisc"]
+status = "hole"
+notes = "EGD::printed-numbers-gate. Asserts every printed number of arXiv:2608.17003 that the figure goldens of arXiv-2608.17003/expected/ cover (18 claims, contract table in that directory README). Exit 0 all covered claims pass; 1 a covered claim violated; 3 HOLE when a claim golden key is missing. NO expected key: the gate stores no number that is not already in a figure golden (run_all skips the golden-presence check when the key is absent). Currently 18/18 NOT-YET-COVERED - no arXiv:2608.17003 figure driver has landed a golden."
