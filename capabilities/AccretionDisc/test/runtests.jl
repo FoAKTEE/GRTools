@@ -33,4 +33,5 @@ using AccretionDisc
     include("SpiralWaves/test_r2_generated.jl") # EGD::sw-mode-solver: route-R2 generated δû_φ, AMF (72a), torque density (72b)
     include("SpiralWaves/test_solver.jl")     # EGD::sw-mode-solver: implicit midpoint (64) + outgoing-wave BCs (66)-(68)
     include("SpiralWaves/test_diagnostics.jl") # EGD::sw-diagnostics: AMF (72a), torque (72b), (74), (75), m-cutoffs
+    include("SpiralWaves/test_survey.jl")     # EGD::sw-survey-parallel: threaded m-sweep, configuration sweep
 end

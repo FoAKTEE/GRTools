@@ -52,9 +52,10 @@ const PAPER = "arXiv:2608.17003"
 
 Version of the `SpiralWaves` submodule API (bumped as DAG nodes land; `v"0.1.0"` = scaffold,
 `v"0.2.0"` = background, `v"0.3.0"` = grid, `v"0.4.0"` = master matrices, `v"0.5.0"` = singular source,
-`v"0.6.0"` = mode solver, `v"0.7.0"` = diagnostics).
+`v"0.6.0"` = mode solver, `v"0.7.0"` = diagnostics,
+`v"0.8.0"` = survey).
 """
-sw_version() = v"0.7.0"
+sw_version() = v"0.8.0"
 
 # ---- EGD::sw-background — disc equilibrium (Sec. II.A) -------------------------------------------
 include("background.jl")
@@ -93,5 +94,10 @@ export eigen2, outgoing_branch, wkb_wavenumber_gr, wkb_wavenumber2_gr
 include("diagnostics.jl")
 export sqrt_minus_g, amf, amf_mode, torque_density, torque_density_mode, cumulative_torque
 export total_torque, lindblad_torque, torque_units, m_cut, balance_residual, corotation_split
+
+# ---- EGD::sw-survey-parallel — threaded m-sweep and configuration sweep (Sec. III) ----------------
+include("survey.jl")
+export ModeTorque, TorqueSurvey, torque_survey, survey_configs, mode_torques, mode_lindblad_torques
+export compute_budget
 
 end # module SpiralWaves
