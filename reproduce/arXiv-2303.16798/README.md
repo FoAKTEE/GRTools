@@ -1,0 +1,47 @@
+# arXiv:2303.16798 — linear-in-spin fluxes from generic Kerr orbits
+
+Reproduced with GrTools `Perturbation.SpinFluxes` (modes, amplitudes, fluxes) on top of
+`Spacetime.SpinningSecondary` (the linear-in-spin orbit-correction engine).
+Legacy sources: `emri-disk/results/gw-flux/figures/2303.16798/repro_*.jl` and the published-table
+testset `emri-disk/packages/TeukolskySpinFluxes/test/runtests.jl:731-760` (both read-only).
+
+| published object | driver | result id | tier | status | wall (-t4) |
+|---|---|---|---|---|---|
+| Table I (`tab:error_generic`) row 1 | `check_tableI.jl` | `tableI` | fast | solid | 117 s |
+| Table I, all six rows | `check_tableI_full.jl` | `tableI_full` | heavy | **future** (no golden) | est. 20–25 min |
+| Table II (`tab:spherical`), 12 rows | `check_tableII.jl` | `tableII` | fast | solid | 88 s |
+| Table III (`tab:generic`), 24 rows | `check_tableIII.jl` | `tableIII` | fast | solid | 94 s |
+| `fig:fourier_coefficients` | `fig_fourier_coefficients.jl` | `fig_fourier_coefficients` | fast | solid | 47 s |
+| `fig:fluxes_spherical` (FSl{1,2,3}0k) | `fig_FSl0k_spherical.jl` | `fig_FSl0k_spherical` | heavy | see below | — |
+| `fig:comparison_spherical` | `fig_comparison_spherical.jl` | `fig_comparison_spherical` | heavy | see below | — |
+| `fig:comparison_generic` (error_eccentric ×2) | `fig_error_eccentric.jl` | `fig_error_eccentric` | heavy | see below | — |
+
+The three published tables also live as a GrTools test file,
+`capabilities/Perturbation/test/test_published_tables_2303_16798.jl` (commit `8bb3a57`), so the
+reproduction is asserted by the package suite and not only by this tree.
+
+`[FUTURE]` figures of this paper (documented, not reproduced): `error_spherical_prograde` /
+`_retrograde` and `trajectory_difference` — both are differences against an external, un-vendored
+time-domain Teukolsky / full-MPD integrator, so the plotted quantity itself is unavailable.
+`CSlmnk_k` / `CSlmnk_n` and the generic `FSl{1,2,3}nk` landscapes are not yet ported (legacy
+runtimes 900 s+ each).
+
+## Measured differences vs the published numbers (findings, not tuned)
+
+* **Table I.** Row 1 lands 0.30 % from the published −2.8259e-6 at the legacy truncation
+  (l ≤ 3, |n| ≤ 2, |k| ≤ 2). Rows 2–6 are **not converged** at that truncation — measured
+  2.7 % / 3.8 % / 17 % / 6.3 % / 96 % (the last at e = 0.5) — because |n| ≤ 2 misses the radial
+  harmonics that carry the flux at larger eccentricity. They are therefore *not registered* as a
+  reproduction here; the e-scaled `check_tableI_full.jl` covers them and is honestly marked
+  `future` until it has been run.
+* **Table II.** Worst |ΔF^E|/|F^E| = 2.5 % at the I = 120°, m = 3 row; worst |ΔF^Jz| = 0.72 %; the
+  other rows are well under 1 %. **Paper typo carried, not silently fixed:** the I = 150°, m = 2 row
+  prints F^Jz = 1.658e-5 where the value is 1.658e-4 — the golden records both the printed and the
+  corrected number.
+* **Table III.** Worst |ΔC^+|/|C^+| = 0.28 %, worst |ΔC^-| = 0.040 % over all 24 rows. Sign
+  convention: C_GrTools = −C_paper (the flux |C|² is convention-independent).
+* **`fig:fourier_coefficients`.** Peak at n = ±1 ∝ e (residual 1.5e-3) and the truncation floor
+  reproduce; only the e = 0.6 floor (4.5e-12) is resolvable in Float64. The e = 0.2 / 0.4 floors sit
+  at 1.7e4–3.3e6 × ε·peak — the conditioning floor of the Float64 least-squares solve — whereas the
+  published figure reaches ~1e-20 (extended precision). The driver registers the measured ratios and
+  makes **no** monotone-floor claim.

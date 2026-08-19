@@ -1,0 +1,17 @@
+{
+  "generated_at_commit": "5925966e30a85f28a7fc8a9180a6099a12714872",
+  "id": "check_isso_spin_shift",
+  "julia": "1.12.6",
+  "paper": "2506.20726",
+  "script_sha256": "4430c5790b5304cfb949a3ecd066eb4abd66389c5287ee4d84bc48f76e3840ff",
+  "values": {
+    "dr_isso_equatorial": [-1.6327708110220762, -1.6329709383479185, -1.6329909396203766, -1.6329929396330982],
+    "dr_isso_inclined_x0.5": [-1.6328818937890597, -1.6329820491755278, -1.632992050728651, -1.6329930507441852],
+    "isco_isso_agree_equatorial": true,
+    "isso_at_a0_is_six": true,
+    "limit_reached_to_1e-5": true,
+    "rel_to_minus_sqrt8over3_at_a1e-6": 1.3608284410437932e-7,
+    "schwarzschild_limit": -1.632993161855452,
+    "spins": [0.001, 0.0001, 1.0e-5, 1.0e-6]
+  }
+}

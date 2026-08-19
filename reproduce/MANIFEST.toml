@@ -43,3 +43,113 @@ tier = "fast"
 depends = ["AccretionDisc"]
 status = "hole"
 notes = "EGD::printed-numbers-gate. Asserts every printed number of arXiv:2608.17003 that the figure goldens of arXiv-2608.17003/expected/ cover (18 claims, contract table in that directory README). Exit 0 all covered claims pass; 1 a covered claim violated; 3 HOLE when a claim golden key is missing. NO expected key: the gate stores no number that is not already in a figure golden (run_all skips the golden-presence check when the key is absent). Currently 18/18 NOT-YET-COVERED - no arXiv:2608.17003 figure driver has landed a golden."
+
+[[result]]
+paper = "2303.16798"
+id = "tableI"
+kind = "table"
+script = "arXiv-2303.16798/check_tableI.jl"
+tier = "fast"
+expected = "arXiv-2303.16798/expected/tableI.json"
+depends = ["Perturbation", "Spacetime"]
+status = "solid"
+notes = "Table I (tab:error_generic) ROW 1 only (p=10, e=0.1, I=15deg, m=2): the generic linear-in-spin energy flux summed over l<=3, |n|<=2, |k|<=2 reproduces the published -2.8259e-6 to 0.30%. Rows 2-6 need the e-scaled truncation of the heavy check_tableI_full.jl; at this truncation they are measurably NOT converged (2.7/3.8/17/6.3/96%), so they are not registered here. 117 s at -t4."
+
+[[result]]
+paper = "2303.16798"
+id = "tableI_full"
+kind = "table"
+script = "arXiv-2303.16798/check_tableI_full.jl"
+tier = "heavy"
+expected = "arXiv-2303.16798/expected/tableI_full.json"
+depends = ["Perturbation", "Spacetime"]
+status = "future"
+notes = "All six published Table I rows with the mode truncation scaled to e and I (~1250 generic inhomogeneous-Teukolsky modes, est. 20-25 min at -t4). The driver is complete but has NOT been run to completion in this migration, so there is NO golden: --check exits 3 (HOLE) until one is generated with --regen --tier heavy. Never fabricated."
+
+[[result]]
+paper = "2303.16798"
+id = "tableII"
+kind = "table"
+script = "arXiv-2303.16798/check_tableII.jl"
+tier = "fast"
+expected = "arXiv-2303.16798/expected/tableII.json"
+depends = ["Perturbation", "Spacetime"]
+status = "solid"
+notes = "Table II (tab:spherical), all 12 rows: F^E_{S,m} and F^{Jz}_{S,m} of nearly spherical orbits at a=0.9, p=10, I in {30,60,120,150} deg, m in {1,2,3}, summed over l<=5, |k|<=4. Worst |dF^E|/|F^E| = 2.5% (row 9 = I=120deg, m=3); worst |dF^Jz| = 0.72%; most rows well under 1%. PAPER TYPO carried, not silently fixed: the I=150deg, m=2 row prints F^Jz = 1.658e-5 but the value is 1.658e-4 - both printed and corrected numbers are in the golden. 88 s at -t4."
+
+[[result]]
+paper = "2303.16798"
+id = "tableIII"
+kind = "table"
+script = "arXiv-2303.16798/check_tableIII.jl"
+tier = "fast"
+expected = "arXiv-2303.16798/expected/tableIII.json"
+depends = ["Perturbation", "Spacetime"]
+status = "solid"
+notes = "Table III (tab:generic), all 24 published (m,l,n,k) rows of C^+_{S,lmnk} (infinity) and C^-_{S,lmnk} (horizon) for a=0.9, p=12, e=0.2, I=30deg. Worst |dC^+|/|C^+| = 0.28%, worst |dC^-| = 0.040%. Sign convention C_GrTools = -C_paper (the flux |C|^2 is convention-independent). 94 s at -t4."
+
+[[result]]
+paper = "2303.16798"
+id = "fig_fourier_coefficients"
+kind = "figure"
+script = "arXiv-2303.16798/fig_fourier_coefficients.jl"
+tier = "fast"
+expected = "arXiv-2303.16798/expected/fig_fourier_coefficients.json"
+depends = ["Spacetime"]
+status = "solid"
+notes = "fig:fourier_coefficients - the radial spin-correction Fourier coefficients |dchi^S_{r,n}| vs n at a=0.9, p=15, I=15deg for e=0.2/0.4/0.6 (nmax=16, kmax=8). Peak at n=+-1 proportional to e (residual 1.5e-3), symmetric decay, then the least-squares truncation floor. FINDING (same as the legacy figure): only the e=0.6 floor (4.5e-12) is resolvable in Float64; the e=0.2/0.4 floors sit at 1.7e4-3.3e6 times eps*peak, i.e. the conditioning floor of the Float64 least-squares solve, whereas the published figure reaches ~1e-20 (extended precision). No monotone-floor claim is registered. 47 s at -t4."
+
+[[result]]
+paper = "2506.20726"
+id = "check_isso_spin_shift"
+kind = "check"
+script = "arXiv-2506.20726/check_isso_spin_shift.jl"
+tier = "fast"
+expected = "arXiv-2506.20726/expected/check_isso_spin_shift.json"
+depends = ["Spacetime"]
+status = "solid"
+notes = "Printed result T1: the secondary-spin shift of the ISSO tends to -sqrt(8/3) = -1.632993 in the Schwarzschild limit. Reached to 1.4e-7 relative at a=1e-6 from both the equatorial (x=1) and inclined (x=0.5) side. 9 s at -t4."
+
+[[result]]
+paper = "2506.20726"
+id = "fig_rISSO"
+kind = "figure"
+script = "arXiv-2506.20726/fig_rISSO.jl"
+tier = "fast"
+expected = "arXiv-2506.20726/expected/fig_rISSO.json"
+depends = ["Spacetime"]
+status = "solid"
+notes = "fig:rISSO both panels - rISSOgplot (geodesic ISSO radius vs x) and drISSOplot (the O(s_par) ISSO shift vs x) for a = 0.3/0.6/0.9 M on a 200-point x grid. The ISSO root-finder is now Spacetime.kerr_isso (closed-form R''), promoted out of the legacy figure scripts. 19 s at -t4."
+
+[[result]]
+paper = "2506.20726"
+id = "fig_deltaJr"
+kind = "figure"
+script = "arXiv-2506.20726/fig_deltaJr.jl"
+tier = "fast"
+expected = "arXiv-2506.20726/expected/fig_deltaJr.json"
+depends = ["Spacetime"]
+status = "solid"
+notes = "fig:deltaJr - the linear-in-spin radial-action correction dJ_r|_{p,e,x} vs e (log-log) for the four published orbits; all four log-log slopes are 2.000 +- 0.001, the published O(e^2) message. dJ comes from Spacetime.SpinningSecondary.spin_actions_pex, promoted out of the legacy figure-side helper results/gw-flux/figures/spin_actions.jl. 17 s at -t4."
+
+[[result]]
+paper = "2506.20726"
+id = "fig_trajectory_rz"
+kind = "figure"
+script = "arXiv-2506.20726/fig_trajectory_rz.jl"
+tier = "fast"
+expected = "arXiv-2506.20726/expected/fig_trajectory_rz.json"
+depends = ["Perturbation", "Spacetime"]
+status = "solid"
+notes = "fig:trajectory_r_z_plane - the near-spherical trajectory in the r-z plane for s_par = -M..M at a=0.95, p=8, x=0.5 (400 w_z points). max|rS| = 0.01318, max|zS| = 0.001328; the polar correction vanishes at the turning points. 21 s at -t4."
+
+[[result]]
+paper = "2603.13482"
+id = "fig_delta_Omega"
+kind = "figure"
+script = "arXiv-2603.13482/fig_delta_Omega.jl"
+tier = "fast"
+expected = "arXiv-2603.13482/expected/fig_delta_Omega.json"
+depends = ["Spacetime"]
+status = "solid"
+notes = "fig:delta_Omega - the linear-in-spin BL frequency corrections in all FOUR spin gauges (CTilde, turning-point p, constants C, actions J) vs p - p_s at a=0.95, e=0.5, x=0.5 (separatrix p_s = 4.036992). Published message reproduced quantitatively: max|Omega^1| = 0.049 (CTilde, bounded) vs 35 (p), 1.18e6 (C), 2.01e5 (J). All four gauges come from Spacetime.SpinningSecondary with ANALYTIC Jacobians; the legacy figure script built the p and C gauges from finite-difference Jacobians inline. 32 s at -t4."

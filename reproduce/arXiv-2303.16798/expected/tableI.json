@@ -1,0 +1,17 @@
+{
+  "generated_at_commit": "a5822fdde833d64fe94c1b938388f378f703e294",
+  "id": "tableI",
+  "julia": "1.12.6",
+  "paper": "2303.16798",
+  "script_sha256": "ee740f41949ed9f5f64f0e282bd79ce8e6534691f5eca9c8477e23f836cd2832",
+  "values": {
+    "FE_all_negative": true,
+    "FE_computed": [-2.8174463497979857e-6],
+    "FE_published": [-2.8259e-6],
+    "max_rel": 0.0029914895084801963,
+    "rel_diff_vs_published": [0.0029914895084801963],
+    "row1_within_0p5pct": true,
+    "rows": ["p=10.0,e=0.1,I=15,m=2"],
+    "truncation": "l<=3, |n|<=2, |k|<=2"
+  }
+}
