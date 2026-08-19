@@ -1,0 +1,27 @@
+# FIXTURES.toml — baked-fixture provenance ledger for core/BigSpecial
+# GRR::g2-fixture-capture-scripts / GRR::g14-oracle-scripts (repro-audit gaps G2, G13, G14).
+# Generated 2026-08-19; see docs/src/topics/fixtures.md for the status vocabulary and the repo-wide roll-up.
+#
+# status:
+#   regenerated-identical  capture re-run on 2026-08-19; fixture data bit-identical (only capture-date/
+#                          host comment lines may differ)
+#   reverified-identical   a NEW key-driven regenerator re-evaluated the oracle at every baked key
+#   tracked-generator      an in-tree generator/regenerator already existed
+#   tracked-notrerunnable  capture now tracked, but the oracle STATE it captured no longer exists
+#   tracked-notrerun       capture now tracked; re-run deferred (cost/corpus) [FUTURE]
+#   hole-script-lost       no capture script anywhere; values frozen [HOLE]
+#   upstream-copy          vendored upstream data; no generator applies
+#   shared-input           generator INPUT shared verbatim between capture and test
+
+package = "core/BigSpecial"
+generated = "2026-08-19"
+
+[[fixture]]
+file = "test/fixtures_legendre_p3.jl"
+sha256 = "d1671aef0163e23b90b73394c10a17bb506bb1d6c2a5a3ca347d3b74eba0b13b"
+bytes = 20803
+capture = ""
+oracle = "closed forms of arXiv:2606.04998 main.tex:467-486 (3P_n^m via regularized 2F1) evaluated in mpmath"
+oracle_commit = ""
+status = "hole-script-lost"
+note = "header names scratchpad/gen_p3_fixtures.py (2026-07-28); absent from emri-disk/scratchpad, from emri-disk git history and from this tree. Values frozen 2026-08-19; the closed forms in the header remain an independent re-derivation path [FUTURE]"
