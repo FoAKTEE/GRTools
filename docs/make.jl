@@ -77,6 +77,7 @@ makedocs(
             "topics/precision.md",
             "topics/gpu-parallel.md",
             "topics/data-artifacts.md",
+            "topics/fixtures.md",
         ],
         "Migration" => "migration.md",
     ],
