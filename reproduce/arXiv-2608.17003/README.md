@@ -11,7 +11,7 @@ pressureless analytic baselines it is compared against).  Drivers here are THIN.
 |---|---|---|---|---|---|---|---|
 | 1  | fig:spirals — δU maps                | `fig01.jl` | — | heavy | not started | — | |
 | 2  | fig:spirals_conv — m_max convergence | `fig02.jl` | — | heavy | not started | — | |
-| 3  | fig:angular_momentum_balance         | `fig03.jl` | — | fast  | not started | — | |
+| 3  | fig:angular_momentum_balance         | `fig03.jl` | `expected/fig03.json` | heavy | **solid** | **match** | a•=15M, χ=0, h0=0.05, (𝔭,𝔮)=(0,0), m=1:120. Balance (71) away from corotation 4.0e-5; the corotation spike is gated on the invariant ∫(dF_J/dr−d𝔗/dr)dr = 0.0266073 F_{J,0} = T_L−T of (75) to 2.7e-5 (its plotted height is a plot-sampling number). 605 s at -t4. |
 | 4  | fig:dtdr_ap — torque density vs a•    | `fig04.jl` | — | heavy | not started | — | |
 | 5  | fig:TGR_vs_TNewt                     | `fig05.jl` | — | heavy | not started | — | |
 | 6  | fig:torque_chi_ap                    | `fig06.jl` | — | heavy | not started | — | |
@@ -24,6 +24,12 @@ pressureless analytic baselines it is compared against).  Drivers here are THIN.
 | 13 | fig:variation_with_respect_to_b      | `fig13.jl` | — | heavy | not started | — | |
 | 14 | fig:m95_vs_b                         | `fig14.jl` | — | heavy | not started | — | |
 | —  | printed-number gate                  | `check_printed_numbers.jl` | none (by design) | fast | **HOLE** (18/18 uncovered) | n/a | asserts every printed number of the paper that the figure goldens cover |
+
+`_profile_assembly.jl` is a paper-local, PRESENTATION-side include shared by `fig03.jl` and
+`fig04.jl` (so the assembly is written once): it runs the m-loop over `SpiralWaves.solve_mode` and
+reduces each mode's `amf` / `cumulative_torque` to cell averages on a common plotting grid — the
+mode sum of (73).  It contains no physics; its natural long-term home is
+`AccretionDisc.SpiralWaves.diagnostics` (flagged [FUTURE] in its header).
 
 Style: `_style/emri_style.jl` + the VLM style manual
 `progress/emri-gasdisk/FIGURE_STYLE_MANUAL.md` (emri-disk repo); every figure goes through the
