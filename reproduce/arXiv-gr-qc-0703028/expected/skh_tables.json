@@ -1,0 +1,20 @@
+{
+  "generated_at_commit": "ca22e6035f4697cc2fc85949fff369eed9dfb6ca",
+  "id": "skh_tables",
+  "julia": "1.12.6",
+  "paper": "gr-qc-0703028",
+  "script_sha256": "47fbc13df13f42e6d98ee3290219a8c097ce33ff74a961d5dee5b23681759bbe",
+  "values": {
+    "tabII_a0p9_r10_m3_computed": 5.044118939459391e-6,
+    "tabII_a0p9_r10_m3_published": 5.044e-6,
+    "tabII_a0p9_r10_m3_reldiff": 2.358038449457034e-5,
+    "tabI_a0p5_r10_m2_computed": 4.8123096652734684e-5,
+    "tabI_a0p5_r10_m2_published": 4.812e-5,
+    "tabI_a0p5_r10_m2_reldiff": 6.435271684712696e-5,
+    "tabI_a0p9_r10_m2_computed": 4.456060734941019e-5,
+    "tabI_a0p9_r10_m2_horizon": -1.196911740835973e-7,
+    "tabI_a0p9_r10_m2_per_l": [4.4546001102326784e-5, 1.4271936288874694e-8, 3.342002568964801e-10, 1.0943525441438047e-13, 1.1021357356968896e-15, 2.429478451808088e-19, 1.3539905756870452e-21, 2.0508111160066683e-25, 7.246528226610175e-28],
+    "tabI_a0p9_r10_m2_published": 4.456e-5,
+    "tabI_a0p9_r10_m2_reldiff": 1.3629923927060972e-5
+  }
+}
