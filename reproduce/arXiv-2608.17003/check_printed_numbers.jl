@@ -149,6 +149,10 @@ const CLAIMS = Claim[
     #       so the ⌈6/h₀⌉ band (`m95_h0_*_Ksens`) is what is held against the published pixels.
     #       The ⌈4/h₀⌉ band is displayed next to it and is what (a) and (b) assert; the K = 4 vs
     #       K = 6 difference is therefore VISIBLE in the gate table, never absorbed silently.
+    #       SCOPE OF `m95_h0_*_Ksens` [PRELIMINARY]: fig08 re-runs only the TWO configurations that
+    #       set the ⌈4/h₀⌉ band, so these are the ⌈6/h₀⌉ values AT those two configurations, not the
+    #       extremes of a full ⌈6/h₀⌉ survey (which is the deferred decision D2 of
+    #       progress/emri-gasdisk/DECISIONS_W5.md).  A full K = 6 survey could widen the band.
     Claim("M1025-m95h0-band", "M:1025", :text,
         "m_95 h0 ≃ 2.0–3.5 across the disk profiles considered (m_95 ∝ 1/h0, M:992); the published "
         * "figure's own violins span [2.208, 3.157] (pixel read-back, K = 6/h0 ceiling)",
