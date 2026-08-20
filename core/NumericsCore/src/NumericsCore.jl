@@ -78,7 +78,8 @@ include("chebyshev.jl")   # after interp.jl: CGL nodes + D1/D2 (Weideman–Reddy
 export cheb_lobatto, cheb_collocation, cheb_solve   # the Q2-H hyperboloidal collocation operator
 
 include("ode.jl")
-export dp5_step!, integrate_to_targets!, gragg_midpoint!, gbs_kmax, gbs_integrate_to_targets!
+export dp5_step!, dp5_step_buffered!, integrate_grid, integrate_to_targets!,
+       gragg_midpoint!, gbs_kmax, gbs_integrate_to_targets!
 export DOPR853, take_step, integrate, dense_eval
 
 include("legendre.jl")

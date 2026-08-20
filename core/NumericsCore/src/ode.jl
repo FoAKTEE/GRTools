@@ -54,6 +54,153 @@ function dp5_step!(f!, xc::T, y::Vector{T}, k1::Vector{T}, h::T, tol::T) where {
 end
 
 """
+    dp5_step_buffered!(f!, xc, y, kbuf, ys, y5, y4, h; rtol, atol) -> err
+
+Allocation-free Dormand-Prince RK4(5) step: identical arithmetic to [`dp5_step!`](@ref) but with
+caller-supplied buffers (`kbuf[1..7]`, plus three work vectors) and the general two-tolerance error
+scale `sc = atol + rtol·max(|y|, |y5|)` (the single-tolerance form is `rtol = atol = tol`). On
+return `y5` holds the 5th-order state and `kbuf[7]` the final-stage derivative (FSAL). Removes the
+~10 allocations per step that dominate GC time in thread-parallel mode sweeps.
+(Legacy `DiscModes.integrator._dp5_step!`.)
+"""
+function dp5_step_buffered!(f!, xc::T, y::Vector{T}, kbuf::Vector{Vector{T}}, ys::Vector{T},
+                            y5::Vector{T}, y4::Vector{T}, h::T; rtol, atol) where {T}
+    ny = length(y)
+    @inbounds for s in 1:6
+        copyto!(ys, y)
+        for j in 1:s
+            aj = T(_DP_A[s][j]); aj == 0 && continue
+            haj = h * aj; kj = kbuf[j]
+            @simd for q in 1:ny; ys[q] += haj * kj[q]; end
+        end
+        f!(kbuf[s+1], xc + h * T(_DP_C[s]), ys)
+    end
+    copyto!(y5, y); copyto!(y4, y)
+    @inbounds for s in 1:7
+        bs = h * T(_DP_B[s]); bh = h * T(_DP_BH[s]); ks = kbuf[s]
+        @simd for q in 1:ny; y5[q] += bs * ks[q]; y4[q] += bh * ks[q]; end
+    end
+    err = zero(T)
+    @inbounds for j in 1:ny
+        sc = atol + rtol * max(abs(y[j]), abs(y5[j]))
+        err += ((y5[j] - y4[j]) / sc)^2
+    end
+    return sqrt(err / ny)
+end
+
+"""
+    integrate_grid(f, y0, x, istart, dir; rtol = 1e-10, atol = 1e-12, dense = true) -> Matrix (length(x) × ny)
+
+Adaptive DP5 integration of `dy/dx = f(x, y)` starting from grid point `istart` (state `y0`) in
+direction `dir` (`+1` outward / `−1` inward), emitting the state at EVERY point of the sorted grid
+`x`. Row `i` of the result is the state at `x[i]`; rows on the other side of `istart` stay zero.
+
+`f` may be supplied either as the allocating form `f(x, y)::Vector` or — preferred, and detected
+automatically — as an in-place callable `f(out, x, y)` (a callable struct with both methods works).
+
+* `dense = true` (default): free adaptive steps, grid values filled by cubic-Hermite interpolation
+  from the step endpoints and their derivatives. ~10–20× fewer right-hand-side evaluations at the
+  same accuracy.
+* `dense = false`: each step is capped to land exactly on the next grid point (no interpolation);
+  this is the reference behaviour of [`integrate_to_targets!`](@ref) generalised to two tolerances.
+
+Type-generic (Float64 / BigFloat). (Legacy `DiscModes.integrator.integrate_grid`, the grid-output
+convention of the Miranda–Rafikov disc-mode solver.)
+"""
+function integrate_grid(f, y0::AbstractVector{T}, x::AbstractVector, istart::Int, dir::Int;
+                        rtol = 1e-10, atol = 1e-12, dense::Bool = true) where {T}
+    dense && return _integrate_grid_dense(f, y0, x, istart, dir; rtol = rtol, atol = atol)
+    return _integrate_grid_capped(f, y0, x, istart, dir; rtol = rtol, atol = atol)
+end
+
+# In-place RHS adapter: use a 3-arg in-place method f(out,x,y) when the caller has one, else wrap
+# the allocating 2-arg form.
+function _inplace_rhs(f, ::Type{T}, ny::Int) where {T}
+    hasmethod(f, Tuple{Vector{T},T,Vector{T}}) && return ((out, xx, yy) -> f(out, xx, yy))
+    return ((out, xx, yy) -> (v = f(xx, yy); @inbounds for q in 1:ny; out[q] = v[q]; end; out))
+end
+
+# free adaptive steps + cubic-Hermite dense output onto the grid
+function _integrate_grid_dense(f, y0::AbstractVector{T}, x::AbstractVector, istart::Int, dir::Int;
+                               rtol, atol) where {T}
+    n = length(x); ny = length(y0)
+    Y = zeros(T, n, ny); Y[istart, :] .= y0
+    (istart + dir < 1 || istart + dir > n) && return Y
+    y = collect(y0); xc = T(x[istart])
+    xend = T(x[dir > 0 ? n : 1])
+    h = T(x[istart + dir]) - xc
+    safety = T(9 // 10); minfac = T(1 // 5); maxfac = T(5); order = 5
+    gi = istart + dir                                    # next grid index to fill
+    f! = _inplace_rhs(f, T, ny)
+    kbuf = [Vector{T}(undef, ny) for _ in 1:7]
+    ys = Vector{T}(undef, ny); y5 = Vector{T}(undef, ny); y4 = Vector{T}(undef, ny)
+    d0 = Vector{T}(undef, ny)
+    f!(kbuf[1], xc, y)                                   # k1 seed
+    while (dir > 0 && gi <= n) || (dir < 0 && gi >= 1)
+        if (dir > 0 && xc + h > xend) || (dir < 0 && xc + h < xend); h = xend - xc; end
+        err = dp5_step_buffered!(f!, xc, y, kbuf, ys, y5, y4, h; rtol = rtol, atol = atol)
+        if err <= 1 || abs(h) <= eps(T) * abs(xc) * 16
+            xn = xc + h
+            copyto!(d0, kbuf[1])                         # left derivative, before the FSAL overwrite
+            while (dir > 0 && gi <= n && x[gi] <= xn) || (dir < 0 && gi >= 1 && x[gi] >= xn)
+                θ = (T(x[gi]) - xc) / h
+                h00 = (1 + 2θ) * (1 - θ)^2; h10 = θ * (1 - θ)^2
+                h01 = θ^2 * (3 - 2θ);       h11 = θ^2 * (θ - 1)
+                @inbounds for j in 1:ny
+                    Y[gi, j] = h00 * y[j] + h10 * h * d0[j] + h01 * y5[j] + h11 * h * kbuf[7][j]
+                end
+                gi += dir
+            end
+            xc = xn; copyto!(y, y5); copyto!(kbuf[1], kbuf[7])          # FSAL: k1 ← k7
+            (abs(xc - xend) <= eps(T) * abs(xend) * 16) && break
+            fac = err == 0 ? maxfac : min(maxfac, max(minfac, safety * err^(-one(T) / order)))
+            h *= fac
+        else
+            h *= max(minfac, safety * err^(-one(T) / order))
+        end
+    end
+    return Y
+end
+
+# each step capped to land exactly on the next grid point (no interpolation)
+function _integrate_grid_capped(f, y0::AbstractVector{T}, x::AbstractVector, istart::Int, dir::Int;
+                                rtol, atol) where {T}
+    n = length(x); ny = length(y0)
+    Y = zeros(T, n, ny); Y[istart, :] .= y0
+    y = collect(y0); xc = T(x[istart])
+    idx = istart + dir
+    (idx < 1 || idx > n) && return Y
+    f! = _inplace_rhs(f, T, ny)
+    kbuf = [Vector{T}(undef, ny) for _ in 1:7]
+    ys = Vector{T}(undef, ny); y5 = Vector{T}(undef, ny); y4 = Vector{T}(undef, ny)
+    xtarget = T(x[idx])
+    h = dir * abs(xtarget - xc)
+    safety = T(9 // 10); minfac = T(1 // 5); maxfac = T(5); order = 5
+    f!(kbuf[1], xc, y)
+    while true
+        if (dir > 0 && xc + h > xtarget) || (dir < 0 && xc + h < xtarget)
+            h = xtarget - xc
+        end
+        err = dp5_step_buffered!(f!, xc, y, kbuf, ys, y5, y4, h; rtol = rtol, atol = atol)
+        if err <= 1 || abs(h) <= eps(T) * abs(xc) * 16
+            xc += h; copyto!(y, y5); copyto!(kbuf[1], kbuf[7])
+            if (dir > 0 && xc >= xtarget - eps(T) * abs(xtarget) * 8) ||
+               (dir < 0 && xc <= xtarget + eps(T) * abs(xtarget) * 8)
+                Y[idx, :] .= y
+                idx += dir
+                (idx < 1 || idx > n) && break
+                xtarget = T(x[idx])
+            end
+            fac = err == 0 ? maxfac : min(maxfac, max(minfac, safety * err^(-one(T) / order)))
+            h *= fac
+        else
+            h *= max(minfac, safety * err^(-one(T) / order))
+        end
+    end
+    return Y
+end
+
+"""
     integrate_to_targets!(f!, y0, x0, targets, dir; tol) -> Matrix (length(targets) × ny)
 
 Adaptive DP5 integration of `dy/dx = f!(g,x,y)` from `x0` (state `y0`) in direction `dir` (+1/−1),

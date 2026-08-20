@@ -137,3 +137,66 @@ osc!(g, x, y) = (g[1] = y[2]; g[2] = -y[1])
         @test r > 2.0^7                                    # high-order local error collapse
     end
 end
+
+# ---- integrate_grid: grid-emitting DP5 (dense + capped) ------------------------------------------
+# Resolves the 4th vendored ODE copy (legacy `DiscModes.integrator`) into this family. Gates: exact
+# solutions in both directions, dense == capped within tolerance, the two RHS calling conventions
+# agree bitwise, and BigFloat genericity.
+@testset "integrate_grid — grid-emitting DP5" begin
+    # dy/dx = [y2, -y1] (harmonic oscillator) → y = [sin x, cos x] from y(0) = [0, 1]
+    frhs(x, y) = [y[2], -y[1]]
+    x = collect(range(0.0, 6.0; length = 61))
+    Y = integrate_grid(frhs, [0.0, 1.0], x, 1, +1; rtol = 1e-12, atol = 1e-14)
+    @test size(Y) == (61, 2)
+    @test maximum(abs.(Y[:, 1] .- sin.(x))) < 1e-10
+    @test maximum(abs.(Y[:, 2] .- cos.(x))) < 1e-10
+
+    # inward integration from the last grid point reproduces the same solution
+    Yin = integrate_grid(frhs, [sin(6.0), cos(6.0)], x, 61, -1; rtol = 1e-12, atol = 1e-14)
+    @test maximum(abs.(Yin[:, 1] .- sin.(x))) < 1e-9
+
+    # starting in the middle fills only the requested side (the other side stays zero)
+    Ymid = integrate_grid(frhs, [sin(x[31]), cos(x[31])], x, 31, +1; rtol = 1e-12, atol = 1e-14)
+    @test all(iszero, Ymid[1:30, :])
+    @test maximum(abs.(Ymid[31:end, 1] .- sin.(x[31:end]))) < 1e-10
+
+    # dense (cubic-Hermite) and capped (land-on-grid) paths agree
+    Yc = integrate_grid(frhs, [0.0, 1.0], x, 1, +1; rtol = 1e-12, atol = 1e-14, dense = false)
+    @test maximum(abs.(Yc[:, 1] .- sin.(x))) < 1e-10
+    @test maximum(abs.(Yc .- Y)) < 1e-9
+
+    # in-place RHS (3-arg) is detected and gives the SAME bits as the allocating 2-arg form
+    struct _OscRHS end
+    (::_OscRHS)(out::AbstractVector, x, y) = (out[1] = y[2]; out[2] = -y[1]; out)
+    (::_OscRHS)(x, y) = [y[2], -y[1]]
+    Yip = integrate_grid(_OscRHS(), [0.0, 1.0], x, 1, +1; rtol = 1e-12, atol = 1e-14)
+    @test Yip == Y
+
+    # exponential decay, BigFloat: y' = -y, y(0)=1
+    setprecision(BigFloat, 128) do
+        xb = collect(range(big(0.0), big(3.0); length = 31))
+        Yb = integrate_grid((x, y) -> [-y[1]], [big(1.0)], xb, 1, +1;
+                            rtol = big(1e-24), atol = big(1e-30))
+        @test eltype(Yb) === BigFloat
+        # the DENSE path interpolates with a cubic Hermite, so grid values carry its O(h⁴) error
+        # (measured 2.5e-20 here) even when the STEPS are integrated to 1e-24 …
+        @test maximum(abs.(Yb[:, 1] .- exp.(-xb))) < 1e-19
+        # … while the capped path lands on the grid points and keeps the step tolerance
+        Ybc = integrate_grid((x, y) -> [-y[1]], [big(1.0)], xb, 1, +1;
+                             rtol = big(1e-24), atol = big(1e-30), dense = false)
+        @test maximum(abs.(Ybc[:, 1] .- exp.(-xb))) < 1e-23
+    end
+end
+
+# ---- dp5_step_buffered! == dp5_step! at rtol = atol = tol ----------------------------------------
+@testset "dp5_step_buffered! matches dp5_step!" begin
+    f!(g, x, y) = (g[1] = y[2]; g[2] = -y[1]; g)
+    y = [0.3, 0.9]; k1 = similar(y); f!(k1, 0.0, y); h = 0.05; tol = 1e-10
+    err_a, y5_a, k7_a = dp5_step!(f!, 0.0, copy(y), copy(k1), h, tol)
+    kbuf = [Vector{Float64}(undef, 2) for _ in 1:7]; copyto!(kbuf[1], k1)
+    ys = zeros(2); y5 = zeros(2); y4 = zeros(2)
+    err_b = dp5_step_buffered!(f!, 0.0, copy(y), kbuf, ys, y5, y4, h; rtol = tol, atol = tol)
+    @test err_b == err_a
+    @test y5 == y5_a
+    @test kbuf[7] == k7_a
+end
