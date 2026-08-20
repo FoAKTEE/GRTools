@@ -2,29 +2,15 @@
 # ν + the MST minimal-solution f_n (from the Radial submodule) → the In-side transmission/incidence/
 # reflection (Btrans/Binc/Bref) and the Up-side (Ctrans/Cinc/Cref via the direct D1/D2 forms).
 # Pure-function tier consumed by the radial-normalization, the fluxes and the point-particle
-# convolution. Pochhammer delegates to BigSpecial; Γ/loggamma via SpecialFunctions (BigFloat
+# convolution. Pochhammer, Γ and logΓ all delegate to BigSpecial (reflection-safe, BigFloat
 # real-negative args routed through the reflection formula so the inner Γ sees a positive base).
 
-import SpecialFunctions
-
 # complex Γ branches (args may be negative real, e.g. K_ν2 at ν→−1−ν); exp(_lg(z)) == _g(z).
-# BigFloat note: `SpecialFunctions.{gamma,loggamma}(::Complex{BigFloat})` with a *purely real*
-# non-positive argument throws (falls through to the REAL branch), whereas Complex{Float64}
-# analytically continues. For the extended-precision (high-ℓ small-ω) amplitude chain we route such
-# real-negative Complex{BigFloat} args through the reflection formula so the inner Γ calls see a
-# positive-real argument (1−z has Re≥1); this matches the Float64 complex result to machine
-# precision modulo the 2πi branch (the residual phase cancels in the loggamma sums of _knu/_d1).
-_needs_refl(z) = z isa Complex{BigFloat} && imag(z) == 0 && real(z) <= 0
-function _lg(z0)
-    z = complex(z0)
-    _needs_refl(z) || return SpecialFunctions.loggamma(z)
-    return log(complex(big(pi))) - log(sin(big(pi) * z)) - SpecialFunctions.loggamma(1 - z)
-end
-function _g(z0)
-    z = complex(z0)
-    _needs_refl(z) || return SpecialFunctions.gamma(complex(z))
-    return complex(big(pi)) / (sin(big(pi) * z) * SpecialFunctions.gamma(1 - z))
-end
+# The reflection-safe bodies are `BigSpecial.{gamma_big,loggamma_big}` — the SINGLE home of the
+# Euler reflection Γ(z)=π/(sin(πz)Γ(1−z)) (this file used to carry a byte-identical private copy
+# plus its own `_needs_refl` predicate, which is `BigSpecial.needs_refl`).
+_lg(z0) = loggamma_big(complex(z0))
+_g(z0)  = gamma_big(complex(z0))
 
 "Sum a coefficient function over n (up from 0, down from −1) until the partial sum is unchanged."
 function _coeff_sum(cf, Nmax::Integer)
