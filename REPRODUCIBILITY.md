@@ -85,6 +85,7 @@ non-`solid` registry row, or a `FIXTURES.toml` status.
   path converts the notebook's own output boxes (route R1) and cross-checks against an independent
   re-derivation (route R2), which agree symbolically on-shell.
 * **MR19 (arXiv:1811.09628)** figures are `future` — they need reduced data regenerated first.
-* The **heavy tier is not run by CI** (17 of 47 registered results); a heavy-only regression can
-  survive a green build until the next manual sweep.
+* The **heavy tier is not run by CI** (2026-08-20: 20 of 52 registered results; the live split is
+  `grep -c 'tier = "heavy"' reproduce/MANIFEST.toml`); a heavy-only regression can survive a green
+  build until the next manual sweep.
 * **arXiv:2606.04998** has no drivers yet — the `EllipticCore` solver stack is still being built.

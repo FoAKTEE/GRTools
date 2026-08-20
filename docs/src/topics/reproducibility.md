@@ -194,12 +194,15 @@ is a visible skip, a `[[result]]` row that is not `solid`, or a `FIXTURES.toml` 
   the piece that has to be re-verified.
 * **MR19 (arXiv:1811.09628) figures.** Registered as `future`: the published figures need reduced
   data that has to be regenerated before drivers can land.
-* **The heavy tier does not run in CI.** 17 of 47 registered results are `heavy`; CI checks the 30
-  fast rows only. Heavy rows are re-checked manually, and a heavy-only regression can therefore
-  survive a green build until the next nightly/manual sweep.
-* **Not every registered row is `solid`.** The registry currently carries `preliminary` and
-  `future` rows (and one `hole`); the `status` column is the honest state, and a `preliminary` row
-  means the driver runs and the golden is stable, *not* that the physics claim is settled.
+* **The heavy tier does not run in CI.** Roughly two fifths of the registry is `heavy` (2026-08-20:
+  20 of 52 rows); CI checks the fast rows only. Heavy rows are re-checked manually, and a heavy-only
+  regression can therefore survive a green build until the next nightly/manual sweep. The live split
+  is `grep -c 'tier = "heavy"' reproduce/MANIFEST.toml` — the registry grows weekly, so trust the
+  command, not this sentence.
+* **Not every registered row is `solid`.** The registry carries `preliminary` and `future` rows
+  alongside the solid ones; the `status` column is the honest state, and a `preliminary` row means
+  the driver runs and its golden is stable, *not* that the physics claim is settled. It mirrors the
+  mission knowledge ledger — promote the node first, then the row.
 * **arXiv:2606.04998 (elliptic scalar self-force) has no drivers yet.** The `EllipticCore` solver
   stack is still being built; its figure drivers are a `future` node.
 
