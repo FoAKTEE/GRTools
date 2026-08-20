@@ -25,7 +25,11 @@ The solver stack, bottom to top:
   plus `build_matrix` column probes.
 - **Linear solvers** — complex-generic GMRES (Arnoldi/MGS with complex
   Givens); element-centered additive Schwarz smoothing with cached
-  (complex-shifted) subdomain factorizations; geometric multigrid V-cycles
+  (complex-shifted) subdomain factorizations; the complex-shift **policy**
+  [`helmholtz_shift`](@ref) (`s = (mΩ)²` in t-slicing, `0` under
+  hyperboloidal/null slicing) with its mass-weighted application route and the
+  [`schwarz_preconditioner`](@ref) adapter that feeds a Schwarz smoother to
+  `gmres` as a right preconditioner; geometric multigrid V-cycles
   with L2 transfers from the mortars; a coarsest-level cached sparse LU
   (UMFPACK, dense-LU fallback); and the right-preconditioned composition API
   `solve!`.

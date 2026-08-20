@@ -21,6 +21,8 @@ Owns (DESIGN.md §2.1, one DAG node = one commit per module):
   - `gmres.jl` — complex-generic GMRES (Arnoldi/MGS + complex Givens)
   - `schwarz.jl` — element-centered additive Schwarz with cached (complex-shifted)
     subdomain factorizations
+  - `schwarz_shift.jl` — the complex-shift POLICY value `helmholtz_shift(m, Ω; slicing)`
+    and the `schwarz_preconditioner` right-preconditioner adapter for `gmres`
   - `multigrid.jl` — geometric multigrid V-cycle with L2 transfers from mortars
   - `bottom_solve.jl` — coarsest-level cached sparse LU (UMFPACK), dense-LU fallback
   - `solver_stack.jl` — right-preconditioned GMRES composition API `solve!`
@@ -56,7 +58,8 @@ include("mortars.jl")        # DAG: dg-mortars
 include("boundary_hooks.jl") # DAG: boundary-data-hooks
 include("matrixfree.jl")     # DAG: matrix-free-operator
 include("gmres.jl")          # DAG: complex-gmres
-include("schwarz.jl")        # DAG: schwarz-smoother, schwarz-complex-shift
+include("schwarz.jl")        # DAG: schwarz-smoother
+include("schwarz_shift.jl")  # DAG: schwarz-complex-shift
 include("multigrid.jl")      # DAG: multigrid-hierarchy
 include("bottom_solve.jl")   # DAG: multigrid-bottom-solver
 include("solver_stack.jl")   # DAG: solver-stack-core

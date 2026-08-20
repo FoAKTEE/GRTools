@@ -20,7 +20,7 @@ through caller-supplied `fluxes!`/`sources!` closures and boundary hooks.
 | `matrixfree.jl` | full `apply!` composition + `build_matrix` column probes |
 | `gmres.jl` | complex-generic GMRES (Arnoldi/MGS + complex Givens) |
 | `schwarz.jl` | element-centered additive Schwarz with cached subdomain LUs |
-| `schwarz_shift.jl` | complex/Helmholtz shift for the Schwarz preconditioner |
+| `schwarz_shift.jl` | complex-shift policy `helmholtz_shift(m, Ω; slicing)` (`(mΩ)²` in t-slicing, 0 under hyperboloidal/null) + the `schwarz_preconditioner` right-preconditioner adapter for `gmres` |
 | `multigrid.jl` | geometric multigrid V-cycle with L2 transfers from mortars |
 | `bottom_solve.jl` | coarsest-level cached sparse LU (UMFPACK), dense-LU fallback |
 | `solver_stack.jl` | right-preconditioned GMRES composition API `solve!` |
