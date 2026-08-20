@@ -2,22 +2,25 @@
 # GeneralizedSasakiNakamura.jl v0.8.5 commit 982b087, arXiv:2306.16469; plan:
 # progress/emri-disk/GSN_PLAN.md). M=1 throughout (upstream convention, same as this capability).
 #
-# Local `_gsn_*` Kerr one-liners mirror upstream src/Homogeneous/Kerr.jl VERBATIM (they are also
-# definitionally identical to the Spacetime horizon/Δ forms; kept local so the GSN expression
-# blobs below stay textually faithful to their Mathematica export). The tortoise map replaces
-# upstream Roots.find_zero with the in-firewall NumericsCore rootfinders and — the audited
-# BigFloat blocker GSN_PLAN §3c-1 — carries a {T}-typed bracket instead of the Float64 (0, 1.4).
+# The `_gsn_*` Kerr one-liners are the upstream src/Homogeneous/Kerr.jl NAMES kept so the GSN
+# expression blobs below stay textually faithful to their Mathematica export — but their BODIES are
+# now the canonical Spacetime.Geometry forms (definitionally identical: same M=1 closed forms, same
+# floating-point operations), so there is exactly ONE definition of Δ, r±, Ω_H and K(r) in the
+# suite. Only these 5 definitions changed; the ~1000 lines of asymptotic blobs that call them are
+# untouched. The tortoise map replaces upstream Roots.find_zero with the in-firewall NumericsCore
+# rootfinders and — the audited BigFloat blocker GSN_PLAN §3c-1 — carries a {T}-typed bracket
+# instead of the Float64 (0, 1.4).
 
-"Kerr Δ(a,r) = r² − 2r + a² (M=1). [GSN Kerr.jl]"
-_gsn_Delta(a, r) = r^2 - 2*r + a^2
-"Outer horizon r₊ = 1 + √(1−a²) (M=1). [GSN Kerr.jl]"
-_gsn_rp(a) = 1 + sqrt(1 - a^2)
-"Inner horizon r₋ = 1 − √(1−a²) (M=1). [GSN Kerr.jl]"
-_gsn_rm(a) = 1 - sqrt(1 - a^2)
-"Horizon angular frequency Ω_H = a/(2r₊) (M=1). [GSN Kerr.jl]"
-_gsn_Omega_h(a) = a/(2*_gsn_rp(a))
-"Teukolsky K(r) = (r²+a²)ω − ma (M=1). [GSN Kerr.jl]"
-_gsn_KK(m::Int, a, omega, r) = (r^2 + a^2)*omega - m*a
+"Kerr Δ(a,r) = r² − 2r + a² (M=1). [GSN Kerr.jl] = `Spacetime.delta_kerr`."
+_gsn_Delta(a, r) = delta_kerr(a, r)
+"Outer horizon r₊ = 1 + √(1−a²) (M=1). [GSN Kerr.jl] = `Spacetime.horizons(a)[1]`."
+_gsn_rp(a) = horizons(a)[1]
+"Inner horizon r₋ = 1 − √(1−a²) (M=1). [GSN Kerr.jl] = `Spacetime.horizons(a)[2]`."
+_gsn_rm(a) = horizons(a)[2]
+"Horizon angular frequency Ω_H = a/(2r₊) (M=1). [GSN Kerr.jl] = `Spacetime.omega_plus`."
+_gsn_Omega_h(a) = omega_plus(a)
+"Teukolsky K(r) = (r²+a²)ω − ma (M=1). [GSN Kerr.jl] = `Spacetime.kfun`."
+_gsn_KK(m::Int, a, omega, r) = kfun(a, r, omega, m)
 
 """
     _gsn_rstar_from_r(a, r) -> rstar
