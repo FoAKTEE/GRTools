@@ -433,20 +433,61 @@ function bary_weights(x::AbstractVector{T}) where {T<:Real}
 end
 
 """
-    bary_eval(x, w, f, xq) -> value
+    bary_eval(x, w, f, xq; nodetol=0) -> value
 
 Second-form barycentric Lagrange evaluation of samples `f` at nodes `x` (weights `w`) at the scalar
 query `xq`. `f` may be real or complex. Exact for polynomials of degree ≤ `length(x)−1`.
+
+`nodetol` is the node-collision radius: a query within `abs(xq − x_j) ≤ nodetol` returns the nodal
+sample `f[j]` verbatim instead of forming the 0/0 second-form quotient. The default `0` is the
+exact test `xq == x_j`; a DG probe row whose `ξ` is *computed* (so a node coincidence is only exact
+to roundoff) passes a few `eps` — this is the one knob the three former private copies of this
+kernel disagreed on.
 """
-@inline function bary_eval(x::AbstractVector{<:Real}, w::AbstractVector, f::AbstractVector, xq::Real)
+@inline function bary_eval(x::AbstractVector{<:Real}, w::AbstractVector, f::AbstractVector, xq::Real;
+                           nodetol::Real = zero(real(eltype(w))))
     num = zero(eltype(f)); den = zero(eltype(w))
     @inbounds for j in eachindex(x)
         d = xq - x[j]
-        d == 0 && return f[j]
+        abs(d) <= nodetol && return f[j]
         t = w[j] / d
         num += t * f[j]; den += t
     end
     return num / den
+end
+
+"""
+    bary_row(x, w, xq; nodetol=0) -> Vector
+
+Second-form barycentric Lagrange CARDINAL ROW `[ℓ_1(xq) … ℓ_N(xq)]` for the nodes `x` with weights
+`w` (`bary_weights(x)`) — the matrixified companion of [`bary_eval`](@ref), so that
+`dot(bary_row(x, w, xq), f) ≈ bary_eval(x, w, f, xq)` while the row itself can be stored as one line
+of an interpolation/probe matrix. A node collision (`abs(xq − x_j) ≤ nodetol`, see
+[`bary_eval`](@ref)) returns the exact unit row `e_j`, which is what keeps the row finite when the
+query sits on (or within roundoff of) a node.
+
+Single home of the row kernel: `EllipticCore` reference-element face/probe rows and the
+`Perturbation.TimeDomain` DG probe rows both call it.
+"""
+function bary_row(x::AbstractVector{<:Real}, w::AbstractVector, xq::Real;
+                  nodetol::Real = zero(real(eltype(w))))
+    RT = eltype(w)
+    N = length(x)
+    row = Vector{RT}(undef, N)
+    s = zero(RT)
+    @inbounds for j in 1:N
+        d = xq - x[j]
+        if abs(d) <= nodetol
+            fill!(row, zero(RT))
+            row[j] = one(RT)
+            return row
+        end
+        t = w[j] / d
+        row[j] = t
+        s += t
+    end
+    row ./= s
+    return row
 end
 
 """

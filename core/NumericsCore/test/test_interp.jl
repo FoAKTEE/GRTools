@@ -15,7 +15,7 @@
 using NumericsCore
 using NumericsCore: CubicSplineInterpolant, BicubicNotAKnot, TricubicNotAKnot, GslBicubic,
     natural_spline_node_derivs, gsl_bsearch, cubic_hermite, fornberg_weights, highorder_deriv,
-    bary_weights, bary_eval, bary_interp, local_interp, cheb_nodes, cheb_diffmatrix, cheb_deriv,
+    bary_weights, bary_eval, bary_row, bary_interp, local_interp, cheb_nodes, cheb_diffmatrix, cheb_deriv,
     cheb_smooth_deriv, fd1c, fd2c
 
 @testset "interp" begin
@@ -188,6 +188,61 @@ using NumericsCore: CubicSplineInterpolant, BicubicNotAKnot, TricubicNotAKnot, G
         # complex-valued barycentric
         fc = (p.(nodes)) .+ im .* (q.(nodes))
         @test bary_eval(nodes, w, fc, 1.7) ≈ p(1.7) + im * q(1.7) atol=1e-9
+    end
+
+    # `bary_row` is the matrixified companion of `bary_eval` — the SINGLE row kernel behind the
+    # EllipticCore reference-element face/probe rows and the Perturbation.TimeDomain DG probe rows
+    # (both carried a private copy of this body before). Grounding is analytic: the cardinal
+    # property ℓ_i(x_j) = δ_ij, partition of unity Σ_j ℓ_j = 1, polynomial exactness through
+    # `dot(row, f)`, and agreement with `bary_eval` to the last bit.
+    @testset "bary_row — cardinal row, partition of unity, bary_eval agreement" begin
+        nodes = [0.0, 0.5, 1.3, 2.1, 2.8, 3.5]
+        w = bary_weights(nodes)
+        p(x) = 1.0 - x + 0.5x^2 - 0.2x^3 + 0.1x^4 - 0.03x^5     # degree 5 ⇒ exact on 6 nodes
+        f = p.(nodes)
+
+        # cardinal property at the nodes: an EXACT unit row (default nodetol = 0), not merely ≈
+        for j in eachindex(nodes)
+            row = bary_row(nodes, w, nodes[j])
+            @test row == [i == j ? 1.0 : 0.0 for i in eachindex(nodes)]
+        end
+
+        for xq in (0.2, 1.0, 1.7, 3.0, -0.4)
+            row = bary_row(nodes, w, xq)
+            @test length(row) == length(nodes)
+            @test sum(row) ≈ 1.0 atol=1e-13                      # partition of unity
+            @test sum(row .* f) ≈ p(xq) atol=1e-10               # polynomial exactness
+            # row·f and bary_eval agree to roundoff (row·f normalises first, bary_eval divides
+            # num/den last — same kernel, different association order)
+            @test sum(row .* f) ≈ bary_eval(nodes, w, f, xq) rtol=1e-14
+        end
+
+        # nodetol: a query within the collision radius snaps to the exact unit row; outside it the
+        # row is the ordinary second-form row (this is the one knob the former private copies
+        # disagreed on — EllipticCore used exact `==`, the TimeDomain probe rows 10 eps).
+        near = nodes[3] + 5e-16
+        @test bary_row(nodes, w, near; nodetol = 10 * eps(Float64)) ==
+              [i == 3 ? 1.0 : 0.0 for i in eachindex(nodes)]
+        @test bary_row(nodes, w, near) != [i == 3 ? 1.0 : 0.0 for i in eachindex(nodes)]
+        @test bary_row(nodes, w, near) ≈ [i == 3 ? 1.0 : 0.0 for i in eachindex(nodes)] atol=1e-6
+        # ... and `bary_eval` carries the same knob
+        @test bary_eval(nodes, w, f, near; nodetol = 10 * eps(Float64)) == f[3]
+
+        # explicit second-form reference (the body the private copies carried), away from nodes
+        xq = 1.9
+        ref = [w[j] / (xq - nodes[j]) for j in eachindex(nodes)]
+        ref ./= sum(ref)
+        @test bary_row(nodes, w, xq) == ref
+
+        # type genericity: BigFloat nodes inherit precision
+        setprecision(BigFloat, 128) do
+            bn = BigFloat[0, 1//4, 3//4, 1]
+            bw = bary_weights(bn)
+            rowb = bary_row(bn, bw, BigFloat(1)/3)
+            @test eltype(rowb) === BigFloat
+            @test sum(rowb) ≈ one(BigFloat) atol=big(2.0)^-100
+            @test bary_row(bn, bw, bn[2]) == BigFloat[0, 1, 0, 0]
+        end
     end
 
     @testset "cheb_diffmatrix spectral-exact on polynomials of degree ≤ N" begin

@@ -148,29 +148,13 @@ end
 
 Evaluate the nodal field `u` (length `Np`) of reference element `el` at reference
 coordinate `ξ ∈ [-1,1]` using barycentric Lagrange interpolation.
+
+Thin wrapper over the single barycentric kernel [`bary_eval`](@ref) on the LGL nodes `el.r`; `ξ`
+is a computed coordinate, so the node-collision test carries the `10 eps(T)` radius (`nodetol`)
+rather than exact equality.
 """
 function lagrange_interp(el::RefElement{T}, u::AbstractVector, ξ::Real) where {T}
-    r = el.r
-    Np = el.Np
-    # barycentric weights for LGL nodes
-    wbary = ones(T, Np)
-    @inbounds for j in 1:Np, k in 1:Np
-        if k != j
-            wbary[j] /= (r[j] - r[k])
-        end
-    end
-    num = zero(eltype(u))
-    den = zero(T)
-    @inbounds for j in 1:Np
-        d = T(ξ) - r[j]
-        if abs(d) < eps(T) * 10
-            return u[j]
-        end
-        t = wbary[j] / d
-        num += t * u[j]
-        den += t
-    end
-    return num / den
+    return bary_eval(el.r, bary_weights(el.r), u, T(ξ); nodetol = 10 * eps(T))
 end
 
 # ----------------------------------------------------------------------------

@@ -4,22 +4,14 @@
 # the repo's, ported verbatim (deviations noted inline).
 
 # ---- interpolation probe row -------------------------------------------------------------------
-"barycentric Lagrange row `L_j(ξ)` on the reference element (repo `_lagrange_row`, one copy for
-Mode1D/Flux1D/KerrModes/KerrFlux — identical in all four)."
-function _lagrange_row(el::RefElement{T}, ξ) where {T}
-    r = el.r; Np = el.Np
-    wb = ones(T, Np)
-    @inbounds for j in 1:Np, k in 1:Np
-        k != j && (wb[j] /= (r[j] - r[k]))
-    end
-    L = zeros(T, Np); den = zero(T); ex = 0
-    @inbounds for j in 1:Np
-        d = T(ξ) - r[j]
-        abs(d) < eps(T) * 10 ? (ex = j) : (L[j] = wb[j] / d; den += L[j])
-    end
-    ex != 0 && (fill!(L, zero(T)); L[ex] = one(T); return L)
-    L ./= den; return L
-end
+"""barycentric Lagrange row `L_j(ξ)` on the reference element (repo `_lagrange_row`, one copy for
+Mode1D/Flux1D/KerrModes/KerrFlux — identical in all four). The kernel is the single
+`NumericsCore.bary_row`; the probe `ξ` is a COMPUTED coordinate, so the node-collision radius is the
+repo's `10 eps(T)` (`nodetol`) rather than exact equality. Weights are rebuilt per call, as in the
+repo — `bary_weights` runs the same `w[j] /= (r[j]-r[k])` loop in the same order, so the row is
+bit-identical."""
+_lagrange_row(el::RefElement{T}, ξ) where {T} =
+    bary_row(el.r, bary_weights(el.r), T(ξ); nodetol = eps(T) * 10)
 
 # ---- single-mode 2×2 flux action ---------------------------------------------------------------
 "`A·(π,φ)` for the single-mode flux matrix `A = 1/(1+H)[[H,1],[1,H]]` (repo `_AU`, one copy for

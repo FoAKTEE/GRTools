@@ -51,27 +51,10 @@ struct RefElement{RT<:AbstractFloat}
     face_hi::Vector{RT}
 end
 
-# Lagrange cardinal-function row [ℓ_1(xq) … ℓ_N(xq)] in second barycentric form; an exact node
-# collision returns the exact unit row (the d == 0 branch of NumericsCore.bary_eval, matrixified).
-function _lagrange_row(x::AbstractVector{RT}, bw::AbstractVector{RT}, xq::RT) where {RT}
-    N = length(x)
-    row = Vector{RT}(undef, N)
-    @inbounds for j in 1:N
-        if xq == x[j]
-            fill!(row, zero(RT))
-            row[j] = one(RT)
-            return row
-        end
-    end
-    s = zero(RT)
-    @inbounds for j in 1:N
-        t = bw[j] / (xq - x[j])
-        row[j] = t
-        s += t
-    end
-    row ./= s
-    return row
-end
+# Lagrange cardinal-function rows [ℓ_1(xq) … ℓ_N(xq)] come from the single barycentric row kernel
+# `NumericsCore.bary_row` (second form; an EXACT node collision — the default `nodetol = 0` — returns
+# the exact unit row). The former private `_lagrange_row` body lived here and in
+# Perturbation.TimeDomain; both now call the core kernel.
 
 function _build_refelement(::Type{RT}, N::Int) where {RT<:AbstractFloat}
     N >= 1 || throw(ArgumentError("RefElement needs N ≥ 1 nodes, got $N"))
@@ -91,8 +74,8 @@ function _build_refelement(::Type{RT}, N::Int) where {RT<:AbstractFloat}
         D[i, i] = -acc
     end
     return RefElement{RT}(x, w, bw, D,
-                          _lagrange_row(x, bw, -one(RT)),
-                          _lagrange_row(x, bw, one(RT)))
+                          bary_row(x, bw, -one(RT)),
+                          bary_row(x, bw, one(RT)))
 end
 
 # ---- global element cache -----------------------------------------------------------------
@@ -162,7 +145,7 @@ yields that node's exact unit row.
 function interpolation_matrix(elem::RefElement{RT}, pts::AbstractVector{<:Real}) where {RT}
     P = Matrix{RT}(undef, length(pts), length(elem.nodes))
     for (q, p) in enumerate(pts)
-        P[q, :] = _lagrange_row(elem.nodes, elem.barywts, RT(p))
+        P[q, :] = bary_row(elem.nodes, elem.barywts, RT(p))
     end
     return P
 end

@@ -68,7 +68,7 @@ export H1Schema, AmpGridSchema, FluxGridSchema, validate_schema, schema_version,
 include("interp.jl")
 export CubicSplineInterpolant, BicubicNotAKnot, TricubicNotAKnot, GslBicubic
 export natural_spline_node_derivs, gsl_bsearch, cubic_hermite
-export fornberg_weights, highorder_deriv, bary_weights, bary_eval, bary_interp, local_interp
+export fornberg_weights, highorder_deriv, bary_weights, bary_eval, bary_row, bary_interp, local_interp
 export cheb_nodes, cheb_diffmatrix, cheb_deriv, cheb_smooth_deriv, fd1c, fd2c
 export Interp1WL, interp1_movingwindow, Interp2Hermite, interp2_hermite, partial
 export Interp3Lagrange, interp3_lagrange

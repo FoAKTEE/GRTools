@@ -76,7 +76,7 @@ module TimeDomain
 using LinearAlgebra: mul!, dot, eigen, inv, norm, I as Id
 # DG core + RK4 (NumericsCore.dg = the characterized DGCore/TimeStepping port; commit faa4916)
 using NumericsCore: RefElement, Mesh, build_mesh, element_of, lagrange_interp, node_coords,
-                    rk4!, cfl_dt
+                    rk4!, cfl_dt, bary_weights, bary_row
 # Uniform-grid FD stencils + KO dissipation (NumericsCore.fd_uniform = the TeukEvolution Radial port,
 # D1 commit 6aaf6d82) — the HPHC spectral-collocation evolution backend (hphc.jl).
 using NumericsCore: set_d1!, set_d2!, ko_filter!
