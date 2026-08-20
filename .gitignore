@@ -15,3 +15,6 @@ docs/build/
 # Local scratch and logs
 scratch/
 *.log
+
+# reproduce/ registry flock file (concurrency guard for MANIFEST.toml appends; always empty)
+reproduce/.manifest.lock
