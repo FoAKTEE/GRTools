@@ -510,3 +510,14 @@ expected = "arXiv-2608.17003/expected/fig06.json"
 depends = ["AccretionDisc", "Spacetime"]
 status = "solid"
 notes = "fig:torque_chi_ap (M:934-939) - the total torque (74) in F_{J,0}h0 vs a./M in [10,1000] (40 log-spaced points, the reference marker pitch) for chi in {0.9, 0, -0.9}, panels (p,q) = (1.5,1) and (0,0), h0=0.05, b=0.6, m=1:80, grid (30,30,3000); 240 configurations, 8616 s at -t8. Printed/caption claims asserted and PASSING: M:925 no torque reversal (min T = 0.343 F_{J,0}h0 at a.=10M, chi=-0.9, where T_L is already negative); M:936 T(chi=-0.9) < T(chi=0) < T(chi=+0.9) at a.=10M in both panels; the three spins converge at a.=1000M to 1.6% (gate 5%). Plateau T(chi=0, a.=1000M) = 1.9664 / 1.1242 F_{J,0}h0 vs approx 1.97 / 1.13 read off the reference. VLM verdict match. FINDING: the 1-2 smallest radii are 5-15% below the published markers (0.794 vs 0.93 at a.=10M chi=0 in the (0,0) panel), the same strong-field regime as the fig05 and fig10 findings; agreement is <=1-3% for a. >= 16M. The golden's script_sha256 predates a plotting-only edit (y-limits re-measured off the reference PDF, redrawn with --plot-only); the stored numbers are untouched."
+
+[[result]]
+paper = "2608.17003"
+id = "fig07"
+kind = "figure"
+script = "arXiv-2608.17003/fig07.jl"
+tier = "heavy"
+expected = "arXiv-2608.17003/expected/fig07.json"
+depends = ["AccretionDisc", "Spacetime"]
+status = "solid"
+notes = "fig:torque_ap_h0 (M:944-949) - the total torque (74) in F_{J,0}h0 vs a./M in [10,1000] (the same 40 log-spaced points as fig06) for h0 in {0.05,0.075,0.1,0.125,0.15} at chi=0, panels (p,q) = (1.5,1) and (0,0), b=0.6, m <= ceil(4/h0) (80/54/40/32/27), grid (30,30,3000); 400 configurations, 6224 s at -t8. BOTH PRINTED CLAIMS PASS and are the golden keys the paper-facing gate reads: M:925 no torque reversal (total_torque_all_positive = true over all 400 configurations) and M:947 the torque increases with h0 up to 0.125 and decreases at 0.15 (plateau over a. >= 100M of the (0,0) panel: 1.1196, 1.1262, 1.1722, 1.2027, 1.1335 -> torque_peak_h0 = 0.125, torque_monotone_up_to_peak = true). The plateau ordering and values agree with the published figure to about 1%, and the h0 ordering is reversed between the two panels exactly as in the reference. Cross-driver gate: the h0=0.05 series of the (0,0) panel is BITWISE identical to the chi=0 series of fig06 (same 40 configurations). VLM verdict match. FINDING (shared with fig06): the smallest radii are 5-15% below the published markers; it does not touch the two printed claims, which are plateau statements."
