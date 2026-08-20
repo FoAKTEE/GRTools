@@ -14,6 +14,17 @@
 # Claims gated here: M:1025 (m₉₅h₀ ≃ 2.0–3.5 across the profiles) and M:992 (m₉₅ ∝ 1/h₀, i.e. m₉₅h₀
 # approximately universal at fixed (𝔭,𝔮,χ,a•) as h₀ is scanned).
 #
+# M:1025 CRITERION, CORRECTED IN WAVE 5.  The first version demanded that our band EDGES sit inside
+# [1.75,2.25] and [3.25,3.75], i.e. AT the edges of the paper's rounded prose interval "m₉₅h₀ ≃
+# 2.0–3.5".  A pixel read-back of the PUBLISHED figure (emri-disk
+# results/emri-gasdisk/paper_EMRI-GASDISK/evidence/fig08-m95-violins/REFERENCE_READBACK.md, recorded
+# while this survey was still running) measures the published band as [2.208, 3.157]: the published
+# figure FAILS that criterion itself (3.157 < 3.25).  The prose interval is a rounded ENVELOPE, not
+# a pair of attained extremes.  The check below now mirrors `check_printed_numbers.jl` exactly —
+# containment in [2.0,3.5]±0.25, ≥ 55 % coverage of that interval (the published band covers 63.3 %),
+# and the ⌈K_SENS/h₀⌉ values within ±0.30 of the published pixels.  See that file's `M1025-m95h0-band`
+# comment and reproduce/arXiv-2608.17003/README.md for the full argument and the falsification tests.
+#
 # ── COMPUTE / RESOLUTION (recorded, verified, not assumed) ───────────────────────────────────────
 # This is the heaviest driver of the paper: N_pq × N_a × N_χ × N_h₀ = 5×3×3×N_h₀ mode SURVEYS, each
 # summing m = 1…⌈4/h₀⌉ (m₉₅h₀ ≲ 3.5 ⇒ 4/h₀ clears the cutoff).  At the paper's reference grid triple
@@ -311,13 +322,25 @@ const PAPER_CHECKS_ENFORCED = true
 println("\n[fig08] printed-number checks")
 println("  claim                                src      paper           ours          verdict")
 violations = String[]
+# The three parts of the corrected M:1025 criterion (identical to check_printed_numbers.jl).
+const PUB_BAND = (2.208, 3.157)     # published Fig. 8 pixel read-back (REFERENCE_READBACK.md)
 let lo = minimum(allv), hi = maximum(allv)
-    ok = (1.75 <= lo <= 2.25) && (3.25 <= hi <= 3.75)
-    ok || push!(violations, "m95h0 band [M:1025]: paper [2.0, 3.5] (±0.25 each edge), ours [$(round(lo;digits=3)), $(round(hi;digits=3))]")
-    @printf("  %-36s %-8s %-15s %-13s %s\n", "m95 h0 band ≃ 2.0–3.5", "M:1025", "[2.0, 3.5]",
-            "[$(round(lo;digits=3)), $(round(hi;digits=3))]", ok ? "PASS" : "FAIL")
-    @printf("  %-36s %-8s %-15s %-13s %s\n", "  same band at the ⌈6/h₀⌉ ceiling", "M:1025", "(diagnostic)",
-            "[$(round(sens[1].m95h0_Ksens;digits=3)), $(round(sens[2].m95h0_Ksens;digits=3))]", "—")
+    loK, hiK = sens[1].m95h0_Ksens, sens[2].m95h0_Ksens
+    contained = lo <= hi && 1.75 <= lo <= 3.75 && 1.75 <= hi <= 3.75          # [2.0,3.5] ± 0.25
+    cover = max(0.0, min(hi, 3.5) - max(lo, 2.0)) / 1.5                       # published: 0.633
+    pixels = abs(loK - PUB_BAND[1]) <= 0.30 && abs(hiK - PUB_BAND[2]) <= 0.30
+    ok = contained && cover >= 0.55 && pixels
+    ok || push!(violations, "m95h0 band [M:1025]: ours [$(round(lo;digits=3)), $(round(hi;digits=3))] " *
+                "(contained=$(contained), coverage=$(round(100cover;digits=1))% of [2.0,3.5], need >=55%), " *
+                "⌈$(K_SENS)/h₀⌉ [$(round(loK;digits=3)), $(round(hiK;digits=3))] vs published pixels " *
+                "[$(PUB_BAND[1]), $(PUB_BAND[2])] (within ±0.30 = $(pixels))")
+    @printf("  %-36s %-8s %-15s %-13s %s\n", "m95 h0 band inside 2.0-3.5 ±0.25", "M:1025", "[1.75, 3.75]",
+            "[$(round(lo;digits=3)), $(round(hi;digits=3))]", contained ? "PASS" : "FAIL")
+    @printf("  %-36s %-8s %-15s %-13s %s\n", "  coverage of [2.0, 3.5]", "M:1025", "≥ 55%",
+            "$(round(100cover;digits=1))%", cover >= 0.55 ? "PASS" : "FAIL")
+    @printf("  %-36s %-8s %-15s %-13s %s\n", "  ⌈$(K_SENS)/h₀⌉ band vs published pixels", "M:1025",
+            "[$(PUB_BAND[1]), $(PUB_BAND[2])]",
+            "[$(round(loK;digits=3)), $(round(hiK;digits=3))]", pixels ? "PASS" : "FAIL")
 end
 let s = maximum(spread)
     ok = s <= 0.35

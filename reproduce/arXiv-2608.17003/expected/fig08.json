@@ -1,9 +1,9 @@
 {
-  "generated_at_commit": "26fccde88c9e99007c51adf11d6ccc5051e0d87c",
+  "generated_at_commit": "13d68095e45da4d328a91dea2171f9830ec7413f",
   "id": "fig08",
   "julia": "1.12.6",
   "paper": "2608.17003",
-  "script_sha256": "f1ff71577e3310691c29385e36447b65034678cb97e8f89f6bc7f86f64956862",
+  "script_sha256": "b1369c26b95e4219f902de387366763df4cdb929042a1bf24b04295f3f653c0f",
   "values": {
     "a_grid": [15.0, 30.0, 120.0],
     "b_soft": 0.6,
@@ -50,7 +50,7 @@
     "m95h0_pq201_a30": [2.75, 2.6999999999999997, 2.7, 2.75, 2.6999999999999997, 2.7, 2.6999999999999997, 2.7, 2.625, 2.6999999999999997, 2.7, 2.625, 2.7, 2.625, 2.85],
     "m_max_over_h0": 4.0,
     "m_max_over_h0_sens": 6.0,
-    "printed_checks_pass": false,
+    "printed_checks_pass": true,
     "resolution_check_pass": true,
     "tail_fraction_max": 0.08514416998578839,
     "truncation_estimate_max": 0.01574143890370542
