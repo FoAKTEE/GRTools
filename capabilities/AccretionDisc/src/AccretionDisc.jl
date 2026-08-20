@@ -47,6 +47,9 @@ using .Modes: NovikovThorneDisc, nt_isco, nt_factors, nt_surface_density, nt_sca
 using .Modes: qinv_operator, q_operator
 using .Modes: disc_OmegaK_z, alpha_z, Uvec_z, pressure_z, eden_z
 using .Modes: qinv_operator_z, q_operator_z, heightavg
+using .Modes: NewtonianDisc, master_equation_cool, loggrid, solve_m_mode, solve_modes,
+              vars_from_enthalpy, PotentialCache, passive_mode, passive_sigma
+using .Modes: laplace_b_soft, laplace_b_soft_deriv, laplace_b_soft_2deriv
 using .Modes: master_radial_coeffs
 export RelativisticDisc, disc_OmegaK, kappar2, delta_r, csound, eden0, risco_disc
 export lindblad_residual, corotation_residual, wronskian, lindblad_locations
@@ -66,6 +69,9 @@ export epicyclic_impedance, lindblad_detuning, lindblad_detuning_deriv
 export lindblad_strength, lindblad_strength_newtonian
 export NovikovThorneDisc, nt_isco, nt_factors, nt_surface_density, nt_scale_height, nt_aspect_ratio
 export ss_surface_density, ss_aspect_ratio, pressure_cutoff, total_lindblad_torque, powerlaw_fit
+export NewtonianDisc, master_equation_cool, loggrid, solve_m_mode, solve_modes,
+       vars_from_enthalpy, PotentialCache, passive_mode, passive_sigma
+export laplace_b_soft, laplace_b_soft_deriv, laplace_b_soft_2deriv
 export qinv_operator, q_operator
 export disc_OmegaK_z, alpha_z, Uvec_z, pressure_z, eden_z
 export qinv_operator_z, q_operator_z, heightavg

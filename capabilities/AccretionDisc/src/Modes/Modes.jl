@@ -46,6 +46,16 @@ include("ThinDisc.jl")
 export NovikovThorneDisc, nt_isco, nt_factors, nt_surface_density, nt_scale_height, nt_aspect_ratio
 export ss_surface_density, ss_aspect_ratio, pressure_cutoff, total_lindblad_torque, powerlaw_fit
 
+include("NewtonianMaster.jl")
+include("NewtonianPlanet.jl")
+include("NewtonianSolver.jl")
+# MR19/MR20 Newtonian planet-forced disc: the model profiles stay UNEXPORTED (`Modes.Omega`,
+# `Modes.Sigma`, … belong to this background only); the solver API and the softened Laplace family
+# are exported.
+export NewtonianDisc, master_equation_cool, loggrid, solve_m_mode, solve_modes, vars_from_enthalpy
+export PotentialCache, passive_mode, passive_sigma
+export laplace_b_soft, laplace_b_soft_deriv, laplace_b_soft_2deriv
+
 include("PressurelessLindblad.jl")
 export SurfaceDensityProfile, PowerLawSigma
 export surface_density, surface_density_dp, surface_density_slope
