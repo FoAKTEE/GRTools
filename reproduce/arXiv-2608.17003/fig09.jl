@@ -11,9 +11,18 @@
 #               GrTools: `AccretionDisc.Modes.hkr_lindblad_torque`.
 #   denominator T_L^num = Σ_m [F_J(r_out) − F_J(r_in)]_m               — arXiv:2608.17003 (75);
 #               GrTools: `AccretionDisc.SpiralWaves.{solve_mode, lindblad_torque}`.
-#   cutoff      m_max = m_45, the smallest m at which the NUMERICAL cumulative Lindblad torque
-#               reaches 45 % of its converged value (main.tex:988-1000); the paper quotes
-#               m_45 ~ 0.35/h0 (80).  GrTools: `SpiralWaves.m_cut(Tm, 0.45)`.
+#   cutoff      m_max = m_45, the smallest m at which the NUMERICAL cumulative torque reaches 45 %
+#               of its converged value (main.tex:988-1000); the paper quotes m_45 ~ 0.35/h0 (80).
+#               GrTools: `SpiralWaves.m_cut(Tm, 0.45)`.
+#
+#               TWO FLAVOURS ARE REGISTERED.  main.tex:991 defines m_K off "the cumulative torque",
+#               i.e. the TOTAL torque (74) that Fig. 8 uses for m_95 (`SpiralWaves.mode_torques`);
+#               this driver's analytic cutoff is instead read off the per-mode LINDBLAD torque (75)
+#               (`mode_lindblad_torques`), the quantity the ratio itself compares.  The paper does
+#               not say which of the two it used for m_45, so BOTH are computed from the SAME survey
+#               (no extra solve: `TorqueSurvey` already carries T_m and T_{L,m} per mode) and both
+#               land in the golden -- `m45_pq*` / `m45_times_h0` (Lindblad, the one that feeds
+#               T_ana) and `m45_T_pq*` / `m45_T_times_h0` (total torque, the literal M:991 reading).
 #
 # GOLDEN REUSE (checked, does not apply): fig06 also runs (𝔭,𝔮)=(0,0), χ=0, h0=0.05, but on a
 # LOG a• grid over [10,1000]M and it registers the TOTAL torque (74), not the per-mode Lindblad
@@ -90,7 +99,7 @@ const MD = GrTools.AccretionDisc.Modes
 
 # The numerical half needs the mode solver + diagnostics + survey
 # (EGD::sw-mode-solver, EGD::sw-diagnostics, EGD::sw-survey-parallel).
-for f in (:torque_survey, :mode_lindblad_torques, :m_cut, :torque_units)
+for f in (:torque_survey, :mode_lindblad_torques, :mode_torques, :m_cut, :torque_units)
     isdefined(SW, f) || ReproHarness.hole(
         "AccretionDisc.SpiralWaves.$(f) is not available: the numerical Lindblad torque of " *
         "arXiv:2608.17003 (75) needs the mode solver and the AMF/torque diagnostics " *
@@ -141,10 +150,13 @@ function torque_pair(𝔭, 𝔮, a)
     Tm = SW.mode_lindblad_torques(surv)
     T_num = surv.T_L_total
     m45 = SW.m_cut(Tm, 0.45)
+    # the SAME cutoff read off the per-mode TOTAL torque (74) — M:991 defines m_K on "the cumulative
+    # torque", so this is the literal reading; free, the survey already holds T_m (no extra solve).
+    m45_T = SW.m_cut(SW.mode_torques(surv), 0.45)
     σ = MD.PowerLawSigma(bg.ε0, a, 𝔭)                 # ε = ε0 (r/a•)^{−𝔭}, 2608 (12a) = 2510 (22a)
     T_ana = MD.hkr_lindblad_torque(CHI, a, σ; m_max = m45)
     tail = sum(@view Tm[max(1, MMAX - 9):MMAX]) / T_num     # mode-sum convergence diagnostic
-    (; T_num, T_ana, m45, Tm, tail, seconds = time() - t0, budget = surv.budget)
+    (; T_num, T_ana, m45, m45_T, Tm, tail, seconds = time() - t0, budget = surv.budget)
 end
 
 println("\n[fig09] a• grid: ", N_A, " points in [", A_MIN, ", ", A_MAX, "] M; m = 1:", MMAX,
@@ -153,18 +165,19 @@ flush(stdout)
 
 results = Dict{Tuple{Int,Int},NamedTuple}()
 for (𝔭, 𝔮) in CONFIGS
-    ratios = Float64[]; nums = Float64[]; anas = Float64[]; m45s = Int[]; secs = Float64[]
-    tails = Float64[]; opposite = Bool[]
+    ratios = Float64[]; nums = Float64[]; anas = Float64[]; m45s = Int[]; m45Ts = Int[]
+    secs = Float64[]; tails = Float64[]; opposite = Bool[]
     for a in APS
         p = torque_pair(𝔭, 𝔮, a)
         push!(nums, p.T_num); push!(anas, p.T_ana); push!(m45s, p.m45); push!(secs, p.seconds)
+        push!(m45Ts, p.m45_T)
         push!(tails, p.tail); push!(opposite, sign(p.T_ana) == -sign(p.T_num))
         push!(ratios, -p.T_ana / p.T_num)
-        @printf("[fig09] (𝔭,𝔮)=(%d,%d)  a•=%7.3f M   T_num=%+.6e  T_ana=%+.6e  ratio=%.4f  m45=%3d  tail=%.2e  %.1f s\n",
-                𝔭, 𝔮, a, p.T_num, p.T_ana, -p.T_ana / p.T_num, p.m45, p.tail, p.seconds)
+        @printf("[fig09] (𝔭,𝔮)=(%d,%d)  a•=%7.3f M   T_num=%+.6e  T_ana=%+.6e  ratio=%.4f  m45=%3d  m45(T)=%3d  tail=%.2e  %.1f s\n",
+                𝔭, 𝔮, a, p.T_num, p.T_ana, -p.T_ana / p.T_num, p.m45, p.m45_T, p.tail, p.seconds)
         flush(stdout)   # a multi-hour run must leave a readable trail even if it is interrupted
     end
-    results[(𝔭, 𝔮)] = (; ratios, nums, anas, m45s, secs, tails, opposite)
+    results[(𝔭, 𝔮)] = (; ratios, nums, anas, m45s, m45Ts, secs, tails, opposite)
 end
 
 r00 = results[(0, 0)]
@@ -182,6 +195,8 @@ r01 = results[(0, 1)]
 @repro_result "T_ana_pq01"        r01.anas
 @repro_result "m45_pq00"          r00.m45s
 @repro_result "m45_pq01"          r01.m45s
+@repro_result "m45_T_pq00"        r00.m45Ts
+@repro_result "m45_T_pq01"        r01.m45Ts
 @repro_result "signs_opposite"    all(r00.opposite) && all(r01.opposite)
 @repro_result "tail_fraction_max" max(maximum(abs, r00.tails), maximum(abs, r01.tails))
 
@@ -199,6 +214,7 @@ end
 # m₄₅h₀ is quoted as ~0.35 for (𝔭,𝔮) = (0,0) (main.tex:999); report the median over the a• grid.
 _median(v) = (s = sort(collect(v)); n = length(s); isodd(n) ? float(s[(n+1)÷2]) : (s[n÷2] + s[n÷2+1]) / 2)
 @repro_result "m45_times_h0"      _median(r00.m45s) * H0
+@repro_result "m45_T_times_h0"    _median(r00.m45Ts) * H0
 @repro_result "ratio_pq00_a12"    r00.ratios[1]
 @repro_result "ratio_pq00_a100"   r00.ratios[end]
 @repro_result "ratio_pq01_min"    minimum(r01.ratios)
@@ -227,6 +243,12 @@ for c in checks
     @printf("  %-34s %-8s %7.4f  %7.4f  ±%.3f   %s\n", c.id, c.src, c.paper, c.ours, c.tol,
             ok ? "PASS" : "FAIL")
 end
+# DIAGNOSTIC (registered, never asserted here): the same 45 % cutoff read off the TOTAL torque (74).
+# M:991 defines m_K on "the cumulative torque" without saying which torque; the analytic cutoff this
+# figure feeds to `hkr_lindblad_torque` is the Lindblad one, so that is what the row above asserts.
+@printf("  %-34s %-8s %7.4f  %7.4f  %-7s %s\n", "m45(total torque) h0 [diagnostic]", "M:991",
+        0.35, _median(r00.m45Ts) * H0, "—", "not asserted")
+
 @repro_result "printed_checks_pass" isempty(violations)
 
 paper_check_failed = false
@@ -247,5 +269,7 @@ draw(APS, r00.ratios, r01.ratios)
 code = ReproHarness.conclude!(opts; paper = "2608.17003", id = "fig09", script = @__FILE__,
                              rtol = 1e-8,
                              tolerances = Dict("m45_pq00" => (rtol = 0.0, atol = 0.0),
-                                               "m45_pq01" => (rtol = 0.0, atol = 0.0)))
+                                               "m45_pq01" => (rtol = 0.0, atol = 0.0),
+                                               "m45_T_pq00" => (rtol = 0.0, atol = 0.0),
+                                               "m45_T_pq01" => (rtol = 0.0, atol = 0.0)))
 exit(paper_check_failed ? max(code, 1) : code)

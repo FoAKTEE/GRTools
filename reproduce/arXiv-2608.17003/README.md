@@ -23,7 +23,7 @@ pressureless analytic baselines it is compared against).  Drivers here are THIN.
 | 12 | fig:pole_disp_errors                 | `fig12.jl` | `expected/fig12.json` | heavy | **solid** | **match** | a•=100M, χ=𝔭=𝔮=0, ε_p∈{1e-3,1e-4,1e-5} vs 1e-6. O(ε_p) reproduced: median ratios 9.998 / 10.985 (reference pixel-read 9.94 / 10.95). FINDING: the n_C=2400 grid printed at A:162 resolves the ε_p=1e-6 pole only to m≈5, so the errors saturate there; the driver uses the paper's reference n_C=24000 (A:140) and its own cutoff m_max=⌈3/h0⌉ (M:105) — `GRTOOLS_FIG12_NC=2400` restores A:162. 3227 s at -t4. |
 | 13 | fig:variation_with_respect_to_b      | `fig13.jl` | `expected/fig13.json` | heavy | **solid** | **match** | T (74) in F_{J,0}h₀ vs b ∈ {0.3…0.8} for h₀ ∈ {0.05,0.075,0.1,0.125,0.15}, 𝔭=𝔮=χ=0, a•=100M, m = 1:⌈4/h₀⌉ on the (60,60,6000) triple (A:139) with an in-driver cross-check at the reference triple (rel 2–5e-6). A:164 PASSES: T(h₀=0.05) = 1.2610 (b=0.3) → 0.9714 (b=0.8), paper 1.28 → 0.97; all five series decrease monotonically. Pixel read-back of the reference: values within 1.7 % (median 0.3–1.1 %) and identical series ordering at every b. ~33 min at -t8; `--check` PASSES 28/28 bitwise. |
 | 14 | fig:m95_vs_b                         | `fig14.jl` | `expected/fig14.json` | heavy | **solid** | **match** | m₉₅h₀ vs b ∈ {0.3…0.8}, 𝔭=𝔮=χ=0, a•=30M, h₀=0.05, m = 1:⌈4/h₀⌉ = 1:80 on (60,60,6000) with an in-driver reference-triple cross-check (same m₉₅). A:164 PASSES: 2.70 (b=0.3) → 1.90 (b=0.8), paper 2.9 → 1.95, monotone. Pixel read-back: four of six points differ by exactly one mode (0.05). FINDING: m₉₅ depends on the mode ceiling — at ⌈6/h₀⌉ the b=0.3 point is 2.900, the published value (registered as `m95_h0_Ksens_b03`). ~13 min at -t8; `--check` PASSES 22/22 bitwise. |
-| —  | printed-number gate                  | `check_printed_numbers.jl` | none (by design) | fast | **HOLE** (14 PASS / 0 FAIL / 4 uncovered) | n/a | asserts every printed number of the paper that the figure goldens cover; still waiting on fig08 (m₉₅ band) and fig13/fig14 (softening) |
+| —  | printed-number gate                  | `check_printed_numbers.jl` | none (by design) | fast | **solid** (18 PASS / 0 FAIL / 0 uncovered) | n/a | asserts every printed number of the paper that the figure goldens cover; all 18 claims are now covered by a golden and pass. The `M1025-m95h0-band` criterion was CORRECTED in wave 5 (see below): the old one was falsified by the published figure itself. |
 
 `_profile_assembly.jl` is a paper-local, PRESENTATION-side include shared by `fig03.jl` and
 `fig04.jl` (so the assembly is written once): it runs the m-loop over `SpiralWaves.solve_mode` and
@@ -54,7 +54,7 @@ keys are reported by name — a claim is never silently dropped.
 | `M919-peak-growth`        | M:919  | text | `fig04.peak_growth_factor_a10` | 1.5 (±0.25) |
 | `M925-no-reversal`        | M:925  | text | `fig07.total_torque_all_positive` | true |
 | `M947-h0-turnover`        | M:947  | text | `fig07.torque_peak_h0`, `fig07.torque_monotone_up_to_peak` | h0 = 0.125, monotone |
-| `M1025-m95h0-band`        | M:1025 | text | `fig08.m95_h0_min`, `fig08.m95_h0_max` | [2.0, 3.5] (±0.25) |
+| `M1025-m95h0-band`        | M:1025 | text | `fig08.m95_h0_min`, `fig08.m95_h0_max`, `fig08.m95_h0_min_Ksens`, `fig08.m95_h0_max_Ksens` | ⊆[2.0,3.5]±0.25, ≥55 % cover, ⌈6/h₀⌉ band within ±0.30 of the published pixels [2.208, 3.157] |
 | `M992-m95-inverse-h0`     | M:992  | text | `fig08.m95_h0_spread_fraction` | ≤ 0.35 |
 | `M999-m45-cutoff`         | M:999  | text | `fig09.m45_times_h0` | 0.35 (±0.1) |
 | `M1002-ratio-pq00-a12`    | M:1002 | figure-read | `fig09.ratio_pq00_a12` | 1.5 (±0.15) |
@@ -71,3 +71,30 @@ keys are reported by name — a claim is never silently dropped.
 `provenance = text` means the value is printed verbatim at the quoted tex line;
 `figure-read` means it was read off the reference figure in the wave-0 brief §5 — those carry
 looser tolerances and are labelled `fig` in the gate table, never promoted to printed numbers.
+
+### `M1025-m95h0-band` — why the criterion changed (wave 5)
+
+The first version of this claim required `m95_h0_min ∈ [1.75, 2.25]` **and**
+`m95_h0_max ∈ [3.25, 3.75]`, i.e. that our extremes sit *at* the edges of the paper's rounded
+prose interval "m₉₅h₀ ≃ 2.0–3.5" (M:1025).  A pixel read-back of the **published** Fig. 8 —
+recorded while our own `fig08.jl` survey was still running, so it cannot be a post-hoc
+accommodation (evidence: `results/emri-gasdisk/paper_EMRI-GASDISK/evidence/fig08-m95-violins/`
+`REFERENCE_READBACK.md` + `ref_fig08_readout.json` in the emri-disk repo) — measures the published
+band as **[2.208, 3.157]** across its fourteen resolved violins.  *The published figure fails the
+old criterion* (3.157 < 3.25): the prose interval is a rounded envelope, not a pair of attained
+extremes.  A criterion the paper's own figure violates cannot judge a reproduction of it.
+
+The claim now asserts three things, all visible in the gate row:
+
+1. **containment** — our band inside [2.0, 3.5] widened by ±0.25 (the rounding scale the read-back
+   exhibits: the published band sits 0.208 above the lower edge and 0.343 below the upper one);
+2. **coverage** — the overlap of our band with [2.0, 3.5] is ≥ 55 % of its width; the published
+   band covers 63.3 %, so the threshold is one the reference passes with margin;
+3. **pixel cross-check** — the ⌈6/h₀⌉ band `m95_h0_*_Ksens` within ±0.30 of [2.208, 3.157].
+
+Part 3 compares like with like at the mode ceiling.  Our production survey sums m ≤ ⌈4/h₀⌉ and
+gives [1.80, 3.00]; the same survey at ⌈6/h₀⌉ gives [1.95, 3.15] — 0.007 from the published
+maximum.  fig08's ceiling scan, fig14 (m₉₅h₀ at b = 0.3: 2.700 → 2.900) and fig13 (a 0.3–1.7 %
+torque deficit) independently indicate that the paper summed ≈ 6/h₀ azimuthal modes.  Both bands
+are printed in the gate's `ours` column, so the K = 4 vs K = 6 difference is never absorbed
+silently.
