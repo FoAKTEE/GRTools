@@ -4,11 +4,13 @@
 # (SpinningTrajectory.wl KerrSpinOrbit L320-398, pex1CTildeFun, L272-275), rebuilt on Spacetime's
 # geodesic layer + NumericsCore's elliptic layer.
 #
-# FIREWALL NOTE (design §4.3/§7.7): Spacetime.SpinningSecondary carries only the EQUATORIAL slice
-# (spin_orbit throws for x²≠1); the inclined/spherical/numeric-correction kinematics the
-# TeukolskySpinMode* entrypoints need are therefore implemented LOCALLY here — Perturbation gains
-# NO new [deps] (pure arithmetic + the existing Spacetime/NumericsCore closure). These stay
-# unexported `_`-conceptual internals of Perturbation.SpinFluxes. M = 1, bound orbits.
+# FIREWALL NOTE (design §4.3/§7.7): Spacetime.SpinningSecondary owns the numeric `Correction`
+# engine and the orbit-correction assemblies (bound in spinning_secondary_bindings.jl) but its
+# closed-form `spin_orbit` carries only the EQUATORIAL slice (throws for x²≠1); the inclined
+# closed-form and spherical kinematics the TeukolskySpinMode* entrypoints need are therefore still
+# implemented LOCALLY here / in spinning_orbit_spherical_local.jl — Perturbation gains NO new [deps]
+# (pure arithmetic + the existing Spacetime/NumericsCore closure). These stay unexported
+# `_`-conceptual internals of Perturbation.SpinFluxes. M = 1, bound orbits.
 
 # shared linear-in-spin constants-of-motion shift (En,Jz,K) ← (EnT,JzT,KT), SpinningTrajectory.wl L339-341
 function _kso_spin_shifted_constants(EnT, JzT, KT, a, spar)

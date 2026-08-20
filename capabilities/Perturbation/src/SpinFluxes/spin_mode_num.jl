@@ -5,7 +5,7 @@
 # at the PERTURBED point rp=r0+s·r1, zp=z0+s·z1 with the radial function Taylor-expanded about r0
 # (RInrp+s·r1·dRInrp …) and the FULL source assembly A0/A1/A2/B1/B2/B3 + C0nn/Crnn/Cθnn (NOT the
 # linearised-in-s monopole+dipole split of FromCorrection). The fab^(i) basis (fabi/dfabidr/dfabidθ),
-# the angular layer (_angular_fromcorr), h1/h2/h3 (_fc_h*), _alpha_circ and _dδ are SHARED with
+# the angular layer (_angular_fromcorr), h1/h2/h3 (_oc_h*), _alpha_circ and _dδ are SHARED with
 # from_correction.jl (same module). CPlus/CMinus → ℐ/ℋ Energy/AngularMomentum fluxes. R3.
 #
 # Difference from FromCorrection in the normalisation: TeukolskySpinMode uses Γ = orbit["MinoFrequencies"][1]
@@ -118,7 +118,7 @@ function _spin_mode_num(orbit, l::Integer, m::Integer, n::Integer, k::Integer)
             sinθp = sqrt.(1 .- zp .^ 2)
             Urp = Ur0 .+ s .* Ur1p
             Uzp = Uz0 .+ s .* Uz1p
-            h1v = _fc_h1(r0p, z0p, Kc0, a); h2v = _fc_h2(r0p, z0p, Kc0, En0, Lz0, a); h3v = _fc_h3(r0p, z0p, Kc0, a)
+            h1v = _oc_h1(r0p, z0p, Kc0, a); h2v = _oc_h2(r0p, z0p, Kc0, En0, Lz0, a); h3v = _oc_h3(r0p, z0p, Kc0, a)
             udtp = -(En0 + s * En1) + s * h1v                # scalar (covariant t-component)
             udφp = (Lz0 + s * Lz1) .+ s .* (h2v .+ h3v .* Ur0 .* Uz0)  # 4-vector (covariant φ-component)
 

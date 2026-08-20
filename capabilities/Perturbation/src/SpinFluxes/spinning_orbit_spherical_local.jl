@@ -3,9 +3,9 @@
 # orbit_derivatives_spherical}.jl (SpinningTrajectory.wl `CorrectionSpherical` L945-1084,
 # `KerrSpinOrbitCorrection2Spherical` L1087-1221, `KerrSpinOrbitCorrectionSpherical` L1224-1228),
 # rebuilt on Spacetime's geodesic layer. The θ-only (1D-DFT) analog of the eccentric engine in
-# spinning_orbit_correction_local.jl: r≡p constant, drdλ=0. Reuses that file's _oc_h1/h2 and
-# _oc_Sg**/_oc_dSg** helpers, _d2z_dλ2, and the _chith_hat Darwin map. See the FIREWALL NOTE in
-# spinning_secondary_local.jl. Paper arXiv:2506.20726.
+# Spacetime.SpinningSecondary: r≡p constant, drdλ=0. Reuses its _oc_h1/h2 and _oc_Sg**/_oc_dSg**
+# helpers, _d2z_dλ2, and the _chith_hat Darwin map (bound in spinning_secondary_bindings.jl). See
+# the FIREWALL NOTE in spinning_secondary_local.jl. Paper arXiv:2506.20726.
 
 # The 22 spherical force functions (.wl L962-983); auto-translated, verbatim from the legacy port.
 "`ℛt` t-equation source (.wl L962)."

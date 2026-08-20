@@ -56,13 +56,15 @@ include("Scattering/scattering.jl")
 # --- SpinFluxes: spinning-secondary linear-in-spin GW fluxes -------------------------------------
 include("SpinFluxes/circular.jl")    # circular-equatorial s=-2 flux + shared FabEq helper basis
 include("SpinFluxes/eccentric.jl")   # eccentric-equatorial s=-2 flux (wr Mino sum, 2 velocity branches)
-# local spinning-secondary kinematics (Spacetime.SpinningSecondary carries only the equatorial slice)
+# spinning-secondary kinematics: the numeric Correction engine + orbit-correction assemblies live in
+# Spacetime.SpinningSecondary (single owner); only the closed-form inclined branch and the spherical
+# engine are still local (scoped out of Spacetime so far)
 include("SpinFluxes/spinning_secondary_local.jl")        # KerrSpinOrbit (equatorial+inclined) + pex1CTilde + δx3
-include("SpinFluxes/spinning_orbit_correction_local.jl") # numeric Correction engine + KerrSpinOrbitCorrection/Num
+include("SpinFluxes/spinning_secondary_bindings.jl")     # KerrSpinOrbitCorrection/Num + _oc_* ← Spacetime.SpinningSecondary
 include("SpinFluxes/spinning_orbit_spherical_local.jl")  # spherical engine + KerrSpinOrbitCorrectionSpherical + r/x FD
 # the 10 TeukolskySpinMode* entrypoints
 include("SpinFluxes/inclined.jl")                # generic angular ops + Fab + _inclined_spin_mode + inclined_spin_flux
-include("SpinFluxes/fab_basis.jl")               # fab^(i) basis + _angular_fromcorr + _fc_h* + dJz*/_KCorrection
+include("SpinFluxes/fab_basis.jl")               # fab^(i) basis + _angular_fromcorr + dJz*/_KCorrection
 include("SpinFluxes/from_correction.jl")         # TeukolskySpinModeFromCorrection core (wr×wθ, numeric correction)
 include("SpinFluxes/spin_mode_num.jl")           # TeukolskySpinMode core (full finite-s numeric orbit)
 include("SpinFluxes/spin_mode_correction.jl")    # TeukolskySpinModeCorrection core (monopole + dE¹/dLz¹)

@@ -190,7 +190,7 @@ function _spin_mode_spherical_correction_num(oc, l::Integer, m::Integer, k::Inte
         exp1 = (im * ((ω * cp.ΔtS - m * cp.ΔφS) + ω1 * Δtθwθ),
                 im * ((ω * cm.ΔtS - m * cm.ΔφS) - ω1 * Δtθwθ))
 
-        h1v = _fc_h1(rp, zp, Kc0, a); h2v = _fc_h2(rp, zp, Kc0, En0, Lz0, a)
+        h1v = _oc_h1(rp, zp, Kc0, a); h2v = _oc_h2(rp, zp, Kc0, En0, Lz0, a)
         # linear parts of the four-velocity in Kinnersley tetrad (Ur=0, no h3 term) (.wl L3663-3666)
         vn1 = ((-1) .* (((2 * rp * En0) .* rp1) .- ((rp^2 + a^2) * En0 - a * Lz0) ./ Σ .* Σ1 .+
                  ((rp^2 + a^2) * (En1 - h1v) - a * (Lz1 + h2v) .+ Urp1))) ./ (2 * Σ)

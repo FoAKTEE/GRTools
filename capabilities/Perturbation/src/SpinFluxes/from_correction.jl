@@ -1,7 +1,8 @@
 # Numeric-orbit-correction linear-in-spin Teukolsky mode — faithful 1:1 of TeukolskySpinFluxes/src/
 # from_correction.jl (TeukolskySpinFluxes.wl TeukolskySpinModeFromCorrection L1656-1872), the
-# "DH-trajectory" flux path. The shared fab^(i)/angular/_fc_h*/dJz*/_KCorrection basis lives in
-# fab_basis.jl; the local KerrSpinOrbitCorrection kinematics in spinning_orbit_correction_local.jl.
+# "DH-trajectory" flux path. The shared fab^(i)/angular/dJz*/_KCorrection basis lives in
+# fab_basis.jl; the KerrSpinOrbitCorrection kinematics + _oc_h* are Spacetime.SpinningSecondary
+# (bound in spinning_secondary_bindings.jl).
 """
     _from_correction_mode(oc, l, m, n, k, s) -> NamedTuple
 
@@ -148,7 +149,7 @@ function _from_correction_mode(oc, l::Integer, m::Integer, n::Integer, k::Intege
             exp1 = (im * (ω * cp.ΔtS - m * cp.ΔφS), -im * (ω * cm.ΔtS - m * cm.ΔφS),
                     im * (ω * cm.ΔtS - m * cm.ΔφS), -im * (ω * cp.ΔtS - m * cp.ΔφS))
 
-            h1v = _fc_h1(rp, zp, Kc0, a); h2v = _fc_h2(rp, zp, Kc0, En0, Lz0, a); h3v = _fc_h3(rp, zp, Kc0, a)
+            h1v = _oc_h1(rp, zp, Kc0, a); h2v = _oc_h2(rp, zp, Kc0, En0, Lz0, a); h3v = _oc_h3(rp, zp, Kc0, a)
             # linear parts of the four-velocity in Kinnersley tetrad
             vn1 = ((-1) .* (((2 * rp * En0) .* r1p) .- ((rp^2 + a^2) * En0 - a * Lz0 .+ Ur) ./ Σ .* Σ1 .+
                      ((rp^2 + a^2) * (En1 - h1v) .- a .* (Lz1 .+ h2v .+ h3v .* Ur .* Uz) .+ Ur1p))) ./ (2 * Σ)

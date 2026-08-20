@@ -100,17 +100,8 @@ function _KCorrection(a, p, e, x, Eng, Lzg, Kg)
     return KS + 2 * ((Kg + a^2) * Eng - a * Lzg) / sqrt(Kg)
 end
 
-# h1/h2/h3: projections of s^{μν} to ξ_{μ;ν} (Eq. 21 in 2303.16798); identical to the verified
-# _oc_h* (spinning_orbit_correction_local.jl) — kept as the legacy `_fc_h*` names the mode files use.
-_fc_h1(r, z, K, a) = (r * (-3 * a^2 * r^2 * z^2 + a^4 * z^4 + K * (r^2 - 3 * a^2 * z^2))) /
-                     (sqrt(K) * (r^2 + a^2 * z^2)^3)
-_fc_h2(r, z, K, En, Lz, a) = (-(En * Lz * r^6) + a^4 * En * Lz * r^2 * z^4 + a^2 * En * Lz * r^4 * (-2 + z^2) -
-    a^6 * En * Lz * z^4 * (-2 + z^2) + a^7 * En^2 * z^4 * (-1 + z^2) +
-    a * r^3 * (Lz^2 * r + K * (-1 + z^2) + K * r * (-1 + 2 * z^2) + r^3 * (z^2 - En^2 * (-1 + z^2))) +
-    a^3 * (-(En^2 * r^4 * (-1 + z^2)) + r * z^2 * (2 * r^3 + 2 * K * r * z^2 - 3 * K * (-1 + z^2) - 3 * r^2 * (-1 + z^2))) +
-    a^5 * z^4 * (K - Lz^2 + r * (-1 + z^2 + r * (2 - z^2 + En^2 * (-1 + z^2))))) /
-    (sqrt(K) * (r^2 + a^2 * z^2)^3)
-_fc_h3(r, z, K, a) = (-2 * a * r * z) / (sqrt(K) * (r^2 + a^2 * z^2)^2)
+# h1/h2/h3 (projections of s^{μν} to ξ_{μ;ν}, Eq. 21 in 2303.16798) are the
+# Spacetime.SpinningSecondary `_oc_h1/_oc_h2/_oc_h3` bound in spinning_secondary_bindings.jl.
 
 # --- fab^(i) basis (geodesic source structure); SOURCE-EXTRACTED+TRANSLATED from .wl L48-85. ---
 # Returns (fnn0,fnmb0,fnmb1,fmbmb0,fmbmb1,fmbmb2).

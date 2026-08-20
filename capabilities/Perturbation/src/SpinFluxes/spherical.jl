@@ -2,7 +2,7 @@
 # (L3331-3513). The θ-only analog of TeukolskySpinModeFromCorrection: r≡p constant, Ur=0, a SINGLE wz
 # (polar Mino) sum over 2 quadrants Uz={1,-1}·(-√Z). ω = m·Ωφ + k·Ωθ (no n·Ωr). The radials Δ/K/V and
 # RInrp/dRInrp/ddRInrp/dddRInrp (+Up) are computed ONCE at rp=p OUTSIDE the loop. Reuses the shared
-# from_correction.jl helpers (_fc_h1/h2, _fabi/_dfabidr/_dfabidθ, _angular_fromcorr) and the module
+# from_correction.jl helpers (_oc_h1/h2, _fabi/_dfabidr/_dfabidθ, _angular_fromcorr) and the module
 # _alpha_circ/_dδ. CPlus/CMinus → ℐ/ℋ Energy/AngularMomentum fluxes (geodesic monopole + s·dipole). R3.
 
 """
@@ -132,7 +132,7 @@ function _spin_mode_spherical(oc, l::Integer, m::Integer, k::Integer, s::Real; N
         Σ1   = 2 .* (rp .* rp1 .+ a^2 * zp .* zp1)
         exp1 = (im * (ω * cp.ΔtS - m * cp.ΔφS), im * (ω * cm.ΔtS - m * cm.ΔφS))
 
-        h1v = _fc_h1(rp, zp, Kc0, a); h2v = _fc_h2(rp, zp, Kc0, En0, Lz0, a)
+        h1v = _oc_h1(rp, zp, Kc0, a); h2v = _oc_h2(rp, zp, Kc0, En0, Lz0, a)
         # linear parts of the four-velocity in Kinnersley tetrad (Ur=0, no h3 term)
         vn1 = ((-1) .* (((2 * rp * En0) .* rp1) .- ((rp^2 + a^2) * En0 - a * Lz0) ./ Σ .* Σ1 .+
                  ((rp^2 + a^2) * (En1 - h1v) - a * (Lz1 + h2v) .+ Urp1))) ./ (2 * Σ)
