@@ -119,6 +119,7 @@ include("TimeDomain/kerrflux.jl")
 include("TimeDomain/spinweight.jl")
 include("TimeDomain/rtchart.jl")
 include("TimeDomain/spinmodes.jl")
+include("TimeDomain/tailfits.jl")
 include("TimeDomain/spinsource.jl")
 include("TimeDomain/spinsource_kerr.jl")
 include("TimeDomain/hphc.jl")
@@ -136,6 +137,8 @@ export KerrFluxProblem, solve_kerr_flux
 export spin_cminus, spin_czero, spin_cplus, spin_cos_coupling, spin_mode_coupling,
        spin_mode_list
 export rt_Rplus, rt_r_of_R, SpinModesProblem, solve_spin_modes, spin_cfl_dt
+export fit_tail_envelope, fit_tail_adaptive, fit_tail_sliding, fit_convergence_order,
+       spin_excise_policy, TAIL_SLIDING_STARTS
 export rt_R_of_r, spin_source_jumps, bg_jumps_s2, SpinSourcedProblem, solve_spin_sourced,
        spin_sourced_flux
 export spin_source_jumps_kerr, rt_H_of_R_kerr, SpinSourcedKerrProblem, spin_sourced_flux_kerr

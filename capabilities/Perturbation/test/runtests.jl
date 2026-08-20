@@ -48,7 +48,8 @@ using Perturbation
         "test_td_hphc.jl", "test_td_hphc_qnm.jl",
         "test_td_hphc_recon.jl", "test_td_hphc_scd.jl",
         "test_td_hphc_scd_solve.jl", "test_timedomain.jl",
-        "test_timedomain_spin.jl", "test_timedomain_spinsource.jl",
+        "test_timedomain_spin.jl", "test_timedomain_tailfits.jl",
+        "test_timedomain_spinsource.jl",
         "test_timedomain_spinsource_kerr.jl",
     ]
 
