@@ -15,7 +15,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        julia-version: ["1.10", "1"]
+        # 1.10 = the [compat] floor; 1.12 = the PINNED reproduction version
+        # (reproduce/Manifest.toml + every golden header record Julia 1.12.6).
+        julia-version: ["1.10", "1.12"]
         package:
           - .                                # umbrella
           - core/NumericsCore
@@ -58,7 +60,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        julia-version: ["1.10", "1"]
+        # 1.10 = the [compat] floor; 1.12 = the PINNED reproduction version
+        # (reproduce/Manifest.toml + every golden header record Julia 1.12.6).
+        julia-version: ["1.10", "1.12"]
     steps:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2
@@ -76,3 +80,29 @@ jobs:
             julia --project=. "$f"
             echo "::endgroup::"
           done
+
+  reproduce:
+    name: reproduce (fast tier) - Julia 1.12
+    runs-on: ubuntu-latest
+    # The fast tier is "deterministic and < 5 min at -t4" per driver (reproduce/README.md);
+    # 30 rows plus a cold precompile of the umbrella need a generous ceiling.
+    timeout-minutes: 300
+    # A drifted golden must break the build: this job is never advisory.
+    continue-on-error: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          # PINNED, not the "1" float: goldens record the Julia version they were generated
+          # under and the reproduce Manifest is resolved against it.
+          version: "1.12"
+      - uses: julia-actions/cache@v2
+      - name: Instantiate the pinned reproduce environment
+        run: julia --project=reproduce -e 'using Pkg; Pkg.instantiate()'
+      - name: Re-check every fast-tier golden
+        env:
+          JULIA_NUM_THREADS: 4
+        # run_all.jl runs each driver in its own subprocess at --threads 4 (capped at 8 by
+        # the compute-usage policy) and exits non-zero on any mismatch (1) or harness
+        # error (2); a documented HOLE (3) counts as skipped, never as a pass.
+        run: julia --project=reproduce reproduce/run_all.jl --check --tier fast
