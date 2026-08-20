@@ -1,10 +1,10 @@
 # reproduce/arXiv-2608.17003/fig06.jl — EGD::fig06-torque-chi-ap.
 #
 # arXiv:2608.17003 Fig. 6 (`fig:torque_chi_ap`, main.tex:934-939): the TOTAL torque (74) in units of
-# F_{J,0}h0 (76a) against the EMRI semi-major axis a•/M ∈ [10, 1000] (log x, 40 log-spaced points —
-# counted on the reference PDF: the marker pitch is 13.565 px on a 264.5 px/decade axis, i.e.
-# Δlog10 = 2/39), for the three spins χ ∈ {0.9, 0, −0.9}, in two stacked panels: top (𝔭,𝔮) = (1.5,1),
-# bottom (0,0); h0 = 0.05 throughout.
+# F_{J,0}h0 (76a) against the EMRI semi-major axis a•/M (log x, the 40 PUBLISHED abscissae — integer
+# a• = 11, 12, 13 M then geometric to a• ≈ 1063 M; see `_published_grids.jl` for the pixel
+# measurement that replaced the earlier `10 .^ range(1,3,40)` reading), for the three spins
+# χ ∈ {0.9, 0, −0.9}, in two stacked panels: top (𝔭,𝔮) = (1.5,1), bottom (0,0); h0 = 0.05 throughout.
 #
 # Caption claim (M:936-939): "Relativistic effects are important as we approach a• ∼ O(50M); the
 # retrograde orbits (χ < 0) face stronger relativistic effects since the ISCO is closer to the EMRI
@@ -132,8 +132,9 @@ _envint(k, d) = haskey(ENV, k) ? parse(Int, ENV[k]) : d
 const MMAX = _envint("GRTOOLS_FIG06_MMAX", ceil(Int, 4 / H0))
 const GRIDKW = (nL = _envint("GRTOOLS_FIG06_NL", 30), nR = _envint("GRTOOLS_FIG06_NL", 30),
                 nC = _envint("GRTOOLS_FIG06_NC", 3000))
-const NA = _envint("GRTOOLS_FIG06_NA", 40)
-const AS = 10.0 .^ range(1.0, 3.0; length = NA)
+include(joinpath(@__DIR__, "_published_grids.jl"))   # the measured published a• abscissae
+const AS = PUBLISHED_AP_GRID
+const NA = length(AS)
 
 # ───────────────────────────── the computation (package calls only) ──────────────────────────────
 
@@ -163,7 +164,7 @@ function survey_panel(𝔭, 𝔮)
 end
 
 println("\n[fig06] h0 = ", H0, "   b = ", BSOFT, "   m = 1:", MMAX, "   grid = ", GRIDKW,
-        "   a•/M = ", NA, " log-spaced points in [", first(AS), ", ", last(AS), "]")
+        "   a•/M = ", NA, " PUBLISHED abscissae in [", first(AS), ", ", last(AS), "]")
 println("[fig06] compute budget: ", SW.compute_budget().note)
 
 t_start = time()
@@ -211,28 +212,28 @@ order_small = [T[p][3][i_small] < T[p][2][i_small] < T[p][1][i_small] for p in e
 spread_big = [(maximum(T[p][s][i_big] for s in eachindex(SPINS)) -
                minimum(T[p][s][i_big] for s in eachindex(SPINS))) /
               maximum(T[p][s][i_big] for s in eachindex(SPINS)) for p in eachindex(PANELS)]
-@repro_result "spin_ordering_at_a10"  all(order_small)
-@repro_result "plateau_spread_a1000"  maximum(spread_big)
+@repro_result "spin_ordering_at_a_min" all(order_small)
+@repro_result "plateau_spread_a_max"  maximum(spread_big)
 for (p, pan) in enumerate(PANELS)
-    @repro_result "plateau_T_$(p)" T[p][2][i_big]         # the χ = 0 plateau value at a• = 1000M
+    @repro_result "plateau_T_$(p)" T[p][2][i_big]         # the χ = 0 plateau value at the largest a•
 end
 
 violations = String[]
-allpos || push!(violations, "M:925 torque reversal: T ≤ 0 somewhere in a• ∈ [10, 1000]M")
+allpos || push!(violations, "M:925 torque reversal: T ≤ 0 somewhere in a• ∈ [$(AS[1]), $(AS[end])]M")
 all(order_small) ||
     push!(violations, "M:936 spin ordering at a• = $(AS[i_small])M violated: T = $([[T[p][s][i_small] for s in eachindex(SPINS)] for p in eachindex(PANELS)])")
 maximum(spread_big) <= 0.05 ||
-    push!(violations, "the three spins do not converge at a• = 1000M: spread $(maximum(spread_big))")
+    push!(violations, "the three spins do not converge at a• = $(AS[i_big])M: spread $(maximum(spread_big))")
 
 println("\n[fig06] figure checks")
 @printf("  M:925 no torque reversal (T > 0 everywhere)                    %s\n", allpos ? "PASS" : "FAIL")
 @printf("  M:936 T(χ=−0.9) < T(χ=0) < T(χ=0.9) at a• = %.1f M            %s\n", AS[i_small],
         all(order_small) ? "PASS" : "FAIL")
-@printf("  spin spread at a• = %.0f M                        %.3f  (≤ 0.05)  %s\n", AS[i_big],
+@printf("  spin spread at a• = %.0f M                       %.3f  (≤ 0.05)  %s\n", AS[i_big],
         maximum(spread_big), maximum(spread_big) <= 0.05 ? "PASS" : "FAIL")
 for (p, pan) in enumerate(PANELS)
-    @printf("  (𝔭,𝔮) = (%+.1f,%.1f): plateau T(χ=0, a•=1000M) = %.4f  F_J0h0;  T range [%.4f, %.4f]\n",
-            pan.𝔭, pan.𝔮, T[p][2][i_big], minimum(minimum, T[p]), maximum(maximum, T[p]))
+    @printf("  (𝔭,𝔮) = (%+.1f,%.1f): plateau T(χ=0, a•=%.0fM) = %.4f  F_J0h0;  T range [%.4f, %.4f]\n",
+            pan.𝔭, pan.𝔮, AS[i_big], T[p][2][i_big], minimum(minimum, T[p]), maximum(maximum, T[p]))
 end
 @printf("  mode-sum tail (last 5%% of modes)  %.2e\n", tailmax)
 @printf("  worst solver residual             %.2e\n", resmax)

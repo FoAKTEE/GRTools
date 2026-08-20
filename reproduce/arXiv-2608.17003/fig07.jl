@@ -1,7 +1,8 @@
 # reproduce/arXiv-2608.17003/fig07.jl — EGD::fig07-torque-ap-h0.
 #
 # arXiv:2608.17003 Fig. 7 (`fig:torque_ap_h0`, main.tex:944-949): the TOTAL torque (74) in units of
-# F_{J,0}h0 (76a) against a•/M ∈ [10, 1000] (log x, the same 40 log-spaced points as Fig. 6) for the
+# F_{J,0}h0 (76a) against a•/M (log x, the same 40 PUBLISHED abscissae as Fig. 6 — see
+# `_published_grids.jl`) for the
 # five disc thicknesses h0 ∈ {0.05, 0.075, 0.1, 0.125, 0.15} at χ = 0, in two stacked panels: top
 # (𝔭,𝔮) = (1.5,1), bottom (0,0).
 #
@@ -138,8 +139,9 @@ const KMODE = _envint("GRTOOLS_FIG07_K", 4)
 mmax_of(h0) = ceil(Int, KMODE / h0)
 const GRIDKW = (nL = _envint("GRTOOLS_FIG07_NL", 30), nR = _envint("GRTOOLS_FIG07_NL", 30),
                 nC = _envint("GRTOOLS_FIG07_NC", 3000))
-const NA = _envint("GRTOOLS_FIG07_NA", 40)
-const AS = 10.0 .^ range(1.0, 3.0; length = NA)
+include(joinpath(@__DIR__, "_published_grids.jl"))   # the measured published a• abscissae
+const AS = PUBLISHED_AP_GRID
+const NA = length(AS)
 const PLATEAU_A = 100.0            # the a• ≥ 100M plateau used to read the h0 ordering (M:947)
 
 # ───────────────────────────── the computation (package calls only) ──────────────────────────────
@@ -172,7 +174,7 @@ end
 
 println("\n[fig07] χ = ", CHI, "   b = ", BSOFT, "   m ≤ ", KMODE, "/h0 = ",
         [mmax_of(th.h0) for th in THICK], "   grid = ", GRIDKW,
-        "   a•/M = ", NA, " log-spaced points in [", first(AS), ", ", last(AS), "]")
+        "   a•/M = ", NA, " PUBLISHED abscissae in [", first(AS), ", ", last(AS), "]")
 println("[fig07] compute budget: ", SW.compute_budget().note)
 
 t_start = time()
