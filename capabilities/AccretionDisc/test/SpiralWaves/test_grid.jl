@@ -165,4 +165,96 @@ using Spacetime: kerr_isco
         @test length(g.r) == g.NL + 201 + g.NR
         @test big"4" ≤ g.nW_L ≤ big"5"
     end
+    # ---------------------------------------------------------------------------------------------
+    # EGD::sw-grid-gr-refinement — the two controlled options added for the strong-field torque-deficit
+    # investigation: WHICH local WKB wavenumber the App.-C spacing law uses (erratum E-M5) and WHICH
+    # of the two (C2)-(C3) domain cuts is replaced by its (C1) fiducial edge. Both default to the
+    # LANDED App.-C behaviour, so every grid built before this node is bitwise unchanged.
+    # ---------------------------------------------------------------------------------------------
+
+    @testset "wavenumber = :newtonian | :gr (E-M5): default unchanged, :gr refines the wave zone" begin
+        m = 20
+        GK = (nL = 30, nR = 30, nC = 3000)
+
+        # (a) the default IS the App.-C (Newtonian) reading and is recorded on the grid
+        gN = build_grid(bg, m; GK...)
+        @test gN.params.wavenumber === :newtonian
+        @test build_grid(bg, m; GK..., wavenumber = :newtonian).r == gN.r      # bitwise: default = :newtonian
+        @test_throws ArgumentError build_grid(bg, m; GK..., wavenumber = :relativistic)
+
+        # (b) the trust floor (C6) is taken on the REQUESTED wavenumber
+        for r in (8.0, 25.0), w in (:newtonian, :gr)
+            kw = w === :gr ? wkb_wavenumber_gr(bg, m, r) : wkb_wavenumber(bg, m, r)
+            @test wkb_wavenumber_floored(bg, m, r; wavenumber = w) == max(kw, 10 / (bg.h0 * r))
+        end
+        @test_throws ArgumentError wkb_wavenumber_floored(bg, m, 8.0; wavenumber = :bogus)
+        # E-M5: k_gr = e^{μ}u^t k_newt ≥ k_newt, → √3 at the χ = 0 ISCO
+        @test wkb_wavenumber_gr(bg, m, kerr_isco(0.0)) ≈ sqrt(3) * wkb_wavenumber(bg, m, kerr_isco(0.0)) rtol = 1e-12
+
+        # (c) at a FIXED domain (:fiducial) the :gr grid is a strict refinement: more cells in both
+        #     WKB blocks, and the first cell off the inner edge shrinks by exactly the k̄ ratio
+        gNf = build_grid(bg, m; GK..., extent = :fiducial)
+        gGf = build_grid(bg, m; GK..., extent = :fiducial, wavenumber = :gr)
+        @test gGf.params.wavenumber === :gr
+        @test gGf.r_in == gNf.r_in && gGf.r_out == gNf.r_out
+        @test gGf.NL > gNf.NL && gGf.NR ≥ gNf.NR
+        @test all(diff(gGf.r) .> 0)
+        @test gGf.r[1] == gGf.r_in && gGf.r[end] == gGf.r_out
+        @test length(gGf.r) == gGf.NL + gGf.nC + gGf.NR
+        @test 30 ≤ gGf.nW_L ≤ 31 && 30 ≤ gGf.nW_R ≤ 31
+        kNin = wkb_wavenumber_floored(bg, m, gNf.r_in)
+        kGin = wkb_wavenumber_floored(bg, m, gGf.r_in; wavenumber = :gr)
+        @test (gNf.r[2] - gNf.r[1]) / (gGf.r[2] - gGf.r[1]) ≈ kGin / kNin rtol = 5e-2
+
+        # (d) the rebuilt ancillary region honours the stored wavenumber, so the (C7) n_W identity
+        #     N(n_W*) = N = ⌈N(n_L)⌉ still holds on the :gr grid
+        regL = wkb_region(bg, m, gGf, :L); regR = wkb_region(bg, m, gGf, :R)
+        @test gGf.NL == ceil(Int, cell_count(regL, 30.0)) && gGf.NR == ceil(Int, cell_count(regR, 30.0))
+        @test cell_count(regL, gGf.nW_L) ≈ gGf.NL atol = 1e-8
+        @test cell_count(regR, gGf.nW_R) ≈ gGf.NR atol = 1e-8
+
+        # (e) with the ADAPTIVE domain the bigger k also moves the (C2)-(C3) cuts: a larger k meets
+        #     the trust criterion k r > 10/h0 CLOSER to corotation and then accumulates the 30
+        #     radians of (C3) FASTER, so the :gr domain is contained in the Newtonian one
+        gG = build_grid(bg, m; GK..., wavenumber = :gr)
+        @test gG.r_in ≥ gN.r_in && gG.r_out ≤ gN.r_out
+        @test gG.r_in < gG.r_c < gG.r_out
+
+        # (f) BigFloat inherits
+        bgb = DiscBackground(χ = big"0.5", aEMRI = 12, h0 = 0.1, 𝔭 = 1)
+        gb = build_grid(bgb, 8; nL = 4, nR = 4, nC = 201, n_anc = 400, extent = :fiducial, wavenumber = :gr)
+        @test gb isa SpiralGrid{BigFloat} && all(diff(gb.r) .> 0)
+        @test gb.params.wavenumber === :gr
+        @test gb.NL > build_grid(bgb, 8; nL = 4, nR = 4, nC = 201, n_anc = 400, extent = :fiducial).NL
+        println("  m=$m fiducial domain: N_L $(gNf.NL) → $(gGf.NL), N_R $(gNf.NR) → $(gGf.NR) under :gr; ",
+                "adaptive domain [$(gN.r_in), $(gN.r_out)] → [$(gG.r_in), $(gG.r_out)]")
+    end
+
+    @testset "extent = :inner_fiducial | :outer_fiducial: one (C2)-(C3) cut at a time" begin
+        m = 20                                        # truncated on BOTH sides at this configuration
+        GK = (nL = 30, nR = 30, nC = 3000)
+        ga = build_grid(bg, m; GK...)
+        gi = build_grid(bg, m; GK..., extent = :inner_fiducial)
+        go = build_grid(bg, m; GK..., extent = :outer_fiducial)
+        gf = build_grid(bg, m; GK..., extent = :fiducial)
+        @test ga.r_in > kerr_isco(0.0) && ga.r_out < 5 * bg.aEMRI            # the cuts really bite
+        @test gi.r_in == kerr_isco(0.0) == gf.r_in                            # inner edge released
+        @test gi.r_out == ga.r_out                                            # outer cut untouched
+        @test go.r_out == 5 * bg.aEMRI == gf.r_out                            # outer edge released
+        @test go.r_in == ga.r_in                                              # inner cut untouched
+        @test gi.params.extent === :inner_fiducial && go.params.extent === :outer_fiducial
+        @test length(gi.r) > length(ga.r) && length(go.r) > length(ga.r)
+        @test length(gf.r) > length(gi.r) && length(gf.r) > length(go.r)
+        @test all(diff(gi.r) .> 0) && all(diff(go.r) .> 0)
+        # the WKB-trust markers are still those of the criterion-selected domain (informational)
+        @test gi.rWKB_L == ga.rWKB_L && gi.rWKB_R == ga.rWKB_R
+        @test isnan(gf.rWKB_L) && isnan(gf.rWKB_R)
+        @test_throws ArgumentError build_grid(bg, m; GK..., extent = :nonsense)
+        # composable with the wavenumber option
+        gig = build_grid(bg, m; GK..., extent = :inner_fiducial, wavenumber = :gr)
+        @test gig.r_in == kerr_isco(0.0) && gig.params.wavenumber === :gr
+        @test gig.NL > gi.NL
+        println("  m=$m domains: adaptive [$(ga.r_in), $(ga.r_out)] · inner_fiducial [$(gi.r_in), $(gi.r_out)] ",
+                "· outer_fiducial [$(go.r_in), $(go.r_out)] · fiducial [$(gf.r_in), $(gf.r_out)]")
+    end
 end

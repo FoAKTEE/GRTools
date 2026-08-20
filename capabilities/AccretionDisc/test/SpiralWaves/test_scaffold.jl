@@ -20,7 +20,8 @@ using TestKit
                          :F_J0, :F_J1, :disc_OmegaK, :kappar2, :csound, :eden0]     # EGD::sw-background
     landed_grid = [:SpiralGrid, :build_grid, :corotation_radius, :corotation_block, :smoothmin,
                    :wkb_wavenumber, :wkb_wavenumber2, :wkb_wavenumber_floored, :WKBRegion, :wkb_region,
-                   :cell_count]                                                      # EGD::sw-grid
+                   :cell_count,                                                      # EGD::sw-grid
+                   :wkb_local, :GRID_EXTENTS]                             # EGD::sw-grid-gr-refinement
     landed_master = [:MasterInputs, :master_inputs, :master_matrices, :master_matrices_newtonian,
                      :delta_u_phi_newtonian, :landau_shift, :dOmega_dr,
                      :delta_u_phi, :r2_context, :dv_dr, :rotation_derivs]        # EGD::sw-master-matrices (+R2)
@@ -49,7 +50,7 @@ using TestKit
                                      landed_image, landed_newtonian))
     @test SW.PAPER == "arXiv:2608.17003"
     @test SW.sw_version() isa VersionNumber
-    @test SW.sw_version() == v"0.10.0"
+    @test SW.sw_version() == v"0.11.0"
     # no placeholder physics: none of the UNLANDED planned node entry points exist yet
     for sym in (:emri_source, :torque_balance, :spiral_morphology, :pressureless_comparison)
         @test !isdefined(SW, sym)

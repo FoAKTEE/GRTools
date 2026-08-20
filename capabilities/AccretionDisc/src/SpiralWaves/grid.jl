@@ -24,6 +24,18 @@
 #         block lands exactly on both edges (the 1-D root-find of A:117).
 #   (C3)  the domain edge is the linear-interpolated crossing of the trapezoid-accumulated phase on
 #         the ancillary grid (not the nearest ancillary node).
+#
+# CONTROLLED OPTIONS (EGD::sw-grid-gr-refinement, both DEFAULTING to the literal App.-C behaviour so
+# every grid built before that node is bitwise unchanged):
+#   `wavenumber = :newtonian | :gr` — which "local WKB wavenumber" k of (C2), (C3), (C6), (C7) means:
+#         the Newtonian dispersion relation of [`wkb_wavenumber`](@ref) (the literal appendix, default)
+#         or the master system's own radial eigenvalue k_r = e^{μ}u^t√(ω_d²−κ²)/c_s of
+#         [`wkb_wavenumber_gr`](@ref) (ERRATUM E-M5: the appendix under-resolves the inner wave zone by
+#         e^{μ}u^t → √3 at the χ = 0 ISCO). NOT a free parameter of the physics — only of the mesh.
+#   `extent = :adaptive | :fiducial | :inner_fiducial | :outer_fiducial` — which of the two (C2)-(C3)
+#         cuts is replaced by its (C1) fiducial edge (r_ISCO resp. 5a•); `:inner_fiducial` releases the
+#         inner one only, `:outer_fiducial` the outer one only. One variable at a time for the
+#         domain-truncation controls.
 
 using NumericsCore: CubicSplineInterpolant, brent, gl_nodes_weights
 
@@ -77,15 +89,31 @@ function wkb_wavenumber(bg::DiscBackground, m::Integer, r)
 end
 
 """
-    wkb_wavenumber_floored(bg, m, r; k_trust=10) -> k̄
+    wkb_local(bg, m, r, wavenumber::Symbol) -> k
+
+The local WKB wavenumber the App.-C grid recipe is evaluated with: `:newtonian` (the literal
+appendix) → [`wkb_wavenumber`](@ref), `:gr` → [`wkb_wavenumber_gr`](@ref), the master system's own
+radial eigenvalue (erratum E-M5). THE one dispatch point for the `wavenumber` grid option — every
+other use in this file goes through it. (`wkb_wavenumber_gr` lives in `solver.jl`, which is included
+after this file; the call is resolved at run time, in the same module.)
+"""
+function wkb_local(bg::DiscBackground, m::Integer, r, wavenumber::Symbol)
+    wavenumber === :newtonian && return wkb_wavenumber(bg, m, r)
+    wavenumber === :gr && return wkb_wavenumber_gr(bg, m, r)
+    throw(ArgumentError("wavenumber must be :newtonian or :gr, got $(repr(wavenumber))"))
+end
+
+"""
+    wkb_wavenumber_floored(bg, m, r; k_trust=10, wavenumber=:newtonian) -> k̄
 
 The regularised wavenumber (C6), read as the r-local floor k̄(r) = max[k(r), k_trust/(h0 r)]: equal
 to k wherever the WKB-trust criterion (C2) k r > k_trust/h0 holds and to the trust-threshold
 wavenumber where it does not (continuous at the trust boundary, where it equals k(r_WKB)).
-[PRELIMINARY] reading of A:107-109.
+[PRELIMINARY] reading of A:107-109. `wavenumber` selects k through [`wkb_local`](@ref).
 """
-function wkb_wavenumber_floored(bg::DiscBackground, m::Integer, r; k_trust = 10)
-    k = wkb_wavenumber(bg, m, r)
+function wkb_wavenumber_floored(bg::DiscBackground, m::Integer, r; k_trust = 10,
+                                wavenumber::Symbol = :newtonian)
+    k = wkb_local(bg, m, r, wavenumber)
     max(k, k_trust / (bg.h0 * r))
 end
 
@@ -128,13 +156,13 @@ struct WKBRegion{T<:Real}
 end
 
 function _wkb_region(bg::DiscBackground{T}, m::Integer, side::Symbol, r_lo, r_hi, r_edge,
-                     Δr_edge, slope, n_anc::Integer, k_trust) where {T}
+                     Δr_edge, slope, n_anc::Integer, k_trust, wavenumber::Symbol) where {T}
     r_lo < r_hi || throw(ArgumentError("wkb_region: empty region [$r_lo, $r_hi] on side $side"))
     n_anc ≥ 4 || throw(ArgumentError("wkb_region: need n_anc ≥ 4"))
     lo, hi = T(r_lo), T(r_hi)
     r_anc = [lo * (hi / lo)^(T(i) / (n_anc - 1)) for i in 0:n_anc-1]
     r_anc[1] = lo; r_anc[end] = hi                      # exact edges
-    kbar = [wkb_wavenumber_floored(bg, m, r; k_trust = k_trust) for r in r_anc]
+    kbar = [wkb_wavenumber_floored(bg, m, r; k_trust = k_trust, wavenumber = wavenumber) for r in r_anc]
     Δr_in = [T(Δr_edge) + T(slope) * abs(r - T(r_edge)) for r in r_anc]
     glx, glw = gl_nodes_weights(T, 4)
     WKBRegion{T}(side, r_anc, kbar, Δr_in, T(r_edge), glx, glw)
@@ -250,11 +278,12 @@ end
 # domain selection (C1)-(C3)
 # ------------------------------------------------------------------------------------------------
 # returns (r_in, r_out, rWKB_L, rWKB_R) on the fiducial ancillary grid; NaN marks "no trusted point"
-function _wkb_domain(bg::DiscBackground{T}, m::Integer, r_c; n_anc, k_trust, phase_min) where {T}
+function _wkb_domain(bg::DiscBackground{T}, m::Integer, r_c; n_anc, k_trust, phase_min,
+                    wavenumber::Symbol) where {T}
     lo, hi = r_isco(bg), 5 * bg.aEMRI
     r = [lo * (hi / lo)^(T(i) / (n_anc - 1)) for i in 0:n_anc-1]
     r[1] = lo; r[end] = hi
-    k = [wkb_wavenumber(bg, m, x) for x in r]
+    k = [wkb_local(bg, m, x, wavenumber) for x in r]
     thr = k_trust / bg.h0
     nan = T(NaN)
     # left side: r < r_c
@@ -306,7 +335,7 @@ to both neighbours, so `length(r) == NL + nC + NR`), the corotation radius `r_c`
 `[r_in, r_out]`, the central edges `r_Cin`/`r_Cout`, the WKB-trust points `rWKB_L`/`rWKB_R` (NaN when
 no ancillary point satisfies (C2) on that side), the targets `(nL, nR, nC)`, the realised WKB cell
 counts `(NL, NR)` and cells-per-radian `(nW_L, nW_R) ∈ [n_L, n_L+1]`, and the construction
-parameters `params` (σ_wc, s_c, k_trust, phase_min, n_anc, extent).
+parameters `params` (σ_wc, s_c, k_trust, phase_min, n_anc, extent, wavenumber).
 """
 struct SpiralGrid{T<:Real}
     r::Vector{T}
@@ -326,7 +355,8 @@ struct SpiralGrid{T<:Real}
     nW_L::T
     nW_R::T
     blocks::NamedTuple{(:L, :C, :R), Tuple{UnitRange{Int}, UnitRange{Int}, UnitRange{Int}}}
-    params::NamedTuple{(:σ_wc, :s_c, :k_trust, :phase_min, :n_anc, :extent), Tuple{T, T, T, T, Int, Symbol}}
+    params::NamedTuple{(:σ_wc, :s_c, :k_trust, :phase_min, :n_anc, :extent, :wavenumber),
+                      Tuple{T, T, T, T, Int, Symbol, Symbol}}
 end
 
 # extrapolated central spacing parameters (Δr_C,edge, dΔr_C/dr at the edge)
@@ -344,9 +374,11 @@ parameters — for inspection and for the [`cell_count`](@ref) consistency check
 function wkb_region(bg::DiscBackground{T}, m::Integer, g::SpiralGrid{T}, side::Symbol) where {T}
     Δr_edge, slope = _central_edge_spacing(g.params.σ_wc, g.params.s_c, g.nC)
     if side === :L
-        _wkb_region(bg, m, :L, g.r_in, g.r_Cin, g.r_Cin, Δr_edge, slope, g.params.n_anc, g.params.k_trust)
+        _wkb_region(bg, m, :L, g.r_in, g.r_Cin, g.r_Cin, Δr_edge, slope, g.params.n_anc,
+                    g.params.k_trust, g.params.wavenumber)
     elseif side === :R
-        _wkb_region(bg, m, :R, g.r_Cout, g.r_out, g.r_Cout, Δr_edge, slope, g.params.n_anc, g.params.k_trust)
+        _wkb_region(bg, m, :R, g.r_Cout, g.r_out, g.r_Cout, Δr_edge, slope, g.params.n_anc,
+                    g.params.k_trust, g.params.wavenumber)
     else
         throw(ArgumentError("wkb_region: side must be :L or :R"))
     end
@@ -366,6 +398,9 @@ function _solve_nW(reg::WKBRegion{T}, nL) where {T}
     nW = brent(x -> cell_count(reg, x) - N, T(nL), hi)
     (N, nW)
 end
+
+"The four (C1)-(C3) domain selections `build_grid` accepts; see its `extent` keyword."
+const GRID_EXTENTS = (:adaptive, :fiducial, :inner_fiducial, :outer_fiducial)
 
 """
     build_grid(bg, m; nL=240, nR=240, nC=24000, n_anc=10_000, extent=:adaptive,
@@ -390,14 +425,23 @@ Generate the Appendix-C adaptive radial grid for azimuthal mode `m` of the backg
    both edges. (`nL`, `nR`) = target cells per radian of WKB phase; the paper's reference triple is
    (240, 240, 24000) (A:140), its convergence runs (30, 3000) … (120, 12000).
 
+`wavenumber` selects the k of steps 2-3 through [`wkb_local`](@ref): `:newtonian` (default) is the
+literal appendix, `:gr` is the master system's own radial eigenvalue e^{μ}u^t√(ω_d²−κ²)/c_s
+(erratum E-M5) — a strictly finer mesh in the inner wave zone and a strictly SMALLER (C2)-(C3)
+domain, since the larger k reaches the trust threshold and the (C3) phase budget sooner.
+
 All arithmetic is in `T` (BigFloat inherits). See the file header for the recorded implementation
 choices ([PRELIMINARY]) behind the under-specified steps of the appendix.
 """
 function build_grid(bg::DiscBackground{T}, m::Integer; nL::Integer = 240, nR::Integer = 240,
                     nC::Integer = 24000, n_anc::Integer = 10_000, extent::Symbol = :adaptive,
-                    σ_wc_frac = 1e-3, s_c = 4, k_trust = 10, phase_min = 30, rc = nothing) where {T}
+                    wavenumber::Symbol = :newtonian, σ_wc_frac = 1e-3, s_c = 4, k_trust = 10,
+                    phase_min = 30, rc = nothing) where {T}
     m ≥ 1 || throw(ArgumentError("build_grid: m ≥ 1 required"))
-    extent in (:adaptive, :fiducial) || throw(ArgumentError("build_grid: extent must be :adaptive or :fiducial"))
+    extent in GRID_EXTENTS ||
+        throw(ArgumentError("build_grid: extent must be one of $(GRID_EXTENTS), got $(repr(extent))"))
+    wavenumber in (:newtonian, :gr) ||
+        throw(ArgumentError("build_grid: wavenumber must be :newtonian or :gr, got $(repr(wavenumber))"))
     (nL ≥ 1 && nR ≥ 1 && nC ≥ 3) || throw(ArgumentError("build_grid: need nL, nR ≥ 1 and nC ≥ 3"))
     s_cT, k_trustT, phase_minT = T(s_c), T(k_trust), T(phase_min)
     r_c = rc === nothing ? corotation_radius(bg, m) : convert(T, rc)
@@ -408,13 +452,15 @@ function build_grid(bg::DiscBackground{T}, m::Integer; nL::Integer = 240, nR::In
         r_in, r_out, rWKB_L, rWKB_R = r_isco(bg), 5 * bg.aEMRI, T(NaN), T(NaN)
     else
         r_in, r_out, rWKB_L, rWKB_R = _wkb_domain(bg, m, r_c; n_anc = n_anc, k_trust = k_trustT,
-                                                  phase_min = phase_minT)
+                                                  phase_min = phase_minT, wavenumber = wavenumber)
+        extent === :inner_fiducial && (r_in = r_isco(bg))       # release the (C2)-(C3) INNER cut only
+        extent === :outer_fiducial && (r_out = 5 * bg.aEMRI)    # release the OUTER cut only
     end
     (r_in < r_Cin && r_Cout < r_out) ||
         throw(ErrorException("build_grid: domain [$r_in, $r_out] does not contain the central block [$r_Cin, $r_Cout]"))
     Δr_edge, slope = _central_edge_spacing(σ_wc, s_cT, nC)
-    regL = _wkb_region(bg, m, :L, r_in, r_Cin, r_Cin, Δr_edge, slope, n_anc, k_trustT)
-    regR = _wkb_region(bg, m, :R, r_Cout, r_out, r_Cout, Δr_edge, slope, n_anc, k_trustT)
+    regL = _wkb_region(bg, m, :L, r_in, r_Cin, r_Cin, Δr_edge, slope, n_anc, k_trustT, wavenumber)
+    regR = _wkb_region(bg, m, :R, r_Cout, r_out, r_Cout, Δr_edge, slope, n_anc, k_trustT, wavenumber)
     NL, nW_L = _solve_nW(regL, nL)
     NR, nW_R = _solve_nW(regR, nR)
     blkL = _place_nodes(regL, nW_L, NL)          # r_in … r_Cin   (NL+1 nodes)
@@ -423,7 +469,7 @@ function build_grid(bg::DiscBackground{T}, m::Integer; nL::Integer = 240, nR::In
     all(diff(r) .> 0) || throw(ErrorException("build_grid: assembled grid is not strictly increasing"))
     blocks = (L = 1:(NL + 1), C = (NL + 1):(NL + nC), R = (NL + nC):(NL + nC + NR))
     params = (σ_wc = σ_wc, s_c = s_cT, k_trust = k_trustT, phase_min = phase_minT, n_anc = Int(n_anc),
-              extent = extent)
+              extent = extent, wavenumber = wavenumber)
     SpiralGrid{T}(r, Int(m), r_c, r_in, r_out, r_Cin, r_Cout, rWKB_L, rWKB_R, Int(nL), Int(nR), Int(nC),
                   NL, NR, nW_L, nW_R, blocks, params)
 end

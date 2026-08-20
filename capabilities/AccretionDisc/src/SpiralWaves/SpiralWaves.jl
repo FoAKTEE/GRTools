@@ -54,9 +54,11 @@ Version of the `SpiralWaves` submodule API (bumped as DAG nodes land; `v"0.1.0"`
 `v"0.2.0"` = background, `v"0.3.0"` = grid, `v"0.4.0"` = master matrices, `v"0.5.0"` = singular source,
 `v"0.6.0"` = mode solver, `v"0.7.0"` = diagnostics,
 `v"0.8.0"` = survey, `v"0.9.0"` = image synthesis, `v"0.9.1"` = its Cartesian/winding/mode-sweep front end,
-`v"0.10.0"` = the Newtonian-limit pipeline (T_Newt of Fig. 5)).
+`v"0.10.0"` = the Newtonian-limit pipeline (T_Newt of Fig. 5),
+`v"0.11.0"` = the controlled grid options `wavenumber = :newtonian|:gr` (E-M5) and
+`extent = :inner_fiducial|:outer_fiducial` of EGD::sw-grid-gr-refinement).
 """
-sw_version() = v"0.10.0"
+sw_version() = v"0.11.0"
 
 # ---- EGD::sw-background — disc equilibrium (Sec. II.A) -------------------------------------------
 include("background.jl")
@@ -68,7 +70,8 @@ export disc_OmegaK, kappar2, csound, eden0
 # ---- EGD::sw-grid — adaptive corotation/WKB radial grid (App. C) ---------------------------------
 include("grid.jl")
 export SpiralGrid, build_grid, corotation_radius, corotation_block, smoothmin
-export wkb_wavenumber, wkb_wavenumber2, wkb_wavenumber_floored, WKBRegion, wkb_region, cell_count
+export wkb_wavenumber, wkb_wavenumber2, wkb_wavenumber_floored, wkb_local, WKBRegion, wkb_region
+export cell_count, GRID_EXTENTS
 
 # ---- EGD::sw-master-matrices — relativistic master system (Sec. II.C) -----------------------------
 # (included AFTER grid.jl: the Landau shift uses grid.jl's `corotation_radius`; master_generated.jl is
