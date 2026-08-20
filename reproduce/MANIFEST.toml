@@ -543,3 +543,91 @@ expected = "arXiv-2608.17003/expected/fig12.json"
 depends = ["AccretionDisc", "Spacetime"]
 status = "solid"
 notes = "fig:pole_disp_errors (A:131-136). |T - T_ref|/T_ref of the total torque (74) vs h0 in {0.15,...,0.05} for eps_p in {1e-3,1e-4,1e-5} against eps_p = 1e-6; a_bullet=100M, chi=p=q=0, b=0.6. VLM verdict MATCH vs pole_errs.pdf; a tick-calibrated pixel read of the reference gives 1.09e-3..1.20e-3 / 1.14e-4..1.21e-4 / 8.0e-6..1.38e-5 versus ours 8.94e-4..1.22e-3 / 8.94e-5..1.22e-4 / 8.1e-6..1.11e-5 (same bands), and the A:162 O(eps_p) claim reproduces to 0.6%: reference median ratios 9.94 and 10.95 vs ours 9.998 and 10.985. RESOLUTION FINDING (measured, probe_pole_resolution.log): the Landau pole half-width dr_pole = eps_p Omega(r_c)/(m |dOmega/dr|) falls below the FIXED central spacing of the (C4)-(C5) corotation block, so the eps_p = 1e-6 reference is resolved only up to m ~ 5 on the n_C = 2400 grid printed at A:162; running exactly as printed the errors saturate and invert (6.8e-4, 1.2e-4, 2.0e-4 at h0=0.15). At n_C = 24000 the per-mode ratios are 10.0-14.0 at every m tested. This driver therefore uses the paper's REFERENCE triple n_C = 24000 (A:140) and the paper's own cutoff m_max = ceil(3/h0) (M:105) - both taken from the paper - with GRTOOLS_FIG12_NC / GRTOOLS_FIG12_MMAX restoring the A:162 configuration on demand. 2955 s at -t4 for 24 surveys."
+
+[[result]]
+paper = "1301.1591"
+id = "tails_a0p9"
+kind = "figure"
+script = "arXiv-1301.1591/tails_a0p9.jl"
+tier = "fast"
+expected = "arXiv-1301.1591/expected/tails_a0p9.json"
+depends = ["Perturbation", "Spacetime"]
+status = "solid"
+notes = "GRR::migrate-1301.1591. Campaign-A vacuum s=-2 Kerr tail at a=0.9 (legacy DG artefacts F-S1.4_Tails_Kerr_s-2_a0.9_finite / F-S1.4s_..._scri and data/tails_s-2_a0p9_K24.csv). 75 values: raw P4-window / envelope / sliding-plateau exponents at the horizon, mid and scri probes for l=2,3,4, the run dt, terminal field norm and the decimated |psi| records. IDENTICAL to the legacy campaign: dt and maxu_end BITWISE equal to data/tails_s-2_a0p9_K24.meta, and all nine fit rows equal data/verifier_tails.csv to every printed digit (hor l2 raw -6.339, env -6.546, plateau -0.043, nmin -6.665, nmax 0.344 ...). -t1 vs -t4 gives rel err 0.00e+00 on every scalar and max|delta|=0 on every array (thread invariance proven). 191 s solve at -t4. MEASURED BOUNDARY carried in the golden, not hidden: the committed |s|=2 defaults carry a kappa-mediated numerical oscillation, so the raw fit lands ~0.7 from the law -7 (the committed gate tolerance is +-1.0); the envelope estimator exists for exactly this reason and no knob is retuned per case."
+
+[[result]]
+paper = "1301.1591"
+id = "convergence"
+kind = "figure"
+script = "arXiv-1301.1591/fig_convergence.jl"
+tier = "heavy"
+expected = "arXiv-1301.1591/expected/convergence.json"
+depends = ["Perturbation", "Spacetime"]
+status = "solid"
+notes = "GRR::migrate-1301.1591. Campaign-C self-convergence panels of the s=-2 RT-chart sector (legacy DG artefact F-S1.1_Convergence_s-2_RT, data/conv_s-2_a0p9_N{2,4,6}_tf50.csv, data/verifier_conv.csv). Three K-ladders at N=2,4,6 against the finest-K reference at shared dt=1e-3, filter OFF, tf=50. IDENTICAL to the legacy campaign: every ladder entry matches data/conv_*_tf50.csv to all 9 printed digits and every fitted order matches verifier_conv.csv to 2 decimals (hor/mid/scri = 3.70/4.41/6.21 at N=2, 4.74/5.15/7.09 at N=4, 8.00/8.52/10.36 at N=6). Interior rates confirm the N+1 class; the scri rate exceeds the interior rate by ~+2 at every N (superconvergence PRESENT, the full 2N+1 class not resolvable above the self-convergence floor -- same shortfall as the reference figure's own coarse-N panel). ~9 min at -t4."
+
+[[result]]
+paper = "gr-qc-0703028"
+id = "skh_tables"
+kind = "table"
+script = "arXiv-gr-qc-0703028/check_skh_tables.jl"
+tier = "fast"
+expected = "arXiv-gr-qc-0703028/expected/skh_tables.json"
+depends = ["Perturbation", "Harmonics", "Spacetime"]
+status = "solid"
+notes = "GRR::migrate-1301.1591 (DG-Teukolsky Kerr flux campaign). Sundararajan-Khanna-Hughes Table I (FD, |m|=2) rows (a=0.9,r0=10)=4.456e-5 and (a=0.5,r0=10)=4.812e-5 and Table II (FD, |m|=3) row (a=0.9,r0=10)=5.044e-6, from the frequency-domain point-particle Teukolsky modes summed over l and doubled for +-m. Computed 4.45606073e-5 / 4.81230967e-5 / 5.04411894e-6, i.e. rel 1.363e-5 / 6.435e-5 / 2.358e-5 -- agreement to ALL published digits, and SAME as the legacy campaign record data-flux/dgs2_skh_anchor.out to every digit it printed. Also stores the per-l breakdown and the horizon flux. ~2 min at -t4. HONEST SCOPE: the legacy F1.7-analogue and T1.3-analogue artefacts of that campaign are NOT reproductions of a published object (the DG papers publish no s=-2 figure or table; recorded finding), so this SKH table is the published object of that lane and the time-domain side is registered separately."
+
+[[result]]
+paper = "1301.1591"
+id = "fig14_lpi_radii"
+kind = "figure"
+script = "arXiv-1301.1591/fig14_lpi_radii.jl"
+tier = "heavy"
+expected = "arXiv-1301.1591/expected/fig14_lpi_radii.json"
+depends = ["Perturbation", "Spacetime"]
+status = "solid"
+notes = "GRR::migrate-1301.1591-dg. Fig. 14 analogue: local power-law indices of the l=2 projection of an s=-2, a=0.9, ID0, l'=4 perturbation at the paper's 12 extraction radii (R_H, R_mid, R_S, R1..R9). Run IDENTICAL to the legacy campaign: dt = 5.454466970191581e-3 and maxu_end = 1.621664762491351e-8 are BITWISE equal to data/fig14_s-2_a0p9_lp4.meta; 411 s at -t4. THIS REPRODUCES A DOCUMENTED NO-GO, and the golden stores the measured non-matching numbers rather than a fabricated match: the paper's Tab. s2_LPI expects mu_2 = 8|7 (LPI -> -8 at finite radii, -7 at scri), but at Float64 the l'=4 -> l=2 DOWN-MODE is buried in the junk floor before reaching its asymptotic index -- measured envelope LPIs stall at -5.74 (R_H), -5.70 (R_mid), -5.32 (scri) and -4.9..-5.7 across R1..R9, exactly the '~-5.5 stall' the legacy campaign recorded. The paper itself used QUADRUPLE precision for this figure. 45/45 values re-check bit-identically."
+
+[[result]]
+paper = "1811.09628"
+id = "fig01_mode_profiles"
+kind = "figure"
+script = "arXiv-1811.09628/fig01_mode_profiles.jl"
+tier = "heavy"
+expected = "arXiv-1811.09628/expected/fig01_mode_profiles.json"
+depends = ["AccretionDisc", "NumericsCore"]
+status = "solid"
+notes = "GRR::migrate-1811.09628. Miranda-Rafikov 2019 Fig. 1 (mode_profiles): fractional surface-density perturbation profiles dSigma_m/Sigma for m = 2, 5, 10 in the figure's unit (M_p/M_th)^-1, on the 20000-point log grid r in [0.05, 5], adiabatic limit beta = 80 (MR19 has NO cooling; the shipped MR20 parameters.py beta = 0.1 damps the outward waves and destroys the figure - carried finding). 676 s for the three solves at -t4. SAME as the legacy DiscModes run to every digit the legacy record printed (results/emri-disk/figures/1811.09628/repro_fig1.spec.md): interior envelope 0.0362796 / 0.0566626 / 0.0378439 vs legacy 0.0363 / 0.0567 / 0.0378; global max 0.269520 / 0.274813 / 0.181617 vs 0.2695 / 0.2748 / 0.1816, all attained at r = 5. Both sets are registered side by side in the golden. VLM comparison of the rendered PNG against the legacy repro_fig1.png: MATCH (identical panels, axes, curve shapes, wavelengths, envelopes). This is the FIRST MR19 figure reproducible inside GrTools: the Newtonian planet-forced disc-mode solver it needs had no GrTools home until this wave (see reproduce/arXiv-1811.09628/README.md for the per-figure record of the other 15)."
+
+[[result]]
+paper = "1301.1591"
+id = "tails_spin_ladder"
+kind = "figure"
+script = "arXiv-1301.1591/tails_spin_ladder.jl"
+tier = "heavy"
+expected = "arXiv-1301.1591/expected/tails_spin_ladder.json"
+depends = ["Perturbation", "Spacetime"]
+status = "solid"
+notes = "GRR::migrate-1301.1591-dg. Campaign-A spin ladder (legacy DG artefact F-S1.4n_Tails_spin_ladder; data/tails_s-2_a0p{99,995,9995}_K24.csv): the SAME committed configuration as tails_a0p9 at a = 0.99, 0.995, 0.9995, which documents where the Float64 RT-chart sector stops resolving the empirical laws Eqs. (28),(29). 710 s total at -t4 (170 + 238 + 302). SAME as the legacy campaign: every l=2 fit equals data/verifier_tails.csv to its printed digits -- a=0.99 raw/env -7.676/-7.859 (R+), -7.351/-7.943 (R_mid), -8.428/-8.250 (scri); a=0.995 -6.568/-6.858, -6.528/-6.859, -7.027/-6.743; a=0.9995 +0.059/-0.018 (R+, junk-FLOODED and recorded as such), -5.809/-5.979 (R_mid), -5.852/-5.868 (scri). MEASURED CEILING, carried not hidden: all-probe agreement stops at a = 0.9; finite-radius (R+ and R_mid) agreement holds to a = 0.995; at a = 0.9995 the horizon probe is a flat junk record (fit ~ 0). The excision width follows the package policy and shrinks with the horizon gap (0.05 -> 0.04099 -> 0.01297)."
+
+[[result]]
+paper = "1301.1591"
+id = "scatter_m2_ID1"
+kind = "table"
+script = "arXiv-1301.1591/scatter_m2_ID1.jl"
+tier = "heavy"
+expected = "arXiv-1301.1591/expected/scatter_m2_ID1.json"
+depends = ["Perturbation", "Spacetime"]
+status = "solid"
+notes = "GRR::migrate-1301.1591-dg. Tab. m_neq_0_rates_sm2 analogue: the non-axisymmetric (ID1, m=2) rows of the s=-2, a=0.8 mode-scattering decay-rate matrix, seeds l'=2,3 in the coupled window l=2..6 (legacy artefact T-S1.1_ScatteringMatrix_s-2_a0.8, data/scatter_s-2_a0p8_m2_lp{2,3}_ID1.csv). 710 s at -t4. SAME as the legacy campaign: every registered fit equals data/verifier_scatter.csv to its printed digits (l'=2 scri l=2 raw -4.192, l=3 raw -3.741 / env -4.615; l'=3 scri l=2 raw -4.665 / env -4.674). MEASURED, stated precisely: on the committed P4 window NO entry of this block reaches its printed rate; what the legacy README reported as '-6.01, dev 0.01' for l'=3 -> l=2 at scri is the sliding-window MINIMUM (-6.010), not the primary fit. The golden stores raw, envelope, adaptive, plateau, min and max side by side with the printed law so the distinction is visible."
+
+[[result]]
+paper = "1301.1591"
+id = "scatter_m0_ID0"
+kind = "table"
+script = "arXiv-1301.1591/scatter_m0_ID0.jl"
+tier = "heavy"
+expected = "arXiv-1301.1591/expected/scatter_m0_ID0.json"
+depends = ["Perturbation", "Spacetime"]
+status = "solid"
+notes = "GRR::migrate-1301.1591-dg. Tab. s2_LPI (ID0, m=0) analogue: seeds l'=2,3,4,5 of the s=-2, a=0.8 mode-scattering decay-rate matrix in the coupled window l=2..6 (legacy artefact T-S1.1_ScatteringMatrix_s-2_a0.8, data/scatter_s-2_a0p8_m0_lp{2,3,4,5}_ID0.csv). 843 s at -t4. SAME as the legacy campaign: maxu_end = 7.830344759863758e-9 is BITWISE equal to data/scatter_s-2_a0p8_m0_lp2_ID0.meta and every registered fit equals data/verifier_scatter.csv to its printed digits. MEASURED VERDICT, not more: at a = 0.8 the junk floor sits high enough that only ONE of the sixteen registered entries falls inside the committed +-1.0 gate -- l'=2 -> l=2 at scri, raw -5.147 against the printed 6 (dev 0.853); the rest deviate by 1.0 to 7.0, monotonically worse the deeper the printed rate. Every entry with a printed rate mu >= 8 is below the floor, and the paper itself marks its mu >= 10 entries x even at QUADRUPLE precision. The golden stores the measured fits AND the printed laws side by side."
