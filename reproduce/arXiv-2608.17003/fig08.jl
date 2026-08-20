@@ -64,13 +64,16 @@ _envint(k, d) = haskey(ENV, k) ? parse(Int, ENV[k]) : d
 _envflt(k, d) = haskey(ENV, k) ? parse(Float64, ENV[k]) : d
 const N_H0   = _envint("GRTOOLS_FIG08_NH0", 5)          # h₀ samples in [0.05, 0.15]
 const H0S    = collect(range(0.05, 0.15; length = N_H0))
-const K_MMAX = _envflt("GRTOOLS_FIG08_K", 4.0)          # mode ceiling ⌈K/h₀⌉
+const K_MMAX = _envflt("GRTOOLS_FIG08_K", 6.0)          # mode ceiling ⌈K/h₀⌉  (PRIMARY)
 # m₉₅ is defined against "the final torque obtained after summing ALL COMPUTED modes" (M:990), so it
 # inherits a dependence on that ceiling.  fig14 measured it directly at a• = 30M, b = 0.3, h₀ = 0.05:
-# m₉₅ = 54 at ⌈4/h₀⌉ and 58 at ⌈6/h₀⌉ (+7.4 %).  This driver keeps the pre-registered K = 4 and
-# RE-RUNS the two configurations that produce the extremes of the m₉₅h₀ band at K_SENS, registering
-# both so the sensitivity of the M:1025 band claim is visible in the golden rather than hidden.
-const K_SENS = _envflt("GRTOOLS_FIG08_KSENS", 6.0)
+# m₉₅ = 54 at ⌈4/h₀⌉ and 58 at ⌈6/h₀⌉ (+7.4 %).  WAVE-6 DECISION D2 (progress/emri-gasdisk/
+# DECISIONS_W5.md, resolved in DECISIONS_W6.md): the PRIMARY ceiling is now ⌈6/h₀⌉ — three
+# independent measurements (this driver's own K-scan, fig14's b = 0.3 point, fig13's 0.3–1.7 %
+# torque deficit) indicate the published sums ran to ≈ 6/h₀.  The pre-registered K = 4 stays
+# REGISTERED beside it (`m95_h0_*_Ksens`) at the two configurations that set the band, so the
+# ceiling sensitivity remains visible in the golden rather than hidden.
+const K_SENS = _envflt("GRTOOLS_FIG08_KSENS", 4.0)
 const GRID   = (nL = _envint("GRTOOLS_FIG08_NL", 60), nR = _envint("GRTOOLS_FIG08_NR", 60),
                 nC = _envint("GRTOOLS_FIG08_NC", 6000))
 const REF_GRID = (nL = 240, nR = 240, nC = 24000)       # the paper's reference triple (A:140)
@@ -328,19 +331,24 @@ let lo = minimum(allv), hi = maximum(allv)
     loK, hiK = sens[1].m95h0_Ksens, sens[2].m95h0_Ksens
     contained = lo <= hi && 1.75 <= lo <= 3.75 && 1.75 <= hi <= 3.75          # [2.0,3.5] ± 0.25
     cover = max(0.0, min(hi, 3.5) - max(lo, 2.0)) / 1.5                       # published: 0.633
-    pixels = abs(loK - PUB_BAND[1]) <= 0.30 && abs(hiK - PUB_BAND[2]) <= 0.30
+    # (c) compares LIKE WITH LIKE: the published read-back is the band of the published FULL survey,
+    # so it is held against OUR full survey at the primary ceiling (K = 6 since wave 6), not against
+    # the two-configuration sensitivity re-run.
+    pixels = abs(lo - PUB_BAND[1]) <= 0.30 && abs(hi - PUB_BAND[2]) <= 0.30
     ok = contained && cover >= 0.55 && pixels
-    ok || push!(violations, "m95h0 band [M:1025]: ours [$(round(lo;digits=3)), $(round(hi;digits=3))] " *
-                "(contained=$(contained), coverage=$(round(100cover;digits=1))% of [2.0,3.5], need >=55%), " *
-                "⌈$(K_SENS)/h₀⌉ [$(round(loK;digits=3)), $(round(hiK;digits=3))] vs published pixels " *
-                "[$(PUB_BAND[1]), $(PUB_BAND[2])] (within ±0.30 = $(pixels))")
+    ok || push!(violations, "m95h0 band [M:1025]: ours ⌈$(K_MMAX)/h₀⌉ [$(round(lo;digits=3)), $(round(hi;digits=3))] " *
+                "(contained=$(contained), coverage=$(round(100cover;digits=1))% of [2.0,3.5], need >=55%; " *
+                "vs published pixels [$(PUB_BAND[1]), $(PUB_BAND[2])] within ±0.30 = $(pixels)); " *
+                "⌈$(K_SENS)/h₀⌉ sensitivity [$(round(loK;digits=3)), $(round(hiK;digits=3))]")
     @printf("  %-36s %-8s %-15s %-13s %s\n", "m95 h0 band inside 2.0-3.5 ±0.25", "M:1025", "[1.75, 3.75]",
             "[$(round(lo;digits=3)), $(round(hi;digits=3))]", contained ? "PASS" : "FAIL")
     @printf("  %-36s %-8s %-15s %-13s %s\n", "  coverage of [2.0, 3.5]", "M:1025", "≥ 55%",
             "$(round(100cover;digits=1))%", cover >= 0.55 ? "PASS" : "FAIL")
-    @printf("  %-36s %-8s %-15s %-13s %s\n", "  ⌈$(K_SENS)/h₀⌉ band vs published pixels", "M:1025",
+    @printf("  %-36s %-8s %-15s %-13s %s\n", "  ⌈$(K_MMAX)/h₀⌉ band vs published pixels", "M:1025",
             "[$(PUB_BAND[1]), $(PUB_BAND[2])]",
-            "[$(round(loK;digits=3)), $(round(hiK;digits=3))]", pixels ? "PASS" : "FAIL")
+            "[$(round(lo;digits=3)), $(round(hi;digits=3))]", pixels ? "PASS" : "FAIL")
+    @printf("  %-36s %-8s %-15s %-13s %s\n", "  ⌈$(K_SENS)/h₀⌉ sensitivity band", "D2",
+            "registered", "[$(round(loK;digits=3)), $(round(hiK;digits=3))]", "—")
 end
 let s = maximum(spread)
     ok = s <= 0.35

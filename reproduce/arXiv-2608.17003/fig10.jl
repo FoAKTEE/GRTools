@@ -13,7 +13,7 @@
 # The physics claim (M:1014) is the LOW-m SIGN: for 𝔭 = 5 the modal Lindblad torque is negative for
 # m ≲ 10 (h₀ = 0.05) and m ≲ 15 (h₀ = 0.03), while the TOTAL torque stays positive because the high-m
 # modes accumulate.  The totals are therefore summed over the FULL converged mode range 1:⌈4/h₀⌉
-# (m₉₅h₀ ≲ 3.5, M:1025, so 4/h₀ clears the cutoff), not over the plotted window 4:40 — the plotted
+# (m₉₅h₀ ≲ 3.5, M:1025), not over the plotted window 4:40 — the plotted
 # window follows the reference figure, whose first marker sits at m = 4.
 #
 # GOLDEN REUSE (checked, does not apply): no other driver of this directory carries per-mode Lindblad
@@ -45,8 +45,10 @@ const KEYS    = ("p5_h003", "p5_h005", "p0_h003", "p0_h005")
 
 _envint(k, d) = haskey(ENV, k) ? parse(Int, ENV[k]) : d
 _envflt(k, d) = haskey(ENV, k) ? parse(Float64, ENV[k]) : d
-# mode-sum ceiling for the TOTALS: ⌈K/h₀⌉ with K = 4 (m₉₅h₀ ≲ 3.5, M:1025)
-const K_MMAX  = _envflt("GRTOOLS_FIG10_K", 4.0)
+# mode-sum ceiling for the TOTALS: ⌈K/h₀⌉, PRIMARY K = 6 since wave 6 (decision D2, resolved in
+# DECISIONS_W6.md).  It moves ONLY the mode SUMS registered below — the plotted per-mode array
+# T_{L,m}, m = 4…40, is independent of where the sum is truncated.
+const K_MMAX  = _envflt("GRTOOLS_FIG10_K", 6.0)
 mmax_of(h0) = ceil(Int, K_MMAX / h0)
 
 # ───────────────────────────── the figure (presentation only) ────────────────────────────────────

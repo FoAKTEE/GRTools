@@ -44,8 +44,10 @@ const BS    = (0.3, 0.4, 0.5, 0.6, 0.7, 0.8)
 
 _envflt(k, d) = haskey(ENV, k) ? parse(Float64, ENV[k]) : d
 _envint(k, d) = haskey(ENV, k) ? parse(Int, ENV[k]) : d
-const K_MMAX = _envflt("GRTOOLS_FIG14_K", 4.0)      # mode ceiling ⌈K/h₀⌉
-const K_SENS = _envflt("GRTOOLS_FIG14_KSENS", 6.0)  # sensitivity ceiling for the b = 0.3 point
+# PRIMARY ceiling ⌈6/h₀⌉ since wave 6 (decision D2, resolved in DECISIONS_W6.md); the pre-registered
+# ⌈4/h₀⌉ stays REGISTERED beside it at the b = 0.3 point as `m95_h0_Ksens_b03`.
+const K_MMAX = _envflt("GRTOOLS_FIG14_K", 6.0)      # mode ceiling ⌈K/h₀⌉  (PRIMARY)
+const K_SENS = _envflt("GRTOOLS_FIG14_KSENS", 4.0)  # sensitivity ceiling for the b = 0.3 point
 # GRID (recorded, VERIFIED, not assumed): the surveys run at (60,60,6000), one of the paper's own
 # convergence-run resolutions (A:139), because the reference triple (240,240,24000) (A:140) costs
 # ≈ 3× the mission budget for `--regen` plus `--check`.  `RES_CHECK` re-runs the b = 0.3 and b = 0.8

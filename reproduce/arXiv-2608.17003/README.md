@@ -63,7 +63,7 @@ keys are reported by name — a claim is never silently dropped.
 | `M919-peak-growth`        | M:919  | text | `fig04.peak_growth_factor_a10` | 1.5 (±0.25) |
 | `M925-no-reversal`        | M:925  | text | `fig07.total_torque_all_positive` | true |
 | `M947-h0-turnover`        | M:947  | text | `fig07.torque_peak_h0`, `fig07.torque_monotone_up_to_peak` | h0 = 0.125, monotone |
-| `M1025-m95h0-band`        | M:1025 | text | `fig08.m95_h0_min`, `fig08.m95_h0_max`, `fig08.m95_h0_min_Ksens`, `fig08.m95_h0_max_Ksens` | ⊆[2.0,3.5]±0.25, ≥55 % cover, ⌈6/h₀⌉ band within ±0.30 of the published pixels [2.208, 3.157] |
+| `M1025-m95h0-band`        | M:1025 | text | `fig08.m95_h0_min`, `fig08.m95_h0_max`, `fig08.m95_h0_min_Ksens`, `fig08.m95_h0_max_Ksens` | ⊆[2.0,3.5]±0.25, ≥55 % cover, the PRIMARY (⌈6/h₀⌉ full-survey) band within ±0.30 of the published pixels [2.208, 3.157]; the ⌈4/h₀⌉ band printed beside it |
 | `M992-m95-inverse-h0`     | M:992  | text | `fig08.m95_h0_spread_fraction` | ≤ 0.35 |
 | `M999-m45-cutoff`         | M:999  | text | `fig09.m45_times_h0` (Lindblad reading; the total-torque reading `fig09.m45_T_times_h0` = 0.65 is registered but NOT asserted — see the fig09 row) | 0.35 (±0.1) |
 | `M1002-ratio-pq00-a12`    | M:1002 | figure-read | `fig09.ratio_pq00_a12` | 1.5 (±0.15) |
@@ -99,16 +99,18 @@ The claim now asserts three things, all visible in the gate row:
    exhibits: the published band sits 0.208 above the lower edge and 0.343 below the upper one);
 2. **coverage** — the overlap of our band with [2.0, 3.5] is ≥ 55 % of its width; the published
    band covers 63.3 %, so the threshold is one the reference passes with margin;
-3. **pixel cross-check** — the ⌈6/h₀⌉ band `m95_h0_*_Ksens` within ±0.30 of [2.208, 3.157].
+3. **pixel cross-check** — the PRIMARY band `m95_h0_min/max` within ±0.30 of [2.208, 3.157].
 
-Part 3 compares like with like at the mode ceiling.  Our production survey sums m ≤ ⌈4/h₀⌉ and
-gives [1.80, 3.00]; the same survey at ⌈6/h₀⌉ gives [1.95, 3.15] — 0.007 from the published
-maximum.  fig08's ceiling scan, fig14 (m₉₅h₀ at b = 0.3: 2.700 → 2.900) and fig13 (a 0.3–1.7 %
-torque deficit) independently indicate that the paper summed ≈ 6/h₀ azimuthal modes.  Both bands
-are printed in the gate's `ours` column, so the K = 4 vs K = 6 difference is never absorbed
-silently.
+Part 3 compares like with like: the published read-back is the band of the *published full survey*,
+so it is held against *our full survey* at the primary ceiling.  **Wave 6** (decision D4 of
+`progress/emri-gasdisk/DECISIONS_W6.md`, resolving D2 of `DECISIONS_W5.md`) made ⌈6/h₀⌉ the primary
+ceiling of `fig08`, `fig10`, `fig13` and `fig14`: fig08's own ceiling scan, fig14 (m₉₅h₀ at b = 0.3:
+2.700 → 2.900) and fig13 (a 0.3–1.7 % torque deficit) independently indicate the paper summed
+≈ 6/h₀ azimuthal modes, and the low-m deficit investigation
+(`results/emri-gasdisk/paper_EMRI-GASDISK/evidence/fig10-per-mode-reversal/`, emri-disk) established
+that the ceiling and that deficit are INDEPENDENT — a per-mode `T_{L,m}` does not depend on where the
+mode SUM is truncated.  The pre-registered ⌈4/h₀⌉ band stays registered as `m95_h0_*_Ksens` and is
+printed beside the primary band, so the ceiling difference is never absorbed silently.
 
-**Scope caveat on `m95_h0_*_Ksens`** [PRELIMINARY]: `fig08.jl` re-runs only the *two* configurations
-that set the ⌈4/h₀⌉ band, so these keys are the ⌈6/h₀⌉ values *at those two configurations*, not the
-extremes of a full ⌈6/h₀⌉ survey — a full K = 6 survey could widen the band.  Re-surveying at K = 6
-is the deferred decision D2 in `progress/emri-gasdisk/DECISIONS_W5.md` (emri-disk).
+The wave-5 **scope caveat is discharged**: part 3 is no longer a two-configuration comparison — it
+now uses the extremes of the full ⌈6/h₀⌉ survey.

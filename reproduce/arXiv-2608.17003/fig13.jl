@@ -39,9 +39,15 @@ const H0S   = (0.05, 0.075, 0.1, 0.125, 0.15)
 
 _envflt(k, d) = haskey(ENV, k) ? parse(Float64, ENV[k]) : d
 _envint(k, d) = haskey(ENV, k) ? parse(Int, ENV[k]) : d
-# mode-sum ceiling ⌈K/h₀⌉ with K = 4 (m₉₅h₀ ≲ 3.5, M:1025, so 4/h₀ clears the cutoff)
-const K_MMAX = _envflt("GRTOOLS_FIG13_K", 4.0)
-mmax_of(h0) = ceil(Int, K_MMAX / h0)
+# mode-sum ceiling ⌈K/h₀⌉.  PRIMARY K = 6 since wave 6 (decision D2 of progress/emri-gasdisk/
+# DECISIONS_W5.md, resolved in DECISIONS_W6.md): three independent measurements — fig08's own K-scan,
+# fig14's b = 0.3 point and THIS driver's 0.3-1.7 % torque deficit against the published read-back —
+# indicate the published sums ran to ≈ 6/h₀, not the ⌈4/h₀⌉ these surveys used through wave 5.
+# The pre-registered K = 4 is kept as a REGISTERED sensitivity at the two points the paper-facing
+# gate reads (b = 0.3 and b = 0.8 at h₀ = 0.05), so the ceiling difference stays visible.
+const K_MMAX = _envflt("GRTOOLS_FIG13_K", 6.0)
+const K_SENS = _envflt("GRTOOLS_FIG13_KSENS", 4.0)
+mmax_of(h0; K = K_MMAX) = ceil(Int, K / h0)
 # GRID (recorded, VERIFIED, not assumed): 30 configurations × ⌈4/h₀⌉ modes at the paper's reference
 # triple (240,240,24000) (A:140) costs ≈ 1 h at -t8, and the mission budget must also pay for the
 # `--check` re-run.  The surveys therefore use (60,60,6000), one of the paper's OWN convergence-run
@@ -153,10 +159,10 @@ One marker of the figure: the total torque (74) and Lindblad torque (75) summed 
 softening `b`, normalised by F_{J,0}h₀ (76a).  `grid` is forwarded to `build_grid` ((60,60,6000) by
 default, `REF_GRID` for the in-driver resolution cross-check).
 """
-function run_point(h0, b; grid = GRID)
+function run_point(h0, b; grid = GRID, K = K_MMAX)
     t0 = time()
     bg = SW.DiscBackground(; χ = CHI, aEMRI = AEMRI, h0 = h0, 𝔭 = PDISK, 𝔮 = QDISK, b = b)
-    mmax = mmax_of(h0)
+    mmax = mmax_of(h0; K = K)
     surv = SW.torque_survey(bg, 1:mmax; grid_kwargs = grid)
     unit = SW.torque_units(bg)[1] * bg.h0
     Tm = SW.mode_torques(surv)
@@ -180,6 +186,12 @@ for (i, h0) in enumerate(H0S), b in BS
     flush(stdout)
 end
 
+# mode-ceiling sensitivity at the two points the gate reads (A:164): the SAME surveys at ⌈K_SENS/h₀⌉
+sensT = [run_point(0.05, b; K = K_SENS).T for b in (BS[1], BS[end])]
+@printf("[fig13] mode-ceiling sensitivity h0=0.050: T(b=%.2f) = %.5f at ⌈%.1f/h₀⌉ vs %.5f at ⌈%.1f/h₀⌉;  T(b=%.2f) = %.5f vs %.5f\n",
+        BS[1], curves[1][1], K_MMAX, sensT[1], K_SENS, BS[end], curves[1][end], sensT[2])
+flush(stdout)
+
 # resolution cross-check: the same torque at the paper's reference triple (240,240,24000)
 const RES_CHECK = ((0.05, 0.3), (0.15, 0.8))
 res_red = Float64[]; res_ref = Float64[]
@@ -202,6 +214,9 @@ resolution_ok = all(abs(res_red[i] - res_ref[i]) <= 1e-3 * abs(res_ref[i]) for i
 @repro_result "b_grid"   collect(BS)
 @repro_result "h0_grid"  collect(H0S)
 @repro_result "m_max_over_h0" K_MMAX
+@repro_result "m_max_over_h0_sens" K_SENS
+@repro_result "torque_h005_b03_Ksens" sensT[1]
+@repro_result "torque_h005_b08_Ksens" sensT[2]
 for (i, h0) in enumerate(H0S)
     register!(key(h0), curves[i])
     register!("TL_h0_" * replace(@sprintf("%.3f", h0), "." => ""), curvesL[i])

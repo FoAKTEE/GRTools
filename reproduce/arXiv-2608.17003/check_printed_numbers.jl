@@ -142,29 +142,31 @@ const CLAIMS = Claim[
     #       threshold is one the published figure passes with margin, while still forbidding a
     #       reproduction whose spread collapses.
     #   (c) PIXEL CROSS-CHECK, ±0.30 on each edge, against [2.208, 3.157].  This one compares
-    #       like with like AT THE MODE CEILING.  Our production survey sums m ≤ ⌈4/h₀⌉ and gives
-    #       [1.80, 3.00]; the SAME survey at ⌈6/h₀⌉ gives [1.95, 3.15], i.e. 0.007 from the
-    #       published maximum.  fig08's own ceiling scan, fig14 (m₉₅h₀ at b=0.3: 2.700 → 2.900) and
-    #       fig13 (a 0.3–1.7 % torque deficit) independently indicate the paper summed ≈ 6/h₀ modes,
-    #       so the ⌈6/h₀⌉ band (`m95_h0_*_Ksens`) is what is held against the published pixels.
-    #       The ⌈4/h₀⌉ band is displayed next to it and is what (a) and (b) assert; the K = 4 vs
-    #       K = 6 difference is therefore VISIBLE in the gate table, never absorbed silently.
-    #       SCOPE OF `m95_h0_*_Ksens` [PRELIMINARY]: fig08 re-runs only the TWO configurations that
-    #       set the ⌈4/h₀⌉ band, so these are the ⌈6/h₀⌉ values AT those two configurations, not the
-    #       extremes of a full ⌈6/h₀⌉ survey (which is the deferred decision D2 of
-    #       progress/emri-gasdisk/DECISIONS_W5.md).  A full K = 6 survey could widen the band.
+    #       like with like: the published read-back is the band of the PUBLISHED FULL SURVEY, so it
+    #       is held against OUR FULL SURVEY at the primary mode ceiling — `m95_h0_min/max`.
+    #       WAVE 6 (decision D4 of progress/emri-gasdisk/DECISIONS_W6.md, resolving D2 of
+    #       DECISIONS_W5.md): the primary ceiling is now ⌈6/h₀⌉.  fig08's own ceiling scan, fig14
+    #       (m₉₅h₀ at b = 0.3: 2.700 → 2.900) and fig13 (a 0.3–1.7 % torque deficit) independently
+    #       indicate the paper summed ≈ 6/h₀ modes, and the low-m deficit investigation
+    #       (evidence/fig10-per-mode-reversal/) established that the ceiling and that deficit are
+    #       INDEPENDENT effects — a per-mode T_{L,m} does not depend on where the mode SUM is
+    #       truncated — so the re-survey was safe to take.  The pre-registered ⌈4/h₀⌉ band stays
+    #       REGISTERED as `m95_h0_*_Ksens` (at the two configurations that set it) and is printed
+    #       beside the primary band, so the ceiling difference is VISIBLE in the gate table, never
+    #       absorbed silently.  This DISCHARGES the wave-5 [PRELIMINARY — scope] caveat: (c) is no
+    #       longer a two-configuration comparison.
     Claim("M1025-m95h0-band", "M:1025", :text,
         "m_95 h0 ≃ 2.0–3.5 across the disk profiles considered (m_95 ∝ 1/h0, M:992); the published "
-        * "figure's own violins span [2.208, 3.157] (pixel read-back, K = 6/h0 ceiling)",
+        * "figure's own violins span [2.208, 3.157] (pixel read-back of the full published survey)",
         ["fig08" => "m95_h0_min", "fig08" => "m95_h0_max",
          "fig08" => "m95_h0_min_Ksens", "fig08" => "m95_h0_max_Ksens"],
         "⊆[2.0,3.5]; px [2.208,3.157]", "env ±0.25, cover ≥55%, px ±0.30",
         function (lo, hi, loK, hiK)
             contained = lo <= hi && inrange(lo, 1.75, 3.75) && inrange(hi, 1.75, 3.75)
             cover = max(0.0, min(hi, 3.5) - max(lo, 2.0)) / 1.5
-            pixels = within(loK, 2.208, 0.30) && within(hiK, 3.157, 0.30)
+            pixels = within(lo, 2.208, 0.30) && within(hi, 3.157, 0.30)
             (contained && cover >= 0.55 && pixels,
-             "[$(_fmt(lo)), $(_fmt(hi))] cov $(_fmt(100 * cover))%; K6 [$(_fmt(loK)), $(_fmt(hiK))]")
+             "[$(_fmt(lo)), $(_fmt(hi))] cov $(_fmt(100 * cover))%; K4 [$(_fmt(loK)), $(_fmt(hiK))]")
         end),
 
     Claim("M992-m95-inverse-h0", "M:992", :text,
