@@ -70,6 +70,48 @@ const DOTTIE = 0.7390851332151607   # cos(x)=x
         @test r ≈ cbrt(2.0) atol=1e-13
     end
 
+    # The complex-seeded secant: the ONE body behind the Leaver-CF eigenvalue solve
+    # (Harmonics) and the QNM frequency solve (Perturbation), both of which used to carry a
+    # private ten-line copy because the tolerance test needs REAL magnitudes on a COMPLEX iterate.
+    # Grounding is analytic: closed-form complex roots, independent of the solver.
+    @testset "complex secant — real tolerances on a complex iterate" begin
+        # z² + 1 = 0 → ±i (seeds pick the +i branch)
+        r = secant(z -> z^2 + 1, 0.5 + 0.5im, 0.4 + 1.2im)
+        @test r isa Complex{Float64}
+        @test r ≈ im atol=1e-12
+        # z² = 3+4i → 2+i exactly (a Gaussian-integer square, independent closed form)
+        r2 = secant(z -> z^2 - (3 + 4im), 1.0 + 0.0im, 3.0 + 3.0im)
+        @test r2 ≈ 2 + im atol=1e-12
+        # e^z = -1 → iπ (principal branch, seeded near it)
+        r3 = secant(z -> exp(z) + 1, 0.2 + 3.0im, -0.1 + 3.3im)
+        @test r3 ≈ π * im atol=1e-12
+
+        # the real-tolerance contract: an explicitly REAL rtol/atol is accepted on complex seeds
+        r4 = secant(z -> z^2 + 1, 0.5 + 0.5im, 0.4 + 1.2im; rtol=1e-14, atol=0.0)
+        @test r4 ≈ im atol=1e-13
+
+        # Complex{BigFloat}: precision is inherited (default rtol = eps(real(T)))
+        setprecision(BigFloat, 256) do
+            f = z -> z^2 + 1
+            rb = secant(f, Complex{BigFloat}(big"0.5", big"0.5"),
+                           Complex{BigFloat}(big"0.4", big"1.2"); maxiter=200)
+            @test rb isa Complex{BigFloat}
+            @test abs(rb - im) < big(2.0)^-200
+        end
+    end
+
+    @testset "throw_on_fail=false returns the last iterate instead of erroring" begin
+        f = x -> x^2 - 2
+        # budget exhausted
+        @test_throws ErrorException secant(f, 1.0, 2.0; rtol=0.0, atol=0.0, maxiter=1)
+        v = secant(f, 1.0, 2.0; rtol=0.0, atol=0.0, maxiter=1, throw_on_fail=false)
+        @test v isa Float64 && isfinite(v)
+        # zero secant slope: f(a) == f(b) ≠ 0 with a ≠ b
+        g = x -> x^2 - 2                     # g(-1) == g(1) == -1
+        @test_throws ErrorException secant(g, -1.0, 1.0)
+        @test secant(g, -1.0, 1.0; throw_on_fail=false) == 1.0
+    end
+
     @testset "BigFloat precision inheritance — √2 to 2^-200" begin
         setprecision(BigFloat, 256) do
             ref = sqrt(big(2))

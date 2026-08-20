@@ -11,24 +11,40 @@
 @inline _solver_T(xs...) = float(promote_type(map(typeof, xs)...))
 
 """
-    secant(f, x0, x1; atol=0, rtol=eps, maxiter=100) -> root
+    secant(f, x0, x1; atol=0, rtol=eps, maxiter=100, throw_on_fail=true) -> root
 
 Derivative-free secant iteration from the two seeds `x0`, `x1` (no bracketing required).
 Converges superlinearly (order φ≈1.618) for a simple root. Stops when the step
 `|xₙ₊₁−xₙ| ≤ atol + rtol·|xₙ₊₁|`. (Teukolsky/H1 `_secant` pattern, generic `{T}`.)
+
+COMPLEX-CAPABLE: `x0`/`x1` may be complex (Leaver-CF eigenvalues, QNM frequencies). The iterate
+type is `T = float(promote_type(...))` while the tolerances live in `RT = real(T)` — the step test
+compares the REAL magnitudes `|c − b|` and `|c|`, which is what a complex `T(rtol)` could not
+express and what forced the two private complex copies (`Harmonics._swsh_secant`,
+`Perturbation.QNM._qnm_secant`) that this method replaces.
+
+`throw_on_fail=false` makes the two non-convergence exits RETURN the current iterate `b` instead of
+erroring (a zero secant slope, or `maxiter` exhausted) — the behaviour the spectral-seeded
+eigenvalue/QNM solvers rely on, where the seed itself is already an acceptable answer and the
+caller judges the residual.
 """
-function secant(f, x0, x1; atol=nothing, rtol=nothing, maxiter::Integer=100)
+function secant(f, x0, x1; atol=nothing, rtol=nothing, maxiter::Integer=100,
+                throw_on_fail::Bool=true)
     T = _solver_T(x0, x1)
+    RT = real(T)
     a = T(x0); b = T(x1)
-    at = atol === nothing ? zero(T) : T(atol)
-    rt = rtol === nothing ? eps(T) : T(rtol)
-    (at >= zero(T) && rt >= zero(T)) || throw(ArgumentError("secant: tolerances must be nonnegative"))
+    at = atol === nothing ? zero(RT) : RT(atol)
+    rt = rtol === nothing ? eps(RT) : RT(rtol)
+    (at >= zero(RT) && rt >= zero(RT)) || throw(ArgumentError("secant: tolerances must be nonnegative"))
     fa = f(a); fb = f(b)
     iszero(fa) && return a
     iszero(fb) && return b
     for _ in 1:maxiter
         denom = fb - fa
-        iszero(denom) && error("secant failed: zero secant slope before convergence")
+        if iszero(denom)
+            throw_on_fail || return b
+            error("secant failed: zero secant slope before convergence")
+        end
         c = b - fb * (b - a) / denom
         if abs(c - b) <= at + rt * abs(c)
             return c
@@ -36,6 +52,7 @@ function secant(f, x0, x1; atol=nothing, rtol=nothing, maxiter::Integer=100)
         a, fa = b, fb
         b, fb = c, f(c)
     end
+    throw_on_fail || return b
     error("secant did not converge in $maxiter iterations (last residual $(abs(fb)))")
 end
 

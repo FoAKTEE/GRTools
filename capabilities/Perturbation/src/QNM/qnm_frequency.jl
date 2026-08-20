@@ -97,25 +97,9 @@ end
 
 @inline _qnm_default_rtol(ω::Number) = eps(float(real(typeof(ω)))) * 8
 
-"""
-    _qnm_secant(f, x0, x1; rtol, maxiter) -> Complex
-
-Derivative-free complex secant (kept local: the CF residual is complex-valued, so the tolerance
-test compares the real step `|Δω|` to a real bound — the generic `NumericsCore.secant`'s complex
-`eps(T)` cannot express this, exactly the reason Harmonics keeps `_swsh_secant` local).
-"""
-function _qnm_secant(f, x0::Number, x1::Number; rtol::Real, maxiter::Integer=200)
-    f0 = f(x0); f1 = f(x1)
-    x0c, x1c = x0, x1
-    for _ in 1:maxiter
-        denom = f1 - f0
-        iszero(denom) && return x1c
-        x2 = x1c - f1 * (x1c - x0c) / denom
-        abs(x2 - x1c) <= rtol * abs(x2) && return x2
-        x0c, f0, x1c, f1 = x1c, f1, x2, f(x2)
-    end
-    return x1c
-end
+# The complex secant is `NumericsCore.secant` (real tolerances on a complex iterate,
+# `throw_on_fail=false` returning the last iterate) — the former private `_qnm_secant` copy and the
+# Harmonics `_swsh_secant` copy were the same ten lines and are gone.
 
 """
     _qnm_angular_lambda(s, l, m, a, ω) -> Complex
@@ -189,6 +173,6 @@ function qnm_frequency(s::Integer, l::Integer, m::Integer, n::Integer, a::Real;
     # second secant seed: a small complex perturbation of ω0 (scaled to ω0's magnitude)
     δ = seed_step === nothing ? Complex{T}(T(1) / 10^4 + im * T(1) / 10^4) : Complex{T}(seed_step)
     ω1 = ω0 * (1 + δ)
-    ω = _qnm_secant(G, ω0, ω1; rtol=rtol, maxiter=maxiter)
+    ω = secant(G, ω0, ω1; rtol=rtol, maxiter=maxiter, throw_on_fail=false)
     return return_residual ? (ω, abs(G(ω))) : ω
 end

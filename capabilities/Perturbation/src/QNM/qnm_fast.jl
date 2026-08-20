@@ -184,7 +184,7 @@ end
 # ─────────────────────────────────────────────────────────────────────────────────────────────
 # PRIORITY-2a — single-root polish. Complex secant on the SAME `qnm_cf_residual` (reused, not
 # forked), with the angular λ per residual supplied by shift-invert WARM-STARTED from the previous
-# ω-iterate's `A_sep` (the continuation idea at the inner scale). `_qnm_secant` is the same complex
+# ω-iterate's `A_sep` (the continuation idea at the inner scale). `NumericsCore.secant` is the same complex
 # secant `:leaver` uses.
 # ─────────────────────────────────────────────────────────────────────────────────────────────
 """
@@ -217,7 +217,7 @@ function _qnm_polish_fast(s::Integer, l::Integer, m::Integer, a::Real, ω_seed::
     ω0 = Complex{T}(ω_seed)
     δ = seed_step === nothing ? Complex{T}(T(1) / 10^4 + im * T(1) / 10^4) : Complex{T}(seed_step)
     ω1 = ω0 * (1 + δ)
-    ω = _qnm_secant(G, ω0, ω1; rtol=rtol, maxiter=maxiter)
+    ω = secant(G, ω0, ω1; rtol=rtol, maxiter=maxiter, throw_on_fail=false)
     # final consistent recompute (λ, A_sep, residual) at the root
     γ = complex(a * ω)
     λ, A_sep, tailfrac, lmx, _ = _qnm_angular_fast(s, l, m, γ, Aref[]; ltol=ltol, growmax=growmax,

@@ -243,26 +243,6 @@ end
 # --- Leaver continued-fraction backend (type-generic; consumes NumericsCore CF) ---
 
 """
-    _swsh_secant(f, x0, x1; rtol, maxiter) -> Number
-
-Derivative-free secant root of `f` from two seeds. Kept local (not `NumericsCore.secant`) because
-the Leaver equation is COMPLEX-valued in `A`: the tolerance test must compare the real step
-`|Δx|` against a real bound, which the generic core secant's `T(rtol)` (complex when the seeds are
-complex) cannot express. Mirrors the .m `FindRoot[..., Method->"Secant"]`.
-"""
-function _swsh_secant(f, x0::Number, x1::Number; rtol::Real=1e-12, maxiter::Integer=200)
-    f0 = f(x0); f1 = f(x1)
-    for _ in 1:maxiter
-        denom = f1 - f0
-        iszero(denom) && return x1
-        x2 = x1 - f1 * (x1 - x0) / denom
-        abs(x2 - x1) <= rtol * abs(x2) && return x2
-        x0, f0, x1, f1 = x1, f1, x2, f(x2)
-    end
-    return x1
-end
-
-"""
     _swsh_eigenvalue_leaver_residual(s, l, m, γ) -> (λ, residual)
 
 Leaver continued-fraction eigenvalue (Leaver 1985) WITH the converged CF residual: secant-solve
@@ -300,7 +280,11 @@ function _swsh_eigenvalue_leaver_residual(s::Integer, l::Integer, m::Integer, γ
     rt = eps(RT) * 8                                           # precision-INHERITED secant/CF tolerance
     RHS(A) = -cf_convergent(n -> -αn(n - 1) * γn(n), n -> βn(n, A), nInv + 1; rtol=rt)
     Eq(A) = LHS(A) - RHS(A)
-    A = _swsh_secant(Eq, Aini, Aini * (1 + RT(1)/RT(10)^6) + RT(1)/RT(10)^8; rtol=rt, maxiter=400)
+    # complex-seeded secant (`NumericsCore.secant`, real tolerances on a complex iterate);
+    # `throw_on_fail=false` keeps the .m `FindRoot[..., Method->"Secant"]` behaviour of returning the
+    # last iterate — the caller judges the CF residual returned alongside λ.
+    A = secant(Eq, Aini, Aini * (1 + RT(1)/RT(10)^6) + RT(1)/RT(10)^8;
+               rtol=rt, maxiter=400, throw_on_fail=false)
     λ = A - 2 * m * γ + g^2
     return (iszero(imag(λ)) ? real(λ) : λ), abs(Eq(A))
 end
