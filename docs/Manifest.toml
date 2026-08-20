@@ -59,7 +59,7 @@ version = "0.1.45"
     Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [[deps.AccretionDisc]]
-deps = ["Data", "HDF5", "Harmonics", "LinearAlgebra", "MetricReconstruction", "NumericsCore", "Perturbation", "Printf", "Spacetime"]
+deps = ["Data", "HDF5", "Harmonics", "LinearAlgebra", "MetricReconstruction", "NumericsCore", "Perturbation", "Printf", "Spacetime", "SparseArrays", "SpecialFunctions"]
 path = "../capabilities/AccretionDisc"
 uuid = "41b4f346-9cfd-4132-92af-b9cd45d2bbed"
 version = "0.1.0"
