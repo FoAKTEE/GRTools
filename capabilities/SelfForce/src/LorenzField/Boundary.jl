@@ -10,15 +10,7 @@
 # Type-generic {T}; tolerances inherit precision so BigFloat reaches full mantissa.
 
 using LinearAlgebra
-
-# series truncation tolerance: precision-inherited (a hard 1e-14 would cap BigFloat at ~14 digits).
-function _bc_tol(::Type{T}) where {T}
-    if real(T) <: BigFloat
-        bits = precision(real(T))
-        return max(big(2.0)^(10 - bits), 8*eps(real(T)))
-    end
-    return T(1e-14)
-end
+using NumericsCore: bc_tol   # series truncation tolerance, precision-inherited (single home: NumericsCore.precision)
 
 # Hard cap on the asymptotic-series term count (the outgoing 1/r series only converges beyond a
 # mode-dependent radius; in BigFloat there is no overflow to break a misseeded loop).
@@ -98,7 +90,7 @@ end
 # ───────── EVEN (l≥2): 5 coupled fields R1,R3,R5,R6,R7 ─────────
 function even_out_bcs(a0s::Vector{T}, l, ω, p; rs_out=T(110000)) where {T}
     L = T(l*(l + 1)); lambda = T((l + 2)*(l - 1)); w = ω
-    tol = _bc_tol(T)
+    tol = bc_tol(T)
     a_data = T[ -(2+L)  2      2          2      0;
                  2     -(2+L) -2         -2      0;
                  2L    -2L    -(4+L)     -2L     2;
@@ -176,7 +168,7 @@ end
 
 function even_in_bcs(a0s::Vector{T}, l, ω) where {T}
     rs_in = T(-50); w = ω; r_in = r_of_rs(rs_in); epsilon = r_in - 2
-    L = T(l*(l + 1)); lambda = T((l + 2)*(l - 1)); tol = _bc_tol(T)
+    L = T(l*(l + 1)); lambda = T((l + 2)*(l - 1)); tol = bc_tol(T)
     b1=Complex{T}[0,0,0,a0s[1],0]; b3=Complex{T}[0,0,0,a0s[2],0]
     b5=Complex{T}[0,0,0,a0s[3],0]; b6=Complex{T}[0,0,0,a0s[4],0]; b7=Complex{T}[0,0,0,a0s[5],0]
     sum1=b1[4]; sum3=b3[4]; sum5=b5[4]; sum6=b6[4]; sum7=b7[4]
@@ -209,7 +201,7 @@ end
 
 # ───────── EVEN DIPOLE (l=1): 4 coupled fields R1,R3,R5,R6 ─────────
 function even_dipole_out_bcs(a0s::Vector{T}, l, ω, p; rs_out=T(110000)) where {T}
-    L = T(l*(l + 1)); lambda = T((l + 2)*(l - 1)); w = ω; tol = _bc_tol(T)
+    L = T(l*(l + 1)); lambda = T((l + 2)*(l - 1)); w = ω; tol = bc_tol(T)
     if ω < T(1)/100
         if a0s[1]==1;     a13=Complex{T}(-1); a33=Complex{T}(1);  a53=Complex{T}(2);  a63=Complex{T}(-4)
         elseif a0s[2]==1; a13=Complex{T}(1);  a33=Complex{T}(-1); a53=Complex{T}(3);  a63=Complex{T}(-1)
@@ -231,7 +223,7 @@ end
 
 # ───────── MONOPOLE (l=0): 3 coupled fields R1,R3,R6 ─────────
 function monopole_out_bcs(a0s::Vector{T}, l, ω; rs_out=T(110000)) where {T}
-    L = T(l*(l + 1)); lambda = T((l + 2)*(l - 1)); w = ω; tol = _bc_tol(T)
+    L = T(l*(l + 1)); lambda = T((l + 2)*(l - 1)); w = ω; tol = bc_tol(T)
     rs_out = T(rs_out)
     while true
         r_out = r_of_rs(rs_out); j_max=5
@@ -275,7 +267,7 @@ end
 
 function monopole_in_bcs(a0s::Vector{T}, l, ω) where {T}
     rs_in=T(-50); w=ω; r_in=r_of_rs(rs_in); epsilon=r_in-2
-    L=T(l*(l+1)); lambda=T((l+2)*(l-1)); tol=_bc_tol(T)
+    L=T(l*(l+1)); lambda=T((l+2)*(l-1)); tol=bc_tol(T)
     b1=Complex{T}[0,0,0,a0s[1],0]; b3=Complex{T}[0,0,0,a0s[2],0]
     b5=zeros(Complex{T},5); b6=Complex{T}[0,0,0,a0s[3],0]; b7=zeros(Complex{T},5)
     sum1=b1[4]; sum3=b3[4]; sum5=b5[4]; sum6=b6[4]; sum7=b7[4]
@@ -308,7 +300,7 @@ end
 
 # ───────── ODD (l≥2): 2 coupled fields R9,R10 ─────────
 function odd_out_bcs(a0s::Vector{T}, l, ω, p; rs_out=T(110000)) where {T}
-    L=T(l*(l+1)); lambda=T((l+2)*(l-1)); w=ω; tol=_bc_tol(T)
+    L=T(l*(l+1)); lambda=T((l+2)*(l-1)); w=ω; tol=bc_tol(T)
     rs_out=T(rs_out)
     while true
         r_out=r_of_rs(rs_out); j_max=5
@@ -354,7 +346,7 @@ end
 
 function odd_in_bcs(a0s::Vector{T}, l, ω) where {T}
     rs_in=T(-50); w=ω; r_in=r_of_rs(rs_in); epsilon=r_in-2
-    L=T(l*(l+1)); lambda=T((l+2)*(l-1)); tol=_bc_tol(T)
+    L=T(l*(l+1)); lambda=T((l+2)*(l-1)); tol=bc_tol(T)
     b9=Complex{T}[0,0,a0s[1],0]; b10=Complex{T}[0,0,a0s[2],0]
     sum9=b9[3]; sum10=b10[3]; ds9=-im*w*b9[3]; ds10=-im*w*b10[3]
     j=3; j_max=5
@@ -378,7 +370,7 @@ end
 
 # ───────── ODD DIPOLE (l=1): 1 coupled field R9 ─────────
 function odd_dipole_out_bcs(a0s::Vector{T}, l, ω, p; rs_out=T(110000)) where {T}
-    L=T(l*(l+1)); lambda=T((l+2)*(l-1)); w=ω; tol=_bc_tol(T)
+    L=T(l*(l+1)); lambda=T((l+2)*(l-1)); w=ω; tol=bc_tol(T)
     rs_out=T(rs_out)
     while true
         r_out=r_of_rs(rs_out); j_max=5
@@ -411,7 +403,7 @@ end
 
 function odd_dipole_in_bcs(a0s::Vector{T}, l, ω) where {T}
     rs_in=T(-50); w=ω; r_in=r_of_rs(rs_in); epsilon=r_in-2
-    L=T(l*(l+1)); lambda=T((l+2)*(l-1)); tol=_bc_tol(T)
+    L=T(l*(l+1)); lambda=T((l+2)*(l-1)); tol=bc_tol(T)
     b9=Complex{T}[0,0,a0s[1],0]; b10=zeros(Complex{T},4)
     sum9=b9[3]; sum10=b10[3]; ds9=-im*w*b9[3]; ds10=-im*w*b10[3]
     j=3; j_max=5
@@ -504,7 +496,7 @@ function even_static_in_bcs(a0s::Vector{T}, l, ω) where {T}
         sum1+=b1[kk]*eps_^k; sum5+=b5[kk]*eps_^k
         ds1+=k*b1[kk]*eps_^k/r_in; ds5+=k*b5[kk]*eps_^k/r_in
     end
-    k=3; k_max=6; tol=_bc_tol(T)
+    k=3; k_max=6; tol=bc_tol(T)
     while k <= k_max
         C5=2L-4*((k-1)^2+1); D5=L-(k-2)*(k-1); C3=4*(k-1)*(2-k); C1=-4k
         D3=2*(L+(k-2)*(1-2*(k-2))); D1=2*(k-4); E3=L+1-(k-3)^2; E1=T(k-4)

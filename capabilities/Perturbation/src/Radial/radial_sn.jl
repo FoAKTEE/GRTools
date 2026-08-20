@@ -259,20 +259,13 @@ function _sn_integrate(lambda, m, a, omega, rnear; tol::Real=1e-11)
     return _SNSolution(rmesh, Xmesh, dXmesh, d2mesh)
 end
 
-"Hermite eval of X (deriv=0) or X' (deriv=1) on the SN mesh."
+"Hermite eval of X (deriv=0) or X' (deriv=1) on the SN mesh — domain check + the mesh
+`NumericsCore.cubic_hermite` (values X with slopes X', or X' with slopes X'')."
 function _sn_hermite(sol::_SNSolution, r::Real, deriv::Int)
     rs = sol.rs
     (r >= rs[1] - 1e-9 && r <= rs[end] + 1e-9) ||
         error("SasakiNakamura: r=$r outside integrated domain [$(rs[1]), $(rs[end])].")
-    i = clamp(searchsortedlast(rs, r), 1, length(rs) - 1)
-    r0 = rs[i]; r1 = rs[i+1]; hh = r1 - r0; t = (r - r0) / hh
-    if deriv == 0
-        f0 = sol.X[i];  f1 = sol.X[i+1];  d0 = sol.dX[i];  d1 = sol.dX[i+1]
-    else
-        f0 = sol.dX[i]; f1 = sol.dX[i+1]; d0 = sol.d2X[i]; d1 = sol.d2X[i+1]
-    end
-    h00 = (1 + 2t)*(1 - t)^2; h10 = t*(1 - t)^2; h01 = t^2*(3 - 2t); h11 = t^2*(t - 1)
-    return h00*f0 + h10*hh*d0 + h01*f1 + h11*hh*d1
+    return deriv == 0 ? cubic_hermite(rs, sol.X, sol.dX, r) : cubic_hermite(rs, sol.dX, sol.d2X, r)
 end
 
 """

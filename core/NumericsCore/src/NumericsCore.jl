@@ -83,7 +83,7 @@ export dp5_step!, dp5_step_buffered!, integrate_grid, integrate_to_targets!,
 export DOPR853, take_step, integrate, dense_eval
 
 include("legendre.jl")
-export assoc_legendre_P, legendre_P_thetaderiv, assoc_legendre
+export factorial_int, assoc_legendre_P, legendre_P_thetaderiv, assoc_legendre
 export Ylm_real, Ylm_eq, pl_deriv, spin_weighted_Y
 
 include("kummer.jl")

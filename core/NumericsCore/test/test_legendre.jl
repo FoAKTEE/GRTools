@@ -16,7 +16,7 @@
 #  - Analytic: ₀Y₀₀=1/√(4π); Condon-Shortley phase; BigFloat genericity to 2^-200.
 
 using NumericsCore
-using NumericsCore: _fact, _legendre_Plm, assoc_legendre_P, legendre_P_thetaderiv,
+using NumericsCore: factorial_int, _legendre_Plm, assoc_legendre_P, legendre_P_thetaderiv,
                     assoc_legendre, Ylm_real, Ylm_eq, pl_deriv, spin_weighted_Y,
                     _y_dtheta, _LHIGH_SWSHY
 # Baked from SpinWeightedSpheroidalHarmonics (captured once, Phase-7-B) — no live legacy dep.
@@ -24,13 +24,13 @@ include("fixtures/numericscore_swsh_ref.jl")
 
 @testset "legendre" begin
 
-    @testset "_fact (BigInt-safe factorial in T)" begin
-        @test _fact(Float64, 0) == 1.0
-        @test _fact(Float64, 1) == 1.0
-        @test _fact(Float64, 5) == 120.0
-        @test _fact(Int, 6) == 720
+    @testset "factorial_int (BigInt-safe factorial in T)" begin
+        @test factorial_int(Float64, 0) == 1.0
+        @test factorial_int(Float64, 1) == 1.0
+        @test factorial_int(Float64, 5) == 120.0
+        @test factorial_int(Int, 6) == 720
         # overflow-free at high l in BigFloat
-        @test _fact(BigFloat, 25) ≈ BigFloat(factorial(big(25)))
+        @test factorial_int(BigFloat, 25) ≈ BigFloat(factorial(big(25)))
     end
 
     @testset "_legendre_Plm closed forms (A&S, Condon-Shortley)" begin

@@ -24,7 +24,8 @@ Three families, one file each:
   ``\Gamma(z) = \pi / (\sin(\pi z)\,\Gamma(1-z))`` so the inner ``\Gamma`` only
   ever sees the half-plane where `SpecialFunctions` is trustworthy at BigFloat
   precision (`needs_refl` is the documentary predicate for the failing argument
-  set). `fact_big(n) = Γ(n+1)` and the exact integer-product `factorial_big`;
+  set). `fact_big(n) = Γ(n+1)` and the exact integer-product `factorial_big` (forwards to
+  `NumericsCore.factorial_int`, the single body);
   `digamma_big` is the asymptotic-series ``\psi(z)`` (recurrence-shifted to
   ``\operatorname{Re} z \ge 12``), and `PolyGamma(n, z)` is the WaSABI-named
   entry point (currently `n = 0` only — higher orders throw `ArgumentError`,

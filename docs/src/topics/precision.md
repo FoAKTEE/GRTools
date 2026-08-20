@@ -33,11 +33,10 @@ selectors. Every selector threads the element type `T`:
 The vendored ODE family (`NumericsCore/src/ode.jl`) consumes `rk_tol(T)` directly: DP5
 is type-generic and BigFloat-clean, GBS is the high-order BigFloat path
 (`gbs_kmax(T)` returns 0 for `Float64`), DOPR853 is the Float64 FEW trajectory
-integrator. The same selector formulas appear as private per-package selectors where a
-capability owns its solve loop: `SelfForce.LorenzField` carries `_bc_tol`
-(`Boundary.jl`) and `_rk_tol` (`Solver.jl`), and the MetricReconstruction Kerr radial
-carries `_bigprec_for_mag` (`KerrRadial.jl`) — identical formulas, kept local to the
-consuming solver.
+integrator. `SelfForce.LorenzField` consumes `bc_tol` (`Boundary.jl`) and `rk_tol` (`Solver.jl`)
+directly from NumericsCore (its former private `_bc_tol`/`_rk_tol` copies are gone); the
+MetricReconstruction Kerr radial still carries `_bigprec_for_mag` (`KerrRadial.jl`) —
+identical formula, kept local to the consuming solver.
 
 ## [The two BigFloat spine roots](@id precision-spine-roots)
 
@@ -141,7 +140,7 @@ future un-downcast BigFloat angular-value path would lift the floor.
 ### Downstream consumers
 
 - **SelfForce.** The owned LorenzField solver/boundary machinery is type-generic `{T}`
-  with the precision-inherited `_bc_tol`/`_rk_tol` selectors above; parallel BigFloat
+  with the precision-inherited `bc_tol`/`rk_tol` selectors above; parallel BigFloat
   mode builds use a per-task `setprecision(BigFloat, bits)` for thread safety
   (`Solver.jl`). Only the second-order-Ricci GPU path is Float64 (next section).
 - **AccretionDisc.** Every struct is type-generic (`RelativisticDisc{T<:Real}`,

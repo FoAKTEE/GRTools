@@ -75,5 +75,6 @@ fact_big(n) = gamma_big(n + one(n))
 
 Exact integer factorial `n!` accumulated in `T` (e.g. `BigFloat`) — overflow-safe at high `l`
 where an `Int64` product would wrap. `factorial_big(T, 0) = factorial_big(T, 1) = one(T)`.
+The BigSpecial name of the single body `NumericsCore.factorial_int` (forwarded, not re-implemented).
 """
-factorial_big(::Type{T}, n::Integer) where {T} = n <= 1 ? one(T) : prod(T(2):T(n))
+factorial_big(::Type{T}, n::Integer) where {T} = NumericsCore.factorial_int(T, n)

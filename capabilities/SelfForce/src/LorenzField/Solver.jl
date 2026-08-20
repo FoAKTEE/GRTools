@@ -9,17 +9,12 @@
 
 using LinearAlgebra: BLAS
 using NumericsCore: integrate_to_targets!, gbs_integrate_to_targets!, gbs_kmax, blas_single_thread,
-                    legendre_P_thetaderiv
+                    legendre_P_thetaderiv, rk_tol, factorial_int
 import Data
 using Data: H1Schema
 
 # ── integrator tolerance + far-field seeding (precision-inherited; H1Lorenz integrator.jl/boundary) ──
-
-"RK step/solve tolerance, precision-inherited (the C path used a hard 1e-12)."
-function _rk_tol(::Type{T}) where {T}
-    T <: BigFloat && return big(2.0)^(20 - precision(BigFloat))
-    return T(1e-12)
-end
+# RK step/solve tolerance = NumericsCore.rk_tol(T) (single home; the C path used a hard 1e-12).
 
 # Optional high-order GBS path for BigFloat (off by default — DP5 is the validated Float64 oracle path
 # and the measured-faster BigFloat default; see H1Lorenz integrator.jl notes).
@@ -70,7 +65,7 @@ function integrate_field_equations(orbit::OrbitalParams{T}, l, ω, cset) where {
     nf = cset.num_coupled
     grid = orbit.grid; gs = length(grid)
     ra = orbit.ra_index; r0i = orbit.r0_index; rb = orbit.rb_index
-    tol = _rk_tol(T); p = orbit.p
+    tol = rk_tol(T); p = orbit.p
     grid_rs_max = rs_of_r(grid[gs])
     rs_out_seed = _far_field_rs_out(T, grid_rs_max)
 
@@ -314,8 +309,8 @@ function construct_R6_R7_R2_R4_gauge_fields_on_grid!(inhom, orbit::OrbitalParams
 end
 
 # ── R8 static series solutions (H1Lorenz static.jl libSch.c R8_static_*) ─────────────────────────
-_factT(::Type{T}, x::Integer) where {T} = x <= 1 ? one(T) : prod(T(2):T(x))
-_R8_alk(::Type{T}, l, k) where {T} = l*(l+1)*_factT(T, l+k-1)/(_factT(T, l-k+1)*_factT(T, k+1)*_factT(T, k))
+_R8_alk(::Type{T}, l, k) where {T} =
+    l*(l+1)*factorial_int(T, l+k-1)/(factorial_int(T, l-k+1)*factorial_int(T, k+1)*factorial_int(T, k))
 
 function R8_static_in_solution(l, r_p::T) where {T}
     l == 1 && return r_p^2

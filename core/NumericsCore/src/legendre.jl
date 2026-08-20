@@ -8,8 +8,15 @@
 # precision; the spin-weighted seed additionally exact-integers the half-angle binomials in BigFloat at
 # high l (Int64 overflow / Float64 cancellation regime) and at any BigFloat element type.
 
-"factorial as a T (avoids Int overflow at high l); `_fact(0)=_fact(1)=1`."
-_fact(::Type{T}, x::Integer) where {T} = x <= 1 ? one(T) : prod(T(2):T(x))
+"""
+    factorial_int(::Type{T}, n::Integer) -> T
+
+Exact integer factorial `n!` accumulated in `T` (overflow-safe at high `l` where an `Int64`
+product would wrap); `factorial_int(T, 0) = factorial_int(T, 1) = one(T)`. The single home of
+the integer-product factorial (BigSpecial.factorial_big and the Lorenz-field static series forward
+to it).
+"""
+factorial_int(::Type{T}, n::Integer) where {T} = n <= 1 ? one(T) : prod(T(2):T(n))
 
 """
     _legendre_Plm(l, m, x) -> T
