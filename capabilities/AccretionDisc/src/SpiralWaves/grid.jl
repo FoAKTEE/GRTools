@@ -32,6 +32,9 @@
 #         or the master system's own radial eigenvalue k_r = e^{μ}u^t√(ω_d²−κ²)/c_s of
 #         [`wkb_wavenumber_gr`](@ref) (ERRATUM E-M5: the appendix under-resolves the inner wave zone by
 #         e^{μ}u^t → √3 at the χ = 0 ISCO). NOT a free parameter of the physics — only of the mesh.
+#   `r_in`, `r_out` — explicit domain-edge overrides (default `nothing` = the App.-C selection). They
+#         take precedence over `extent` on the side they are given and exist for the inner-boundary
+#         response protocol (imposed edge displaced to r_ISCO(1+δ)).
 #   `extent = :adaptive | :fiducial | :inner_fiducial | :outer_fiducial` — which of the two (C2)-(C3)
 #         cuts is replaced by its (C1) fiducial edge (r_ISCO resp. 5a•); `:inner_fiducial` releases the
 #         inner one only, `:outer_fiducial` the outer one only. One variable at a time for the
@@ -436,7 +439,7 @@ choices ([PRELIMINARY]) behind the under-specified steps of the appendix.
 function build_grid(bg::DiscBackground{T}, m::Integer; nL::Integer = 240, nR::Integer = 240,
                     nC::Integer = 24000, n_anc::Integer = 10_000, extent::Symbol = :adaptive,
                     wavenumber::Symbol = :newtonian, σ_wc_frac = 1e-3, s_c = 4, k_trust = 10,
-                    phase_min = 30, rc = nothing) where {T}
+                    phase_min = 30, rc = nothing, r_in = nothing, r_out = nothing) where {T}
     m ≥ 1 || throw(ArgumentError("build_grid: m ≥ 1 required"))
     extent in GRID_EXTENTS ||
         throw(ArgumentError("build_grid: extent must be one of $(GRID_EXTENTS), got $(repr(extent))"))
@@ -448,6 +451,7 @@ function build_grid(bg::DiscBackground{T}, m::Integer; nL::Integer = 240, nR::In
     σ_wc = T(σ_wc_frac) * r_c
     blkC = corotation_block(r_c, σ_wc, s_cT, nC)
     r_Cin, r_Cout = blkC[1], blkC[end]
+    rin_req, rout_req = r_in, r_out                             # explicit edge overrides (may be nothing)
     if extent === :fiducial
         r_in, r_out, rWKB_L, rWKB_R = r_isco(bg), 5 * bg.aEMRI, T(NaN), T(NaN)
     else
@@ -456,6 +460,12 @@ function build_grid(bg::DiscBackground{T}, m::Integer; nL::Integer = 240, nR::In
         extent === :inner_fiducial && (r_in = r_isco(bg))       # release the (C2)-(C3) INNER cut only
         extent === :outer_fiducial && (r_out = 5 * bg.aEMRI)    # release the OUTER cut only
     end
+    # EDGE OVERRIDES (additive, default `nothing` = the App.-C selection above).  They exist for the
+    # boundary-displacement cell of the inner-boundary response protocol — move the imposed edge to
+    # r_ISCO(1+δ) and watch the modal torque and the reflection coefficient respond — and they take
+    # precedence over `extent`, whose own cuts are then irrelevant on that side.
+    rin_req === nothing || (r_in = convert(T, rin_req))
+    rout_req === nothing || (r_out = convert(T, rout_req))
     (r_in < r_Cin && r_Cout < r_out) ||
         throw(ErrorException("build_grid: domain [$r_in, $r_out] does not contain the central block [$r_Cin, $r_Cout]"))
     Δr_edge, slope = _central_edge_spacing(σ_wc, s_cT, nC)

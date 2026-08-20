@@ -208,22 +208,107 @@ frequency (51) there. Selection (see the file header, ERRATUM E-M4):
 """
 function outgoing_branch(C::AbstractMatrix{TC}, ωd::Real; outward::Bool, bc::Symbol = :outgoing) where {TC<:Number}
     k1, k2, Y1, Y2 = eigen2(C)
-    first = if bc === :paper
-        imag(k1) ≤ imag(k2)
+    k, Y = _away_is_first(k1, k2, ωd; outward = outward, bc = bc) ? (k1, Y1) : (k2, Y2)
+    (k, Y, (-Y[2], Y[1]))
+end
+
+"""
+    _away_is_first(k1, k2, ωd; outward, bc) -> Bool
+
+`true` when the FIRST root of [`eigen2`](@ref) is the branch travelling away from the orbit, under the
+criterion `bc` (`:outgoing` = the physical group-velocity test, `:paper` = the printed `Im[k] < 0`).
+THE one selection point — [`outgoing_branch`](@ref) and [`wkb_split`](@ref) both go through it, so the
+"away" label can never disagree between the boundary row and the amplitude diagnostic.
+"""
+function _away_is_first(k1, k2, ωd::Real; outward::Bool, bc::Symbol)
+    if bc === :paper
+        return imag(k1) ≤ imag(k2)
     elseif bc === :outgoing
         s = outward ? 1 : -1
         propagating = abs(imag(k1)) > abs(real(k1)) || abs(imag(k2)) > abs(real(k2))
         if propagating
             w = s * (signbit(ωd) ? -1 : 1)
-            w * imag(k1) ≥ w * imag(k2)
+            return w * imag(k1) ≥ w * imag(k2)
         else
-            -s * real(k1) ≥ -s * real(k2)
+            return -s * real(k1) ≥ -s * real(k2)
         end
-    else
-        throw(ArgumentError("outgoing_branch: bc must be :outgoing or :paper, got $(repr(bc))"))
     end
-    k, Y = first ? (k1, Y1) : (k2, Y2)
-    (k, Y, (-Y[2], Y[1]))
+    throw(ArgumentError("outgoing_branch: bc must be :outgoing or :paper, got $(repr(bc))"))
+end
+
+"""
+    wkb_split(C, ωd; outward, bc = :outgoing) -> (k_away, Y_away, k_toward, Y_toward)
+
+Both eigenpairs of the edge matrix, ordered: the branch travelling AWAY from the orbit first, the one
+travelling TOWARD it second. `outgoing_branch` returns the first pair; this returns both, which is
+what an amplitude split needs.
+"""
+function wkb_split(C::AbstractMatrix{TC}, ωd::Real; outward::Bool, bc::Symbol = :outgoing) where {TC<:Number}
+    k1, k2, Y1, Y2 = eigen2(C)
+    _away_is_first(k1, k2, ωd; outward = outward, bc = bc) ? (k1, Y1, k2, Y2) : (k2, Y2, k1, Y1)
+end
+
+"""
+    wkb_amplitudes(C, ωd, y; outward, bc = :outgoing)
+        -> (; A_away, A_toward, k_away, k_toward, Y_away, Y_toward, R)
+
+Split a state `y = (δÛ, −iδû^r)` at one radius into the two local WKB branches of the master matrix
+`C` there, `y = A_away Y_away + A_toward Y_toward`, and report the complex REFLECTION COEFFICIENT
+
+    R = A_toward / A_away
+
+— the amplitude of the wave travelling toward the orbit relative to the one travelling away from it.
+At a boundary node closed by the zeroth-order row (66)-(68) `A_toward` vanishes identically, so `R` is
+a direct measure of how much incoming amplitude a CHANGE of boundary treatment (location, order,
+grid) admits: it is the response variable of the inner-boundary protocol behind the low-m torque
+deficit of Fig. 10.  Exact 2×2 inverse (Cramer), so `R` costs one eigen-decomposition.
+"""
+function wkb_amplitudes(C::AbstractMatrix, ωd::Real, y; outward::Bool, bc::Symbol = :outgoing)
+    ka, Ya, kt, Yt = wkb_split(C, ωd; outward = outward, bc = bc)
+    D = Ya[1] * Yt[2] - Ya[2] * Yt[1]
+    A_away = (y[1] * Yt[2] - y[2] * Yt[1]) / D
+    A_toward = (Ya[1] * y[2] - Ya[2] * y[1]) / D
+    (A_away = A_away, A_toward = A_toward, k_away = ka, k_toward = kt,
+     Y_away = Ya, Y_toward = Yt, R = A_toward / A_away)
+end
+
+"""
+    _impedance_row(Y_away, Y_toward, k_toward, dY_away, dY_toward, S) -> (row, rhs)
+
+The FIRST-ORDER WKB (impedance) boundary closure, as pure algebra.
+
+Write the local state in the WKB basis, y = a Y_away + b Y_toward.  Substituting into the master
+system (47) y′ = C y + S and using C Y = k Y gives the exact two-branch system
+
+    a′ = (k_away − N₁₁) a − N₁₂ b + s₁ ,      b′ = (k_toward − N₂₂) b − N₂₁ a + s₂ ,
+
+with the mode-coupling matrix N = P⁻¹P′ (P = [Y_away Y_toward]) and s = P⁻¹S.  The zeroth-order row
+(66)-(68) sets b = 0, i.e. it ignores BOTH the mode conversion N₂₁ a that the radial variation of the
+basis produces and the source s₂ sitting at the edge.  At first order the incoming amplitude is not
+zero but takes its locally slaved value — the particular solution of b′ = K b + f with K = k_toward −
+N₂₂ and f = −N₂₁ a + s₂ — namely b = −f/K, the SAME expression at both edges (the incoming branch is
+integrated from outside the domain in either direction).  Hence
+
+    b = β a + γ ,   β = N₂₁/K ,   γ = −s₂/K ,
+
+which in terms of the two Neumann-type rows W_away·y = b·D and W_toward·y = −a·D (D = det[Y_a Y_t],
+W = (−Y₂, Y₁)) is the single inhomogeneous row
+
+    (W_away + β W_toward) · y = γ D .
+
+`β = 0`, `γ = 0` — vanishing basis derivatives and no edge source — recovers the zeroth-order row
+exactly, so `bc = :wkb1` is a strict generalisation of `bc = :outgoing`, not a different scheme.  The
+row is invariant under the (r-dependent) normalisation of the eigenvectors, so the finite-difference
+gauge used for `dY` cannot leak into the answer.
+"""
+function _impedance_row(Ya, Yt, kt, dYa, dYt, S)
+    Wa = (-Ya[2], Ya[1]); Wt = (-Yt[2], Yt[1])
+    D = Ya[1] * Yt[2] - Ya[2] * Yt[1]
+    dot2(w, v) = w[1] * v[1] + w[2] * v[2]
+    Q = D * kt - dot2(Wa, dYt)                 # = D·(k_toward − N₂₂)
+    β = dot2(Wa, dYa) / Q                      # = N₂₁/(k_toward − N₂₂)
+    rhs = -D * dot2(Wa, S) / Q                 # = γ·D
+    ((Wa[1] + β * Wt[1], Wa[2] + β * Wt[2]), rhs)
 end
 
 """
@@ -257,6 +342,48 @@ end
 function wkb_wavenumber_gr(bg::DiscBackground, m::Integer, r)
     k2 = wkb_wavenumber2_gr(bg, m, r)
     sqrt(max(k2, zero(k2)))
+end
+
+"""
+    _edge_closure(bg, m, r, C, S; outward, bc, landau, rc, hmodes_N, mEMRI) -> (k, Y, row, rhs)
+
+The single boundary row that closes the master system at one domain edge, for every `bc`:
+
+  * `:outgoing` / `:paper` — the zeroth-order row of (66)-(68), `row = W_away`, `rhs = 0`; identical
+    to what [`outgoing_branch`](@ref) returns, so those two branches are untouched;
+  * `:wkb1` — the first-order WKB/impedance row of [`_impedance_row`](@ref).  The eigenvector
+    derivatives it needs are taken by a SECOND-ORDER ONE-SIDED difference stepping INTO the domain
+    (never across the edge, where the background is not part of the problem), on a step
+    δ = 1e-5·r, in a gauge that pins each eigenvector's largest component so the ∞-norm
+    normalisation of [`eigen2`](@ref) cannot introduce a spurious kink.
+"""
+function _edge_closure(bg::DiscBackground{T}, m::Integer, r, C, S; outward::Bool, bc::Symbol,
+                       landau::Bool, rc, hmodes_N, mEMRI) where {T}
+    ωd = omega_d(bg, m, r)
+    if bc === :outgoing || bc === :paper
+        k, Y, W = outgoing_branch(C, ωd; outward = outward, bc = bc)
+        return (k, Y, W, zero(Complex{T}))
+    elseif bc !== :wkb1
+        throw(ArgumentError("solve_mode: bc must be :outgoing, :paper or :wkb1, got $(repr(bc))"))
+    end
+    ka, Ya, kt, Yt = wkb_split(C, ωd; outward = outward, bc = :outgoing)
+    step = (outward ? -1 : 1) * T(1e-5) * r                  # into the domain
+    ja = argmax((abs(Ya[1]), abs(Ya[2])))                    # gauge: pin the largest component
+    jt = argmax((abs(Yt[1]), abs(Yt[2])))
+    function branches(rq)
+        Cq, _ = master_matrices(bg, m, rq;
+                                hmodes = singular_field_mode(bg, m, rq; N = hmodes_N, mEMRI = mEMRI),
+                                landau = landau, rc = rc)
+        a, A, _, B = wkb_split(Cq, omega_d(bg, m, rq); outward = outward, bc = :outgoing)
+        ((A[1] * (Ya[ja] / A[ja]), A[2] * (Ya[ja] / A[ja])),
+         (B[1] * (Yt[jt] / B[jt]), B[2] * (Yt[jt] / B[jt])))
+    end
+    A1, B1 = branches(r + step)
+    A2, B2 = branches(r + 2 * step)
+    d(v0, v1, v2) = ((-3 * v0[1] + 4 * v1[1] - v2[1]) / (2 * step),
+                     (-3 * v0[2] + 4 * v1[2] - v2[2]) / (2 * step))
+    row, rhs = _impedance_row(Ya, Yt, kt, d(Ya, A1, A2), d(Yt, B1, B2), (S[1], S[2]))
+    (ka, Ya, row, rhs)
 end
 
 # ---------------------------------------------------------------------------------------------
@@ -413,8 +540,10 @@ The matrices and sources come from [`master_matrices`](@ref) evaluated AT THE CE
 covariant singular-field modes of [`source_modes`](@ref) (`hmodes_N` overrides the trapezoid node
 count, `mEMRI` = m•, `threads` distributes the source projection); the Landau regularisation (62)-(63)
 is applied unless `landau = false` (then the system is singular at r_c and only usable away from it).
-`bc` selects the boundary branch (`:outgoing`, the physical group-velocity criterion — DEFAULT — or
-`:paper`, the literal Im[k] < 0 of M:776; see the file header, ERRATUM E-M4). `linsolve` selects the
+`bc` selects the boundary closure: `:outgoing` (the physical group-velocity criterion — DEFAULT),
+`:paper` (the literal Im[k] < 0 of M:776; see the file header, ERRATUM E-M4), or `:wkb1` (the
+first-order WKB/impedance row of [`_impedance_row`](@ref), an inhomogeneous closure that lets the
+incoming amplitude take its locally slaved value instead of forcing it to zero). `linsolve` selects the
 linear-algebra backend (`:auto`, `:sparse` = UMFPACK, `:banded` = the generic banded LU).
 
 Deterministic: the result is bitwise independent of the thread count.
@@ -437,18 +566,40 @@ function solve_mode(bg::DiscBackground{T}, m::Integer;
         Cmid[i], Smid[i] = master_matrices(bg, m, rmid[i]; hmodes = hmid[i], landau = landau, rc = rc)
     end
     # boundary rows from the edge matrices (the source does not enter (66)-(68))
-    Cin, _ = master_matrices(bg, m, r[1]; hmodes = singular_field_mode(bg, m, r[1]; N = hmodes_N, mEMRI = mEMRI),
-                             landau = landau, rc = rc)
-    Cout, _ = master_matrices(bg, m, r[N]; hmodes = singular_field_mode(bg, m, r[N]; N = hmodes_N, mEMRI = mEMRI),
-                              landau = landau, rc = rc)
-    k_in, Y_in, W_in = outgoing_branch(Cin, omega_d(bg, m, r[1]); outward = false, bc = bc)
-    k_out, Y_out, W_out = outgoing_branch(Cout, omega_d(bg, m, r[N]); outward = true, bc = bc)
-    y = solve_midpoint(r, Cmid, Smid, W_in, zero(Complex{T}), W_out, zero(Complex{T}); linsolve = linsolve)
+    Cin, Sin = master_matrices(bg, m, r[1]; hmodes = singular_field_mode(bg, m, r[1]; N = hmodes_N, mEMRI = mEMRI),
+                               landau = landau, rc = rc)
+    Cout, Sout = master_matrices(bg, m, r[N]; hmodes = singular_field_mode(bg, m, r[N]; N = hmodes_N, mEMRI = mEMRI),
+                                 landau = landau, rc = rc)
+    k_in, Y_in, W_in, b_in = _edge_closure(bg, m, r[1], Cin, Sin; outward = false, bc = bc,
+                                           landau = landau, rc = rc, hmodes_N = hmodes_N, mEMRI = mEMRI)
+    k_out, Y_out, W_out, b_out = _edge_closure(bg, m, r[N], Cout, Sout; outward = true, bc = bc,
+                                               landau = landau, rc = rc, hmodes_N = hmodes_N, mEMRI = mEMRI)
+    y = solve_midpoint(r, Cmid, Smid, W_in, b_in, W_out, b_out; linsolve = linsolve)
     ra, rr = midpoint_residual(r, Cmid, Smid, y)
-    bcres = abs(W_in[1] * y[1, 1] + W_in[2] * y[2, 1]) + abs(W_out[1] * y[1, N] + W_out[2] * y[2, N])
+    bcres = abs(W_in[1] * y[1, 1] + W_in[2] * y[2, 1] - b_in) +
+            abs(W_out[1] * y[1, N] + W_out[2] * y[2, N] - b_out)
     params = (landau = landau, bc = bc, linsolve = linsolve, mEMRI = convert(T, mEMRI),
               hmodes_N = hmodes_N === nothing ? nothing : Int(hmodes_N), threads = threads, rc = rc)
     ModeSolution{T}(Int(m), collect(r), y, k_in, k_out, Y_in, Y_out, ra, rr, bcres, params, time() - t0)
+end
+
+"""
+    mode_amplitudes(bg::DiscBackground, sol::ModeSolution, i::Integer)
+        -> (; A_away, A_toward, k_away, k_toward, Y_away, Y_toward, R)
+
+[`wkb_amplitudes`](@ref) evaluated at node `i` of a solved mode: the master matrix is rebuilt there
+with the SAME settings the solve used (`sol.params`) and the away/toward labelling follows the side of
+corotation the node is on.  `i = 1` and `i = length(sol)` are the two imposed edges — where a
+`bc = :outgoing` solve has `R = 0` by construction — so the informative probes are the nodes a short
+distance inside them.
+"""
+function mode_amplitudes(bg::DiscBackground{T}, sol::ModeSolution{T}, i::Integer) where {T}
+    p = sol.params
+    r = sol.r[i]
+    C, _ = master_matrices(bg, sol.m, r;
+                           hmodes = singular_field_mode(bg, sol.m, r; N = p.hmodes_N, mEMRI = p.mEMRI),
+                           landau = p.landau, rc = p.rc)
+    wkb_amplitudes(C, omega_d(bg, sol.m, r), (sol.y[1, i], sol.y[2, i]); outward = r > p.rc)
 end
 
 """

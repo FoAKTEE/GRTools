@@ -56,9 +56,13 @@ Version of the `SpiralWaves` submodule API (bumped as DAG nodes land; `v"0.1.0"`
 `v"0.8.0"` = survey, `v"0.9.0"` = image synthesis, `v"0.9.1"` = its Cartesian/winding/mode-sweep front end,
 `v"0.10.0"` = the Newtonian-limit pipeline (T_Newt of Fig. 5),
 `v"0.11.0"` = the controlled grid options `wavenumber = :newtonian|:gr` (E-M5) and
-`extent = :inner_fiducial|:outer_fiducial` of EGD::sw-grid-gr-refinement).
+`extent = :inner_fiducial|:outer_fiducial` of EGD::sw-grid-gr-refinement,
+`v"0.12.0"` = the inner-boundary RESPONSE instruments of the EGD::fig10 deficit investigation —
+the WKB amplitude split / reflection coefficient (`wkb_split`, `wkb_amplitudes`, `mode_amplitudes`),
+the first-order WKB impedance closure `solve_mode(…; bc = :wkb1)` and the explicit domain-edge
+overrides `build_grid(…; r_in =, r_out =)`; every default unchanged).
 """
-sw_version() = v"0.11.0"
+sw_version() = v"0.12.0"
 
 # ---- EGD::sw-background — disc equilibrium (Sec. II.A) -------------------------------------------
 include("background.jl")
@@ -93,6 +97,7 @@ export strip_halfwidth, trapezoid_nodes
 include("solver.jl")
 export ModeSolution, solve_mode, midpoint_system, solve_midpoint, midpoint_residual
 export eigen2, outgoing_branch, wkb_wavenumber_gr, wkb_wavenumber2_gr
+export wkb_split, wkb_amplitudes, mode_amplitudes
 
 # ---- EGD::sw-diagnostics — AMF (72a), torque density/integral (72b), (74), (75), cutoffs ----------
 include("diagnostics.jl")
