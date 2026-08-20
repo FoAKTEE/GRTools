@@ -3,7 +3,7 @@ using SelfForce.SecondOrder: H1RadialJetCorpus, OrderedRicciBilinear, SecondVari
     ModeID, R2TargetID,
     EffectiveBandwidth, H1CorpusConventions, QuadraticPlanSchema, legacy_effective_bandwidth,
     quadratic_target_order, selection_modes, legacy_corpus_schema, assert_bilinear_compatible,
-    assert_corpus_matches, quadratic_plan_schema, validate_schema, read_h1
+    assert_corpus_matches, quadratic_plan_schema, validate_schema, read_h1_corpus
 
 function _schema_corpus(::Type{T}, fields; reverse_dicts = false) where {T<:AbstractFloat}
     convert_dict(d) = begin
@@ -40,7 +40,7 @@ end
 end
 
 @testset "quadratic corpus fingerprints are canonical snapshots" begin
-    fields = read_h1(joinpath(@__DIR__, "fixtures", "h1"); l_max = 2)
+    fields = read_h1_corpus(joinpath(@__DIR__, "fixtures", "h1"); l_max = 2)
     reordered = _schema_corpus(Float64, fields; reverse_dicts = true)
     a = legacy_corpus_schema(fields)
     b = legacy_corpus_schema(reordered)
@@ -107,7 +107,7 @@ end
 end
 
 @testset "quadratic plan schema fixes normalization, order, and both corpus identities" begin
-    fields = read_h1(joinpath(@__DIR__, "fixtures", "h1"); l_max = 2)
+    fields = read_h1_corpus(joinpath(@__DIR__, "fixtures", "h1"); l_max = 2)
     a = legacy_corpus_schema(fields)
     b = legacy_corpus_schema(_schema_corpus(Float64, fields; reverse_dicts = true))
     bw = legacy_effective_bandwidth(2, 2; lmax = 2)

@@ -28,9 +28,9 @@ using ..Series: PNSeries, Normal
 import Symbolics
 import SpecialFunctions
 
-export read_mma_inputform, parse_pn_data_file
+export read_mma_inputform_symbolic, parse_pn_data_file
 
-# The imaginary unit symbol (shared convention with MST.imagunit: `𝕚`). MMA InputForm writes `I`;
+# The imaginary unit symbol (shared convention with MST.imagunit_sym: `𝕚`). MMA InputForm writes `I`;
 # kept as a symbol so a coefficient stays a single `Num` (substitute `=> im` to evaluate).
 const _IMAG = Symbolics.variable(:𝕚)
 
@@ -64,14 +64,14 @@ const _PN_SYMS = Dict{Symbol,Symbolics.Num}(
 )
 
 """
-    read_mma_inputform(src::AbstractString) -> Any
+    read_mma_inputform_symbolic(src::AbstractString) -> Any
 
 Deserialize one MMA InputForm text fragment (`Association`/`SeriesData`/`Module`/list/number) into a
 Julia value: numbers/rationals → `Num`, strings → `String`, `{...}` → `Vector`, `<|...|>` → `Dict`,
 `SeriesData[...]` → [`PNSeries`](@ref). No `eval`/world-age. Unknown heads or out-of-alphabet atoms
 throw (an unexpected token surfaces loudly, never silently mis-parsed).
 """
-function read_mma_inputform(src::AbstractString)
+function read_mma_inputform_symbolic(src::AbstractString)
     jl = _mma_data_to_julia(String(src))
     ast = Meta.parse(jl)
     return _eval_pn_ast(ast, _PN_SYMS, Dict{Symbol,Any}())
@@ -85,7 +85,7 @@ Read and deserialize a stored PN `.m` data file (a literal MMA Association) into
 `PostNewtonianData`. Upstream analogue: `Get[file]`.
 """
 function parse_pn_data_file(path::AbstractString)
-    val = read_mma_inputform(read(path, String))
+    val = read_mma_inputform_symbolic(read(path, String))
     val isa Dict{String,Any} || throw(ArgumentError(
         "PN data file did not deserialize to an Association; got $(typeof(val))"))
     return val

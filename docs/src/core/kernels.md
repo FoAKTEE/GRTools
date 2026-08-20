@@ -66,7 +66,7 @@ Two purity hoists keep the forbidden axes out:
   `select_backend` and the device map to `ka_device`. GPU device runs are **[FUTURE]**.
 - **No data artifacts.** Kernels reads no files: mode amplitudes, splines' input grids, NN weights
   (the HDF5 ROMAN weight loading stays in `EMRIWaveforms.AmplitudeModels`), first-order field
-  dictionaries (`read_h1` layout, packed to dense matrices internally) and coupling arrays all
+  dictionaries (`read_h1_corpus` layout, packed to dense matrices internally) and coupling arrays all
   arrive as in-memory arguments. Test grounding uses baked fixtures under `test/fixtures/`
   (`r2_oracle_ref.jl`, `r2_coupling_ref.jl`, `fdspa_{inputs,ref}.jl`, `aak_bessel_ref.jl`) — no
   live legacy dep.

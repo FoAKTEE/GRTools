@@ -3,7 +3,7 @@
 # Grounding:
 #   • PRIMARY characterization vs the CAPTURED genuine legacy h1 oracle fixtures under
 #     test/fixtures/h1lorenz/h1-l{l}m{m}.h5 (the H1Lorenz 4-part writer layout — distinct from the
-#     6-part SecondOrderRicci corpus under fixtures/h1/ that SecondOrder.read_h1 ingests). These were
+#     6-part SecondOrderRicci corpus under fixtures/h1/ that SecondOrder.read_h1_corpus ingests). These were
 #     captured ONE-SHOT, offline, from the legacy packages/H1Lorenz solver (HEAVY → never a live test
 #     dep) on the small 7-point grid grid=[4,5,6,8,10,12,14], r0=8 (r0index=3), ra=0, rb=6, via
 #       Pkg.develop(H1Lorenz); compute_one_mode(8.0,l,m; grid, indices=(0,3,6)); write_mode_h5(...)

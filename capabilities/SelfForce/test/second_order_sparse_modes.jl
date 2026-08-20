@@ -17,7 +17,7 @@ const _SPARSE_LAYOUTS = (
 function _with_sparse_l2m2(f, source_dir)
     mktempdir() do dir
         cp(joinpath(source_dir, "h1-l2m2.h5"), joinpath(dir, "h1-l2m2.h5"))
-        return f(_SPARSE_SO.read_h1(dir; l_max = 2))
+        return f(_SPARSE_SO.read_h1_corpus(dir; l_max = 2))
     end
 end
 

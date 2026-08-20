@@ -30,7 +30,7 @@ owned here**: its single canonical, physics-justified home is
 | Submodule | Legacy origin | Contents |
 |---|---|---|
 | `SelfForce.LorenzField` | `H1Lorenz` | Orbit energetics (`OrbitalParams`, `orbit_energy`, `orbit_ang_mom`, `orbit_phi_freq`), coupled-set bookkeeping (`CSETS`, `select_coupled_set`, `gamma_to_lm`, `lm_to_gamma`, `mode_list`), the `R1..R10` sources, in/out boundary-condition series (`even_out_bcs` … `even_static_in_bcs`), `integrate_field_equations` + `calculate_scaling_coefficients` on the vendored NumericsCore DP5+GBS integrators, the static monopole, mode drivers (`NModeData`, `compute_mode`, `compute_modes`, `compute_one_mode`), tortoise maps `rs_of_r`/`r_of_rs`, and the h1-corpus writer `write_h1_mode`/`h1_schema`. |
-| `SelfForce.SecondOrder` | `SecondOrderRicci` | h1-corpus reader `read_h1` + the `ZeroPadField` zero-pad shim, mode selection `selection_modes`, 3-harmonic coupling (front door to `Wigner.coupling`), analytic `h1_mass`/`h1_spin`/`d2hdr2`, the coupling-evaluating `r2_term` host wrapper over the `Kernels.r2_term` GPU host, and assembly `second_order_ricci` / `ricci_source`(`_mass`/`_spin`) / `write_src`. |
+| `SelfForce.SecondOrder` | `SecondOrderRicci` | h1-corpus reader `read_h1_corpus` + the `ZeroPadField` zero-pad shim, mode selection `selection_modes`, 3-harmonic coupling (front door to `Wigner.coupling`), analytic `h1_mass`/`h1_spin`/`d2hdr2`, the coupling-evaluating `r2_term` host wrapper over the `Kernels.r2_term` GPU host, and assembly `second_order_ricci` / `ricci_source`(`_mass`/`_spin`) / `write_src`. |
 | `SelfForce.Puncture` | `Punctures` | Static `h0_static` (AGM `ellipK`/`ellipE`), worldline Christoffels (`christoffel`, `christoffel_dr`, `christoffel_dtheta`), α-integration (`exactint`, `modeint`, `alphaint`, `alphaintv1..4`, `alphaintt1..2`), regularised l-sums (`reg_sum`/`noreg_sum` → `RegResult`), field-equation second derivative `ddhret`, Martel–Poisson tensor basis (`tensor_harmonic`, `coord_component`, `coord_deriv`), puncture modes `hP`/`dhP` (+ the exact-rational helper `rat`), Wigner-D mode mixing `h_mode`, singular field `hS_mode`, subtraction `compute_hR`/`compute_ddhR`, and the worldline regular self-field `assemble_{hR1,dhR1,d2hR1}Data` + `covariant_first`/`covariant_second`. |
 
 Re-exported-not-re-owned front doors: `a_il` (owner: `NumericsCore`), `coupling` (owner:
@@ -65,7 +65,7 @@ The binding budget is enforced by the CI gates in `SelfForce/test/hygiene.jl`
   `Puncture` are CPU-only.
 - **Data**: the h1 corpus (per-mode `h1-l{l}m{m}.h5` files) is intrinsic — `LorenzField` *writes*
   it (via `Data.write_mode_h5` against the versioned `H1Schema` contract) and `SecondOrder` /
-  `Puncture` *re-ingest* it (`read_h1`, `read_hret_mode`). All corpus locations are injected
+  `Puncture` *re-ingest* it (`read_h1_corpus`, `read_hret_mode`). All corpus locations are injected
   (`datadir=`); the legacy `ref-code/h1Lorenz/run_r8/fields` relative-path escape is gone.
 - **Tests** run against baked fixtures only — captured one-shot from the compiled g++/GSL
   `r2_oracle.cpp`/`h1.cc` oracles, wolframscript/Mathematica (Puncture), analytic identities, and
@@ -96,7 +96,7 @@ The binding budget is enforced by the CI gates in `SelfForce/test/hygiene.jl`
 - **Type-generic `{T}`.** Legacy Float64-only paths are generic; BigFloat precision propagates
   end-to-end (only the on-device r2 path is Float64-capped).
 - **IO through `Data`.** The HDF5 reader/writer bodies live in `Data`'s weakdep extension behind
-  the versioned `H1Schema`; the `SecondOrder.read_h1` corpus reader intentionally keeps its own
+  the versioned `H1Schema`; the `SecondOrder.read_h1_corpus` corpus reader intentionally keeps its own
   6-column (`∂²_r`-bearing) unpacking, which is a different on-disk contract from the 4-part
   H1Lorenz writer format that `Data.read_h1` serves.
 - **Special functions centralised.** Puncture's `_poch`/`_f21_term` → `BigSpecial.pochhammer` /

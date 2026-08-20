@@ -37,13 +37,13 @@ SelfForce → MST → RadialMode → SourceMode`.
 |-----------|------|
 | `Series` | the `PNSeries` Num-algebra engine: Laurent/Taylor arithmetic (`+ - * / inv ^`), `Normal` materialization, `polyToSeries`, `series_take/collect/terms/of`, change-of-parameter, power-counting, `expand_log`/`expand_gamma` |
 | `Catalog` | PN `.m` discovery + substring browse over the owned SeriesData store (`SERIES_DATA_DIR`, `pn_series_catalog`, `select_pn_series`, `pn_browse`); stdlib `walkdir` only |
-| `MMAInputForm` | the unified MMA-InputForm→`Num` symbolic walker (`read_mma_inputform`, `parse_pn_data_file`): `Meta.parse` + tree walk, NO `eval`/world-age; covers the full circular/spherical/eccentric/Kerr alphabet incl. `ResummedSeriesData`, `HoldForm` generating-function heads, `TagBox` box-language, and balanced reduction for the ~35k-term flux giants |
+| `MMAInputForm` | the unified MMA-InputForm→`Num` symbolic walker (`read_mma_inputform_symbolic`, `parse_pn_data_file`): `Meta.parse` + tree walk, NO `eval`/world-age; covers the full circular/spherical/eccentric/Kerr alphabet incl. `ResummedSeriesData`, `HoldForm` generating-function heads, `TagBox` box-language, and balanced reduction for the ~35k-term flux giants |
 | `SelfForce` | `PostNewtonianData` wrapper + order metadata (`pn_series`, `pn_start_order`, `pn_max_order`), `postnewtonian_coefficient` (the ``y^n \log^{n_L}\! y`` extraction), `ResummedSeriesData` (extends `Series.Normal` on the same method table), `postnewtonian_expansion` load-by-name |
-| `MST` | symbolic MST coefficient engine: truncated-``\varepsilon`` Laurent algebra `ES{T}`, the ``\nu``-solve from the pole-cleared characteristic equation, the ``a_n`` ``\varepsilon``-series lifted to `PNSeries` (``\eta``-form and ``\gamma``-FreqRep form), `imagunit` |
+| `MST` | symbolic MST coefficient engine: truncated-``\varepsilon`` Laurent algebra `ES{T}`, the ``\nu``-solve from the pole-cleared characteristic equation, the ``a_n`` ``\varepsilon``-series lifted to `PNSeries` (``\eta``-form and ``\gamma``-FreqRep form), `imagunit_sym` |
 | `RadialMode` | ``\eta``-graded symbolic radial Coulomb/MST In/Up solutions (`TeukolskyRadialPN`) + asymptotic mode-amplitude builders, from `MST`'s ``\varepsilon``-series; adds the transcendental series ops (exp/log1p/Pochhammer/Γ-ratio/Hurwitz-ζ/sin π) the Coulomb construction needs |
 | `SourceMode` | point-particle source ``\{\delta,\delta',\delta''\}`` coefficient series (exact in ``r_0,\Omega``, keyed by ``(l,m)``), sourced mode assembly, asymptotic energy flux (`TeukolskyPointParticleModePN`) |
 
-The imaginary unit is carried as the Symbolics symbol `imagunit()` (`𝕚`) so a coefficient stays a
+The imaginary unit is carried as the Symbolics symbol `imagunit_sym()` (`𝕚`) so a coefficient stays a
 single `Num` (a `Complex{Num}` cannot live in `PNSeries`' `Vector{Num}`); substitute `=> im` to
 evaluate numerically.
 
@@ -91,11 +91,11 @@ are baked into `test/fixtures/`.
 | Legacy source | Landed in |
 |---------------|-----------|
 | TeukolskyPN / `pnseries.jl` — `PNSeries`, `Normal`, arithmetic, `change_series_parameter`, `power_counting`, `expand_log`/`expand_gamma` | `PostNewtonian.Series` |
-| TeukolskyPN / `mst_coefficients.jl` — `MSTCoefficients`, ν-solve, ε-series, `imagunit` | `PostNewtonian.MST` |
+| TeukolskyPN / `mst_coefficients.jl` — `MSTCoefficients`, ν-solve, ε-series, `imagunit_sym` | `PostNewtonian.MST` |
 | TeukolskyPN / `radial_pn.jl`, `mode_pn*.jl`, `mode_pn_assemble.jl` — `TeukolskyRadialPN`, `TeukolskyPointParticleModePN` | `PostNewtonian.RadialMode` + `PostNewtonian.SourceMode` |
 | PostNewtonianSelfForce / `postnewtonian_data.jl`, `coefficients.jl`, `resummed_series.jl` | `PostNewtonian.SelfForce` |
 | PostNewtonianSelfForce / `catalog_selector.jl`, `series_data.jl` | `PostNewtonian.Catalog` |
-| TeukolskyPN `mode_pn_source.jl` `_eval_mma_ast` + PostNewtonianSelfForce `series_data.jl` `_eval_pn_ast` (duplicated walker forks) | unified into `PostNewtonian.MMAInputForm.read_mma_inputform`, behind a byte-for-byte `Num`-equivalence gate over all 91 legacy `.m` files |
+| TeukolskyPN `mode_pn_source.jl` `_eval_mma_ast` + PostNewtonianSelfForce `series_data.jl` `_eval_pn_ast` (duplicated walker forks) | unified into `PostNewtonian.MMAInputForm.read_mma_inputform_symbolic`, behind a byte-for-byte `Num`-equivalence gate over all 91 legacy `.m` files |
 
 ## What changed from the predecessor codes
 
@@ -103,7 +103,7 @@ are baked into `test/fixtures/`.
   `Symbolics` gets a single hard home and the dead `FEW → TeukolskyPN` import edge is cut, so no
   waveform-path package pays the Symbolics precompile floor.
 - **The MMA walker fork is unified.** The two duplicated InputForm walkers (`_eval_mma_ast` /
-  `_eval_pn_ast`) collapse into one `MMAInputForm.read_mma_inputform`, verified `Num`-equivalent
+  `_eval_pn_ast`) collapse into one `MMAInputForm.read_mma_inputform_symbolic`, verified `Num`-equivalent
   on all 91 legacy `.m` files. It is DISTINCT from `Data.read_mma_inputform`, which reads the
   numeric `.wl` dialect.
 - **Finer submodule split than originally sketched.** The original 5-way split

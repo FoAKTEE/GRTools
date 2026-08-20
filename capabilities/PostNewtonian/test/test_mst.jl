@@ -6,10 +6,10 @@
 #  * Captured one-shot fixtures from the LEGACY heavy TeukolskyPN.MSTCoefficients (run ONCE, baked as
 #    exact-rational literals here — NOT a live test dep). Reproduced commands in the comments.
 #  * ES Laurent round-trip identity: _es_mul(a, _es_inv(a)) == 1 (exact).
-#  * imagunit numeric substitution: 𝕚^2 = -1.
+#  * imagunit_sym numeric substitution: 𝕚^2 = -1.
 
 using PostNewtonian: MST
-using PostNewtonian.MST: ES, MSTCoefficients, imagunit,
+using PostNewtonian.MST: ES, MSTCoefficients, imagunit_sym,
     _es_from, _es_mul, _es_inv, _es_coeff, _es_const
 using Symbolics
 import Symbolics
@@ -33,9 +33,9 @@ import Symbolics
         @test _es_coeff(ob, 1) == 0
     end
 
-    # --- imagunit: 𝕚^2 = -1 -------------------------------------------------------------------
-    @testset "imagunit" begin
-        iu = imagunit()
+    # --- imagunit_sym: 𝕚^2 = -1 -------------------------------------------------------------------
+    @testset "imagunit_sym" begin
+        iu = imagunit_sym()
         @test Symbolics.value(Symbolics.substitute(iu^2, Dict(iu => im))) == -1
         @test Symbolics.value(Symbolics.substitute(iu, Dict(iu => im))) == im
     end
@@ -67,7 +67,7 @@ import Symbolics
         a1 = res[:aMST][1]
         @test a1.nmin == 3
         @test a1.nmax == 7
-        iu = imagunit()
+        iu = imagunit_sym()
         # leading: (5/3) ω 𝕚
         @test isequal(Symbolics.expand(a1.coeffs[1] - (5 // 3) * ω * iu), Num(0))
         @test isequal(Symbolics.expand(a1.coeffs[4] - (10 // 9) * ω^2), Num(0))

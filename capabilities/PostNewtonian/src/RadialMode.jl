@@ -3,7 +3,7 @@
 
 η-graded symbolic radial Coulomb/MST solution and the asymptotic mode amplitudes. The minimal/maximal
 Teukolsky radial solutions are built as [`PNSeries`](@ref) in `η` whose coefficients are `Num`
-polynomials in `r`, `ω` and the imaginary unit [`imagunit()`](@ref); `ν` (=νMST) and `a_n` (=aMST)
+polynomials in `r`, `ω` and the imaginary unit [`imagunit_sym()`](@ref); `ν` (=νMST) and `a_n` (=aMST)
 come from [`MST`](@ref)'s `_mst_eps_series` as `ε`-series. Adds the transcendental series ops
 (`exp`/`log1p`/power-by-series/Pochhammer/Gamma-ratio/Hurwitz-ζ/sin π) the Coulomb construction needs.
 
@@ -15,7 +15,7 @@ module RadialMode
 using ..Series: PNSeries
 import ..Series
 import ..MST
-using ..MST: imagunit
+using ..MST: imagunit_sym
 using Symbolics: Num, Differential
 import Symbolics
 import SpecialFunctions
@@ -30,7 +30,7 @@ export TeukolskyRadialPN
 # ---------------------------------------------------------------------------
 
 # the imaginary-unit symbol shared with slice 2 (substitute => im to evaluate)
-_IU() = imagunit()
+_IU() = imagunit_sym()
 
 # zero / constant eta-series helpers (den=1)
 _zero_eta(nmax::Int) = PNSeries(:η, Num[], nmax, nmax, 1)
@@ -239,7 +239,7 @@ _zeta_const(n::Int) = Symbolics.variable(Symbol("Zeta_$n"))
 # every product). Each eps^k contributes a NUMERIC coefficient at eta-slot 3k; the
 # physical omega-power is fixed by the eta-grade and is reattached at the very end
 # (`_reattach_omega`): a monomial r^p at eta-slot g carries omega^((g+2p)/3).
-# The imaginary unit maps to the `imagunit()` symbol.
+# The imaginary unit maps to the `imagunit_sym()` symbol.
 # ---------------------------------------------------------------------------
 function _es_to_etaseries(es, nmax::Int; tol = 0)
     lead = MST._es_lead(es; tol = tol)
@@ -327,7 +327,7 @@ function _is_r_polynomial(e, rsym::Num)
     return (val isa Number) && isfinite(ComplexF64(val))
 end
 
-# Complex numeric -> Num using the imagunit symbol for the imaginary part.
+# Complex numeric -> Num using the imagunit_sym symbol for the imaginary part.
 function _cnum(c)
     re = real(c); ie = imag(c)
     Num(re) + Num(ie) * _IU()
@@ -707,13 +707,13 @@ end
 PN-expanded homogeneous radial Teukolsky solutions (Teukolsky`PN`TeukolskyRadialPN,
 PN.wl 2977). Returns `Dict("In" => PNSeries, "Up" => PNSeries)` — each a series in
 `η` (= `ηvar`) whose coefficients are `Num` in `r`, `ω` (and the imaginary-unit symbol
-`imagunit()`, EulerGamma, Pi, ...). Spec: ST LRR 6 (2003) 6 Eqs. 159/162/166.
+`imagunit_sym()`, EulerGamma, Pi, ...). Spec: ST LRR 6 (2003) 6 Eqs. 159/162/166.
 
 Spin enters via κ=√(1−a²), τ=(ε−ma)/κ, εp=(ε+τ)/2, z=(κ−1+r)ω (PN.wl replsKerr l.913,
 c["In"] l.2333, z[a,r] l.2330); a≠0 carries irrational κ as ComplexF64 coefficients.
 
 SCOPE: Default normalization, In second term absent (order < InGap = 4l+2 if m·a==0
-else 4l−1). `s in {0,-1,-2}`. Substitute `imagunit() => im` to evaluate.
+else 4l−1). `s in {0,-1,-2}`. Substitute `imagunit_sym() => im` to evaluate.
 """
 function TeukolskyRadialPN(s::Integer, l::Integer, m::Integer, a::Real,
         ωvar::Symbol, porder::Tuple{Symbol,<:Integer}; Normalization::AbstractString = "Default")

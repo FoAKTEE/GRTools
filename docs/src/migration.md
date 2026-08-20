@@ -87,12 +87,12 @@ baked characterization fixtures under each package's `test/fixtures/`.
 | Legacy pkg / file / fn | New home | ★ |
 |---|---|---|
 | TeukolskyPN / pnseries.jl / PNSeries,Normal,arithmetic,change_series_parameter,power_counting,expand_log/gamma | PostNewtonian.Series | |
-| TeukolskyPN / mst_coefficients.jl / MSTCoefficients,_solve_nu,_eps_to_*,imagunit | PostNewtonian.MST | |
+| TeukolskyPN / mst_coefficients.jl / MSTCoefficients,_solve_nu,_eps_to_*,imagunit_sym | PostNewtonian.MST | |
 | TeukolskyPN / radial_pn.jl,mode_pn*.jl,mode_pn_assemble.jl / TeukolskyRadialPN,TeukolskyPointParticleModePN | PostNewtonian.RadialMode | |
 | TeukolskyPN / mode_pn_source_data.jl / inline oracle Dicts | → Data.artifacts | ★ |
 | PostNewtonianSelfForce / {postnewtonian_data,coefficients,resummed_series}.jl | PostNewtonian.SelfForce | ★ |
 | PostNewtonianSelfForce / catalog_selector.jl,series_data.jl | PostNewtonian.Catalog | ★ |
-| TeukolskyPN/mode_pn_source.jl _eval_mma_ast + PNSF/series_data.jl _eval_pn_ast | PostNewtonian.Catalog.read_mma_inputform (unified, gate) | ★ |
+| TeukolskyPN/mode_pn_source.jl _eval_mma_ast + PNSF/series_data.jl _eval_pn_ast | PostNewtonian.MMAInputForm.read_mma_inputform_symbolic (unified, gate) | ★ |
 
 ## → ModifiedGravity
 

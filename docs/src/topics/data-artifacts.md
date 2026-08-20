@@ -140,8 +140,9 @@ Four on-disk dialects, four deliberately separate readers — same-looking files
   `Vector{SourceMode}`; `radius`/`ringmass` are caller-supplied (not stored in the file).
   `ModifiedGravity` (`src/source_tables.jl`) consumes it.
 
-The naming collision is intentional and disambiguated by module: `Data.read_mma_inputform` parses
-the *numeric* dialect; `PostNewtonian.MMAInputForm.read_mma_inputform` walks the *symbolic* one.
+The two readers are distinct FUNCTIONS with distinct names: `Data.read_mma_inputform` parses
+the *numeric* dialect; `PostNewtonian.MMAInputForm.read_mma_inputform_symbolic` walks the
+*symbolic* one (it was called `read_mma_inputform` too until the export-collision cleanup).
 Pick by what the file contains, not by its extension — WaSABI ships numeric `.m` files too.
 
 ## Out-of-tree test oracles: the `GRTOOLS_*` roots and the strict switch

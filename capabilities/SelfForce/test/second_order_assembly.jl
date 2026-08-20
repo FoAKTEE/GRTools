@@ -8,7 +8,7 @@
 #     invoked `./Ricci dir dir 2 2` — i.e. the SELF-coupling with corpus h1lmax=3 but targets
 #     lmax=2, dlmax=2 (so l=3 first-order modes DO couple into the l≤2 targets via dlmax). Each
 #     "src i={i} l={l} m={m}" dataset is on-disk shape [N][2]=(re,im) (Julia (2,N)). We read the FULL
-#     l_max=3 corpus via SecondOrder.read_h1, assemble ricci_source(; lmax=2, dlmax=2), and compare
+#     l_max=3 corpus via SecondOrder.read_h1_corpus, assemble ricci_source(; lmax=2, dlmax=2), and compare
 #     EVERY dataset to the oracle at rtol 1e-11. (Confirmed: the legacy SecondOrderRicci.ricci_source
 #     reproduces this exact oracle at maxrel 1.5e-14 with these same args; Kernels.r2_term is itself
 #     grounded vs the compiled R2 oracle in the Kernels core.)
@@ -21,7 +21,7 @@
 #     Capture: scratchpad/capture_ms.jl (Pkg.activate packages/SecondOrderRicci → write_src).
 
 using Test
-using SelfForce.SecondOrder: read_h1, second_order_ricci, ricci_source, ricci_source_mass,
+using SelfForce.SecondOrder: read_h1_corpus, second_order_ricci, ricci_source, ricci_source_mass,
                              ricci_source_spin, write_src, selection_modes
 import HDF5
 
@@ -32,7 +32,7 @@ const _ORACLE = joinpath(@__DIR__, "fixtures", "src_self.h5")
 _oracle_vec(file, i, l, m) = (D = read(file["src i=$i l=$l m=$m"]); complex.(D[1, :], D[2, :]))
 
 @testset "ricci_source vs captured g++/GSL oracle (rtol 1e-11)" begin
-    fields = read_h1(_FIXH1; l_max = 3)       # full corpus h1lmax=3
+    fields = read_h1_corpus(_FIXH1; l_max = 3)       # full corpus h1lmax=3
     src = ricci_source(fields; lmax = 2, dlmax = 2)   # ./Ricci dir dir 2 2 invocation
     @test Set(keys(src)) == Set(selection_modes(2))
     HDF5.h5open(_ORACLE, "r") do file
@@ -48,8 +48,8 @@ _oracle_vec(file, i, l, m) = (D = read(file["src i=$i l=$l m=$m"]); complex.(D[1
 end
 
 @testset "negative dlmax preserves the legacy truncation sentinel" begin
-    full = read_h1(_FIXH1; l_max = 3)
-    truncated = read_h1(_FIXH1; l_max = 2)
+    full = read_h1_corpus(_FIXH1; l_max = 3)
+    truncated = read_h1_corpus(_FIXH1; l_max = 2)
 
     # Ricci.cc interprets dlmax=-1 at h1lmax=3 as: lower the usable H1 cutoff to 2, use dlmax=2,
     # then cap the requested target lmax at 2.  It must not become an empty bandwidth/all-zero source.
@@ -67,7 +67,7 @@ end
 end
 
 @testset "write_src → read HDF5 round-trip" begin
-    fields = read_h1(_FIXH1; l_max = 3)
+    fields = read_h1_corpus(_FIXH1; l_max = 3)
     src = ricci_source(fields; lmax = 2, dlmax = 2)
     tmp = joinpath(mktempdir(), "src_roundtrip.h5")
     write_src(tmp, src; r = fields.r)
@@ -83,7 +83,7 @@ end
 end
 
 @testset "ricci_source_mass vs captured Ricci_M oracle (rtol 1e-11)" begin
-    fields = read_h1(_FIXH1; l_max = 3)
+    fields = read_h1_corpus(_FIXH1; l_max = 3)
     sm = ricci_source_mass(fields; lmax = 2)
     @test Set(keys(sm)) == Set(selection_modes(2))
     HDF5.h5open(joinpath(@__DIR__, "fixtures", "src_mass.h5"), "r") do file
@@ -94,7 +94,7 @@ end
 end
 
 @testset "ricci_source_spin vs captured Ricci_S oracle (rtol 1e-11)" begin
-    fields = read_h1(_FIXH1; l_max = 3)
+    fields = read_h1_corpus(_FIXH1; l_max = 3)
     ss = ricci_source_spin(fields; lmax = 2)
     @test Set(keys(ss)) == Set(selection_modes(2))
     HDF5.h5open(joinpath(@__DIR__, "fixtures", "src_spin.h5"), "r") do file

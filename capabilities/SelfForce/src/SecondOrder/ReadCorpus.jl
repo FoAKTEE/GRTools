@@ -36,7 +36,7 @@ Base.getindex(p::ZeroPadField{T}, k::NTuple{3,Int}) where {T} = get(p.d, k, p.z)
 Typed in-memory first-order Lorenz corpus consumed by the second-order Ricci kernels.  `h`, `dh`,
 and `ddh` are the physical (non-trace-reversed) radial jet, keyed by `(i,l,m)`; `r` includes the two
 one-sided copies of the worldline point.  Both legacy 6-row files and production 4-row
-`Data.H1Schema` files are adapted to this single representation by [`read_h1`](@ref).
+`Data.H1Schema` files are adapted to this single representation by [`read_h1_corpus`](@ref).
 """
 struct H1RadialJetCorpus{T<:AbstractFloat}
     r0::T
@@ -52,7 +52,7 @@ _is_unvalidated_even_static(l::Integer, m::Integer) = l >= 2 && m == 0 && iseven
 
 function _four_row_ddbar!(ddbar, hbar, dhbar, fields, l, m, r, f, fp, r0, ::Type{T}) where {T}
     _is_unvalidated_even_static(l, m) && throw(ArgumentError(
-        "read_h1: production 4-row H1Schema mode (l=$l,m=$m) is even-static; " *
+        "read_h1_corpus: production 4-row H1Schema mode (l=$l,m=$m) is even-static; " *
         "its reconstructed R6/R7 second radial derivatives are not yet validated. " *
         "Provide a legacy 6-row radial-jet file for this mode."))
 
@@ -73,10 +73,10 @@ function _four_row_ddbar!(ddbar, hbar, dhbar, fields, l, m, r, f, fp, r0, ::Type
 end
 
 """
-    read_h1([T=Float64,] dir; l_max) -> H1RadialJetCorpus{T}
+    read_h1_corpus([T=Float64,] dir; l_max) -> H1RadialJetCorpus{T}
 
 Ingest the first-order Lorenz-gauge fields written as `h1-l{l}m{m}.h5` files in directory `dir` (the
-injected corpus datadir). Type-generic port of `read_h1`
+injected corpus datadir). Type-generic port of `read_h1_corpus`
 (`ref-code/SecondOrderRicci/src/read_h1.jl` / `h1.cc` L125-337).
 
 Returns the worldline radius `r0`, the radial grid `r` (with `r0` duplicated for the left/right
@@ -96,11 +96,11 @@ Accepted storage layouts and conventions:
   `h = a·h̄/r`, `dh = a(∂_r h̄ - h̄/r)/r`, `ddh = a(∂²_r h̄ - 2(∂_r h̄ - h̄/r)/r)/r`;
 - negative-`m`: `h[i][l][-m] = (-1)^m conj(h[i][l][m])` (the `m=0` case conjugates in place).
 """
-function read_h1(::Type{T}, dir::AbstractString; l_max::Integer) where {T<:AbstractFloat}
+function read_h1_corpus(::Type{T}, dir::AbstractString; l_max::Integer) where {T<:AbstractFloat}
     M = one(T)
     pat = r"^h1-l([0-9]+)m([0-9]+)\.h5$"
     names = sort([fn for fn in readdir(dir) if occursin(pat, fn)])
-    isempty(names) && error("read_h1: no h1-l{l}m{m}.h5 files in $dir")
+    isempty(names) && error("read_h1_corpus: no h1-l{l}m{m}.h5 files in $dir")
     modes = NTuple{2,Int}[]
     for fn in names
         mm = match(pat, fn)
@@ -108,7 +108,7 @@ function read_h1(::Type{T}, dir::AbstractString; l_max::Integer) where {T<:Abstr
         l > l_max && continue
         push!(modes, (l, m))
     end
-    isempty(modes) && error("read_h1: no modes with l ≤ $l_max in $dir")
+    isempty(modes) && error("read_h1_corpus: no modes with l ≤ $l_max in $dir")
 
     # --- grid structure from the first selected mode ---
     first_l, first_m = first(modes)
@@ -141,32 +141,32 @@ function read_h1(::Type{T}, dir::AbstractString; l_max::Integer) where {T<:Abstr
              read(file["inhom_left"]), read(file["inhom_right"]))
         end
         length(mode_grid) == length(grid) || throw(DimensionMismatch(
-            "read_h1: radial grid length $(length(mode_grid)) for (l=$l,m=$m) differs from " *
+            "read_h1_corpus: radial grid length $(length(mode_grid)) for (l=$l,m=$m) differs from " *
             "first selected mode (l=$first_l,m=$first_m) length $(length(grid))"))
         if mode_grid != grid
             j = findfirst(k -> mode_grid[k] != grid[k], eachindex(grid))
             throw(ArgumentError(
-                "read_h1: radial grid mismatch for (l=$l,m=$m) at index $j: " *
+                "read_h1_corpus: radial grid mismatch for (l=$l,m=$m) at index $j: " *
                 "got $(mode_grid[j]), expected $(grid[j]) from first selected mode " *
                 "(l=$first_l,m=$first_m); all corpus modes must share an identical grid"))
         end
         N_left = size(L, 2); N_right = size(R, 2)
         N_left + N_right == N || throw(DimensionMismatch(
-            "read_h1: N_left+N_right=$(N_left + N_right) ≠ N=$N for (l=$l,m=$m)"))
+            "read_h1_corpus: N_left+N_right=$(N_left + N_right) ≠ N=$N for (l=$l,m=$m)"))
         N_left == r0i + 1 || throw(DimensionMismatch(
-            "read_h1: worldline split N_left=$N_left differs from corpus N_left=$(r0i + 1) for (l=$l,m=$m)"))
+            "read_h1_corpus: worldline split N_left=$N_left differs from corpus N_left=$(r0i + 1) for (l=$l,m=$m)"))
         fields = h1_parity_fields(l, m)
         nf = length(fields)
         nrows = size(L, 1)
         size(R, 1) == nrows || throw(DimensionMismatch(
-            "read_h1: left/right row counts differ ($(size(L,1)) vs $(size(R,1))) for (l=$l,m=$m)"))
+            "read_h1_corpus: left/right row counts differ ($(size(L,1)) vs $(size(R,1))) for (l=$l,m=$m)"))
         row_stride = if nrows == 6nf
             6
         elseif nrows == 4nf
             4
         else
             throw(DimensionMismatch(
-                "read_h1: row count $nrows must be 4·#fields=$(4nf) (H1Schema) or " *
+                "read_h1_corpus: row count $nrows must be 4·#fields=$(4nf) (H1Schema) or " *
                 "6·#fields=$(6nf) (legacy radial jet) for (l=$l,m=$m)"))
         end
 
@@ -219,5 +219,5 @@ function read_h1(::Type{T}, dir::AbstractString; l_max::Integer) where {T<:Abstr
     return H1RadialJetCorpus{T}(r0, r, f, fp, h, dh, ddh)
 end
 
-read_h1(dir::AbstractString; l_max::Integer) = read_h1(Float64, dir; l_max = l_max)
-read_h1(dir::AbstractString, T::Type; l_max::Integer) = read_h1(T, dir; l_max = l_max)
+read_h1_corpus(dir::AbstractString; l_max::Integer) = read_h1_corpus(Float64, dir; l_max = l_max)
+read_h1_corpus(dir::AbstractString, T::Type; l_max::Integer) = read_h1_corpus(T, dir; l_max = l_max)

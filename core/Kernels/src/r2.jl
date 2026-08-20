@@ -53,7 +53,7 @@ const R2_COUPLING_SPEC = (_R2_C_S0, _R2_C_S0, _R2_C_S0, _R2_C_S1, _R2_C_S1,
 # ≥ 0; this keeps the unused values NaN instead of throwing. @inline + type-generic.
 @inline _ssqrt(x::Real) = x < 0 ? oftype(float(x), NaN) : sqrt(float(x))
 
-# Pack the (i,l,m)-keyed read_h1 field slices (i = 1:10) into a dense 10xN ComplexF64 matrix so the
+# Pack the (i,l,m)-keyed read_h1_corpus field slices (i = 1:10) into a dense 10xN ComplexF64 matrix so the
 # work-item kernel does pure array indexing. Absent components (an unused i) pack as a zero column,
 # matching the legacy behaviour of never touching them.
 # `N` is supplied by the radial grid rather than inferred from the requested mode.  Consequently a
@@ -1201,7 +1201,7 @@ The `n`-th quadratic second-order Ricci source term (`n ∈ 1:10`), evaluated on
 the coupling of first-order modes `(l1,m1)` and `(l2,m2)` into the target mode `(l3,m3)`. Host dispatcher
 over the ten work-item kernels `r2_1!..r2_10!`: allocates the (pre-zeroed) output, then launches the
 matching kernel. `h1,dh1,ddh1` / `h2,dh2,ddh2` are `Dict{NTuple{3,Int},Vector}` keyed `(i,l,m)` (the
-`read_h1` layout): `h1`-family read at `(i,l1,m1)`, `h2`-family at `(i,l2,m2)`. An entirely absent
+`read_h1_corpus` layout): `h1`-family read at `(i,l1,m1)`, `h2`-family at `(i,l2,m2)`. An entirely absent
 parent mode contributes the exact zero vector, as required by bilinearity. If any of `h`, `dh`, or
 `ddh` supplies a component, that component must have `length(r)` entries; missing components retain
 the zero-padding convention. Malformed present vectors throw `DimensionMismatch` before entering an

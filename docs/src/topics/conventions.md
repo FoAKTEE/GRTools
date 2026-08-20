@@ -83,11 +83,12 @@ either convention agree:
 | `a_to_q(a, M=1)` | ``a \mapsto q = a/M`` |
 | `imagunit()` / `imagunit(T)` | the numeric imaginary unit; `imagunit(Float64) == ComplexF64(0,1)` etc. for precision control |
 
-!!! note "Two `imagunit`s"
-    `NumericsCore.imagunit` is *numeric*. `PostNewtonian.MST` exports its own symbolic
-    `imagunit()` — the Symbolics atom `𝕚` carried inside PN coefficient polynomials —
-    whose substitution `imagunit() => im` evaluates to the numeric one. They are
-    deliberately distinct symbols in distinct packages.
+!!! note "The numeric and the symbolic imaginary unit"
+    `NumericsCore.imagunit` is *numeric*. `PostNewtonian.MST` exports the symbolic
+    `imagunit_sym()` — the Symbolics atom `𝕚` carried inside PN coefficient polynomials —
+    whose substitution `imagunit_sym() => im` evaluates to the numeric one. They are
+    deliberately distinct symbols in distinct packages, and (since the export-collision
+    cleanup) distinct NAMES, so `using NumericsCore, PostNewtonian.MST` is unambiguous.
 
 ## [The `p_to_y` map](@id conventions-p-to-y)
 

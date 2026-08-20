@@ -14,6 +14,9 @@ as the SecondOrder front door — it is not re-owned.
 module SecondOrder
 
 using NumericsCore: a_il
+# `validate_schema` is NumericsCore's generic (H1Schema/AmpGridSchema/FluxGridSchema); the R2
+# corpus/plan schemas below add METHODS to it rather than shadowing the name with a second generic.
+import NumericsCore: validate_schema
 using Wigner: coupling
 using Data: h1_parity_fields
 
@@ -37,7 +40,7 @@ include("SecondOrder/PlanSchema.jl")
 
 export a_il, selection_modes, coupling
 export h1_mass, h1_spin, d2hdr2
-export read_h1, h1_parity_fields, H1RadialJetCorpus, ZeroPadField
+export read_h1_corpus, h1_parity_fields, H1RadialJetCorpus, ZeroPadField
 export r2_term   # coupling-evaluating host wrapper over Kernels.r2_term (legacy-parity export)
 export second_order_ricci, ricci_source, ricci_source_mass, ricci_source_spin, write_src
 export R2Normalization, OrderedRicciBilinear, SecondVariationRicci

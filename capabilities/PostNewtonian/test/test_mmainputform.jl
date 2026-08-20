@@ -190,8 +190,8 @@ end
 
     # (unit) `Rational[p,q]` → exact p//q; `ResummedSeriesData[sf, SeriesData[e,..]]` → sf·Normal(sd)
     # with the prefactor collapsing to 1 at e=0 (leaving inner c0 = 5).
-    @test Rational{BigInt}(Symbolics.value(read_mma_inputform("Rational[-587831, 2880]"))) == -587831 // 2880
-    r = read_mma_inputform("ResummedSeriesData[1/(1-e^2)^4, SeriesData[e, 0, {5, 0, 7}, 0, 3, 1]]")
+    @test Rational{BigInt}(Symbolics.value(read_mma_inputform_symbolic("Rational[-587831, 2880]"))) == -587831 // 2880
+    r = read_mma_inputform_symbolic("ResummedSeriesData[1/(1-e^2)^4, SeriesData[e, 0, {5, 0, 7}, 0, 3, 1]]")
     @test isapprox(Float64(Symbolics.value(Symbolics.simplify(Symbolics.substitute(r, Dict(e => Symbolics.Num(0)))))), 5.0; rtol = 1e-12)
 
     # (2) EHorizon leading SeriesData[y] coefficient == the literal `.m` formula
@@ -276,7 +276,7 @@ end
 @testset "MMAInputForm: complex-AST atom class (PolyGamma/RePsi/ImPsi)" begin
     EG = Base.MathConstants.eulergamma
     # PolyGamma[m,z] -> SpecialFunctions.polygamma(m,z); analytic identities ground the target.
-    pg01 = read_mma_inputform("PolyGamma[0, 1]")
+    pg01 = read_mma_inputform_symbolic("PolyGamma[0, 1]")
     @test Symbolics.operation(Symbolics.value(pg01)) === SpecialFunctions.polygamma
     @test isapprox(SpecialFunctions.polygamma(0, 1), -EG; atol = 1e-12)   # ψ(1) = -γ
     @test isapprox(SpecialFunctions.polygamma(1, 1), pi^2 / 6; atol = 1e-12)  # ψ'(1) = π²/6
@@ -285,8 +285,8 @@ end
     # form is ψ^(m)(1 + 𝕚 a n/√(1-a²)) ± ψ^(m)(1 - 𝕚 a n/√(1-a²)) (over 𝕚 for Im). Check that
     # substituting 𝕚=>im, a=>numeric makes RePsi real and ImPsi the imaginary combination.
     a = Symbolics.variable(:a); iu = Symbolics.variable(:𝕚)
-    rp = read_mma_inputform("RePsi[0, 1]")
-    ip = read_mma_inputform("ImPsi[0, 1]")
+    rp = read_mma_inputform_symbolic("RePsi[0, 1]")
+    ip = read_mma_inputform_symbolic("ImPsi[0, 1]")
     sub = Dict(a => 0.3, iu => im)
     rpv = ComplexF64(_fold(Symbolics.substitute(rp, sub)))
     ipv = ComplexF64(_fold(Symbolics.substitute(ip, sub)))
@@ -313,8 +313,8 @@ end
     # Oracle = the analytic digamma identity (same polygamma oracle as the RePsi/ImPsi test).
     aval = 0.3
     for (n, m) in ((0, 2), (1, 2), (0, 1))
-        pa = read_mma_inputform("PsiA[$n, $m]")
-        pb = read_mma_inputform("PsiB[$n, $m]")
+        pa = read_mma_inputform_symbolic("PsiA[$n, $m]")
+        pb = read_mma_inputform_symbolic("PsiB[$n, $m]")
         sub = Dict(a => aval, iu => im)
         pav = ComplexF64(_fold(Symbolics.substitute(pa, sub)))
         pbv = ComplexF64(_fold(Symbolics.substitute(pb, sub)))
@@ -327,17 +327,17 @@ end
     end
 
     # (e) lowercase `i` is the imaginary unit: the PolyGamma arg folds at the complex Kerr point.
-    li = read_mma_inputform("PolyGamma[0, (i*q)/Sqrt[1 - q^2]]")
+    li = read_mma_inputform_symbolic("PolyGamma[0, (i*q)/Sqrt[1 - q^2]]")
     lival = ComplexF64(_fold(Symbolics.substitute(li, Dict(q => 0.4, iu => im))))
     @test isapprox(lival, SpecialFunctions.polygamma(0, im * 0.4 / sqrt(1 - 0.16)); atol = 1e-10)
 
     # `HoldForm[atom]` unwraps a held SCALAR atom to the atom (identity); a held eccentric gen-func
     # head mints the FORMAL Symbolics atom `oneP5PN_e_4` (Module-2b) rather than raising.
-    @test isequal(read_mma_inputform("HoldForm[PsiA[0, 2]]"), read_mma_inputform("PsiA[0, 2]"))
-    @test isequal(read_mma_inputform("HoldForm[oneP5PN[e, 4]]"), Symbolics.variable(:oneP5PN_e_4))
+    @test isequal(read_mma_inputform_symbolic("HoldForm[PsiA[0, 2]]"), read_mma_inputform_symbolic("PsiA[0, 2]"))
+    @test isequal(read_mma_inputform_symbolic("HoldForm[oneP5PN[e, 4]]"), Symbolics.variable(:oneP5PN_e_4))
 
     # `Psibar[n,m]` is a named formal PN variable `Psibar_n_m` (symbol identity only).
-    pbar = read_mma_inputform("Psibar[1, 2]")
+    pbar = read_mma_inputform_symbolic("Psibar[1, 2]")
     @test isequal(pbar, Symbolics.variable(Symbol("Psibar_1_2")))
 
     # (a) census spot-check + (c) coefficient literal: EInfinity-v e→0 leading coeff = 32/5
@@ -361,15 +361,15 @@ end
     @test srs.coeffs[end] isa Symbolics.Num             # highest order carries the \[Psi]bar atoms
 end
 
-@testset "MMAInputForm: read_mma_inputform low-level walker" begin
+@testset "MMAInputForm: read_mma_inputform_symbolic low-level walker" begin
     # SeriesData -> PNSeries
-    s = read_mma_inputform("SeriesData[p, 0, {1, 0, -1/2}, 0, 3, 1]")
+    s = read_mma_inputform_symbolic("SeriesData[p, 0, {1, 0, -1/2}, 0, 3, 1]")
     @test s isa PNSeries
     @test (s.var, s.nmin, s.nmax, s.den) == (:p, 0, 3, 1)
     # exact rational kept (not Float64): coeff[3] == -1//2
     @test Rational{BigInt}(Symbolics.value(s.coeffs[3])) == -1 // 2
     # bare Association -> Dict
-    d = read_mma_inputform("<|\"Name\" -> \"x\", \"Series\" -> SeriesData[y, 0, {1}, 0, 1, 1]|>")
+    d = read_mma_inputform_symbolic("<|\"Name\" -> \"x\", \"Series\" -> SeriesData[y, 0, {1}, 0, 1, 1]|>")
     @test d isa Dict{String,Any}
     @test d["Name"] == "x"
     @test d["Series"] isa PNSeries
@@ -377,11 +377,11 @@ end
 
 @testset "MMAInputForm: arbitrary precision/accuracy and scientific literals" begin
     # Plain decimals retain the established machine-number behavior.
-    ordinary = Symbolics.value(read_mma_inputform("1.234567890123456789"))
+    ordinary = Symbolics.value(read_mma_inputform_symbolic("1.234567890123456789"))
     @test ordinary isa Float64
     @test ordinary == parse(Float64, "1.234567890123456789")
 
-    precise = Symbolics.value(read_mma_inputform("1.2345678901234567890123456789`40"))
+    precise = Symbolics.value(read_mma_inputform_symbolic("1.2345678901234567890123456789`40"))
     @test precise isa BigFloat
     @test precision(precise) >= ceil(Int, 40 * log2(10))
     setprecision(BigFloat, 256) do
@@ -389,7 +389,7 @@ end
         @test abs(BigFloat(precise) - ref) < big"1e-30"
     end
 
-    accurate = Symbolics.value(read_mma_inputform("0.0012345678901234567890123456789``30"))
+    accurate = Symbolics.value(read_mma_inputform_symbolic("0.0012345678901234567890123456789``30"))
     @test accurate isa BigFloat
     setprecision(BigFloat, 256) do
         ref = parse(BigFloat, "0.0012345678901234567890123456789")
@@ -397,18 +397,18 @@ end
     end
 
     scientific = Symbolics.value(
-        read_mma_inputform("1.2345678901234567890123456789`50*^25"))
+        read_mma_inputform_symbolic("1.2345678901234567890123456789`50*^25"))
     @test scientific isa BigFloat
     setprecision(BigFloat, 256) do
         ref = parse(BigFloat, "1.2345678901234567890123456789e25")
         @test abs((BigFloat(scientific) - ref) / ref) < big"1e-29"
     end
 
-    machine_scientific = Symbolics.value(read_mma_inputform("1.25*^25"))
+    machine_scientific = Symbolics.value(read_mma_inputform_symbolic("1.25*^25"))
     @test machine_scientific isa Float64
     @test machine_scientific == 1.25e25
 
-    @test_throws ArgumentError read_mma_inputform("1.25``")
+    @test_throws ArgumentError read_mma_inputform_symbolic("1.25``")
 end
 
 # --- Module-3: giant-sum balanced materialization ------------------------------------------

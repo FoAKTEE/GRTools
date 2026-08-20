@@ -9,7 +9,7 @@ order. `lambda` (the SWSH eigenvalue) enters as an external `gamma=a*omega` Tayl
 from `Harmonics.SpinWeightedSpheroidalEigenvalueSeries` for `a != 0`.
 
 Leaf after `Series`; `RadialMode`/`SourceMode` build on the `eps`-series accessor `_mst_eps_series`.
-The imaginary unit is carried as the Symbolics symbol `imagunit()` (`𝕚`) so a coefficient stays a
+The imaginary unit is carried as the Symbolics symbol `imagunit_sym()` (`𝕚`) so a coefficient stays a
 single `Num` (a `Complex{Num}` cannot live in `PNSeries`' `Vector{Num}`); substitute `=> im` to
 evaluate numerically.
 """
@@ -20,7 +20,7 @@ using Symbolics: Num
 import Symbolics
 using Harmonics: SpinWeightedSpheroidalEigenvalueSeries
 
-export ES, MSTCoefficients, imagunit
+export ES, MSTCoefficients, imagunit_sym
 
 # ----------------------------------------------------------------------------
 # Truncated Laurent eps-series ES{T}: `lead` = lowest stored eps-power, `c[i]` =
@@ -378,11 +378,11 @@ function _eps_to_freqseries(es::ES{T}, order::Int, ωsym::Num; tol = 0) where {T
 end
 
 # The imaginary unit as a Symbolics symbol (keeps coefficients a single `Num`; a
-# `Complex{Num}` cannot be stored in PNSeries' `Vector{Num}`). Substitute `imagunit() => im`
+# `Complex{Num}` cannot be stored in PNSeries' `Vector{Num}`). Substitute `imagunit_sym() => im`
 # to evaluate numerically. MMA's InputForm uses `I`; here it is the symbol `𝕚`.
 const _IUNIT_SYM = Symbolics.variable(:𝕚)
 "The Symbolics symbol used for the imaginary unit in MSTCoefficients output (substitute `=> im` to evaluate)."
-imagunit() = _IUNIT_SYM
+imagunit_sym() = _IUNIT_SYM
 
 # Complex{Rational}/ComplexF64 -> Symbolics Num, using `𝕚` for the imaginary part.
 function _to_num(c)
@@ -439,7 +439,7 @@ Two output forms (selected by `FreqRep`):
     `γ^k` coeff = (ε^k coeff)·(2 ω)^k, consecutive (den=1), `O[γ]^(order+1)`. Keys n over
     `-(order-1)-2 .. order-1`.
 
-Coefficients are `Num` polynomials in `ωvar` and the imaginary-unit symbol `imagunit()`
+Coefficients are `Num` polynomials in `ωvar` and the imaginary-unit symbol `imagunit_sym()`
 (substitute `=> im` to evaluate). Spin `a` numeric (Float64 or Rational). `lambda_series`
 = SWSH eigenvalue Taylor coeffs `[c0,c1,...]` in γ=a*ω; for `a != 0` it is AUTO-supplied from
 `SpinWeightedSpheroidalEigenvalueSeries(s,l,m)` when not given (pass it to override).

@@ -2,8 +2,8 @@
 # SecondOrderRicci/assembly.jl). Couples 3 harmonics (Wigner.coupling, evaluated HERE host-side by
 # the `r2_term` wrapper — the §5.5/§7.7.1 Kernels-purity hoist: Kernels carries no Wigner machinery)
 # into the 10 quadratic r2 combinations on the pure-arithmetic `Kernels.r2_term` host over the h1
-# corpus read by ReadCorpus.read_h1, supplies the analytic h1_mass/h1_spin static fields, and closes
-# the SecondOrder submodule. `ZeroPadField`/`read_h1` come from ReadCorpus, `selection_modes` from
+# corpus read by ReadCorpus.read_h1_corpus, supplies the analytic h1_mass/h1_spin static fields, and closes
+# the SecondOrder submodule. `ZeroPadField`/`read_h1_corpus` come from ReadCorpus, `selection_modes` from
 # Modes, `h1_mass`/`h1_spin` from AnalyticFields; the r2 ARITHMETIC stays Kernels-owned (NOT re-owned).
 
 import HDF5
@@ -12,7 +12,7 @@ import Kernels
 _has_parent_mode(h, dh, ddh, l::Integer, m::Integer) =
     any(i -> haskey(h, (i, l, m)) || haskey(dh, (i, l, m)) || haskey(ddh, (i, l, m)), 1:10)
 
-# Highest multipole present in a read_h1 field corpus (the driver's `h1lmax`).
+# Highest multipole present in a read_h1_corpus field corpus (the driver's `h1lmax`).
 _h1lmax(h::AbstractDict) = isempty(h) ? -1 : maximum(l for (_, l, _) in keys(h))
 
 # Legacy Ricci.cc command-line bandwidth semantics (L66-75).  A negative dlmax is not an empty
@@ -64,7 +64,7 @@ Normalization contract: for `g(ε) = g₀ + εh₁`, this function returns the s
 `2δ²R` Lorenz-equation source term.  `PerturbationEquations` 0.4.0 calls the Taylor coefficient
 `[ε²]R = ½D²R` its `d2R` output, so compare this API to **twice** that operator.
 
-`fields` is an [`H1RadialJetCorpus`](@ref) returned by [`read_h1`](@ref). The `(l1,l2)` summation
+`fields` is an [`H1RadialJetCorpus`](@ref) returned by [`read_h1_corpus`](@ref). The `(l1,l2)` summation
 runs over
 `l3-dlmax ≤ l1,l2 ≤ l3+dlmax` intersected with `0 ≤ l1`, `|l3-l1| ≤ l2 ≤ l3+l1`, and the corpus cap
 `l1,l2 ≤ h1lmax`; `m1 ∈ -l1:l1` with `|m3-m1| ≤ l2`. `M = 1`. The radial accumulation is on the
@@ -126,7 +126,7 @@ end
 # --- static-field (mass / spin) symmetrized coupling: Ricci_M.cc / Ricci_S.cc --------------------
 
 # Split an h1_mass / h1_spin result Dict{(i,l,m)=>(;h,dh,ddh)} into the three (i,l,m)=>Vector dicts
-# of the read_h1 layout (ComplexF64), so the R2 kernels see the static field exactly like the dynamic
+# of the read_h1_corpus layout (ComplexF64), so the R2 kernels see the static field exactly like the dynamic
 # one.
 function _static_corpus(sfield)
     h = Dict{NTuple{3,Int},Vector{ComplexF64}}()

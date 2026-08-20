@@ -17,12 +17,12 @@ Symbolics cannot be a weakdep and must be a hard dep confined to this capability
 | Submodule    | Owns | Legacy source |
 |--------------|------|---------------|
 | `Series`     | `PNSeries` Num-algebra: Laurent/Taylor arithmetic, `Normal` materialization, change-of-parameter, power-counting, `expand_log`/`expand_gamma` | TeukolskyPN/pnseries.jl |
-| `MST`        | symbolic MST coefficients, ν-solve, ε-series, `imagunit` | TeukolskyPN/mst_coefficients.jl |
+| `MST`        | symbolic MST coefficients, ν-solve, ε-series, `imagunit_sym` | TeukolskyPN/mst_coefficients.jl |
 | `RadialMode` | η-graded symbolic radial + amplitude + source δ-coefficient series, mode assembly | TeukolskyPN/{radial_pn,mode_pn*,mode_pn_assemble}.jl |
 | `SelfForce`  | `PostNewtonianData` accessor, `postnewtonian_coefficient`, `ResummedSeriesData`, `postnewtonian_expansion` | PostNewtonianSelfForce/{postnewtonian_data,coefficients,resummed_series}.jl |
-| `Catalog`    | PN `.m` discovery + unified `read_mma_inputform` MMA-InputForm→`Num` walker | PostNewtonianSelfForce/{catalog_selector,series_data}.jl + TeukolskyPN/mode_pn_source.jl |
+| `Catalog`    | PN `.m` discovery + unified `read_mma_inputform_symbolic` MMA-InputForm→`Num` walker | PostNewtonianSelfForce/{catalog_selector,series_data}.jl + TeukolskyPN/mode_pn_source.jl |
 
-The duplicated `_eval_mma_ast` / `_eval_pn_ast` walker forks unify into `Catalog.read_mma_inputform`
+The duplicated `_eval_mma_ast` / `_eval_pn_ast` walker forks unify into `Catalog.read_mma_inputform_symbolic`
 behind a byte-for-byte `Num`-equivalence gate over all 91 legacy `.m` files.
 
 ## Provenance
@@ -35,7 +35,7 @@ are baked into `test/fixtures/`.
 
 ## Public API
 
-Populated per-module as primitives land (`PNSeries`, `Normal`, `read_mma_inputform`,
+Populated per-module as primitives land (`PNSeries`, `Normal`, `read_mma_inputform_symbolic`,
 `postnewtonian_coefficient`, `ResummedSeriesData`, `postnewtonian_expansion`, ...).
 
 ## Dependencies

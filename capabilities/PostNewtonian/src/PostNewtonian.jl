@@ -13,7 +13,7 @@ Submodules:
                   materialization, change-of-parameter, power-counting, `expand_log`/`expand_gamma`.
 - `Catalog`     — PN `.m` discovery / substring browse (`SERIES_DATA_DIR`, `pn_series_catalog`,
                   `pn_browse`).
-- `MMAInputForm`— the unified `read_mma_inputform` MMA-InputForm→`Num` symbolic walker (Association/
+- `MMAInputForm`— the unified `read_mma_inputform_symbolic` MMA-InputForm→`Num` symbolic walker (Association/
                   SeriesData/Module text → `PNSeries`/`Dict`, no eval/world-age).
 - `SelfForce`   — `PostNewtonianData` accessor, `postnewtonian_coefficient`, `ResummedSeriesData`,
                   `postnewtonian_expansion`.

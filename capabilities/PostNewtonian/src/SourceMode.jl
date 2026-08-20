@@ -15,7 +15,7 @@ module SourceMode
 using ..Series: PNSeries, series_take
 import ..Series
 import ..MST
-using ..MST: imagunit, _rename
+using ..MST: imagunit_sym, _rename
 import ..RadialMode
 using ..RadialMode: _trunc_eta, _zero_eta, _mono_eta, _mono_eta_signed, _const_eta, _IU, _PISYM,
     _A_amp, _C_trans, _B_trans, _B_inc, _amp_inputs, _reattach_omega_amp, _radial_solution,
@@ -505,7 +505,7 @@ PN-expanded circular-equatorial point-particle mode (Teukolsky`PN`
 TeukolskyPointParticleModePN, PN.wl 3168). Returns a `Dict` with:
   * `"Amplitudes"` => `Dict("I"=>Z^inf::PNSeries, "H"=>Z^H::PNSeries)` — the asymptotic
     amplitudes as η-series with `Num` coeffs in `r0`, `ΩKerr` (=Ω_φ), the imag-unit symbol
-    `imagunit()`, `SqrtPi`, EulerGamma, Pi, ...;
+    `imagunit_sym()`, `SqrtPi`, EulerGamma, Pi, ...;
   * `"EnergyFlux"` => `Dict("I"=>FluxInf::PNSeries)` — the energy flux to infinity
     `FluxInf = |Z^inf|² ω^(2(1-|s|))/(4π)` (s=-2/0 grav/scalar; matches the numerical
     Teukolsky `energy_flux`). ω = m ΩKerr.
@@ -517,7 +517,7 @@ Spin `a == 0` (Schwarzschild) for `s ∈ {-2,0}`, `(s,l,m) ∈ {(-2,2,2),(-2,3,2
 Ωφ = 1/(r0^{3/2}+a) (= r0^{-3/2} at a=0) kept as the `ΩKerr` symbol. At a=0 the SWSH fold to
 spherical values (no S-symbols remain); at a≠0 the SWSH S, S', S'' stay SYMBOLIC as `SS0/SS1/SS2`
 (substitute their numeric spheroidal values at the evaluation a·ω to evaluate). To evaluate:
-substitute `imagunit()=>im`, `SqrtPi=>sqrt(pi)`, `Pi`, EulerGamma, `Logω=>log(ω)`, Zeta, and
+substitute `imagunit_sym()=>im`, `SqrtPi=>sqrt(pi)`, `Pi`, EulerGamma, `Logω=>log(ω)`, Zeta, and
 (a≠0) `SS0/SS1/SS2`, `ΩKerr=>1/(r0^{3/2}+a)`.
 """
 function TeukolskyPointParticleModePN(s::Integer, l::Integer, m::Integer, a::Real,

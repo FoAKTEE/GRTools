@@ -15,7 +15,7 @@ using SelfForce
     # Per-module grounded test files (tests-first, characterization vs captured legacy fixtures):
     include("second_order_coupling.jl") # coupling front door === Wigner.coupling + 3j selection zeros
     include("second_order_modes.jl")   # a_il re-export + selection_modes vs Ricci.cc L86-99
-    include("second_order_readcorpus.jl") # read_h1 corpus reader + ZeroPadField vs fixtures + analytic f,fp
+    include("second_order_readcorpus.jl") # read_h1_corpus corpus reader + ZeroPadField vs fixtures + analytic f,fp
     include("second_order_h1schema_bridge.jl") # production 4-row H1Schema -> typed h/dh/ddh radial jet
     include("second_order_sparse_modes.jl") # absent whole (l,m) parents are exact-zero R2 contributions
     include("second_order_assembly.jl") # ricci_source vs captured g++/GSL src_self.h5 oracle + write_src round-trip

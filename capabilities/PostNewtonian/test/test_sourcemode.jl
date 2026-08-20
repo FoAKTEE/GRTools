@@ -13,13 +13,13 @@
 
 using PostNewtonian: SourceMode, RadialMode, MST
 using PostNewtonian.SourceMode: TeukolskyPointParticleModePN
-using PostNewtonian.MST: imagunit
+using PostNewtonian.MST: imagunit_sym
 using Symbolics
 import Symbolics
 
 @testset "SourceMode" begin
     @variables r0 ΩKerr
-    iu = imagunit()
+    iu = imagunit_sym()
     SP = Symbolics.variable(:SqrtPi); PI = Symbolics.variable(:Pi)
 
     # --- ★ Newtonian 32/5 v^10 quadrupole (Julia-computed end-to-end) ------------------------

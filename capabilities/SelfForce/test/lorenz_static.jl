@@ -7,7 +7,7 @@
 #     on the orbit r0=10 with grid [4,6,8,10,12,14,16] (r0 at 0-based index 3), via
 #     scratchpad/capture_mono.jl (Pkg.activate packages/H1Lorenz). The closed forms are exact
 #     algebraic/log expressions, so the port must reproduce them to ~1e-13. The h1-l0m0.h5 corpus
-#     fixture is SYNTHETIC seed data (read_h1 structure test) and is deliberately NOT used here.
+#     fixture is SYNTHETIC seed data (read_h1_corpus structure test) and is deliberately NOT used here.
 # (2) STRUCTURE: nf+gauge = 4 fields × 4 parts × (gridsize+1); the gauge slot (k=4) and all imaginary
 #     parts (part 2,4) are identically zero; the worldline right-limit lives at the last index.
 # (3) ANALYTIC: the static monopole is real and asymptotically flat; h1 In/Out agree at r0 (field

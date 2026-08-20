@@ -14,7 +14,7 @@ verified with `cmp` against the mirror at `emri-disk/ref-code/PostNewtonianSelfF
 | recorded | 2026-08-19 |
 | license | upstream `LICENSE` (MIT); upstream `CITATION.cff` names the authors to cite |
 
-Consumers: `PostNewtonian.Catalog` (`.m` discovery + `read_mma_inputform`) and
+Consumers: `PostNewtonian.Catalog` (`.m` discovery + `read_mma_inputform_symbolic`) and
 `PostNewtonian.SelfForce` (`postnewtonian_coefficient`, `ResummedSeriesData`).
 
 | file | bytes | sha256 |

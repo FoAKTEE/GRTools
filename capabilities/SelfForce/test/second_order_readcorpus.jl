@@ -1,4 +1,4 @@
-# Grounded tests for SelfForce.SecondOrder.read_h1 (directory-level h1-corpus reader) + the
+# Grounded tests for SelfForce.SecondOrder.read_h1_corpus (directory-level h1-corpus reader) + the
 # ZeroPadField shim + the h1_parity_fields re-export.
 #
 # GROUNDING — structural + closed-form on the CAPTURED fixtures, no heavy legacy dep:
@@ -8,7 +8,7 @@
 # "grid" vector (G points), and "inhom_left"/"inhom_right" matrices of shape (6·#fields, N_left/right)
 # storing per field the 6 columns (Re h̄, Im h̄, Re ∂_r h̄, Im ∂_r h̄, Re ∂²_r h̄, Im ∂²_r h̄).
 #
-# (1) STRUCTURE: read_h1 reconstructs the full grid r of length N=G+1 with r0 duplicated at the
+# (1) STRUCTURE: read_h1_corpus reconstructs the full grid r of length N=G+1 with r0 duplicated at the
 #     worldline (the C++ inhom_left/right split point), so r0 appears TWICE and the left/right halves
 #     join there. We assert N=G+1, the duplication index, and N_left+N_right==N.
 # (2) COLUMN UNPACK: the populated (i,l,m) keys are exactly the parity field set h1_parity_fields(l,m)
@@ -19,7 +19,7 @@
 # (5) h1_parity_fields is the Data re-export (=== object identity, not a second copy).
 
 using Test
-using SelfForce.SecondOrder: read_h1, ZeroPadField, h1_parity_fields
+using SelfForce.SecondOrder: read_h1_corpus, ZeroPadField, h1_parity_fields
 using Data: h1_parity_fields as data_h1_parity_fields
 import HDF5
 
@@ -32,8 +32,8 @@ const _FIX = joinpath(@__DIR__, "fixtures", "h1")
     @test h1_parity_fields(3, 0) == [9, 10, 8]   # l+m odd
 end
 
-@testset "read_h1 grid structure + r0 duplication" begin
-    fields = read_h1(_FIX; l_max = 3)
+@testset "read_h1_corpus grid structure + r0 duplication" begin
+    fields = read_h1_corpus(_FIX; l_max = 3)
     # N_left from the first sorted fixture file (h1-l0m0.h5)
     grid, nL = HDF5.h5open(joinpath(_FIX, "h1-l0m0.h5"), "r") do file
         (read(file["grid"]), size(read(file["inhom_left"]), 2))
@@ -46,14 +46,14 @@ end
     @test r[1:nL] == grid[1:nL]               # left half is the raw grid up to r0
 end
 
-@testset "read_h1 Schwarzschild metric (analytic f, fp)" begin
-    fields = read_h1(_FIX; l_max = 3)
+@testset "read_h1_corpus Schwarzschild metric (analytic f, fp)" begin
+    fields = read_h1_corpus(_FIX; l_max = 3)
     @test fields.f ≈ @.(1 - 2 / fields.r) rtol = 1e-15
     @test fields.fp ≈ @.(2 / fields.r^2) rtol = 1e-15
 end
 
-@testset "read_h1 column unpack: keys = parity fields ⊕ 3↔6 swap, lengths = N" begin
-    fields = read_h1(_FIX; l_max = 3)
+@testset "read_h1_corpus column unpack: keys = parity fields ⊕ 3↔6 swap, lengths = N" begin
+    fields = read_h1_corpus(_FIX; l_max = 3)
     N = length(fields.r)
     swap(i) = i == 3 ? 6 : (i == 6 ? 3 : i)
     pat = r"^h1-l([0-9]+)m([0-9]+)\.h5$"
@@ -70,8 +70,8 @@ end
     end
 end
 
-@testset "read_h1 negative-m azimuthal reflection (m>0 distinct keys)" begin
-    fields = read_h1(_FIX; l_max = 3)
+@testset "read_h1_corpus negative-m azimuthal reflection (m>0 distinct keys)" begin
+    fields = read_h1_corpus(_FIX; l_max = 3)
     swap(i) = i == 3 ? 6 : (i == 6 ? 3 : i)
     for (l, m) in [(2, 2), (3, 1), (2, 1), (1, 1)]
         sgn = isodd(m) ? -1 : 1
@@ -88,9 +88,9 @@ end
 # For m=0 the C++ source applies the reflection IN PLACE (dst==src), i.e. h[(i,l,0)] is overwritten
 # with conj(h[(i,l,0)]). We pin this faithful quirk against an independent recompute of the physical
 # field straight from the raw inhom_left columns (a·h̄/r) at the worldline column, then conjugate.
-@testset "read_h1 m=0 in-place conjugation (faithful legacy quirk)" begin
+@testset "read_h1_corpus m=0 in-place conjugation (faithful legacy quirk)" begin
     using NumericsCore: a_il
-    fields = read_h1(_FIX; l_max = 3)
+    fields = read_h1_corpus(_FIX; l_max = 3)
     l = 0; m = 0
     grid = HDF5.h5open(joinpath(_FIX, "h1-l0m0.h5"), "r") do file; read(file["grid"]); end
     L = HDF5.h5open(joinpath(_FIX, "h1-l0m0.h5"), "r") do file; read(file["inhom_left"]); end
@@ -113,8 +113,8 @@ end
     @test all(iszero, p[(2, 2, 2)])
 end
 
-@testset "read_h1 BigFloat precision path (type-generic {T})" begin
-    fields = read_h1(BigFloat, _FIX; l_max = 2)
+@testset "read_h1_corpus BigFloat precision path (type-generic {T})" begin
+    fields = read_h1_corpus(BigFloat, _FIX; l_max = 2)
     @test eltype(fields.r) == BigFloat
     @test fields.f ≈ @.(1 - 2 / fields.r) rtol = 1e-40
     k = first(keys(fields.h))

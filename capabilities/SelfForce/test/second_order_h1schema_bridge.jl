@@ -50,7 +50,7 @@ end
 @testset "SecondOrder production 4-row H1Schema bridge" begin
     @testset "real nonstatic fixture: typed jet, conversion, reflection" begin
         _bridge_one_mode(2, 2) do dir
-            jets = _BRIDGE_SO.read_h1(dir; l_max = 2)
+            jets = _BRIDGE_SO.read_h1_corpus(dir; l_max = 2)
             @test jets isa _BRIDGE_SO.H1RadialJetCorpus{Float64}
             @test length(jets.r) == 8
             @test all(v -> all(isfinite, v), values(jets.h))
@@ -78,7 +78,7 @@ end
 
     @testset "ddbar agrees with independent Puncture field equation" begin
         _bridge_one_mode(2, 2) do dir
-            jets = _BRIDGE_SO.read_h1(dir; l_max = 2)
+            jets = _BRIDGE_SO.read_h1_corpus(dir; l_max = 2)
             s = Data.read_h1(joinpath(dir, "h1-l2m2.h5"))
             fields, hbar, dhbar = _bridge_raw_bar(s, 2, 2)
             residual = 0.0
@@ -105,14 +105,14 @@ end
     @testset "static routing is explicit" begin
         # The analytic monopole is covered by d2hdr2's static-mass identity and is safe to close.
         _bridge_one_mode(0, 0) do dir
-            jets = _BRIDGE_SO.read_h1(dir; l_max = 0)
+            jets = _BRIDGE_SO.read_h1_corpus(dir; l_max = 0)
             @test all(v -> all(isfinite, v), values(jets.ddh))
         end
 
         # l>=2 even-static R6/R7 require solver-provided/validated second derivatives.
         _bridge_one_mode(2, 0) do dir
             err = try
-                _BRIDGE_SO.read_h1(dir; l_max = 2)
+                _BRIDGE_SO.read_h1_corpus(dir; l_max = 2)
                 nothing
             catch ex
                 ex
@@ -133,7 +133,7 @@ end
                 f["inhom_left"] = s.inhom_left[1:end-1, :]
                 f["inhom_right"] = s.inhom_right[1:end-1, :]
             end
-            @test_throws DimensionMismatch _BRIDGE_SO.read_h1(dir; l_max = 2)
+            @test_throws DimensionMismatch _BRIDGE_SO.read_h1_corpus(dir; l_max = 2)
         end
     end
 
@@ -149,7 +149,7 @@ end
             Data.write_mode_h5(joinpath(dir, "h1-l3m3.h5"), drifted)
 
             err = try
-                _BRIDGE_SO.read_h1(dir; l_max = 3)
+                _BRIDGE_SO.read_h1_corpus(dir; l_max = 3)
                 nothing
             catch ex
                 ex
@@ -165,7 +165,7 @@ end
         mktempdir() do dir
             cp(joinpath(_H1SCHEMA_FIX, "h1-l2m2.h5"), joinpath(dir, "h1-l2m2.h5"))
             cp(joinpath(_H1LEGACY_FIX, "h1-l3m3.h5"), joinpath(dir, "h1-l3m3.h5"))
-            jets = _BRIDGE_SO.read_h1(dir; l_max = 3)
+            jets = _BRIDGE_SO.read_h1_corpus(dir; l_max = 3)
             @test jets isa _BRIDGE_SO.H1RadialJetCorpus{Float64}
             @test haskey(jets.h, (1, 2, 2))
             @test haskey(jets.h, (1, 3, 3))
@@ -173,7 +173,7 @@ end
         end
 
         _bridge_one_mode(2, 2) do dir
-            jets = _BRIDGE_SO.read_h1(BigFloat, dir; l_max = 2)
+            jets = _BRIDGE_SO.read_h1_corpus(BigFloat, dir; l_max = 2)
             @test jets isa _BRIDGE_SO.H1RadialJetCorpus{BigFloat}
             @test eltype(jets.r) == BigFloat
             @test eltype(first(values(jets.ddh))) == Complex{BigFloat}
@@ -187,7 +187,7 @@ end
                                                    grid = grid, indices = (0, 3, 6))
         mktempdir() do dir
             _BRIDGE_LF.write_h1_mode(joinpath(dir, "h1-l2m2.h5"), nmode, orbit)
-            jets = _BRIDGE_SO.read_h1(dir; l_max = 2)
+            jets = _BRIDGE_SO.read_h1_corpus(dir; l_max = 2)
             # The sole available pair (2,2)x(2,2) couples to target (l,m)=(4,4).
             mode = _BRIDGE_SO.second_order_ricci(jets, 1, 4, 4;
                                                   h1lmax = 2, dlmax = 2)

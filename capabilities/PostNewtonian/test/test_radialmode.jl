@@ -9,7 +9,7 @@
 
 using PostNewtonian: RadialMode, MST
 using PostNewtonian.RadialMode: TeukolskyRadialPN
-using PostNewtonian.MST: imagunit
+using PostNewtonian.MST: imagunit_sym
 using Symbolics
 import Symbolics
 
@@ -33,7 +33,7 @@ import Symbolics
         @test (rin.nmin, rin.nmax) == (4, 8)
         @test (rup.nmin, rup.nmax) == (-1, 3)
 
-        iu = imagunit()
+        iu = imagunit_sym()
         r = Symbolics.variable(:r); ω = Symbolics.variable(:ω)
         sub = Dict(r => 1.0, ω => 1.0, iu => im)
         # In leading: 4/5 r⁴ ω⁴  -> 0.8
