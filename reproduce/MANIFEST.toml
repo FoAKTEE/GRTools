@@ -499,3 +499,14 @@ expected = "arXiv-2608.17003/expected/fig14.json"
 depends = ["AccretionDisc", "Spacetime"]
 status = "solid"
 notes = "EGD::fig14-m95-vs-b. Fig. 14 (fig:m95_vs_b, A:153-160): m_95*h0 vs the Plummer softening b in {0.3..0.8} for p=q=chi=0, a=30M, h0=0.05; m_95 = the smallest m at which the cumulative per-mode TOTAL torque (74) reaches 95% of the sum over m=1..ceil(4/h0)=80. A:164 PASSES: 2.70 at b=0.3 and 1.90 at b=0.8 (paper 2.9 -> 1.95, tol +-0.25), monotone decreasing. A pixel read-back of the published figure (2.90,2.70,2.45,2.25,2.10,1.95) differs from ours by exactly one mode (0.05) at four of the six b values. MEASURED FINDING: m_95 is defined against the sum over all COMPUTED modes, so it depends on the ceiling - at ceil(6/h0)=120 the b=0.3 point gives m_95*h0 = 2.900, exactly the published value (registered as m95_h0_Ksens_b03); the pre-registered K=4 is kept and the sensitivity registered rather than absorbed. This also has the right size and sign to explain the 0.3-1.7% deficit of fig13 against its reference. Grid (60,60,6000) with an in-driver cross-check at the reference triple (240,240,24000): the same m_95 = 54 and 38. ~13 min at -t8 for --regen."
+
+[[result]]
+paper = "2608.17003"
+id = "fig06"
+kind = "figure"
+script = "arXiv-2608.17003/fig06.jl"
+tier = "heavy"
+expected = "arXiv-2608.17003/expected/fig06.json"
+depends = ["AccretionDisc", "Spacetime"]
+status = "solid"
+notes = "fig:torque_chi_ap (M:934-939) - the total torque (74) in F_{J,0}h0 vs a./M in [10,1000] (40 log-spaced points, the reference marker pitch) for chi in {0.9, 0, -0.9}, panels (p,q) = (1.5,1) and (0,0), h0=0.05, b=0.6, m=1:80, grid (30,30,3000); 240 configurations, 8616 s at -t8. Printed/caption claims asserted and PASSING: M:925 no torque reversal (min T = 0.343 F_{J,0}h0 at a.=10M, chi=-0.9, where T_L is already negative); M:936 T(chi=-0.9) < T(chi=0) < T(chi=+0.9) at a.=10M in both panels; the three spins converge at a.=1000M to 1.6% (gate 5%). Plateau T(chi=0, a.=1000M) = 1.9664 / 1.1242 F_{J,0}h0 vs approx 1.97 / 1.13 read off the reference. VLM verdict match. FINDING: the 1-2 smallest radii are 5-15% below the published markers (0.794 vs 0.93 at a.=10M chi=0 in the (0,0) panel), the same strong-field regime as the fig05 and fig10 findings; agreement is <=1-3% for a. >= 16M. The golden's script_sha256 predates a plotting-only edit (y-limits re-measured off the reference PDF, redrawn with --plot-only); the stored numbers are untouched."
