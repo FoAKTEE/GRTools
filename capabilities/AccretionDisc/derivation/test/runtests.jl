@@ -21,4 +21,20 @@ const NPTS = parse(Int, get(ENV, "R3_NPTS", "12"))
         end
     end
 
+    @testset "stage 2 — perturbation + reduction (15)-(22), (45)-(49)" begin
+        certs = R3.stage2_certificates(; npts = NPTS, verbose = true)
+        @test !isempty(certs)
+        for c in certs
+            @test c.pass || error("certificate FAILED: $(c.name) [$(c.eqref)] — $(c.note)")
+        end
+    end
+
+    @testset "stage 2 gate — Newtonian limit ≡ Eq. (50)" begin
+        certs = R3.newtonian_certificates(; npts = max(3, NPTS ÷ 3), verbose = true)
+        @test !isempty(certs)
+        for c in certs
+            @test c.pass || error("certificate FAILED: $(c.name) [$(c.eqref)] — $(c.note)")
+        end
+    end
+
 end
