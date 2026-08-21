@@ -1,5 +1,5 @@
 {
-  "generated_at_commit": "2b256c602d0a88cba52978645fec96866184669e",
+  "generated_at_commit": "0a803fb55d14c3415cb1e814157b9a4564c9261a",
   "id": "fig14",
   "julia": "1.12.6",
   "paper": "2608.17003",
@@ -25,7 +25,7 @@
     "printed_checks_pass": true,
     "q_disk": 0.0,
     "resolution_check_pass": true,
-    "tail_fraction_max": 0.0011750528889195766,
-    "truncation_estimate_max": 0.0015555947506548761
+    "tail_fraction_max": 0.001175048367829516,
+    "truncation_estimate_max": 0.0015555830704595181
   }
 }
