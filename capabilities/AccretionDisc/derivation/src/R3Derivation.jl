@@ -14,9 +14,8 @@ that gate this route; no expression of theirs is read in here.
 Layout — `symbols.jl` (alphabet + the radial derivation `ddr`), `geometry.jl` (the one generic
 Christoffel helper), `jets.jl` (first-order λ-jets carrying the Fourier phase), `fluid.jl` (Eq. (3),
 written once and used for both the background and its linearisation), `background.jl` (Sec. II.A),
-`certify.jl` (the symbolic and exact-rational admission modalities), `series.jl` (truncated Laurent
-series over ℚ), `stage1.jl` (the background certificate suite), `perturbation.jl` + `reduce.jl` +
-`newtonian.jl` + `stage2.jl` (stage 2).  Stage 3 (diagnostics) lands in the next node.
+`certify.jl` (the symbolic and exact-rational admission modalities), `stage1.jl` (the background
+certificate suite), `perturbation.jl` + `reduce.jl` (stage 2), `diagnostics.jl` (stage 3).
 """
 module R3Derivation
 
@@ -37,6 +36,7 @@ include("perturbation.jl")
 include("reduce.jl")
 include("newtonian.jl")
 include("stage2.jl")
+include("diagnostics.jl")
 include("serialize.jl")
 
 end # module

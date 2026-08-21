@@ -34,6 +34,20 @@ function master_exports()
     ex
 end
 
+"The named expressions of stage 3 (the diagnostics integrands)."
+function diagnostics_exports()
+    ex = Pair{String,Any}[]
+    lbl = ("t", "r", "phi", "z")
+    for α in 1:4, β in α:4
+        iszero_entry(DXI_T[α, β]) && continue
+        push!(ex, string("dxiT_", lbl[α], lbl[β]) => to_omega_d(onshell_nu(DXI_T[α, β])))
+    end
+    push!(ex, "amf_mode" => to_omega_d(onshell_nu(AMF_MODE)))
+    push!(ex, "torque_mode" => to_omega_d(onshell_nu(TORQUE_MODE)))
+    push!(ex, "xi_r" => to_omega_d(onshell_nu(XI_UP[IR])))
+    ex
+end
+
 const _MANIFEST = """
 # R3 symbol manifest — arXiv:2608.17003, route R3 (Julia-native derivation)
 #

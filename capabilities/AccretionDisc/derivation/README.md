@@ -25,7 +25,7 @@ notebook (route **R1**) and `r2_generated.jl` from an independent *Mathematica* 
 oracles**: they gate R3 at `EGD::jd-equivalence-gate`, they never feed the build. Nothing in this
 project reads an R1/R2 expression — the independence is structural, not a promise.
 
-## Layout (stages 1-2)
+## Layout
 
 | file | content |
 |---|---|
@@ -41,9 +41,8 @@ project reads an R1/R2 expression — the independence is structural, not a prom
 | `src/reduce.jl` | the reduction M:604–608 → C, S, δû^t, δû^φ, δε̂ |
 | `src/newtonian.jl` | the paper-facing gate: Newtonian limit ≡ Eq. (50) |
 | `src/stage2.jl` | back-substitution and shape gates for the master system |
+| `src/diagnostics.jl` | ξ from (16), U/V/W (32),(33),(42), δ_ξT (40),(41), (72a),(72b), the (69) gate |
 | `src/serialize.jl` | the hand-off artefacts consumed by `EGD::jd-codegen` |
-
-Stage 3 (diagnostics) lands in the next node of the series.
 
 ## Design decisions that make it work
 
