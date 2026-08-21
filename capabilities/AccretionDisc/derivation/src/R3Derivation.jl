@@ -7,9 +7,11 @@ equations only:  line element (4)/(A1), fluid equations (3), linearisation (15)�
 (45)–(46) and the reduction scheme of M:604–608.
 
 This is a STANDALONE project (`capabilities/AccretionDisc/derivation/`), **not** a dependency of
-`AccretionDisc`: it produces the generated sources, it never runs inside the package.  The authors'
-supplementary notebook (route R1) and the independent Mathematica derivation (route R2) are ORACLES
-that gate this route; no expression of theirs is read in here.
+`AccretionDisc`: it produces the generated sources, it never runs inside the package.  Route R2 (our
+independent Mathematica derivation) is the ORACLE that gates this route; no expression of it is read
+in here.  The notebook-derived oracle of route R1 was removed from this repository on 2026-08-22
+(owner decision, EGD::jd-notebook-purge) and is archived in the mission repository; route R3 never
+read it either, so nothing in this project changed.
 
 Layout — `symbols.jl` (alphabet + the radial derivation `ddr`), `geometry.jl` (the one generic
 Christoffel helper), `jets.jl` (first-order λ-jets carrying the Fourier phase), `fluid.jl` (Eq. (3),

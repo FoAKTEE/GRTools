@@ -3,7 +3,7 @@
 # field h_μν = (2m•/s0)(g_μν(w) + 2v_μv_ν) (52) of the circular equatorial EMRI worldline (53)-(55), the
 # s0² approximation (58) in its printed equatorial closed form (B1), the Plummer softening (59), the
 # cosine Fourier projection (60) by the periodic trapezoid rule, the analytic ∂_r of every mode, both
-# index positions (covariant = the notebook/master-system convention; contravariant via the background
+# index positions (covariant = the master-system convention, ERRATUM E-M2; contravariant via the background
 # metric at the field point), and the grid-vectorised `source_modes`. GROUNDING:
 #   (i)   s0² (B1) vs a DIRECT evaluation of (58) with (56)-(57): Jacobian ∂x/∂y at the worldline point,
 #         [g + v v]_μν from `Spacetime.kerr_metric` (the dense BL 4×4 — an independent metric route),
@@ -309,7 +309,7 @@ end
         @test out == S1
         alloc = @allocated source_modes!(out, bg, m, rgrid)
         @test alloc ≤ 256                                               # no per-point allocation
-        # the modes feed master_inputs directly (same property names as the notebook transcription)
+        # the modes feed master_inputs directly (same property names as the generated kernels)
         inp = master_inputs(bg, m, rgrid[100]; hmodes = S1[100], landau = false)
         @test inp.htt == S1[100].htt && inp.hzz == S1[100].hzz
     end

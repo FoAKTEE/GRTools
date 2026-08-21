@@ -1,6 +1,6 @@
 # stage2.jl — the admission gate of the route-R3 master system (the CRIT node EGD::jd-perturbation-derive).
 #
-# The gate is INTERNAL to route R3: nothing here reads the notebook (R1) or the Mathematica (R2)
+# The gate is INTERNAL to route R3: nothing here reads the route-R1 or the route-R2 (Mathematica)
 # expressions.  It answers "do the derived δû^t, δû^φ, δε̂ and dy/dr = C·y + S actually solve the
 # perturbed system of the paper?", by putting them back into the linearised equations of
 # perturbation.jl and demanding an EXACT zero at exact-rational points.

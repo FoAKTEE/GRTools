@@ -16,9 +16,13 @@
 package = "capabilities/AccretionDisc"
 generated = "2026-08-19"
 # SCOPE NOTE: this ledger covers test/fixtures/ only. The test/SpiralWaves/fixtures/ subtree
-# (master_onshell_fixture.jl, master_r1_fixture.jl + fixtures/capture/bake_master_onshell_fixture.py)
-# landed AFTER this census, in the concurrent arXiv:2608.17003 SpiralWaves work; it already follows
-# the fixtures/capture/ convention and needs its own rows here once that work settles [FUTURE].
+# (master_r2_fixture.jl, r2_diag_fixture.jl, oracle/{r2_master_generated,r2_generated}.jl +
+# fixtures/capture/bake_master_r2_fixture.py, bake_r2_diag_fixture.py) landed AFTER this census, in
+# the concurrent arXiv:2608.17003 SpiralWaves work; it already follows the fixtures/capture/
+# convention and needs its own rows here once that work settles [FUTURE]. Its earlier R1-lineage
+# members (master_onshell_fixture.jl, master_r1_fixture.jl, oracle/master_generated.jl +
+# bake_master_onshell_fixture.py) were removed on 2026-08-22 by owner decision
+# (EGD::jd-notebook-purge) and are archived in the mission repository.
 
 [[fixture]]
 file = "test/fixtures/h1-l2m2.h5"

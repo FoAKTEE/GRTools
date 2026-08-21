@@ -1,13 +1,15 @@
 # r2_derived.jl -- GENERATED FILE, DO NOT EDIT BY HAND (AccretionDisc.SpiralWaves, arXiv:2608.17003).
 # route     : R3 -- the JULIA-NATIVE symbolic derivation of capabilities/AccretionDisc/derivation/
 #             (Symbolics.jl, from the paper's equations only). NO external CAS is in this build path:
-#             the supplementary notebook (route R1) and the Mathematica derivation (route R2) are
-#             ORACLES that gate this file in test/SpiralWaves/test_derived_equivalence.jl.
+#             route R2 (our independent Mathematica derivation) is the ORACLE that gates this file in
+#             test/SpiralWaves/test_derived_equivalence.jl. The notebook-derived route-R1 oracle was
+#             removed from this repository on 2026-08-22 (EGD::jd-notebook-purge); it is archived in
+#             emri-disk results/emri-gasdisk paper_EMRI-GASDISK.
 # generator : capabilities/AccretionDisc/derivation/src/codegen.jl
 #             (rerun: julia --project=capabilities/AccretionDisc/derivation \
 #                          capabilities/AccretionDisc/derivation/scripts/emit_sources.jl)
 # input     : capabilities/AccretionDisc/derivation/out/R3_diagnostics.jls.txt  sha256 894b710e9645abb194140514588aa93756e78b02347b520e4a16df187586fd41
-# derivation: sha256 d345b93a54e0c0f67739de806bef2f91a1fe41370a4e62732b9620ab72742449 over derivation/src/*.jl (sorted, concatenated)
+# derivation: sha256 1be1a9befab42bdb3d499fb6c456b5838f21b05a5161eca12a01d23de4af9c7c over derivation/src/*.jl (sorted, concatenated)
 # julia     : 1.12.6   Symbolics 7.36.0
 # input2    : capabilities/AccretionDisc/derivation/out/R3_master.jls.txt  sha256 cd4b600da538c1645b500458032a240c28a01033e60eac7a89c2d005f34d2f7d
 # content   : the quantities of the (47) reduction and of the diagnostics (69)-(73) in the master

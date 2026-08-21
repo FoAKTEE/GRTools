@@ -4,9 +4,9 @@
 Source: the R1-vs-R2 gate fixture of the emri-disk mission repository (EGD::R1-vs-R2-gate),
     results/emri-gasdisk/paper_EMRI-GASDISK/codes/cas/deriv-master-system-R2/master_fixture.json
     (generator master_fixture.wls, seed 20260819, 30 significant digits from 40-digit arithmetic).
-Where bake_master_onshell_fixture.py keeps the master ENTRIES (C, S) of eq (47), this script keeps the
-columns the generated route-R2 diagnostics need (src/SpiralWaves/r2_generated.jl, emitted by
-emri-disk codes/cas/R2_to_julia.wls from R2_master_system.m):
+Where bake_master_r2_fixture.py keeps the master ENTRIES (C, S) of eq (47), this script keeps the
+columns the generated route-R2 diagnostics need (test/SpiralWaves/fixtures/oracle/r2_generated.jl,
+emitted by emri-disk codes/cas/R2_to_julia.wls from R2_master_system.m):
 
   * the full R2 input set at the field point -- nu, psi, mu, psip, v, vp, omt, eps, epsp, p, pp, Gam1,
     omega_d and the COVARIANT test-profile modes htt, htp, hpp, hrr, hzz (+ the derivatives http, htpp,

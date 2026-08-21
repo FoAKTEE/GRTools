@@ -16,10 +16,10 @@
 # 2(g_μν(w) + 2v_μv_ν) times the one scalar kernel 1/s0(r, Ψ): ĥ_m,μν(r) = m• K_μν I_m(r) with
 # I_m = (1/2π)∫cos(mΨ)/s0 dΨ, and ∂_r ĥ_m,μν = m• K_μν I_m'(r) with I_m' = −(1/4π)∫cos(mΨ) ∂_r s0²/s0³ dΨ
 # (differentiation under the integral; s0² is a quadratic polynomial in r at fixed Ψ). Nonzero
-# components: h_tt, h_tφ, h_φφ, h_rr, h_zz (h_tr = h_rφ = h_φz = 0 — the notebook's `circmetriczero`).
+# components: h_tt, h_tφ, h_φφ, h_rr, h_zz (h_tr = h_rφ = h_φz = 0 — the paper's `circmetriczero`).
 #
 # CONVENTIONS (EGD::deriv-singular-field CAS certificate, 26/26 PASS): covariant modes ĥ_μν are the
-# PRIMARY output — exactly what the notebook transcription of the master system consumes
+# PRIMARY output — exactly what the master system consumes
 # (`master_inputs(...; hmodes)`, property names htt, htt_r, htphi, htphi_r, hphiphi, hphiphi_r, hrr, hzz);
 # (60) is printed for h^{μν}, and raising with the Ψ-independent background metric g^{μν}(r) at the FIELD
 # POINT commutes with the projection, so `raise_modes` gives ĥ^{μν}_m from ĥ_m,μν exactly. Newtonian
@@ -286,7 +286,7 @@ per-unit-mass kernel mode (so that the Newtonian-limit potential mode is Φ̂_m 
 softened Plummer potential), I_m' by differentiation of s0^{-1} under the integral, and `N` the node
 count of the periodic trapezoid rule used (default [`trapezoid_nodes`](@ref); pass `N` to override).
 The property names `htt … hzz` are exactly those consumed by `master_inputs(...; hmodes)` (COVARIANT,
-the notebook convention); use [`raise_modes`](@ref) for ĥ^{μν}. `mEMRI` = m• (default 1 → results ∝ q).
+the paper's convention, ERRATUM E-M2); use [`raise_modes`](@ref) for ĥ^{μν}. `mEMRI` = m• (default 1 → results ∝ q).
 Allocation-free, type-generic (BigFloat inherits); the result is a deterministic function of
 (bg, m, r, N) — identical bits from [`source_modes`](@ref) on any thread.
 """

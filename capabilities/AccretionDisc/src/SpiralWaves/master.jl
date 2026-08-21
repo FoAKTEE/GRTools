@@ -10,18 +10,21 @@
 # Type-generic `{T}`; BigFloat precision is inherited. Additive (EGD::sw-master-matrices).
 #
 # STATUS NOTES (binding, see the node reports):
-#   • NO EXTERNAL CAS IS IN THIS BUILD PATH. The authors' supplementary notebook (route R1) and the
-#     independent Mathematica derivation (route R2) are ORACLES: their generated sources live in
-#     `test/SpiralWaves/fixtures/oracle/` and gate this file forever through
-#     `test_derived_equivalence.jl` (EGD::jd-equivalence-gate);
-#   • the three routes agree ON-SHELL — i.e. wherever the background satisfies BOTH algebraic
-#     constraints, W = 1/√(1−v²) (8) and the hydrostatic balance (11) — and carry different OFF-SHELL
+#   • NO EXTERNAL CAS IS IN THIS BUILD PATH. Route R2 — our own independent Mathematica derivation —
+#     is the ORACLE: its generated sources live in `test/SpiralWaves/fixtures/oracle/` and gate this
+#     file forever through `test_derived_equivalence.jl` (EGD::jd-equivalence-gate). The
+#     notebook-derived oracle of route R1 was REMOVED from this repository (2026-08-22, owner
+#     decision, EGD::jd-notebook-purge); the R1 lineage and the full R1-vs-R2-vs-R3 equivalence
+#     evidence are archived in the mission repository (emri-disk results/emri-gasdisk
+#     paper_EMRI-GASDISK, evidence/{R1-vs-R2-gate,jd-equivalence-gate,jd-notebook-purge});
+#   • the routes agree ON-SHELL — i.e. wherever the background satisfies BOTH algebraic constraints,
+#     W = 1/√(1−v²) (8) and the hydrostatic balance (11) — and carry different OFF-SHELL
 #     continuations, differing there by multiples of those residuals. Every route comparison must
-#     therefore be made on-shell; the 40-point `fixtures/master_r1_fixture.jl` is an OFF-SHELL fixture
-#     (independent random inputs) and gates the R1 ORACLE, not the build source;
-#   • the metric-perturbation inputs are the COVARIANT Fourier modes ĥ_μν (the gate showed the
-#     notebook's htt… are covariant; reading them as ĥ^{μν} breaks S0, S1 at O(1));
-#   • the relativistic δû_φ (eliminated φ-velocity) has NO counterpart in the notebook; route R3
+#     therefore be made on-shell (test_derived_equivalence.jl (e));
+#   • the metric-perturbation inputs are the COVARIANT Fourier modes ĥ_μν (ERRATUM E-M2: the gate
+#     showed the paper's htt… are covariant; reading them as ĥ^{μν} breaks S0, S1 at O(1));
+#   • the relativistic δû_φ (eliminated φ-velocity) has NO counterpart in the paper's supplementary
+#     material [HOLE — EGD::deriv-master-system-R2 provides it]; route R3
 #     derives it (`delta_u_phi`, `_r2_delta_u_phi` of `r2_derived.jl`) and the Newtonian (50a) stays
 #     here as `delta_u_phi_newtonian` — the two are related by the factor r of ERRATUM E-M1;
 #   • C, S are returned as a dense 2×2 `Matrix`/2-`Vector` (no StaticArrays: DESIGN §1 adds no
@@ -37,7 +40,7 @@ Lorentz factor of (8)), `v` (10), the fluid angular velocity `Omega` and `Omega_
 (Landau-shifted, Complex) Doppler frequency `omega_d` = ω − mΩ (+ iε) (51), (62), the
 height-integrated pressure / energy density and derivatives `p, p_r, eps, eps_r`, `Gamma1` (22), and
 the COVARIANT Fourier metric-perturbation modes ĥ_μν `htt, htt_r, htphi, htphi_r, hphiphi, hphiphi_r,
-hrr, hzz` (ĥ_tr = ĥ_rφ = ĥ_φz = 0 for a circular equatorial orbit — `circmetriczero` of the notebook). `T` is
+hrr, hzz` (ĥ_tr = ĥ_rφ = ĥ_φz = 0 for a circular equatorial orbit — the paper's `circmetriczero`). `T` is
 the real working type, `C` the type of `omega_d` (`Complex{T}` with the Landau shift, `T` without).
 """
 struct MasterInputs{T<:Real,C<:Number}
@@ -301,7 +304,7 @@ end
 Newtonian eliminated azimuthal velocity (50a), δu_φ = m δÛ/(rω_d) + m Φ̂/(rω_d) − iδû^r κ²/(2ω_dΩ),
 written in the master variables y = (δÛ, −iδû^r): δu_φ = m(y₁ + Φ̂)/(rω_d) + y₂ κ²/(2ω_dΩ), with
 κ² = 4Ω² + 2rΩΩ' and the (Landau-shifted if `landau`) ω_d. The RELATIVISTIC δû_φ has no
-counterpart in the supplementary notebook [HOLE — EGD::deriv-master-system-R2 provides it].
+counterpart in the paper's supplementary material [HOLE — EGD::deriv-master-system-R2 provides it].
 """
 function delta_u_phi_newtonian(bg::DiscBackground{T}, m::Integer, r, y, Φ; landau::Bool = true, rc = nothing) where {T}
     S = promote_type(T, typeof(r), real(typeof(Φ)), real(eltype(y)))
@@ -321,12 +324,12 @@ _newtonian_delta_u_phi(m::Integer, r, Ω, κ2, ωd, y, Φ) =
     m * (y[1] + Φ) / (r * ωd) + y[2] * κ2 / (2 * ωd * Ω)
 
 # ---------------------------------------------------------------------------------------------
-# completion of the (47) reduction — the relativistic δû_φ (the notebook [HOLE]) and the diagnostics
+# completion of the (47) reduction — the relativistic δû_φ (a paper [HOLE]) and the diagnostics
 # ---------------------------------------------------------------------------------------------
 # `r2_derived.jl` is emitted by the SAME route-R3 printer (derivation/src/codegen.jl) that emits
 # master_derived.jl — one derivation, one printer, no hand transcription anywhere. It supplies
 # `_r2_delta_u_phi` (used here), and `_r2_amf` / `_r2_torque_density` (used by diagnostics.jl); the
-# `_r2_` prefix is kept because these are the quantities the notebook does NOT provide and because it
+# `_r2_` prefix is kept because these are the quantities route R1 does NOT provide and because it
 # keeps the swap a one-line include change. All three take the MasterInputs above plus the two
 # background scalars they need and the master system does not: ω̃(r) and v'(r).
 
@@ -353,8 +356,8 @@ end
 
 RELATIVISTIC covariant azimuthal velocity perturbation δû_φ = g_{φμ}δû^μ + h_{φμ}u^μ — the eliminated
 φ-velocity of the (47) reduction, in the master variables y = (δÛ, −iδû^r). DERIVED in Julia
-(`_r2_delta_u_phi` of `r2_derived.jl`; the supplementary notebook of the paper provides no
-relativistic counterpart at all). Affine in `y`.
+(`_r2_delta_u_phi` of `r2_derived.jl`; the paper's supplementary material provides no relativistic
+counterpart at all). Affine in `y`.
 
 ERRATUM E-M1: the printed Newtonian (50a) is the ORTHONORMAL component; the covariant one is r·(50a),
 which is what this function reduces to as M/a• → 0 (see [`delta_u_phi_newtonian`](@ref)). The AMF (72a)

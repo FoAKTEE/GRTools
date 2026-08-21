@@ -6,8 +6,13 @@
 # `src/SpiralWaves/{master,r2}_derived.jl`.  It is kept, tracked and loaded ONLY by
 # `test/SpiralWaves/test_derived_equivalence.jl` (through `fixtures/oracle/oracle_module.jl`), where
 # it gates the derived sources FOREVER: route R3 must reproduce this external-CAS answer at every
-# ON-SHELL point.  Nothing under `src/` may include it, and the notebook / wolframscript provenance
-# recorded below is therefore no longer a build-time dependency of the suite.
+# ON-SHELL point.  Nothing under `src/` may include it, so the wolframscript provenance recorded
+# below is not a build-time dependency of the suite.
+#
+# Route R2 is OUR OWN independent Mathematica derivation, and it is the ONLY external-CAS lineage
+# left in this repository: the notebook-derived oracle of route R1 was removed on 2026-08-22 by
+# owner decision (EGD::jd-notebook-purge; the R1 lineage and the R1-vs-R2-vs-R3 equivalence evidence
+# are archived in emri-disk results/emri-gasdisk paper_EMRI-GASDISK).
 #
 # The routes agree ON-SHELL only — where the background satisfies W = 1/sqrt(1-v^2) (8) AND the
 # hydrostatic balance (11).  Off-shell each route carries its own continuation; see the FINDING in
@@ -17,12 +22,15 @@
 # generator : emri-disk results/emri-gasdisk/paper_EMRI-GASDISK/codes/cas/R2_to_julia.wls
 #             (shared tree walker codes/cas/cas_to_julia.wl; rerun: wolframscript -file R2_to_julia.wls)
 # input     : codes/cas/deriv-master-system-R2/R2_master_system.m  sha256 67825ad049e45ed995f1a087cde6ff9f0d64101ea1ac52f457286b645de26bf6
-#             (route R2 = the INDEPENDENT CAS derivation of EGD::deriv-master-system-R2, certified
-#              against the supplementary notebook route R1 by EGD::R1-vs-R2-gate: Simplify[R1|(11) - R2] = 0)
+#             (route R2 = the INDEPENDENT CAS derivation of EGD::deriv-master-system-R2; HISTORICAL
+#              provenance of an archived comparison: EGD::R1-vs-R2-gate certified it against the
+#              authors' supplementary notebook, Simplify[R1|(11) - R2] = 0, before that notebook
+#              lineage was removed from this repository -- it is not an input to anything here)
 # tool      : 14.3.0 for Linux x86 (64-bit) (July 8, 2025)
-# content   : the quantities of the (47) reduction and of the diagnostics (69)-(73) that the notebook
-#             does NOT provide: the covariant delta-u-hat_phi, the per-mode AMF integrand (72a) and the
-#             per-mode torque density (72b), all in the master variables y = (y0, y1) = (delta-U-hat, -i delta-u-hat^r).
+# content   : the diagnostics quantities of the (47) reduction and of (69)-(73): the covariant
+#             delta-u-hat_phi, the per-mode AMF integrand (72a) and the per-mode torque density (72b),
+#             all in the master variables y = (y0, y1) = (delta-U-hat, -i delta-u-hat^r).  The master
+#             ENTRIES C, S of the same route R2 are emitted separately into r2_master_generated.jl.
 # symbols   : inp::MasterInputs of master.jl (nu, psi, mu, psi_r, v, eps, eps_r, p, p_r, Gamma1, omega_d,
 #             htt, htphi, hphiphi, hrr, hzz -- COVARIANT Fourier modes, ERRATUM E-M2) + omt = omega-tilde(r)
 #             and vp = dv/dr, which route R1 does not use; conjugates are bound in each preamble.

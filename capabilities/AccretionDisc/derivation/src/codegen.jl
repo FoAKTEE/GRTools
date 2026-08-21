@@ -26,9 +26,9 @@
 # TWO ALPHABET CONVERSIONS (both are consumer conventions, not physics):
 #   1. `circmetriczero` — ĥ_tr = ĥ_rφ = 0 for the paper's singular field (52)-(54) (see
 #      `CIRC_METRIC_ZERO`: a property of that SOURCE, not of circular orbits in general — the reason
-#      `MasterInputs` has no fields for them).  Route R1 applies it in the notebook; here it is
-#      applied at emission time and is what makes every imaginary part of the master system vanish
-#      identically ("Complex only through omega_d").
+#      `MasterInputs` has no fields for them).  The paper applies it in its supplementary material;
+#      here it is applied at emission time and is what makes every imaginary part of the master system
+#      vanish identically ("Complex only through omega_d").
 #   2. `MasterInputs` carries Ω and Ω′, route R3 carries ω̃ and v′.  The two are related by (10) and
 #      its r-derivative — Ω = ω̃ + v e^{ν−ψ}, Ω′ = ω̃′ + e^{ν−ψ}[v′ + v(ν′−ψ′)] — so
 #      ω̃ = Ω − v e^{ν−ψ} and v′ = (Ω′−ω̃′)e^{ψ−ν} − v(ν′−ψ′).  Substituting these into the master
@@ -60,7 +60,7 @@ const ARTIFACT_OPS = Set([:+, :-, :*, :/, :^, ://])
 """
     CIRC_METRIC_ZERO
 
-ĥ_tr = ĥ_rφ = 0 — `circmetriczero` of the notebook.  This is a property of THE PAPER'S SOURCE, not a
+ĥ_tr = ĥ_rφ = 0 — the paper's `circmetriczero`.  This is a property of THE PAPER'S SOURCE, not a
 theorem about circular orbits (adversarial review, EGD::jd-adversarial-review, finding 3): the
 singular field (52)-(53) is ĥ_μν ∝ g_μν(w) + 2v_μv_ν, the circular worldline (54) has v^r = 0, and the
 line element (4) has g_tr = g_rφ = 0 — hence those two components of THIS field vanish.  A different
@@ -207,8 +207,10 @@ function _header(io, file, artifact, artifact_path, content)
     println(io, "# $file -- GENERATED FILE, DO NOT EDIT BY HAND (AccretionDisc.SpiralWaves, arXiv:2608.17003).")
     println(io, "# route     : R3 -- the JULIA-NATIVE symbolic derivation of capabilities/AccretionDisc/derivation/")
     println(io, "#             (Symbolics.jl, from the paper's equations only). NO external CAS is in this build path:")
-    println(io, "#             the supplementary notebook (route R1) and the Mathematica derivation (route R2) are")
-    println(io, "#             ORACLES that gate this file in test/SpiralWaves/test_derived_equivalence.jl.")
+    println(io, "#             route R2 (our independent Mathematica derivation) is the ORACLE that gates this file in")
+    println(io, "#             test/SpiralWaves/test_derived_equivalence.jl. The notebook-derived route-R1 oracle was")
+    println(io, "#             removed from this repository on 2026-08-22 (EGD::jd-notebook-purge); it is archived in")
+    println(io, "#             emri-disk results/emri-gasdisk paper_EMRI-GASDISK.")
     println(io, "# generator : capabilities/AccretionDisc/derivation/src/codegen.jl")
     println(io, "#             (rerun: julia --project=capabilities/AccretionDisc/derivation \\")
     println(io, "#                          capabilities/AccretionDisc/derivation/scripts/emit_sources.jl)")
@@ -234,7 +236,7 @@ const _CONVENTIONS = [
 
 Write `master_derived.jl`: `_master_entries(inp::MasterInputs)` returning `(C00, C01, C10, C11, S0, S1)`
 of the master system (47), with the SAME name, signature and 26 inputs as the route-R1
-`master_generated.jl` it replaces.
+`master_generated.jl` it replaced.
 """
 function emit_master(path::AbstractString, artifact_path::AbstractString)
     ex = Dict(read_artifact(artifact_path))
@@ -252,7 +254,7 @@ function emit_master(path::AbstractString, artifact_path::AbstractString)
                       "            The R3 alphabet carries omega-tilde and v'; MasterInputs carries Omega and Omega'",
                       "            -- Omega = omt + v e^{nu-psi} (10) -- so omt and v_r are substituted out at emission.",
                       "            Entries are the ON-SHELL form (nu' eliminated by the hydrostatic balance (11)), which",
-                      "            is what the R1/R2 routes also emit; off-shell the three routes differ by multiples of",
+                      "            is what the R1/R2 routes also emit; off-shell the routes differ by multiples of",
                       "            the (11) residual and must NOT be compared (see test_derived_equivalence.jl)."],
                      _CONVENTIONS))
         println(io)

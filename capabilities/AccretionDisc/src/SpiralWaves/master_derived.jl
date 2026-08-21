@@ -1,20 +1,22 @@
 # master_derived.jl -- GENERATED FILE, DO NOT EDIT BY HAND (AccretionDisc.SpiralWaves, arXiv:2608.17003).
 # route     : R3 -- the JULIA-NATIVE symbolic derivation of capabilities/AccretionDisc/derivation/
 #             (Symbolics.jl, from the paper's equations only). NO external CAS is in this build path:
-#             the supplementary notebook (route R1) and the Mathematica derivation (route R2) are
-#             ORACLES that gate this file in test/SpiralWaves/test_derived_equivalence.jl.
+#             route R2 (our independent Mathematica derivation) is the ORACLE that gates this file in
+#             test/SpiralWaves/test_derived_equivalence.jl. The notebook-derived route-R1 oracle was
+#             removed from this repository on 2026-08-22 (EGD::jd-notebook-purge); it is archived in
+#             emri-disk results/emri-gasdisk paper_EMRI-GASDISK.
 # generator : capabilities/AccretionDisc/derivation/src/codegen.jl
 #             (rerun: julia --project=capabilities/AccretionDisc/derivation \
 #                          capabilities/AccretionDisc/derivation/scripts/emit_sources.jl)
 # input     : capabilities/AccretionDisc/derivation/out/R3_master.jls.txt  sha256 cd4b600da538c1645b500458032a240c28a01033e60eac7a89c2d005f34d2f7d
-# derivation: sha256 d345b93a54e0c0f67739de806bef2f91a1fe41370a4e62732b9620ab72742449 over derivation/src/*.jl (sorted, concatenated)
+# derivation: sha256 1be1a9befab42bdb3d499fb6c456b5838f21b05a5161eca12a01d23de4af9c7c over derivation/src/*.jl (sorted, concatenated)
 # julia     : 1.12.6   Symbolics 7.36.0
 # content   : dy/dr = C.y + S with y = (deltaU, urbyi) = (delta p-hat/(eps+p), -i delta u-hat^r);
 #             C = [C00 C01; C10 C11], S = [S0, S1]  (arXiv:2608.17003 eq 47).
 #             The R3 alphabet carries omega-tilde and v'; MasterInputs carries Omega and Omega'
 #             -- Omega = omt + v e^{nu-psi} (10) -- so omt and v_r are substituted out at emission.
 #             Entries are the ON-SHELL form (nu' eliminated by the hydrostatic balance (11)), which
-#             is what the R1/R2 routes also emit; off-shell the three routes differ by multiples of
+#             is what the R1/R2 routes also emit; off-shell the routes differ by multiples of
 #             the (11) residual and must NOT be compared (see test_derived_equivalence.jl).
 # conventions: Rationals are emitted as n//d and e^{a nu + b psi + c mu} as enu^a*epsi^b*emu^c (hoisted
 #             into the preamble), so every float type T (Float64, BigFloat, ...) inherits its own

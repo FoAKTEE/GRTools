@@ -1,12 +1,14 @@
-# master_onshell_fixture.jl -- GENERATED FILE, DO NOT EDIT BY HAND (AccretionDisc.SpiralWaves test fixture).
-# baked by : test/SpiralWaves/fixtures/capture/bake_master_onshell_fixture.py
+# master_r2_fixture.jl -- GENERATED FILE, DO NOT EDIT BY HAND (AccretionDisc.SpiralWaves test fixture).
+# baked by : test/SpiralWaves/fixtures/capture/bake_master_r2_fixture.py
+# route    : R2 -- OUR independent Mathematica derivation (EGD::deriv-master-system-R2), source
+#            codes/cas/deriv-master-system-R2/R2_master_system.m  sha256 67825ad049e45ed995f1a087cde6ff9f0d64101ea1ac52f457286b645de26bf6
 # source   : emri-disk results/emri-gasdisk/paper_EMRI-GASDISK/codes/cas/deriv-master-system-R2/master_fixture.json
-#            sha256 8db949d8a48ec4fdb880decd2fb0383ee202f7135a002006c762c6bcf3ff2c56  (generator master_fixture.wls, seed 20260819, 30 digits; EGD::R1-vs-R2-gate PASS: R1 == R2 on-shell)
+#            sha256 8db949d8a48ec4fdb880decd2fb0383ee202f7135a002006c762c6bcf3ff2c56  (generator master_fixture.wls, seed 20260819, 30 digits; "R2" columns ONLY)
 # content  : 50 on-shell points (chi, aEMRI, h0, pdisk, qdisk, m, r) of the arXiv:2608.17003 disc: Omega(r), dOmega/dr, v from the
 #            exact hydrostatic balance (11), omega_d = m(Omega_EMRI(aEMRI) - Omega(r)), and the master entries C00..S1 of eq (47)
 #            for the COVARIANT test profile h_tt = exp(-((r-a)/(a/2))^2), h_tphi = 0.3 r^2 Omega_EMRI h_tt, h_phiphi = 0.7 r^2 h_tt,
 #            h_rr = 0.5 h_tt, h_zz = 0.2 h_tt (derivatives analytic). All numbers are decimal STRINGS; complex as (re, im).
-const MASTER_ONSHELL_FIXTURE = [
+const MASTER_R2_FIXTURE = [
     (index = 1, chi = "0.510000000000000000000000000000", aEMRI = "34.3600000000000000000000000000", h0 = "0.0710000000000000000000000000000", pdisk = "4.60000000000000000000000000000", qdisk = "0.600000000000000000000000000000", m = 2, r = "102.885556432517758484609313339",
      Omega = "0.000938752077914348720502957619229", Omega_r = "-0.0000137597314571433023767713435111", v = "0.0974406069864048089725581202213", omega_d = "0.00802743818047986135457151678562", OmegaEMRI = "0.00495247116815427939778871601204",
      C00 = ("-0.00151232766314942084261435443137", "0"), C01 = ("-0.00820396495533202972901462209759", "0"), C10 = ("107.709683832011564193653550396", "0"), C11 = ("0.0397868150861723359133529040420", "0"), S0 = ("-0.0000000308241424604196933078872937247", "0"), S1 = ("0.00000000424375316783232351787033065294", "0")),
