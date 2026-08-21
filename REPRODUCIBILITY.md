@@ -81,9 +81,11 @@ non-`solid` registry row, or a `FIXTURES.toml` status.
 * **External corpora are not in the tree**: FEW `.fewdata` grids, the H1Lorenz `h1` corpus, the
   `EffectiveSource` C oracle, the QQNM tex mirror. Suites needing them skip visibly; the committed
   fixtures remain authoritative.
-* The arXiv:2608.17003 supplementary **`.mx`** binary is deliberately not loaded: the reproduction
-  path converts the notebook's own output boxes (route R1) and cross-checks against an independent
-  re-derivation (route R2), which agree symbolically on-shell.
+* The arXiv:2608.17003 supplementary material (**`.mx`** binary and *Mathematica* notebook) is not
+  in this repository at all since 2026-08-22 (`EGD::jd-notebook-purge`, owner decision): the shipped
+  master system is derived in Julia (route R3) and gated by our own independent re-derivation
+  (route R2). The notebook mirror, the route-R1 lineage and the R1-vs-R2-vs-R3 equivalence evidence
+  are archived in the mission repository (emri-disk `paper_EMRI-GASDISK`).
 * **MR19 (arXiv:1811.09628)** figures are `future` — they need reduced data regenerated first.
 * The **heavy tier is not run by CI** (2026-08-20: 20 of 52 registered results; the live split is
   `grep -c 'tier = "heavy"' reproduce/MANIFEST.toml`); a heavy-only regression can survive a green

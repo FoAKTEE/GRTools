@@ -81,17 +81,27 @@ symbolically or by exact `Rational{BigInt}` evaluation (residual exactly `0//1`)
 with a deterministic printer, and re-reads the emitted text to check it interprets exactly like the
 symbolic expression.
 
-**No external CAS is in the build path.** The authors' supplementary *Mathematica* notebook (route
-R1) and an independent *Mathematica* derivation (route R2) are kept as ORACLES in
-`test/SpiralWaves/fixtures/oracle/` and gate the derived sources forever
-(`test/SpiralWaves/test_derived_equivalence.jl`).
+**No external CAS is in the build path.** An independent *Mathematica* derivation of our own
+(route R2) is kept as the ORACLE in `test/SpiralWaves/fixtures/oracle/` — `r2_master_generated.jl`
+for the master entries ``C, S`` and `r2_generated.jl` for the diagnostics kernels — and gates the
+derived sources forever (`test/SpiralWaves/test_derived_equivalence.jl`).
 
-**On-shell only.** The three routes agree wherever the background satisfies both algebraic
+The notebook-derived oracle of route R1 was **removed from this repository** on 2026-08-22 by owner
+decision (`EGD::jd-notebook-purge`). Removing it did not weaken the gate: `EGD::R1-vs-R2-gate` had
+certified ``R1 \equiv R2`` on-shell, and every R1 comparison was re-sourced onto R2 at unchanged
+tolerance — over the same 200 random on-shell points the new oracle reproduces the old one to
+`3.0e-12` (Float64) / `5.7e-75` (BigFloat 256), and the gate deviation moved from `3.0e-12` /
+`1.9e-73` to `1.7e-12` / `1.9e-73`. The R1 lineage and the full R1-vs-R2-vs-R3 equivalence evidence
+are archived in the mission repository (emri-disk `results/emri-gasdisk` `paper_EMRI-GASDISK`,
+`evidence/{R1-vs-R2-gate,jd-equivalence-gate,jd-notebook-purge}`).
+
+**On-shell only.** The routes agree wherever the background satisfies both algebraic
 constraints — ``W = 1/\sqrt{1-v^2}`` (8) and the hydrostatic balance (11) — and carry different
-off-shell continuations, so every route comparison is made on-shell. Measured: `3.5e-74`
-(BigFloat 256) at the 40 projected fixture points, `2.6e-12` (Float64) against the 50-point physical
-Mathematica fixture — where the notebook form itself only reaches `7.0e-10`, i.e. the derived form is
-also better conditioned.
+off-shell continuations, so every route comparison is made on-shell. Measured: `2.6e-74`
+(BigFloat 256) over 40 random on-shell points, growing to `29.5` on the same points pushed off the
+constraint surface; `2.6e-12` (Float64) against the 50-point physical Mathematica fixture — where the
+external-CAS form of the same entries only reaches `7.0e-10`, i.e. the derived form is also better
+conditioned.
 
 ### `Force` — circular-equatorial Kerr thin-disc torque front-end (from legacy `DiscEMRIForce`)
 

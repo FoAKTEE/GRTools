@@ -21,11 +21,16 @@ julia --project=capabilities/AccretionDisc/derivation -t4 \
 
 ## Why route R3
 
-Today `SpiralWaves/master_generated.jl` is transcribed from the authors' supplementary *Mathematica*
-notebook (route **R1**) and `r2_generated.jl` from an independent *Mathematica* derivation (route
-**R2**). Route R3 removes every external CAS from the build path. R1 and R2 are **demoted to
-oracles**: they gate R3 at `EGD::jd-equivalence-gate`, they never feed the build. Nothing in this
-project reads an R1/R2 expression — the independence is structural, not a promise.
+The master system used to be transcribed from the authors' supplementary *Mathematica* notebook
+(route **R1**) and its diagnostics derived in an independent *Mathematica* derivation of our own
+(route **R2**). Route R3 removes every external CAS from the build path; R2 is **demoted to an
+oracle** that gates R3 at `EGD::jd-equivalence-gate` and never feeds the build
+(`test/SpiralWaves/fixtures/oracle/{r2_master_generated,r2_generated}.jl`), and the notebook-derived
+R1 oracle was **removed from this repository entirely** on 2026-08-22 by owner decision
+(`EGD::jd-notebook-purge`) — its lineage and the full R1-vs-R2-vs-R3 equivalence evidence are
+archived in the mission repository (emri-disk `results/emri-gasdisk` `paper_EMRI-GASDISK`,
+`evidence/{R1-vs-R2-gate,jd-equivalence-gate,jd-notebook-purge}`). Nothing in this project ever read
+an R1/R2 expression — the independence is structural, not a promise.
 
 ## Layout
 
@@ -88,7 +93,7 @@ project reads an R1/R2 expression — the independence is structural, not a prom
 
 `master_derived.jl` defines `_master_entries(inp::MasterInputs)` and `r2_derived.jl` defines
 `_r2_delta_u_phi`, `_r2_amf`, `_r2_torque_density` — the SAME names and signatures as the route-R1/R2
-generated files they replace, so the swap is a one-line include change at every call site.  Two
+generated files they replaced, so the swap was a one-line include change at every call site.  Two
 consumer conventions are applied at emission time and are documented in each file header:
 `circmetriczero` (ĥ_tr = ĥ_rφ = 0 for a circular equatorial orbit — which is what makes every
 imaginary part of the master system vanish identically), and the change of variables

@@ -185,13 +185,17 @@ is a visible skip, a `[[result]]` row that is not `solid`, or a `FIXTURES.toml` 
   (and fail under `GRTOOLS_STRICT_ORACLES=1`); the committed fixtures remain authoritative. A
   lazy-artifact plan for the >1 MB files is recorded but not implemented — nothing is deleted
   without the owner.
-* **The arXiv:2608.17003 supplementary `.mx`.** The paper ships `paper-expressions.mx` beside its
-  notebook. `.mx` is a Mathematica-version-locked binary; the reproduction path deliberately does
-  **not** load it. Route R1 converts the notebook's own output boxes to expressions
-  (`Get[nb] + ToExpression[boxes, StandardForm, HoldForm]`, no front end, byte-identical on re-run)
-  and route R2 re-derives the same master system independently; the two agree symbolically on-shell
-  and at 50 random 40-digit points. If a future Mathematica release changes box semantics, R1 is
-  the piece that has to be re-verified.
+* **The arXiv:2608.17003 supplementary material is no longer in this repository.** The paper ships
+  `paper-expressions.mx` beside a *Mathematica* notebook, and route R1 (a transcription of that
+  notebook's output boxes) was once an in-tree oracle. On 2026-08-22 the notebook-derived oracle and
+  its off-shell fixture were **removed from this repository** by owner decision
+  (`EGD::jd-notebook-purge`); the shipped master system is derived in Julia (route R3) and gated by
+  our own independent *Mathematica* derivation (route R2), which never read the notebook. The R1
+  lineage, the notebook mirror and the full R1-vs-R2-vs-R3 equivalence evidence are archived in the
+  mission repository (emri-disk `ref-code/arXiv-2608.17003-anc/`, `results/emri-gasdisk`
+  `paper_EMRI-GASDISK`, `evidence/{R1-vs-R2-gate,jd-equivalence-gate,jd-notebook-purge}`), which is
+  the canonical archive. Nothing in this checkout loads `.mx` or a notebook, so no Mathematica
+  version dependence is left in the reproduction path.
 * **MR19 (arXiv:1811.09628) figures.** Registered as `future`: the published figures need reduced
   data that has to be regenerated before drivers can land.
 * **The heavy tier does not run in CI.** Roughly two fifths of the registry is `heavy` (2026-08-20:

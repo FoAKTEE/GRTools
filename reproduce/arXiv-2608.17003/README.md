@@ -10,15 +10,26 @@ pressureless analytic baselines it is compared against).  Drivers here are THIN.
 > Julia** by `capabilities/AccretionDisc/derivation/` (a standalone `Symbolics.jl` project that is
 > *not* a package dependency) and emitted into `src/SpiralWaves/master_derived.jl` and
 > `r2_derived.jl`.  **No external CAS — and no `wolframscript` — is in the build path of anything
-> this directory reproduces.**  The authors' supplementary notebook (route R1) and the independent
-> Mathematica derivation (route R2) survive as ORACLES in
-> `capabilities/AccretionDisc/test/SpiralWaves/fixtures/oracle/`, gated forever on-shell by
-> `test_derived_equivalence.jl`.
+> this directory reproduces.**  Our own independent Mathematica derivation (route R2) survives as
+> the ORACLE in `capabilities/AccretionDisc/test/SpiralWaves/fixtures/oracle/`, gated forever
+> on-shell by `test_derived_equivalence.jl`.
+
+> **The notebook-derived oracle was removed (2026-08-22, `EGD::jd-notebook-purge`, owner decision).**
+> Route R1 — the transcription of the authors' supplementary notebook — and its 40-point off-shell
+> fixture are no longer in this repository.  The equivalence gate was **re-sourced, not weakened**:
+> `EGD::R1-vs-R2-gate` had certified `R1 ≡ R2` on-shell, and every R1 comparison now runs against
+> route R2 at unchanged tolerance (measured on the same 200 random on-shell points: the new oracle
+> reproduces the old one to 3.0e-12 Float64 / 5.7e-75 BigFloat-256, and the gate deviation moved
+> from 3.0e-12 / 1.9e-73 to 1.7e-12 / 1.9e-73).  **No golden and no printed number moved**:
+> `check_printed_numbers` still passes 18/18 and the `--check` rows still pass at their declared
+> tolerances.  The R1 lineage, the notebook mirror and the full R1-vs-R2-vs-R3 equivalence evidence
+> are archived in the mission repository (emri-disk `ref-code/arXiv-2608.17003-anc/`,
+> `results/emri-gasdisk/paper_EMRI-GASDISK/evidence/{R1-vs-R2-gate,jd-equivalence-gate,jd-notebook-purge}`).
 
 > **Golden re-anchoring (2026-08-21, `EGD::jd-heavy-reverify`).**  The first FULL heavy-tier
 > `--check` after the swap found 12 of the 15 rows outside their declared `rtol = 1e-8`.  The two
 > kernel routes agree to Float64 roundoff *per evaluation* (worst 2.6e-12 relative on the 50-point
-> physical fixture, where the notebook form itself measures 7.0e-10), but the mode SOLVE amplifies
+> physical fixture, where the route-R1 form then in the build measured 7.0e-10), but the mode SOLVE amplifies
 > that by ~1e3 and a mode SUM over 40-200 modes accumulates it, so mode-sum totals move by
 > 1e-8 … 3e-7.  Which number is right was **measured, not argued**: at three configurations a
 > BigFloat(128) solve of the same discretised problem (solver residual ~1e-33) shows the route-R3

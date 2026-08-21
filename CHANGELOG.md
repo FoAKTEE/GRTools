@@ -54,6 +54,56 @@ the suite version.
   balance, and carry different off-shell continuations — the off-shell 40-point
   fixture now gates the R1 oracle rather than the build source.
 
+### Removed — BREAKING: the notebook-derived oracle is out of the repository
+
+- **The route-R1 oracle of arXiv:2608.17003 — the transcription of the authors'
+  supplementary *Mathematica* notebook — and its off-shell fixture are deleted**
+  (owner decision, 2026-08-22, `EGD::jd-notebook-purge`):
+  `test/SpiralWaves/fixtures/oracle/master_generated.jl`,
+  `test/SpiralWaves/fixtures/master_r1_fixture.jl` (40 points evaluated from the
+  notebook expressions), `test/SpiralWaves/fixtures/master_onshell_fixture.jl`
+  (baked from the `"R1"` columns of the gate fixture) and
+  `fixtures/capture/bake_master_onshell_fixture.py`. This supersedes the note in
+  the entry above that those files "still exist, tracked".
+
+- **Equivalence gating was re-sourced onto our own lineage, not weakened.** New
+  `test/SpiralWaves/fixtures/oracle/r2_master_generated.jl` provides
+  `_r2_master_entries(inp, omt, vp)` — the master entries `C`, `S` of **route R2**,
+  our independent Mathematica derivation — emitted by the new emri-disk generator
+  `codes/cas/R2_master_to_julia.wls` through the same shared tree walker as
+  `r2_generated.jl`, with an exact `Simplify[parse(julia) − original] == 0`
+  round-trip on all six entries and byte-identical re-emission. New
+  `test/SpiralWaves/fixtures/master_r2_fixture.jl` (+ `bake_master_r2_fixture.py`)
+  re-bakes the same 50 physical on-shell points from the `"R2"` columns; its
+  numeric payload is byte-for-byte the previous file's, because
+  `EGD::R1-vs-R2-gate` had proved all 300 entries equal. Measured on the same 200
+  random on-shell points and the same seed: the new oracle reproduces the removed
+  one to **3.0e-12** (Float64) / **5.7e-75** (BigFloat 256), and the route-R3 gate
+  deviation moved from 3.0e-12 / 1.9e-73 to **1.7e-12 / 1.9e-73** at unchanged
+  tolerances.
+
+- **Test-count delta (measured):** the `AccretionDisc` suite goes from 14485 to
+  **13914** assertions (13912 pass, 2 broken, green). The −571 nets out as −578
+  from the two `test_master.jl` testsets that gated the R1 oracle against the
+  off-shell R1 fixture ((a): 1 + 40 points × 6 entries × 2 + 1 inference = 482;
+  (a′): 8 × 6 × 2 = 96), −1 from `test_derived_equivalence.jl` (e), and +8 new
+  assertions (a permanent 4-way guard in (0) that no removed R1 artefact can
+  return, and 4 in (f) covering the new oracle's allocation, inference and
+  BigFloat-precision inheritance). **None of the removed assertions gated a
+  shipped number** — their inputs are off-shell by construction, where the routes
+  provably differ. `test_derived_equivalence.jl` (e) now makes the same FINDING on
+  the R2 lineage: R2 eliminated `W` and `ν′`, so it is *exactly* blind to them
+  (measured response 0.0) while route R3 moves by 29.5 relative when the same
+  points are pushed off the constraint surface, and the two agree to 2.6e-74 on it.
+
+- **Nothing published moved:** `reproduce/run_all.jl --check --paper 2608.17003`
+  is green at declared tolerances and `check_printed_numbers` still passes 18/18.
+  The R1 lineage, the notebook mirror and the full R1-vs-R2-vs-R3 equivalence
+  evidence remain archived in the mission repository (emri-disk
+  `ref-code/arXiv-2608.17003-anc/`, `results/emri-gasdisk/paper_EMRI-GASDISK/`
+  `evidence/{R1-vs-R2-gate,jd-equivalence-gate,jd-notebook-purge}`), which is the
+  canonical archive.
+
 ### Changed — de-duplication (one definition per primitive)
 
 - **`NumericsCore.bary_row`** is the single barycentric Lagrange *row* kernel; the private

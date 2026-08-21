@@ -26,8 +26,12 @@ resonance torque.
   synthesis and the Newtonian-limit pipeline. The master system and the diagnostics integrands are
   **DERIVED IN JULIA** (`derivation/`, a standalone `Symbolics.jl` project that is NOT a package
   dependency) and emitted into `master_derived.jl` / `r2_derived.jl` — no external CAS is in the
-  build path. The authors' supplementary notebook and an independent Mathematica derivation live in
-  `test/SpiralWaves/fixtures/oracle/` and gate the derived sources on-shell forever.
+  build path. An independent Mathematica derivation of our own (route R2) lives in
+  `test/SpiralWaves/fixtures/oracle/` and gates the derived sources on-shell forever. The
+  notebook-derived oracle (route R1) was removed from this repository on 2026-08-22 by owner
+  decision; the R1 lineage and the full R1-vs-R2-vs-R3 equivalence evidence are archived in the
+  mission repository (emri-disk `results/emri-gasdisk` `paper_EMRI-GASDISK`,
+  `evidence/{R1-vs-R2-gate,jd-equivalence-gate,jd-notebook-purge}`).
 
 - **`Force`** — the circular-equatorial Kerr thin-disc torque front-end (from legacy
   `DiscEMRIForce`): the spinning-BH fluid solve / torque balance. **Consumes**
