@@ -38,5 +38,6 @@ include("newtonian.jl")
 include("stage2.jl")
 include("diagnostics.jl")
 include("serialize.jl")
+include("codegen.jl")
 
 end # module

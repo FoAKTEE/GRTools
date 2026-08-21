@@ -44,4 +44,28 @@ const NPTS = parse(Int, get(ENV, "R3_NPTS", "12"))
             @test c.pass || error("certificate FAILED: $(c.name) [$(c.eqref)] — $(c.note)")
         end
     end
+
+    @testset "stage 4 — code emission is deterministic and round-trips exactly" begin
+        here = normpath(joinpath(@__DIR__, ".."))
+        mart = joinpath(here, "out", "R3_master.jls.txt")
+        dart = joinpath(here, "out", "R3_diagnostics.jls.txt")
+        tmp1 = mktempdir(); tmp2 = mktempdir()
+        try
+            m1 = R3.emit_master(joinpath(tmp1, "master_derived.jl"), mart)
+            d1 = R3.emit_diagnostics(joinpath(tmp1, "r2_derived.jl"), mart, dart)
+            m2 = R3.emit_master(joinpath(tmp2, "master_derived.jl"), mart)
+            d2 = R3.emit_diagnostics(joinpath(tmp2, "r2_derived.jl"), mart, dart)
+            @test read(m1) == read(m2)        # byte-identical across runs
+            @test read(d1) == read(d2)
+            # the SHIPPED sources are exactly what this emitter produces (no hand edit ever landed)
+            ship = normpath(joinpath(here, "..", "src", "SpiralWaves"))
+            @test read(joinpath(ship, "master_derived.jl")) == read(m1)
+            @test read(joinpath(ship, "r2_derived.jl")) == read(d1)
+            c = R3.codegen_selfcheck(m1, d1, mart, dart; npts = max(4, NPTS), verbose = true)
+            @test c.pass || error("codegen round-trip FAILED — $(c.note)")
+        finally
+            rm(tmp1; recursive = true, force = true)
+            rm(tmp2; recursive = true, force = true)
+        end
+    end
 end

@@ -14,6 +14,8 @@ quarantined environment with a committed `Manifest.toml` that resolves **offline
 julia --project=capabilities/AccretionDisc/derivation -t4 \
       capabilities/AccretionDisc/derivation/scripts/derive_all.jl 50   # full run + artefacts
 julia --project=capabilities/AccretionDisc/derivation -t4 \
+      capabilities/AccretionDisc/derivation/scripts/emit_sources.jl    # stage 4: emit the shipped sources
+julia --project=capabilities/AccretionDisc/derivation -t4 \
       capabilities/AccretionDisc/derivation/test/runtests.jl           # fast suite (R3_NPTS=12)
 ```
 
@@ -42,7 +44,8 @@ project reads an R1/R2 expression — the independence is structural, not a prom
 | `src/newtonian.jl` | the paper-facing gate: Newtonian limit ≡ Eq. (50) |
 | `src/stage2.jl` | back-substitution and shape gates for the master system |
 | `src/diagnostics.jl` | ξ from (16), U/V/W (32),(33),(42), δ_ξT (40),(41), (72a),(72b), the (69) gate |
-| `src/serialize.jl` | the hand-off artefacts consumed by `EGD::jd-codegen` |
+| `src/serialize.jl` | the hand-off artefacts of stages 2-3 (`out/R3_*.jls.txt`) |
+| `src/codegen.jl` | stage 4: the Julia printer — artefact → `src/SpiralWaves/{master,r2}_derived.jl` |
 
 ## Design decisions that make it work
 
@@ -72,3 +75,23 @@ project reads an R1/R2 expression — the independence is structural, not a prom
    parametrisation closes the same identity instantly.
 4. Taking the Newtonian limit by symbolic substitution + `expand` blows up (>10 GB resident, no result
    in 12 min); evaluating the same tree in ℚ((s)) finishes in seconds.
+5. `Symbolics.build_function` was evaluated for stage 4 and is NOT used: it emits a correct function
+   but with generated argument names and no control over the wrapper (signature, `MasterInputs`
+   destructuring, docstring, provenance header), while the emission conventions the shipped files
+   need (`n//d` rationals, hoisted `enu^a*epsi^b*emu^c`, no transcendental) are properties of the R3
+   ALPHABET, not of the printer.  `string(::Num)` plus a 40-line wrapper emitter does the whole job,
+   and the emitted text is certified by an EXACT round-trip (`codegen_selfcheck`): the file is
+   re-parsed with `Meta.parse`, interpreted over `Rational{BigInt}` and compared with `exact_eval` of
+   the R3 expression — residual exactly `0//1` at every point.
+
+## Stage 4 — what the emitter ships
+
+`master_derived.jl` defines `_master_entries(inp::MasterInputs)` and `r2_derived.jl` defines
+`_r2_delta_u_phi`, `_r2_amf`, `_r2_torque_density` — the SAME names and signatures as the route-R1/R2
+generated files they replace, so the swap is a one-line include change at every call site.  Two
+consumer conventions are applied at emission time and are documented in each file header:
+`circmetriczero` (ĥ_tr = ĥ_rφ = 0 for a circular equatorial orbit — which is what makes every
+imaginary part of the master system vanish identically), and the change of variables
+ω̃ = Ω − v e^{ν−ψ}, v′ = (Ω′−ω̃′)e^{ψ−ν} − v(ν′−ψ′) of (10), because `MasterInputs` carries Ω and Ω′
+where route R3 carries ω̃ and v′.  The emission is deterministic (two runs byte-identical, asserted in
+the test suite) and the shipped files are asserted to be exactly what the emitter produces.
