@@ -38,11 +38,9 @@ module DerivedR3
 end
 
 # routes R1 + R2 — the external-CAS ORACLES (notebook / Mathematica), kept forever as a gate
-module OracleR1R2
-    using AccretionDisc.SpiralWaves: MasterInputs
-    include(joinpath(@__DIR__, "..", "..", "src", "SpiralWaves", "master_generated.jl"))
-    include(joinpath(@__DIR__, "..", "..", "src", "SpiralWaves", "r2_generated.jl"))
-end
+isdefined(@__MODULE__, :SpiralWavesOracle) ||
+    include(joinpath(@__DIR__, "fixtures", "oracle", "oracle_module.jl"))
+const OracleR1R2 = SpiralWavesOracle
 
 include(joinpath(@__DIR__, "fixtures", "master_r1_fixture.jl"))
 include(joinpath(@__DIR__, "fixtures", "master_onshell_fixture.jl"))
@@ -102,6 +100,25 @@ function _inputs_r2_gate(::Type{T}, pt) where {T<:Real}
 end
 
 @testset "SpiralWaves R3-derived == notebook/R2 oracles (arXiv:2608.17003)" begin
+
+    @testset "(0) the LIVE build source IS the derived one (EGD::jd-swap)" begin
+        # the kernels `SpiralWaves` actually uses must be bitwise the emitted route-R3 ones; this is
+        # what makes every other testset of the suite a gate on the Julia derivation
+        rng = MersenneTwister(7)
+        for _ in 1:20
+            inp, omt, vp = _onshell_inputs(Float64, rng)
+            y0 = 0.3 - 0.1im; y1 = -0.2 + 0.4im
+            @test AccretionDisc.SpiralWaves._master_entries(inp) === DerivedR3._master_entries(inp)
+            @test AccretionDisc.SpiralWaves._r2_delta_u_phi(inp, omt, vp, y0, y1) ===
+                  DerivedR3._r2_delta_u_phi(inp, omt, vp, y0, y1)
+            @test AccretionDisc.SpiralWaves._r2_amf(inp, omt, vp, y0, y1) ===
+                  DerivedR3._r2_amf(inp, omt, vp, y0, y1)
+            @test AccretionDisc.SpiralWaves._r2_torque_density(inp, omt, vp, y0, y1) ===
+                  DerivedR3._r2_torque_density(inp, omt, vp, y0, y1)
+        end
+        @test !isfile(joinpath(@__DIR__, "..", "..", "src", "SpiralWaves", "master_generated.jl"))
+        @test !isfile(joinpath(@__DIR__, "..", "..", "src", "SpiralWaves", "r2_generated.jl"))
+    end
 
     @testset "(a) 200 random ON-SHELL MasterInputs: derived vs the R1/R2 oracle code" begin
         for (T, N, tolC, tolD) in ((Float64, 200, 1e-10, 1e-10), (BigFloat, 20, 1e-60, 1e-60))

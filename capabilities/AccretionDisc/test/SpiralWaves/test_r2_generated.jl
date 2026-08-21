@@ -1,13 +1,17 @@
-# test_r2_generated.jl — EGD::sw-mode-solver / EGD::sw-diagnostics: the ROUTE-R2 generated diagnostics
-# of arXiv:2608.17003 (src/SpiralWaves/r2_generated.jl, emitted by the emri-disk generator
-# codes/cas/R2_to_julia.wls through the SHARED tree walker codes/cas/cas_to_julia.wl — the same walker
-# that emits master_generated.jl, so nothing is transcribed twice).
+# test_r2_generated.jl — EGD::sw-mode-solver / EGD::sw-diagnostics: the generated diagnostics kernels
+# of arXiv:2608.17003 (src/SpiralWaves/r2_derived.jl since EGD::jd-swap — emitted by the JULIA
+# derivation of route R3, `capabilities/AccretionDisc/derivation`, by the same printer that emits
+# master_derived.jl, so nothing is transcribed anywhere).
 #
 # Oracle: the 50-point R1-vs-R2 gate fixture (EGD::R1-vs-R2-gate, 30 digits) baked by
 # fixtures/capture/bake_r2_diag_fixture.py into fixtures/r2_diag_fixture.jl. It carries, per point, the
-# FULL route-R2 input set at the field point, so the generated bodies are checked DIRECTLY against
+# FULL input set at the field point, so the generated bodies are checked DIRECTLY against
 # Mathematica (independent of background.jl), and separately END-TO-END through DiscBackground /
 # master_inputs / dv_dr (which additionally gates the new `dv_dr` and `rotation_derivs` of master.jl).
+# Every fixture point is PHYSICAL, hence ON-SHELL, which is what makes it a legitimate cross-route
+# oracle for the derived kernels (measured worst rel dev: δû_φ 3.8e-15, AMF 3.7e-15, torque 8.3e-16 —
+# an order of magnitude better than the route-R2 bodies it replaced, which used sqrt(1−v²) where the
+# derived ones use the input W).
 using Test
 using AccretionDisc
 using AccretionDisc.SpiralWaves

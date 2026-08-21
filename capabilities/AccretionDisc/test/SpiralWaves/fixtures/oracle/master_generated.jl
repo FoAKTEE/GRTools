@@ -1,3 +1,18 @@
+# ============================================================================================
+# ORACLE FIXTURE — NOT PART OF THE BUILD.  Moved here by EGD::jd-swap (2026-08-21).
+#
+# This file WAS the build source of `AccretionDisc.SpiralWaves` until route R3 — the Julia-native
+# `Symbolics.jl` derivation of `capabilities/AccretionDisc/derivation/` — replaced it with
+# `src/SpiralWaves/{master,r2}_derived.jl`.  It is kept, tracked and loaded ONLY by
+# `test/SpiralWaves/test_derived_equivalence.jl` (through `fixtures/oracle/oracle_module.jl`), where
+# it gates the derived sources FOREVER: route R3 must reproduce this external-CAS answer at every
+# ON-SHELL point.  Nothing under `src/` may include it, and the notebook / wolframscript provenance
+# recorded below is therefore no longer a build-time dependency of the suite.
+#
+# The routes agree ON-SHELL only — where the background satisfies W = 1/sqrt(1-v^2) (8) AND the
+# hydrostatic balance (11).  Off-shell each route carries its own continuation; see the FINDING in
+# test_derived_equivalence.jl (e).
+# ============================================================================================
 # master_generated.jl -- GENERATED FILE, DO NOT EDIT BY HAND (AccretionDisc.SpiralWaves, arXiv:2608.17003 eq 47).
 # generator : emri-disk results/emri-gasdisk/paper_EMRI-GASDISK/codes/cas/R1_to_julia.wls  (rerun: wolframscript -file R1_to_julia.wls)
 # input     : codes/cas/R1_notebook_expressions.m  sha256 3f0202a7cbcd832c4d6fc54c07842ab7dc84a2390f50fa874d2eefc2d95d9fd9

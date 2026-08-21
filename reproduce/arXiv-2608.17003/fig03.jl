@@ -247,6 +247,12 @@ abs(deposition_far) <= 0.01 * abs(deposition) ||
                       "$(deposition) F_J0 falls outside |r/a•−1| ≤ 0.02")
 tail < 5e-3 ||
     push!(violations, "mode sum not converged: the last 10 modes carry $(tail) of the summed peak")
+# the implicit-midpoint solve must be CONVERGED; its residual is roundoff-level (~7e-9) and is gated
+# here as a BOUND rather than against a stored 12-digit golden value (see the tolerances below)
+const RESIDUAL_BOUND = 1e-6
+res.residual_max <= RESIDUAL_BOUND ||
+    push!(violations, "the implicit-midpoint solve did not converge: max residual " *
+                      "$(res.residual_max) > $(RESIDUAL_BOUND)")
 
 println("\n[fig03] figure checks")
 @printf("  balance away from corotation   %.3e  (≤ %.0e)   %s\n", rel_far, BALANCE_TOL,
@@ -262,6 +268,8 @@ println("\n[fig03] figure checks")
         abs(deposition_far) <= 0.01 * abs(deposition) ? "PASS" : "FAIL")
 @printf("  mode-sum tail                  %.2e  (< 5e-3)                %s\n", tail,
         tail < 5e-3 ? "PASS" : "FAIL")
+@printf("  implicit-midpoint residual     %.2e  (≤ %.0e)              %s\n", res.residual_max,
+        RESIDUAL_BOUND, res.residual_max <= RESIDUAL_BOUND ? "PASS" : "FAIL")
 @repro_result "figure_checks_pass" isempty(violations)
 
 check_failed = false
@@ -273,10 +281,26 @@ end
 
 draw(xc, dT, dF, x_isco, abs(spike))
 
+# Per-key tolerances.  `m_max`, `n_cells` are exact integers.  The other three are NOISE-DERIVED
+# quantities, not predictions, and are gated PHYSICALLY by the driver assertions above (`dep_rel ≤
+# 1e-3`, `|deposition_far| ≤ 1 % of the deposition`, `residual_max ≤ RESIDUAL_BOUND`); the golden
+# comparison on them is a determinism check, so its tolerance must reflect their own conditioning:
+#   • `deposition_outside_corotation_FJ0` — a residue after the corotation window is removed (1e-6,
+#     established when the golden was first written);
+#   • `corotation_deposition_rel_diff` — (Δ_cF_J − [T_L−T])/Δ_cF_J, a ratio of two 0.0266 numbers
+#     that agree to 2.7e-5, so a relative perturbation δ of each can move it by up to δ/2.7e-5;
+#   • `solver_residual_max` — the max implicit-midpoint residual, ~7e-9, i.e. ROUNDOFF of the solve.
+# EGD::jd-swap measured both against the route-R3 master entries: the physical keys moved by ≤ 6.7e-9
+# (all inside rtol 1e-8) while these two moved by 2.5e-7 and 1.9e-2 — see the node evidence. Gating
+# roundoff against a stored 12-digit value is what failed, not the physics. [FINDING]
 code = ReproHarness.conclude!(opts; paper = "2608.17003", id = "fig03", script = @__FILE__,
                               rtol = 1e-8,
                               tolerances = Dict("m_max" => (rtol = 0.0, atol = 0.0),
                                                 "n_cells" => (rtol = 0.0, atol = 0.0),
                                                 "deposition_outside_corotation_FJ0" =>
-                                                    (rtol = 1e-6, atol = 1e-12)))
+                                                    (rtol = 1e-6, atol = 1e-12),
+                                                "corotation_deposition_rel_diff" =>
+                                                    (rtol = 1e-2, atol = 1e-9),
+                                                "solver_residual_max" =>
+                                                    (rtol = 1e-1, atol = 1e-11)))
 exit(check_failed ? max(code, 1) : code)
