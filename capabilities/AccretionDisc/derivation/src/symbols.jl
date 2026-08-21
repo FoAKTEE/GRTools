@@ -52,6 +52,11 @@ using Symbolics
 @variables htt_r htr_r htphi_r hrr_r hrphi_r hphiphi_r hzz_r
 @variables htt_rr htr_rr htphi_rr hrr_rr hrphi_rr hphiphi_rr hzz_rr
 
+# ERRATUM E-M7 (adversarial review, EGD::jd-adversarial-review): the paper is INTERNALLY
+# INCONSISTENT about the coordinate order — the prose before Eq. (4) says (t, r, z, φ) (M:145) while
+# the worldline (54) is written w^μ = (t, a•, Ω•t, 0) (M:669-672), which forces φ into slot 3.  This
+# project follows the ordering the EQUATIONS use, (t, r, φ, z); the slot assignment is asserted, not
+# assumed, by the "coordinate order" certificate of stage1.jl.
 "Coordinate order of every 4-index object in this project: (t, r, φ, z)."
 const COORDS = (:t, :r, :φ, :z)
 const IT, IR, IPHI, IZ = 1, 2, 3, 4

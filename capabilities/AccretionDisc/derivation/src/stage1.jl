@@ -45,6 +45,12 @@ derivation table, ∇g = 0, and Eqs. (6), (7), (3b), (11).
 """
 function stage1_certificates(; npts::Int = 50, seed::Int = 2608, verbose::Bool = true)
     C = Certificate[]
+    push!(C, certify_bool("coordinate order (t,r,φ,z): slot assignment", "(4),(54)",
+                          isequal(METRIC[IPHI, IPHI], epsi^2) && isequal(METRIC[IZ, IZ], Num(1)) &&
+                          isequal(UUP[IPHI], UT * Ω_expr) && isequal(UUP[IZ], Num(0)) &&
+                          isequal(HMODE[IPHI, IPHI], hphiphi) && isequal(HMODE[IZ, IZ], hzz),
+                          "φ is slot 3 and z is slot 4 in g, u and ĥ (ERRATUM E-M7: the paper prints " *
+                          "(t,r,z,φ) at M:145 but writes the worldline (54) as (t,a•,Ω•t,0))"; verbose))
     push!(C, certify_symbolic("metric-inverse  g·g⁻¹ − 1", "(4)",
                               vec(METRIC * METRIC_INV - Num[i == j for i in 1:4, j in 1:4]);
                               verbose))

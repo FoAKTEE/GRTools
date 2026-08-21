@@ -7,7 +7,7 @@
 #             (rerun: julia --project=capabilities/AccretionDisc/derivation \
 #                          capabilities/AccretionDisc/derivation/scripts/emit_sources.jl)
 # input     : capabilities/AccretionDisc/derivation/out/R3_master.jls.txt  sha256 cd4b600da538c1645b500458032a240c28a01033e60eac7a89c2d005f34d2f7d
-# derivation: sha256 46cbc64d4b01262d12f42a4a016cf703820c74e85939f1d7d047ee44672a623f over derivation/src/*.jl (sorted, concatenated)
+# derivation: sha256 d345b93a54e0c0f67739de806bef2f91a1fe41370a4e62732b9620ab72742449 over derivation/src/*.jl (sorted, concatenated)
 # julia     : 1.12.6   Symbolics 7.36.0
 # content   : dy/dr = C.y + S with y = (deltaU, urbyi) = (delta p-hat/(eps+p), -i delta u-hat^r);
 #             C = [C00 C01; C10 C11], S = [S0, S1]  (arXiv:2608.17003 eq 47).
@@ -19,7 +19,9 @@
 # conventions: Rationals are emitted as n//d and e^{a nu + b psi + c mu} as enu^a*epsi^b*emu^c (hoisted
 #             into the preamble), so every float type T (Float64, BigFloat, ...) inherits its own
 #             precision; there is no transcendental in a body (W = 1/sqrt(1-v^2) is an INPUT).
-#             htr = hrphi = 0 (circular equatorial orbit, `circmetriczero`) is applied at emission.
+#             htr = hrphi = 0 (`circmetriczero`) is applied at emission: it is a property of the
+#             paper's singular field (52)-(54) (h ∝ g(w) + 2 v v, v^r = 0, g_tr = g_rphi = 0), NOT a
+#             theorem about circular orbits; the derivation keeps both components symbolic.
 
 """
     _master_entries(inp::MasterInputs) -> (C00, C01, C10, C11, S0, S1)

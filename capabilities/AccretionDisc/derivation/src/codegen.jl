@@ -24,10 +24,11 @@
 #   expressions at random `Rational{BigInt}` points (`codegen_selfcheck`).
 #
 # TWO ALPHABET CONVERSIONS (both are consumer conventions, not physics):
-#   1. `circmetriczero` — ĥ_tr = ĥ_rφ = 0 for a circular equatorial orbit (the paper's own reduction,
-#      and the reason `MasterInputs` has no fields for them).  Route R1 applies it in the notebook;
-#      here it is applied at emission time and is what makes every imaginary part of the master
-#      system vanish identically ("Complex only through omega_d").
+#   1. `circmetriczero` — ĥ_tr = ĥ_rφ = 0 for the paper's singular field (52)-(54) (see
+#      `CIRC_METRIC_ZERO`: a property of that SOURCE, not of circular orbits in general — the reason
+#      `MasterInputs` has no fields for them).  Route R1 applies it in the notebook; here it is
+#      applied at emission time and is what makes every imaginary part of the master system vanish
+#      identically ("Complex only through omega_d").
 #   2. `MasterInputs` carries Ω and Ω′, route R3 carries ω̃ and v′.  The two are related by (10) and
 #      its r-derivative — Ω = ω̃ + v e^{ν−ψ}, Ω′ = ω̃′ + e^{ν−ψ}[v′ + v(ν′−ψ′)] — so
 #      ω̃ = Ω − v e^{ν−ψ} and v′ = (Ω′−ω̃′)e^{ψ−ν} − v(ν′−ψ′).  Substituting these into the master
@@ -56,7 +57,17 @@ end
 "Operators the artefact's printed form may use (anything else is a symbol that must be known)."
 const ARTIFACT_OPS = Set([:+, :-, :*, :/, :^, ://])
 
-"ĥ_tr = ĥ_rφ = 0 — `circmetriczero` of the notebook: a circular equatorial orbit has no tr/rφ mode."
+"""
+    CIRC_METRIC_ZERO
+
+ĥ_tr = ĥ_rφ = 0 — `circmetriczero` of the notebook.  This is a property of THE PAPER'S SOURCE, not a
+theorem about circular orbits (adversarial review, EGD::jd-adversarial-review, finding 3): the
+singular field (52)-(53) is ĥ_μν ∝ g_μν(w) + 2v_μv_ν, the circular worldline (54) has v^r = 0, and the
+line element (4) has g_tr = g_rφ = 0 — hence those two components of THIS field vanish.  A different
+source or gauge need not satisfy it, which is why the derivation itself keeps `htr`, `hrphi`
+SYMBOLIC and the zeroing happens only here, at the boundary with `MasterInputs` (which has no fields
+for them).  Consuming code must supply modes in the same gauge/source class; `SpiralWaves.source.jl`
+does (`singular_field_mode` returns exactly ĥ_tt, ĥ_tφ, ĥ_φφ, ĥ_rr, ĥ_zz)."""
 const CIRC_METRIC_ZERO = Dict{Num,Num}(htr => Num(0), hrphi => Num(0),
                                        htr_r => Num(0), hrphi_r => Num(0),
                                        htrc => Num(0), hrphic => Num(0),
@@ -213,7 +224,9 @@ const _CONVENTIONS = [
     "conventions: Rationals are emitted as n//d and e^{a nu + b psi + c mu} as enu^a*epsi^b*emu^c (hoisted",
     "            into the preamble), so every float type T (Float64, BigFloat, ...) inherits its own",
     "            precision; there is no transcendental in a body (W = 1/sqrt(1-v^2) is an INPUT).",
-    "            htr = hrphi = 0 (circular equatorial orbit, `circmetriczero`) is applied at emission.",
+    "            htr = hrphi = 0 (`circmetriczero`) is applied at emission: it is a property of the",
+    "            paper's singular field (52)-(54) (h ∝ g(w) + 2 v v, v^r = 0, g_tr = g_rphi = 0), NOT a",
+    "            theorem about circular orbits; the derivation keeps both components symbolic.",
 ]
 
 """
