@@ -5,6 +5,18 @@ Mirrors: tex `ref-paper/arXiv-2608.17003/src/` · supplementary notebook
 `capabilities/AccretionDisc` (`SpiralWaves` = the paper's linear theory; `Modes` = the
 pressureless analytic baselines it is compared against).  Drivers here are THIN.
 
+> **Provenance of the master system (2026-08-21, `EGD::jd-swap`).**  The relativistic master system
+> (47) and the diagnostics integrands (72a)/(72b) that every driver below evaluates are **derived in
+> Julia** by `capabilities/AccretionDisc/derivation/` (a standalone `Symbolics.jl` project that is
+> *not* a package dependency) and emitted into `src/SpiralWaves/master_derived.jl` and
+> `r2_derived.jl`.  **No external CAS — and no `wolframscript` — is in the build path of anything
+> this directory reproduces.**  The authors' supplementary notebook (route R1) and the independent
+> Mathematica derivation (route R2) survive as ORACLES in
+> `capabilities/AccretionDisc/test/SpiralWaves/fixtures/oracle/`, gated forever on-shell by
+> `test_derived_equivalence.jl`.  The goldens below are UNCHANGED by the swap: the derived and the
+> notebook entries agree to Float64 roundoff (worst 2.6e-12 relative on the 50-point physical
+> fixture, where the notebook form itself measures 7.0e-10).
+
 ## Results
 
 | # | figure / check | driver | golden | tier | status | VLM verdict | notes |

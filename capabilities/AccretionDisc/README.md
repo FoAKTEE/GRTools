@@ -19,6 +19,16 @@ resonance torque.
   - `B_m` mode functions and the `𝔉_m` forcing source;
   - the Lindblad / corotation resonance torque.
 
+- **`SpiralWaves`** — the relativistic spiral-density-wave pipeline of arXiv:2608.17003
+  (linear Lagrangian perturbation theory on the Page-Thorne equatorial line element): disc
+  equilibrium, App.-C adaptive grid, the first-order master system (47), the EMRI singular field
+  (52)-(60), the implicit mode solver, the angular-momentum diagnostics (72a)/(72b), surveys, image
+  synthesis and the Newtonian-limit pipeline. The master system and the diagnostics integrands are
+  **DERIVED IN JULIA** (`derivation/`, a standalone `Symbolics.jl` project that is NOT a package
+  dependency) and emitted into `master_derived.jl` / `r2_derived.jl` — no external CAS is in the
+  build path. The authors' supplementary notebook and an independent Mathematica derivation live in
+  `test/SpiralWaves/fixtures/oracle/` and gate the derived sources on-shell forever.
+
 - **`Force`** — the circular-equatorial Kerr thin-disc torque front-end (from legacy
   `DiscEMRIForce`): the spinning-BH fluid solve / torque balance. **Consumes**
   `MetricReconstruction.Lorenz.closure_kerr` / `reconstruct_kerr` (NOT `SelfForce`, NOT
@@ -31,6 +41,7 @@ resonance torque.
 |--------|-------------|
 | `DiscModes` | `AccretionDisc.Modes` |
 | `DiscEMRIForce` | `AccretionDisc.Force` |
+| — (new, arXiv:2608.17003) | `AccretionDisc.SpiralWaves` + `derivation/` (route R3) |
 
 ## Dependencies
 

@@ -9,6 +9,19 @@ the suite version.
 
 ### Added
 
+- **`AccretionDisc/derivation` — route R3, the Julia-native derivation of the
+  arXiv:2608.17003 master system.** A standalone `Symbolics.jl` project (own
+  `Project.toml`, **not** a dependency of `AccretionDisc`) that derives the
+  first-order master system (47), the eliminated velocities and the
+  angular-momentum diagnostics (72a)/(72b) from the paper's own equations —
+  line element (4), fluid equations (3), linearisation (15)-(22), Fourier
+  ansatz (45)-(46), the reduction of M:604-608 — certifies every step
+  symbolically or by exact `Rational{BigInt}` evaluation (residual exactly
+  `0//1`), and emits `src/SpiralWaves/master_derived.jl` and `r2_derived.jl`
+  with a deterministic printer whose output is re-parsed and re-checked
+  exactly. `scripts/derive_all.jl` runs the derivation, `scripts/emit_sources.jl`
+  the emission.
+
 - **`EllipticCore.helmholtz_shift` / `EllipticCore.schwarz_preconditioner`**
   (`core/EllipticCore/src/schwarz_shift.jl`) — the Schwarz complex-shift
   *policy*: `helmholtz_shift(m, Ω; slicing)` returns `s = (mΩ)²` under
@@ -21,6 +34,25 @@ the suite version.
   operator scale destroys the preconditioner. Gated at a subdomain resonance,
   where the unshifted smoother burns a full 150-iteration budget 2.7e10× above
   tolerance and the policy shift converges in 47.
+
+### Changed — BREAKING: the arXiv:2608.17003 master system is Julia-derived
+
+- **`AccretionDisc.SpiralWaves` no longer consumes the supplementary
+  *Mathematica* notebook of arXiv:2608.17003 (nor `wolframscript`) anywhere in
+  its build path.** `master.jl` includes `master_derived.jl` and `r2_derived.jl`
+  — emitted by the route-R3 Julia derivation above — instead of
+  `master_generated.jl` (the notebook transcription) and `r2_generated.jl` (an
+  independent Mathematica derivation). Those two files still exist, tracked, as
+  `test/SpiralWaves/fixtures/oracle/{master,r2}_generated.jl`, and
+  `test/SpiralWaves/test_derived_equivalence.jl` gates the derived sources
+  against them forever. Function names, signatures and every public API are
+  unchanged; results move by at most Float64 roundoff and are in fact better
+  conditioned (worst relative deviation on the 50-point physical Mathematica
+  fixture: 2.6e-12 derived vs 7.0e-10 for the notebook form; the diagnostics
+  improve from 1e-11/1e-9 to 1e-15/1e-16). **On-shell only:** the three routes
+  agree where the background satisfies `W = 1/√(1−v²)` and the hydrostatic
+  balance, and carry different off-shell continuations — the off-shell 40-point
+  fixture now gates the R1 oracle rather than the build source.
 
 ### Changed — de-duplication (one definition per primitive)
 
