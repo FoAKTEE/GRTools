@@ -1,0 +1,32 @@
+name = "R3Derivation"
+uuid = "9f2b1a4c-3d67-4e58-8a10-6c4f2b7d9e31"
+authors = ["GrTools contributors"]
+version = "0.1.0"
+
+# STANDALONE derivation project for the AccretionDisc.SpiralWaves master system of
+# arXiv:2608.17003 (route R3 — the Julia-native symbolic derivation).  It is NOT a dependency of
+# `AccretionDisc`: nothing in `capabilities/AccretionDisc/src` may `import R3Derivation`, and the
+# package dependency budget of DESIGN §4.10 is unchanged.  The pattern is the one already used by
+# `test/SpiralWaves/fixtures/capture/` and by `capabilities/PostNewtonian/test/` (a quarantined
+# environment that pins `Symbolics` with a committed `Manifest.toml` so it resolves OFFLINE to the
+# same closure on any machine).
+#
+# Symbolics is pinned to the version the suite already carries in the depot through the
+# PostNewtonian test environment (7.36.0) so no network resolve is ever required.
+[deps]
+Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
+SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+
+[compat]
+Symbolics = "7"
+SymbolicUtils = "4"
+julia = "1.10"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
