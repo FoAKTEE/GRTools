@@ -160,4 +160,22 @@ include("MModeOperator/bayliss_turkel.jl")   # bayliss-turkel-bc
 # outer_boundary_ghost = the RunConfig entry honoring the m = 0 no-outer-BC yaml branch.
 export bt_tsliced_residual, bt_robin_coefficient, BaylissTurkelGhost, outer_boundary_ghost
 
+include("Extraction/regularization.jl")      # heffernan-regularization
+# Heffernan m-mode regularization parameters of the RADIAL self-force for circular equatorial
+# Kerr orbits (arXiv:1211.6446 KerrRegularization.tex:1675-1731; CRP main.tex:520-522 + 723):
+# reg_param_Fr(order, orbit) = the m-independent circular-Kerr coefficients F_{r[2]}/F_{r[4]}
+# (purely algebraic — the m-mode parameters need NO elliptic integrals, unlike the ℓ-mode ones
+# of the same paper's §IV, which share the symbol names); mmode_reg_factor(_over_pi) = the
+# printed m-dependence for orders 2, 4, 6, 8, exact in Rational{BigInt}; mmode_reg_Fr = the
+# assembled per-m SUBTRACTION term F^m_{r[order]}; mmode_reg_factor_tail(_over_pi) /
+# mmode_reg_tail_Fr = the closed-form analytic TAIL Σ_{m≥mstart}, the completion node
+# mode-sum-total-force adds to its truncated numerical sum. FOLDED m ≥ 0 ×2 real-part
+# convention (see the mmode_reg_factor_over_pi docstring, which cross-references the normative
+# mode_term statement) — a < 0 is retrograde, and the closed form at m = 0 carries the ×2
+# unconditionally. Extraction of F_r^m and the sum itself are LATER nodes.
+export HEFFERNAN_MMODE_ORDERS, HEFFERNAN_CIRCULAR_FR_ORDERS
+export reg_param_Fr, mmode_reg_Fr, mmode_reg_tail_Fr
+export mmode_reg_factor, mmode_reg_factor_over_pi
+export mmode_reg_factor_tail, mmode_reg_factor_tail_over_pi
+
 end # module

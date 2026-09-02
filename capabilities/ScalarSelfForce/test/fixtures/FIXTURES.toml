@@ -125,3 +125,13 @@ oracle = "paper arXiv:2606.04998 runtime configuration twin"
 oracle_commit = ""
 status = "upstream-copy"
 note = "PROVENANCE.md + a sha256 pin asserted in test_runtime_config.jl"
+
+[[fixture]]
+file = "test/fixtures/heffernan_mmode_reg.jl"
+sha256 = "c2e490be5c132b34fb4f881a31b7656783a8ff22d4afe046972bad96690855c4"
+bytes = 19672
+capture = "test/fixtures/capture/capture_heffernan_mmode_reg.py"
+oracle = "Wardell-Thornburg ancillary Mathematica notebook m-ModeKerrRegularizationParameters.nb (arXiv:1610.09319 anc/), cell Fmr[4], specialised to circular orbits; evaluated at 60-digit mpmath precision"
+oracle_commit = ""
+status = "tracked-generator"
+note = "INDEPENDENT-SOURCE oracle for the tex transcription in src/Extraction/regularization.jl (arXiv:1211.6446 KerrRegularization.tex:1675-1731); the capture script parses the notebook box structure directly, needs only python3+mpmath and the read-only ref-paper mirror, and re-emits this file byte-for-byte"
