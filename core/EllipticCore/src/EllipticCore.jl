@@ -29,9 +29,10 @@ Owns (DESIGN.md §2.1, one DAG node = one commit per module):
     preconditioner with its `dense_bottom_solver` bottom seam
   - `bottom_solve.jl` — coarsest-level cached sparse LU (UMFPACK), dense-LU fallback
   - `solver_stack.jl` — right-preconditioned GMRES composition API `solve!`
-  - `amr.jl` — h-refinement mesh transformations (`h_split`, `balance_two_to_one`,
-    `h_refine`) with 2:1 enforcement by splitting offenders, and the Lagrange
-    solution carry-over `transfer_solution` (p refinement lands with its own node)
+  - `amr.jl` — the CRP hp-AMR mesh transformations: `h_split` + `balance_two_to_one`
+    + `h_refine` (halving with 2:1 enforcement by splitting offenders), `p_refine`
+    + `hp_refine` (order increment off the flagged elements, and the combined step),
+    and the Lagrange solution carry-over `transfer_solution`
 
 Dep budget (binding, enforced by `test/hygiene.jl`): {LinearAlgebra, SparseArrays,
 NumericsCore}. No external Krylov/AMG package — GMRES/multigrid/Schwarz are in-tree

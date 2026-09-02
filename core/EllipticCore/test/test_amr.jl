@@ -174,6 +174,14 @@ function amr_isanc(anc, id)
 end
 amr_area(id) = 1 / 2.0^(amr_lv(id, 1) + amr_lv(id, 2))
 
+# the unique ancestor-or-equal of `id` in a leaf set (independent of src/amr.jl)
+function amr_ancestor_of(ids, id)
+    for a in ids
+        amr_isanc(a, id) && return a
+    end
+    error("amr_ancestor_of: no ancestor of $id in the given leaf set")
+end
+
 # closed logical containment of a point (px, py) in [0,1]^2 block-logical units
 amr_contains(id, px, py) = begin
     a = amr_ivl(id.segments[1]); b = amr_ivl(id.segments[2])
@@ -432,6 +440,10 @@ end
     @test rounds >= 500                       # the gate is not vacuous
     @test balance_fired > 100                 # enforcement really fires
     @test unbalanced_raw > 100                # FALSIFIER: the raw split IS 2:1-violating
+    println("AMR exhaustive 2:1 gate: rounds=", rounds,
+            " raw-2:1-violating=", unbalanced_raw,
+            " enforcement-fired=", balance_fired,
+            " max-elements=", maxels)
 end
 
 # ---- (d) solution carry-over -----------------------------------------------------------------
@@ -632,6 +644,151 @@ end
         vf = transfer_solution(meshf, newf, uf)
         @test maximum(abs.(Float64.(v) .- vf)) < 1e-12 * maximum(abs.(vf))
     end
+end
+
+# ---- (h) p-increment metadata ------------------------------------------------------------------
+@testset "(h) p metadata: N = 4 + k off the puncture, N = 4 on it (k = 1..8)" begin
+    blk = amr_blk1()
+    ids = [ElementId(21, SegmentId(2, i), SegmentId(2, j)) for j in 0:3 for i in 0:3]
+    mesh = Mesh2D(blk, ids, (4, 4))                       # the CRP initial 4 x 4 grid
+    flagged = Set(filter(id -> amr_contains(id, 0.5, 0.5), ids))
+    @test length(flagged) == 4                            # the four centre elements
+    cur = mesh
+    for k in 1:8
+        cur = p_refine(cur, flagged)
+        @test cur.elements == mesh.elements               # p never touches the element set
+        for (e, id) in enumerate(cur.elements)
+            @test cur.orders[e] == (id in flagged ? (4, 4) : (4 + k, 4 + k))
+        end
+        @test cur.ndofs == 4 * 16 + 12 * (4 + k)^2
+        @test two_to_one_balanced(cur.elements)
+    end
+    # flag forms agree, and an all-flagged step is the identity
+    @test p_refine(mesh, flagged).orders ==
+          p_refine(mesh, Dict(id => true for id in flagged)).orders ==
+          p_refine(mesh, id -> id in flagged).orders ==
+          p_refine(mesh, collect(flagged)).orders
+    @test p_refine(mesh, id -> true).orders == mesh.orders
+    # per-dimension hold: only the flagged dimension keeps its order
+    one = first(ids)
+    m1 = p_refine(mesh, Dict(one => (true, false)))
+    @test m1.orders[m1.index[one]] == (4, 5)
+    m2 = p_refine(mesh, Dict(one => (false, true)))
+    @test m2.orders[m2.index[one]] == (5, 4)
+    # `increment` is honoured
+    m3 = p_refine(mesh, flagged; increment = 3)
+    @test all(m3.orders[m3.index[id]] == (id in flagged ? (4, 4) : (7, 7)) for id in ids)
+    @test p_refine(mesh, flagged; increment = 0).orders == mesh.orders
+    @test_throws ArgumentError p_refine(mesh, flagged; increment = -1)
+end
+
+# ---- (i) p transfer ------------------------------------------------------------------------------
+@testset "(i) p transfer is exact on polynomials of the source element degree" begin
+    blk = amr_blk1()
+    ids = [ElementId(21, SegmentId(1, i), SegmentId(1, j)) for j in 0:1 for i in 0:1]
+    worst = 0.0
+    for N in (4, 6), inc in (1, 3)
+        mesh = Mesh2D(blk, ids, (N, N))
+        poly(x, y) = sum((0.7^k) * x^k for k in 0:N-1) * sum(((-0.4)^k) * y^k for k in 0:N-1)
+        u = amr_sample(mesh, blk, poly)
+        for flagrule in (Set{ElementId}(), Set([ids[1], ids[4]]))
+            new = p_refine(mesh, flagrule; increment = inc)
+            v = transfer_solution(mesh, new, u)
+            @test length(v) == new.ndofs
+            worst = max(worst, maximum(abs.(v .- amr_sample(new, blk, poly))))
+        end
+    end
+    @test worst < 1e-13                        # calibrated 4.4e-16 (same kernel as the h path)
+    # an all-held p step leaves the mesh and the solution BITWISE unchanged
+    mesh = Mesh2D(blk, ids, (5, 5))
+    rng = AMRRNG(0xbeef77)
+    u = amr_cvec!(rng, mesh.ndofs)
+    same = p_refine(mesh, id -> true)
+    @test same.elements == mesh.elements && same.orders == mesh.orders
+    @test transfer_solution(mesh, same, u) == u
+    # combined h + p in ONE transfer (Delta level AND order change) stays exact
+    mesh4 = Mesh2D(blk, ids, (4, 4))
+    p4(x, y) = sum((0.5^k) * x^k for k in 0:3) * sum(((-0.3)^k) * y^k for k in 0:3)
+    u4 = amr_sample(mesh4, blk, p4)
+    hp = hp_refine(mesh4, Set([ids[1]]))
+    @test maximum(abs.(transfer_solution(mesh4, hp, u4) .- amr_sample(hp, blk, p4))) < 1e-13
+end
+
+# ---- (j) the combined h+p step -------------------------------------------------------------------
+@testset "(j) hp_refine == the h/p composition, and the metadata commutes" begin
+    blocks = amr_blocks2(); conns = amr_conns2()
+    cur = Mesh2D(blocks, amr_roots2(), (4, 4); connections = conns)
+    punct(id) = id.block == 1 && amr_contains(id, 0.87, 0.31)
+    for k in 1:4
+        prev = cur
+        new = hp_refine(prev, punct)
+        # the element set is exactly the h step's
+        @test new.elements == h_refine(prev, punct).elements
+        # orders: a flagged parent's children keep its order, everything else gains one
+        for (e, id) in enumerate(new.elements)
+            anc = amr_ancestor_of(prev.elements, id)
+            o = prev.orders[prev.index[anc]]
+            @test new.orders[e] == (punct(anc) ? o : (o[1] + 1, o[2] + 1))
+        end
+        # ... which is exactly p-then-h
+        ph = h_refine(p_refine(prev, punct), punct)
+        @test ph.elements == new.elements && ph.orders == new.orders
+        # ... and h-then-p with the flags lifted along ancestry (the two halves commute)
+        hstep = h_refine(prev, punct)
+        lifted = Set(filter(id -> punct(amr_ancestor_of(prev.elements, id)), hstep.elements))
+        hp2 = p_refine(hstep, lifted)
+        @test hp2.elements == new.elements && hp2.orders == new.orders
+        # the CRP invariant: N = 4 in every puncture element, N > 4 away from it
+        @test all(new.orders[e][1] == 4 && new.orders[e][2] == 4
+                  for (e, id) in enumerate(new.elements) if punct(id))
+        @test two_to_one_balanced(new.elements)
+        @test amr_crossblock_ok(new.elements, conns)
+        cur = new
+    end
+    @test maximum(o -> o[1], cur.orders) == 8               # 4 + 4 steps away from the puncture
+    @test minimum(o -> o[1], cur.orders) == 4               # ... and still 4 at the puncture
+end
+
+# ---- (k) the p-transformed mesh is valid ----------------------------------------------------------
+@testset "(k) p/hp meshes carry a MeshOperator through the sealed mortars" begin
+    blk = amr_blk1()
+    ids = [ElementId(21, SegmentId(1, i), SegmentId(1, j)) for j in 0:1 for i in 0:1]
+    mesh = Mesh2D(blk, ids, (4, 4))
+    # a p-NONCONFORMING mesh (orders 4 | 5 across interior faces)
+    pm = p_refine(mesh, Set([ids[1], ids[4]]))
+    @test Set(pm.orders) == Set([(4, 4), (5, 5)])
+    op = MeshOperator(ComplexF64, pm, (amr_A11, amr_A22), amr_beta, (amr_zero2, amr_zero2);
+                      C = AMR_C, bcs = amr_zerobcs(pm))
+    rng = AMRRNG(0x5eed42)
+    u = amr_cvec!(rng, pm.ndofs); w = amr_cvec!(rng, pm.ndofs)
+    y = similar(u); y2 = similar(u); y3 = similar(u)
+    apply!(y, op, u); apply!(y2, op, w); apply!(y3, op, u .+ w)
+    @test all(isfinite, y)
+    @test maximum(abs.(y3 .- y .- y2)) <= 1e-12 * maximum(abs.(y3))
+
+    # a uniform p step reduces the manufactured-Poisson L2 error (calibrated ratio 0.0713)
+    e4 = amr_poisson_l2(mesh, blk)
+    e5 = amr_poisson_l2(p_refine(mesh, Set{ElementId}()), blk)
+    @test e5 < 0.15 * e4
+
+    # an hp step on a two-block layout: mesh valid, operator builds and applies
+    blocks = amr_blocks2(); conns = amr_conns2()
+    m2 = Mesh2D(blocks, amr_roots2(), (4, 4); connections = conns)
+    for k in 1:3
+        m2 = hp_refine(m2, id -> id.block == 1 && amr_contains(id, 0.87, 0.31))
+    end
+    op2 = MeshOperator(ComplexF64, m2, (amr_A11, amr_A22), amr_beta, (amr_zero2, amr_zero2);
+                       C = AMR_C, bcs = amr_zerobcs(m2))
+    u2 = amr_cvec!(rng, m2.ndofs); z2 = similar(u2)
+    apply!(z2, op2, u2)
+    @test all(isfinite, z2)
+    @test m2.ndofs == sum(prod, m2.orders)
+    # the carry-over across a full hp step lands in the new layout
+    v2 = transfer_solution(m2, hp_refine(m2, id -> id.block == 1 &&
+                                               amr_contains(id, 0.87, 0.31)), u2)
+    @test length(v2) == hp_refine(m2, id -> id.block == 1 &&
+                                        amr_contains(id, 0.87, 0.31)).ndofs
+    @test all(isfinite, v2)
 end
 
 end # testset

@@ -59,10 +59,14 @@ The solver stack, bottom to top:
   elements along their flagged dimensions, [`balance_two_to_one`](@ref)
   restores the two-to-one balance by splitting the offending elements (within
   a block and transversally across a `BlockConnection`),
-  [`h_refine`](@ref) composes both into one pure `Mesh2D` → `Mesh2D` step, and
+  [`h_refine`](@ref) composes both into one pure `Mesh2D` → `Mesh2D` step,
+  [`p_refine`](@ref) raises the polynomial order of every element *except* the
+  flagged ones (whose order is held — the CRP h-refines the puncture elements
+  instead of p-refining them, so one flag set drives both halves),
+  [`hp_refine`](@ref) is the full AMR step from that one criterion, and
   [`transfer_solution`](@ref) carries the previous level's nodal solution over
   by Lagrange interpolation (exact on every polynomial the source element
-  represents).
+  represents, across an h step, a p step, or the two combined).
 
 ## Conventions
 

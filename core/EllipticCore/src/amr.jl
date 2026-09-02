@@ -54,7 +54,7 @@
 # may legitimately keep their cached factorization — that reuse is the CRP caching claim of
 # main.tex:716 and is the driver's decision, not this module's.
 
-export h_split, balance_two_to_one, h_refine, transfer_solution
+export h_split, balance_two_to_one, h_refine, p_refine, hp_refine, transfer_solution
 
 # ---- refinement flags ---------------------------------------------------------------------
 # `flags` is the caller-supplied criterion. Accepted forms, all reduced to a per-dimension
@@ -274,6 +274,70 @@ operator and bump the caller-managed Schwarz cache epoch (module header).
 """
 function h_refine(mesh::Mesh2D, flags)
     ord0 = _amr_orderdict(mesh)
+    ids = balance_two_to_one(h_split(mesh.elements, flags); connections = mesh.connections)
+    return Mesh2D(mesh.blocks, ids, _amr_inherit(ord0, ids); connections = mesh.connections)
+end
+
+
+# ---- p refinement ---------------------------------------------------------------------------
+
+"""
+    p_refine(mesh::Mesh2D, flags; increment = 1) -> Mesh2D
+
+One CRP p-refinement step (main.tex:558-560) as a PURE mesh transformation: "increase the
+polynomial order in all elements *that do not contain the puncture* by one in both
+dimensions in each refinement step", starting from the CRP's initial `4 × 4` grid. The
+element set is UNCHANGED; only the per-element orders move, so after `k` steps with a fixed
+flag set the un-flagged elements carry `N = 4 + k` and the flagged ones still `N = 4`.
+
+`flags` marks the elements whose order is HELD — the same criterion that
+[`h_refine`](@ref) splits (the CRP puncture elements are h-refined *instead of* p-refined),
+so one flag set drives both halves of the step and [`hp_refine`](@ref) takes exactly that
+one set. The accepted flag forms are the ones documented on [`h_split`](@ref); a
+per-dimension `NTuple{2,Bool}` holds only the flagged dimension's order.
+
+The result is built through the public [`Mesh2D`](@ref) constructor, so p-nonconforming
+interfaces are validated there and handled by the mortar layer of [`MeshOperator`](@ref);
+`mesh` is not mutated. Carry the solution over with [`transfer_solution`](@ref) (exact on
+every polynomial the source element represents) and rebuild every operator, bumping the
+caller-managed Schwarz cache epoch (module header) — a p step changes every un-flagged
+element's subdomain matrix.
+"""
+function p_refine(mesh::Mesh2D, flags; increment::Integer = 1)
+    increment >= 0 ||
+        throw(ArgumentError("p_refine: increment must be ≥ 0, got $increment"))
+    ords = Dict{ElementId,NTuple{2,Int}}()
+    for (e, id) in enumerate(mesh.elements)
+        ords[id] = _amr_praise(mesh.orders[e], _amr_flag(flags, id), Int(increment))
+    end
+    return Mesh2D(mesh.blocks, mesh.elements, ords; connections = mesh.connections)
+end
+
+# per-dimension order increment: a flagged (held) dimension keeps its order
+_amr_praise(o::NTuple{2,Int}, hold::NTuple{2,Bool}, inc::Int) =
+    (hold[1] ? o[1] : o[1] + inc, hold[2] ? o[2] : o[2] + inc)
+
+"""
+    hp_refine(mesh::Mesh2D, flags; increment = 1) -> Mesh2D
+
+One full CRP hp-AMR step (main.tex:552-560) from a SINGLE caller-supplied criterion: the
+flagged elements are halved ([`h_refine`](@ref)) and keep their polynomial order, every
+other element keeps its extent and gains `increment` orders ([`p_refine`](@ref)), and the
+two-to-one balance is restored by splitting the offenders — whose children inherit their
+parent's already-incremented order.
+
+Exactly the composition `h_refine(p_refine(mesh, flags; increment), flags)` (gated), and
+equally the other order once the flags are lifted along ancestry — the two halves of the
+step act on disjoint element sets, so they commute. This is the step the `amr-driver` node
+iterates; the criterion behind `flags` stays the caller's.
+"""
+function hp_refine(mesh::Mesh2D, flags; increment::Integer = 1)
+    increment >= 0 ||
+        throw(ArgumentError("hp_refine: increment must be ≥ 0, got $increment"))
+    ord0 = Dict{ElementId,NTuple{2,Int}}()
+    for (e, id) in enumerate(mesh.elements)
+        ord0[id] = _amr_praise(mesh.orders[e], _amr_flag(flags, id), Int(increment))
+    end
     ids = balance_two_to_one(h_split(mesh.elements, flags); connections = mesh.connections)
     return Mesh2D(mesh.blocks, ids, _amr_inherit(ord0, ids); connections = mesh.connections)
 end
