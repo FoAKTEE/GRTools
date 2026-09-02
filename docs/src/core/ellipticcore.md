@@ -29,10 +29,31 @@ The solver stack, bottom to top:
   [`helmholtz_shift`](@ref) (`s = (mΩ)²` in t-slicing, `0` under
   hyperboloidal/null slicing) with its mass-weighted application route and the
   [`schwarz_preconditioner`](@ref) adapter that feeds a Schwarz smoother to
-  `gmres` as a right preconditioner; geometric multigrid V-cycles
-  with L2 transfers from the mortars; a coarsest-level cached sparse LU
-  (UMFPACK, dense-LU fallback); and the right-preconditioned composition API
-  `solve!`.
+  `gmres` as a right preconditioner. (The right-preconditioned composition API
+  `solve!` arrives with the solver-stack node.)
+- **Geometric multigrid** — [`MultigridHierarchy`](@ref) h-coarsens a
+  [`Mesh2D`](@ref) down to the irreducible block structure, one
+  [`coarsen_mesh`](@ref) step at a time (per-dimension level capping: tiling,
+  2:1 balance and cross-block compatibility are preserved, and polynomial
+  orders p-coarsen by the minimum rule), rediscretizing the caller's
+  coefficient closures on every level through an operator factory and giving
+  each level its own additive-Schwarz smoother with a private LU cache. The
+  transfers are the sealed mortar projections: [`mg_prolong!`](@ref) is the
+  nodal Lagrange interpolation onto the children, [`mg_restrict!`](@ref) is
+  either the Galerkin restriction `Pᵀ` for the **massive** residual (the
+  V-cycle's transfer, exact for any block map) or the mass-conservative nodal
+  L2 restriction for fields, and [`mg_transfer_check`](@ref) reports the three
+  transfer diagnostics (prolongation exactness, `R∘P = I`, mass-weighted
+  adjointness — all ≤ 1.6e-15 at Float64, ≤ 1.1e-76 at BigFloat(256)).
+  [`MultigridV`](@ref) is the V-cycle preconditioner itself — pre-smoothing on,
+  no post-smoothing at the bottom, one V-cycle per application, two Schwarz
+  passes per level (the CRP yaml configuration) — and is directly the `Minv!`
+  callable of [`gmres`](@ref); [`vcycle!`](@ref) applies it to an existing
+  iterate. Its coarsest-level `bottom` seam defaults to
+  [`dense_bottom_solver`](@ref) (one `lu` of `build_matrix`, factored once);
+  the cached sparse UMFPACK factorization lands with the bottom-solver node.
+  Measured contraction 0.171 at 3, 4 and 5 levels (level-independent), and 7
+  GMRES iterations where the Schwarz smoother alone needs 18-32.
 - **AMR** — mesh transformations for the CRP hp-AMR strategy, with
   caller-supplied refinement criteria: [`h_split`](@ref) halves the flagged
   elements along their flagged dimensions, [`balance_two_to_one`](@ref)

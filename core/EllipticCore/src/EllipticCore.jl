@@ -23,7 +23,10 @@ Owns (DESIGN.md §2.1, one DAG node = one commit per module):
     subdomain factorizations
   - `schwarz_shift.jl` — the complex-shift POLICY value `helmholtz_shift(m, Ω; slicing)`
     and the `schwarz_preconditioner` right-preconditioner adapter for `gmres`
-  - `multigrid.jl` — geometric multigrid V-cycle with L2 transfers from mortars
+  - `multigrid.jl` — the geometric h-coarsening hierarchy down to the irreducible
+    block structure (`MultigridHierarchy`, `coarsen_mesh`), mortar-built transfers
+    (`mg_prolong!`/`mg_restrict!`, `mg_transfer_check`) and the `MultigridV` V-cycle
+    preconditioner with its `dense_bottom_solver` bottom seam
   - `bottom_solve.jl` — coarsest-level cached sparse LU (UMFPACK), dense-LU fallback
   - `solver_stack.jl` — right-preconditioned GMRES composition API `solve!`
   - `amr.jl` — h-refinement mesh transformations (`h_split`, `balance_two_to_one`,
