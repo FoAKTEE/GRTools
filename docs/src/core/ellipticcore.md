@@ -33,8 +33,15 @@ The solver stack, bottom to top:
   with L2 transfers from the mortars; a coarsest-level cached sparse LU
   (UMFPACK, dense-LU fallback); and the right-preconditioned composition API
   `solve!`.
-- **AMR** — h/p mesh transformations with 2:1 enforcement and solution
-  carry-over.
+- **AMR** — mesh transformations for the CRP hp-AMR strategy, with
+  caller-supplied refinement criteria: [`h_split`](@ref) halves the flagged
+  elements along their flagged dimensions, [`balance_two_to_one`](@ref)
+  restores the two-to-one balance by splitting the offending elements (within
+  a block and transversally across a `BlockConnection`),
+  [`h_refine`](@ref) composes both into one pure `Mesh2D` → `Mesh2D` step, and
+  [`transfer_solution`](@ref) carries the previous level's nodal solution over
+  by Lagrange interpolation (exact on every polynomial the source element
+  represents).
 
 ## Conventions
 

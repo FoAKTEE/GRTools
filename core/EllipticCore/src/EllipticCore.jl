@@ -26,7 +26,9 @@ Owns (DESIGN.md §2.1, one DAG node = one commit per module):
   - `multigrid.jl` — geometric multigrid V-cycle with L2 transfers from mortars
   - `bottom_solve.jl` — coarsest-level cached sparse LU (UMFPACK), dense-LU fallback
   - `solver_stack.jl` — right-preconditioned GMRES composition API `solve!`
-  - `amr.jl` — h/p mesh transformations with 2:1 enforcement + solution carry-over
+  - `amr.jl` — h-refinement mesh transformations (`h_split`, `balance_two_to_one`,
+    `h_refine`) with 2:1 enforcement by splitting offenders, and the Lagrange
+    solution carry-over `transfer_solution` (p refinement lands with its own node)
 
 Dep budget (binding, enforced by `test/hygiene.jl`): {LinearAlgebra, SparseArrays,
 NumericsCore}. No external Krylov/AMG package — GMRES/multigrid/Schwarz are in-tree
