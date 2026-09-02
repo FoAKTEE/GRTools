@@ -113,12 +113,57 @@ function _mino_freqs_schwarz(p, e, x)
     (Ur = Ur, Uth = complex(Uth), Uph = complex(Uph), Ut = Ut)
 end
 
+# --- the circular-equatorial Υ_r radicand and its exact ISCO zero -----------------------------
+#
+# On the stable branch the sign factor `disc/|disc|` in `_mino_freqs_circeq` is −1, because
+#     disc = a² − 4a√p − (p−4)p = −(p + 2√p − a)(p − 2√p + a) < 0
+# for every p above the marginally bound orbit r_mb = 2 − a + 2√(1−a) (both factors are then
+# positive). With that sign the Υ_r radicand collapses EXACTLY — no approximation — to
+#
+#     Υ_r² = p · P_isco(p) / (2a√p + (p−3)p),      P_isco(p) = p² − 6p + 8a√p − 3a² ,
+#
+# and P_isco is precisely the Bardeen–Press–Teukolsky (1972, ApJ 178 347) polynomial whose root
+# is `kerr_isco(a)` — it is r² times the ISCO condition 0 = 1 − 6M/r + 8a√(M/r³) − 3a²/r² of
+# arXiv:2606.04998 main.tex:207-209 (d²V_eff/dr² = 0). So Υ_r has a SIMPLE ZERO at
+# the ISCO, is positive outside it, and is negative only for the unstable circular orbits inside
+# it. Two consequences, handled by `_circeq_isco_radicand` and nowhere else:
+#
+#  1. At p = kerr_isco(a) the computed radicand is pure cancellation error — measured −2.2e−16
+#     (a = 0.9) and −1.7e−14 (a = 0.998), which made `sqrt` raise a `DomainError`, and +1.3e−15
+#     (a = 0.5), which returned a spurious Ω_r = 1.2e−9. There Υ_r is set to exactly 0, its
+#     physical value. The trigger is the exact identity `p == kerr_isco(a)`, NOT a tolerance:
+#     that is what makes it precision-independent (at 256 bits the residual is still ~1e−76,
+#     i.e. nonzero, and no fixed tolerance would cover both regimes).
+#  2. A NEGATIVE radicand within the first-order rounding bound of that zero carries no
+#     significant digit either, so it is snapped to 0 as well — this catches a caller whose `p`
+#     is the ISCO only to a few ulp. The bound is K·eps(T)·Σ|terms|/|denominator| over the terms
+#     actually summed, with K = 16; the measured residual at `kerr_isco(a)` uses at most 0.19 of
+#     it for |a| ≥ 0.5, and the window stays inside |δp/p| ≤ 6.2e−13 even at a = 0.998. It is a
+#     roundoff guard only — near a → 0 `kerr_isco`'s own cancellation error exceeds this bound,
+#     which is precisely why (1) and not (2) is the mechanism that makes the ISCO exact.
+#
+# A radicand below −tol is a genuine inside-the-ISCO (unstable) orbit and keeps raising the
+# original `DomainError`; this is deliberately NOT a blanket `max(x, 0)` clamp. Every p that
+# previously returned a finite Υ_r is bit-for-bit unchanged: the radicand expression itself is
+# untouched, and the only value that moves is the ISCO point where 0 is exact.
+const _CIRCEQ_ISCO_ROUNDOFF_K = 16
+
+function _circeq_isco_radicand(rad, a, p)
+    T = float(promote_type(typeof(a), typeof(p)))
+    p == kerr_isco(T(a)) && return zero(rad)     # Υ_r ≡ 0 at the ISCO (exact, any precision)
+    rad < 0 || return rad                        # positive radicand: never touched
+    sq = sqrt(p)
+    scale = (p*(2*a^2 + 6*a*sq + abs((-5 + p)*p) + (a - sq)^2)) / abs(2*a*sq + (-3 + p)*p)
+    rad ≥ -_CIRCEQ_ISCO_ROUNDOFF_K*eps(one(rad))*scale ? zero(rad) : rad
+end
+
 # Circular-equatorial Kerr (a≠0, e=0, x=1) closed forms.
 function _mino_freqs_circeq(a, p)
     den = sqrt(2*a + (-3 + p)*sqrt(p))
     disc = a^2 - 4*a*sqrt(p) - (-4 + p)*p
-    Ur = sqrt((p*(-2*a^2 + 6*a*sqrt(p) + (-5 + p)*p + ((a - sqrt(p))^2*disc)/abs(disc))) /
-              (2*a*sqrt(p) + (-3 + p)*p))
+    rad = (p*(-2*a^2 + 6*a*sqrt(p) + (-5 + p)*p + ((a - sqrt(p))^2*disc)/abs(disc))) /
+          (2*a*sqrt(p) + (-3 + p)*p)
+    Ur = sqrt(_circeq_isco_radicand(rad, a, p))
     Uth = abs((p^(1//4)*sqrt(3*a^2 - 4*a*sqrt(p) + p^2))/den)
     Uph = p^(5//4)/den
     Ut  = (p^(5//4)*(a + p^(3//2)))/den
@@ -154,6 +199,14 @@ end
 Fundamental orbital frequencies of a generic bound Kerr geodesic (M = 1). `Time="Mino"` →
 `(Ur, Uth, Uph, Ut)`; `"BoyerLindquist"` → `(Omegar, Omegath, Omegaph)` = Mino/Ut; `"Proper"`
 → Mino/⟨dτ/dλ⟩. Replaces `KerrGeoFrequencies`.
+
+ISCO limit: for a prograde circular equatorial orbit (`a > 0, e = 0, x = 1`) the radial
+frequency vanishes at the innermost stable circular orbit, and `kerr_frequencies(a,
+kerr_isco(a), 0, 1)` returns `Υ_r = Ω_r = 0` EXACTLY in every precision — the closed-form Υ_r
+radicand is `p·(p² − 6p + 8a√p − 3a²)/(2a√p + (p−3)p)`, whose numerator is the Bardeen ISCO
+polynomial itself. Radii inside the ISCO are unstable circular orbits with a genuinely negative
+radicand and still raise a `DomainError`. Retrograde circular equatorial orbits (`a < 0`) route
+through the generic branch, where the ISCO leaves a `|Ω_r| ≲ 1e-9` numerical residual instead.
 """
 function kerr_frequencies(a, p, e, x; Time = "BoyerLindquist")
     f = _mino_frequencies(a, p, e, x)
