@@ -43,8 +43,9 @@
 #   - EllipticCore matrixfree.jl (rows 15 + 40 commit 1) — the per-MORTAR `hooks` seam,
 #     `mortar_points`, `MeshInterface`; boundary_hooks.jl (row 14) — the hook types;
 #   - Solve/bc_glue.jl (row 41) — `boundary_conditions`, the `bcs` table;
-#   - solver-stack-ssf (row 42) owns the driver: `b = worldtube_massive_source(wt) −
-#     operator_on_zero(op)` and the solve; amr-driver (row 43) rebuilds this table per level.
+#   - solver-stack-ssf (row 42) owns the driver: the RHS b = M.S - operator_on_zero(op)
+#     with S the SWITCHED volume evaluator (see the jump_hooks docstring), and the solve;
+#     amr-driver (row 43) rebuilds this table per level (recipe in the same docstring).
 
 export vtu_junction_faces, vtu_junction_hook, jump_hooks
 
@@ -227,10 +228,32 @@ worldtube data off `wt`; because `WorldtubeData` is mesh-bound, a caller passing
 `worldtube_jump_data(mesh, isinside, values)` method is the seam for that, and the mismatch
 is caught rather than mis-applied.
 
-The right-hand side of the resulting system is the solver driver's business (node
-`solver-stack-ssf`): `b = worldtube_massive_source(wt) − operator_on_zero(op)`, with the
-LINEARIZED [`apply!`](@ref) as the matrix — into which the junction hooks enter and the
-worldtube hooks do not.
+PER-LEVEL RECIPE (the multigrid / AMR contract, stated ONCE, here). Both tables are functions
+of the level mesh; the `WorldtubeData` is MESH-BOUND and is rebuilt with the same `mesh` kwarg:
+
+    wt_l    = worldtube_data(dom, orbit, config, m; mesh = mesh_l)
+    hooks_l = jump_hooks(dom, wt_l, orbit, config, m; mesh = mesh_l)
+    bcs_l   = boundary_conditions(dom, orbit, config; mesh = mesh_l)
+
+The junction half needs no rebuild logic at all — it is recomputed from the block lattice, and
+block ids survive coarsening and AMR while element ids do not. A stale `wt` is REFUSED, not
+mis-applied: the mortar count AND the per-mortar point count of every datum are checked against
+`mesh` (h- and p-refinement respectively), and the `BlockDomain` method additionally requires
+`wt.dom === dom`, because block ids are lattice-local and a domain at another spin, radius or
+chart carries the same ids.
+
+RIGHT-HAND SIDE (node `solver-stack-ssf` owns it; recorded here so the two halves cannot
+drift): `b = M·S - operator_on_zero(op)` with the LINEARIZED [`apply!`](@ref) as the matrix —
+into which the junction hooks enter and the worldtube hooks do not. The VOLUME fixed source
+`S` handed to that assembly is **row 42's switched evaluator**
+([`effective_source_m_switched`](@ref)), NOT `wt.source`: the direct route's roundoff grows
+like λ^-2 and is unusable below λ ≈ 1e-2 at Float64, while the AMR driver refines AT the
+puncture eight times. Assemble it through the generic
+`worldtube_source(mesh, isinside, source, T)` / `worldtube_massive_source(...)` seam —
+switched inside the tube, exactly zero outside. The MORTAR data this file binds are a
+different object and stay on the DIRECT [`effective_source_bundle`](@ref): Ψ^𝒫 and its two
+derivatives are trace data on the tube boundary, far from the worldline, and are never
+switched.
 """
 function jump_hooks(mesh::Mesh2D, jump_data::AbstractDict, junctions::AbstractDict)
     out = Dict{Tuple{ElementId,Int,Int},Vector{BoundaryDataHook}}()
@@ -241,7 +264,20 @@ function jump_hooks(mesh::Mesh2D, jump_data::AbstractDict, junctions::AbstractDi
             "jump_hooks: the worldtube jump datum of face $face has $(length(ms)) mortar " *
             "states but the face has $nm mortar(s) on this mesh — jump data are MESH-BOUND " *
             "(worldtube_jump_data returns one FaceState per mortar in the receiver's mortar " *
-            "order); rebuild the WorldtubeData for this mesh"))
+            "order); rebuild the WorldtubeData for this mesh " *
+            "(worldtube_data(dom, orbit, config, m; mesh = mesh))"))
+        # …and each mortar's datum must have the mortar's POINT COUNT. h-topology alone does
+        # not pin it: a p-refined mesh (node amr-driver raises the order EVERY step) has the
+        # identical face/mortar structure with more points per mortar, so a stale datum would
+        # pass the count above and die inside the flux with a raw DimensionMismatch.
+        mp = mortar_points(mesh, face)[2]
+        for k in 1:nm
+            length(ms[k].psi) == length(mp[k]) || throw(ArgumentError(
+                "jump_hooks: mortar $k of face $face carries $(length(ms[k].psi)) points but " *
+                "that mortar has $(length(mp[k])) on this mesh — the jump data were built on " *
+                "a mesh of different polynomial order; rebuild the WorldtubeData for this " *
+                "mesh (worldtube_data(dom, orbit, config, m; mesh = mesh))"))
+        end
         jn = get(junctions, face, nothing)
         out[face] = if jn === nothing
             BoundaryDataHook[FixedDataHook(s) for s in ms]
@@ -266,6 +302,10 @@ function jump_hooks(dom::BlockDomain, wt::WorldtubeData, orbit::CircularOrbit,
     Int(m) == wt.m || throw(ArgumentError(
         "jump_hooks: m = $m disagrees with the WorldtubeData's mode $(wt.m) — the jump data " *
         "would belong to a different equation"))
+    wt.dom === dom || throw(ArgumentError(
+        "jump_hooks: the WorldtubeData was built on a DIFFERENT BlockDomain object. Block " *
+        "ids are lattice-local, so a domain at another spin, radius, chart or refinement " *
+        "level has the same ids and would be accepted silently; identity is required"))
     junctions = vtu_junction_faces(dom, orbit, config, m; mesh = mesh)
     return jump_hooks(mesh, worldtube_jump_data(wt), junctions)
 end

@@ -54,7 +54,8 @@ formulation and consumes the physics-free hp-DG solver stack from
   ``\Psi^{\mathcal R}_m = \Psi_m - \Psi^{\mathcal P}_m`` across the
   interface) as pure data for the DG layer: `worldtube_data(dom, orbit, config)`
   assembles a `WorldtubeData` in one pass over the sealed effective-source
-  bundle. It carries the region partition (`inside_worldtube`,
+  bundle;  `mesh = dom.mesh` may be any mesh of the same lattice, so a
+  multigrid or AMR level rebuilds the mesh-bound data in one call. It carries the region partition (`inside_worldtube`,
   `worldtube_elements`, `worldtube_boundary_faces` — the interior faces between
   an inside and an outside element, with their mortar geometry from
   `worldtube_face_points`); the jump data

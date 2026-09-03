@@ -354,14 +354,20 @@ exterior data, identity in the LINEARIZED application, reaching the right-hand s
 `impose_inhomogeneous_boundary_conditions_on_source`). Returns the table AND the list of faces
 it could NOT express, so an omission can never pass unnoticed.
 
-**BLOCKER — the sealed hook seam is per FACE, the data are per MORTAR.** EllipticCore binds one
-hook object per FACE and applies it to every mortar of that face (matrixfree.jl: "hooks bind
-per FACE and are applied per mortar (uniform on a split face)"), while spectre's
-`ModifyBoundaryData` is keyed by `mortar_id`. A conforming face packs exactly, and so does an
-h-nonconforming face whose mortars happen to carry identical data; a 2:1 face whose mortars
-carry DIFFERENT Ψ^𝒫 cannot be expressed at all.
+**DISCHARGED — use [`jump_hooks`](@ref) for any production table.** This packer binds ONE hook
+object per FACE, which the EllipticCore seam then applies to every mortar of that face, while
+spectre's `ModifyBoundaryData` is keyed by `mortar_id`. A conforming face packs exactly, and so
+does an h-nonconforming face whose mortars happen to carry identical data; a 2:1 face whose
+mortars carry DIFFERENT Ψ^𝒫 cannot be expressed at all. Node `dg-jump-conditions` closed that
+gap on both sides: `MeshOperator` now accepts one hook PER MORTAR (EllipticCore matrixfree.jl,
+[`mortar_points`](@ref)), and `Solve/jump_glue.jl`'s [`jump_hooks`](@ref) consumes
+[`worldtube_jump_data`](@ref) directly — already per mortar, in the receiver's mortar order —
+and composes it with the vtu junction hooks. `worldtube_hooks` stays EXPORTED as the per-FACE
+packer for conforming-face and DIAGNOSTIC use (the figure drivers and the tests below); it is
+NOT the production path.
 
-The production lattice HAS such faces, and their number GROWS:
+The production lattice HAS such faces, and their number GROWS — which is why this packer is
+diagnostics-only there:
 
 | initial level `L` | unpackable worldtube faces (both charts) |
 |---|---|
@@ -372,11 +378,9 @@ The production lattice HAS such faces, and their number GROWS:
 because the worldtube column is pre-refined to `(L+1, L+1)` while its left neighbour column
 stays at `(L, L)` (yaml:78-93), so every one of that column's `2^L` transverse element faces
 meets two finer ones. Node `amr-driver` then refines the puncture column eight more times, so
-the count keeps growing. **`worldtube_hooks` is therefore NOT production-wirable as it stands,
-and this is a blocker for nodes `dg-jump-conditions`, `solver-stack-ssf` and `amr-driver`:**
-node `dg-jump-conditions` must extend `MeshOperator` to bind a hook (or a fixed delta) per
-mortar index / neighbour id and then consume [`worldtube_jump_data`](@ref) directly — the data
-are already per-mortar, in the receiver's mortar order.
+the count keeps growing. **`worldtube_hooks` is therefore not production-wirable on that
+lattice; nodes `solver-stack-ssf` and `amr-driver` build their tables with
+[`jump_hooks`](@ref).**
 
 `acknowledge_omitted` is the only way to get a partial table, and it is DIAGNOSTICS-ONLY:
 
@@ -387,7 +391,8 @@ are already per-mortar, in the receiver's mortar order.
 An omitted face carries NO jump: the operator there is bitwise the no-hook operator, so the
 reconstructed field is discontinuous across it and the error GROWS with resolution (measured
 on the production lattice: the split face's owner sits at 3.4e-2 at `N = 4` and 8.9e-2 at
-`N = 10`). **The solver driver must never pass `acknowledge_omitted`.**
+`N = 10`, versus 2.2e-3 -> 3.9e-4 when the same face IS served per mortar). **The solver driver
+must never pass `acknowledge_omitted` — it must call [`jump_hooks`](@ref) instead.**
 """
 function worldtube_hooks(jump_data::AbstractDict; acknowledge_omitted = nothing)
     unpackable = Tuple{ElementId,Int,Int}[]
@@ -546,13 +551,24 @@ SLICING (inherited, not re-decided): the worldtube column lies strictly inside t
 source is defined on (`puncture_psi_chart`'s binding t-slab contract). The jump data therefore
 need no boost and carry none.
 
+`mesh` defaults to `dom.mesh` but may be ANY mesh built from `dom`'s block lattice — a coarser
+[`coarsen_mesh`](@ref) level or an AMR-refined one. A `WorldtubeData` is MESH-BOUND (element
+ids, mortar counts and the nodal source length all belong to one mesh), so a per-level solver
+rebuilds it for each level and pairs it with the matching hook table:
+
+    wt_l    = worldtube_data(dom, orbit, config, m; mesh = mesh_l)
+    hooks_l = jump_hooks(dom, wt_l, orbit, config, m; mesh = mesh_l)
+
+The region predicate stays block-based, so `inside_worldtube`, `elements` and the sign table are
+correct on every level; only the geometry is re-evaluated.
+
 Cost is one puncture evaluation per inside collocation node plus one per worldtube mortar point
 (20 elements × `P²` + ~12·`P` at the production lattice); the result is plain data and can be
 cached across solver iterations for a fixed mesh.
 """
 function worldtube_data(dom::BlockDomain{RT}, orbit::CircularOrbit{PT}, config::RunConfig,
                         m::Integer = config.orbit.m_mode_number;
-                        phi_p::Real = 0) where {RT,PT}
+                        phi_p::Real = 0, mesh::Mesh2D = dom.mesh) where {RT,PT}
     Int(m) == config.orbit.m_mode_number || throw(ArgumentError(
         "worldtube_data: m = $m disagrees with the config's MModeNumber " *
         "$(config.orbit.m_mode_number) — the operator coefficients are built from the same " *
@@ -568,11 +584,11 @@ function worldtube_data(dom::BlockDomain{RT}, orbit::CircularOrbit{PT}, config::
     pp = RT(phi_p)
     isinside(el::ElementId) = inside_worldtube(dom, el)
     vals(x1, x2) = worldtube_jump_values(p, mm, chart, x1, x2; phi_p = pp)
-    jumps = worldtube_jump_data(dom.mesh, isinside, vals)
+    jumps = worldtube_jump_data(mesh, isinside, vals)
     T = isempty(jumps) ? Complex{RT} : eltype(first(values(jumps))[1].psi)
-    src, msrc = _wt_source_massive(dom.mesh, isinside, (x1, x2) -> vals(x1, x2).source, T)
-    return WorldtubeData{T,RT,PT}(dom, orbit, p, mm, pp, chart, worldtube_elements(dom),
-                                  jumps, src, msrc)
+    src, msrc = _wt_source_massive(mesh, isinside, (x1, x2) -> vals(x1, x2).source, T)
+    els = filter(isinside, mesh.elements)
+    return WorldtubeData{T,RT,PT}(dom, orbit, p, mm, pp, chart, els, jumps, src, msrc)
 end
 
 inside_worldtube(wt::WorldtubeData, el::ElementId) = inside_worldtube(wt.dom, el)

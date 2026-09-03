@@ -574,8 +574,48 @@ end
     apply!(yc, opc, uc)
     @test all(isfinite, yc)
     # a STALE table (built on the fine mesh) is REFUSED, not silently misapplied
-    @test_throws ArgumentError jump_hooks(cmesh, worldtube_jump_data(worldtube_data(dom, orb, cfg)),
-                                          jfc)
+    wt_fine = worldtube_data(dom, orb, cfg)
+    @test_throws ArgumentError jump_hooks(cmesh, worldtube_jump_data(wt_fine), jfc)
+
+    # THE PER-LEVEL RECIPE the docstring advertises, in one call each: worldtube_data takes the
+    # same `mesh` kwarg, so a level rebuild needs no reconstruction of the region predicate
+    wt_c = worldtube_data(dom, orb, cfg, 2; mesh = cmesh)
+    @test length(wt_c.source) == cmesh.ndofs
+    @test Set(wt_c.elements) == Set(filter(el -> inside_worldtube(dom, el), cmesh.elements))
+    @test !isempty(wt_c.elements) && length(wt_c.elements) < length(wt_fine.elements)
+    tab_l = jump_hooks(dom, wt_c, orb, cfg, 2; mesh = cmesh)
+    @test all(f -> length(tab_l[f]) == jc_nmortars(cmesh, f), keys(tab_l))
+    op_l = MeshOperator(ComplexF64, cmesh, coefc.A, coefc.beta, coefc.gamma;
+                        C = cfg.dg.penalty_parameter, hooks = tab_l,
+                        bcs = boundary_conditions(dom, orb, cfg; mesh = cmesh))
+    apply_full!(yc, op_l, uc)
+    @test all(isfinite, yc)
+    @test maximum(abs, operator_on_zero(op_l)) > 1e-6      # the level's own worldtube lift
+    # …and the fine-mesh datum is refused through the BlockDomain method too
+    @test_throws ArgumentError jump_hooks(dom, wt_fine, orb, cfg, 2; mesh = cmesh)
+
+    # M1: a P-REFINED mesh has the IDENTICAL face/mortar topology but more points per mortar,
+    # so the mortar COUNT alone cannot catch a stale datum — the per-mortar POINT COUNT must.
+    # (Node amr-driver p-refines every step.)
+    pmesh = Mesh2D(dom.mesh.blocks, dom.mesh.elements, (6, 6);
+                   connections = dom.mesh.connections)
+    jf_p = vtu_junction_faces(dom, orb, cfg, 2; mesh = pmesh)
+    @test Set(keys(jf_p)) == Set(keys(vtu_junction_faces(dom, orb, cfg, 2)))   # same topology
+    jd_fine = worldtube_jump_data(wt_fine)
+    @test all(f -> length(jd_fine[f]) == jc_nmortars(pmesh, f), keys(jd_fine))  # counts MATCH
+    ep = @test_throws ArgumentError jump_hooks(pmesh, jd_fine, jf_p)
+    @test occursin("points", ep.value.msg)
+    # the same data on their OWN order do pass
+    @test jump_hooks(dom.mesh, jd_fine, vtu_junction_faces(dom, orb, cfg, 2)) isa AbstractDict
+
+    # M1: a WorldtubeData from a DIFFERENT BlockDomain (identical block ids) is refused
+    cfg_b = jc_cfg(spin = 0.5, m = 2, L = 1)
+    orb_b = jc_orb(cfg_b)
+    dom_b = block_domain(orb_b, cfg_b; orders = (4, 4))
+    @test dom_b.block_ids == dom.block_ids                 # same ids, different physics
+    ed = @test_throws ArgumentError jump_hooks(dom, worldtube_data(dom_b, orb_b, cfg_b),
+                                               orb, cfg, 2; mesh = dom_b.mesh)
+    @test occursin("DIFFERENT BlockDomain", ed.value.msg)
 
     # --- BigFloat(256): the junction datum and the hook inherit the ambient precision
     old = precision(BigFloat)
