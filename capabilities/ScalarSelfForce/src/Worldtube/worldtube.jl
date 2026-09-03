@@ -130,6 +130,13 @@ where its `∂_w = ∂_z/(2z)` Jacobian is singular. `w = 0` is the equatorial D
 the half-domain chart — never a worldtube face (the tube's angular boundary sits at
 `w = dz² > 0`), and the flux coefficient `A^{z²}` vanishes there identically anyway
 (main.tex:399-400), so no worldtube datum is lost. An unknown `chart` is an `ArgumentError`.
+NOTE the `w = 0` refusal is on the WHOLE bundle, including the chart-independent `source`
+slot, which is perfectly regular there: the guard is deliberately coarse because the four
+slots come from ONE evaluation. It is unreachable on this discretization — Legendre-Gauss
+nodes are strictly interior, so neither a volume node nor a mortar point ever lands on
+`w = 0` — but a Lobatto/endpoint quadrature rule (or an equator observer) would have to take
+the regular limit `∂_wΨ = lim_{z→0} ∂_zΨ/(2z)` instead, or call
+[`effective_source_m`](@ref) directly for the source alone.
 
 Pure and allocation-free (the sealed bundle is 0-byte on the Float64 path); type-generic —
 BigFloat orbits and coordinates give `Complex{BigFloat}` slots at the ambient precision.
@@ -240,6 +247,16 @@ side has two mortars, each covering half the face at the FINE neighbour's resolu
 why the jump data are per-mortar (CRP main.tex:678-686).
 
 Throws `ArgumentError` for an element outside `mesh` or for a domain-boundary face.
+
+IMPLEMENTATION DEBT (for node `dg-jump-conditions`): the mortar geometry is reconstructed here
+from `Mesh2D`'s precomputed face topology (`mesh.faces[e][d][sidx]`, an UNDOCUMENTED field —
+EllipticCore exposes no public neighbour or mortar query) with the same arithmetic
+`MeshOperator` uses to place its mortars. The right fix, alongside the per-mortar hook seam, is
+to promote a public `mortar_points(mesh, face)` accessor into EllipticCore and have this
+function call it; likewise the z² puncture-flux chain rule of [`worldtube_jump_values`](@ref)
+belongs in a sealed helper next to [`flux_coeff_z2`](@ref) rather than in this file. Until
+then the manufactured gates of test_worldtube.jl pin the agreement by running the assembled
+data THROUGH `MeshOperator`, where a divergence in that arithmetic shows up at O(1).
 """
 function worldtube_face_points(mesh::Mesh2D{RT}, face::Tuple{ElementId,Integer,Integer}) where {RT}
     el, dd, ss = face
@@ -326,45 +343,94 @@ function worldtube_jump_data(mesh::Mesh2D{RT}, isinside, values) where {RT}
 end
 
 """
-    worldtube_hooks(jump_data::AbstractDict; skip_split = false)
-        -> Dict{Tuple{ElementId,Int,Int}, BoundaryDataHook}
-    worldtube_hooks(wt::WorldtubeData; skip_split = false) -> Dict{…}
+    worldtube_hooks(jump_data::AbstractDict; acknowledge_omitted = nothing)
+        -> (hooks::Dict{Tuple{ElementId,Int,Int},BoundaryDataHook}, omitted::Vector)
+    worldtube_hooks(wt::WorldtubeData; acknowledge_omitted = nothing) -> (hooks, omitted)
 
-The worldtube jump data packed as EllipticCore [`FixedDataHook`](@ref)s, ready for the
+The worldtube jump data packed as EllipticCore [`FixedDataHook`](@ref)s for the
 `MeshOperator(…; hooks = …)` table: trial-field-independent additive shifts of the received
 exterior data, identity in the LINEARIZED application, reaching the right-hand side through
 `operator_on_zero` (`b = M·S − operator_on_zero(op)`; spectre
-`impose_inhomogeneous_boundary_conditions_on_source`).
+`impose_inhomogeneous_boundary_conditions_on_source`). Returns the table AND the list of faces
+it could NOT express, so an omission can never pass unnoticed.
 
-**Per-face vs per-mortar (a real limitation of the sealed seam).** EllipticCore binds one hook
-object per FACE and applies it to every mortar of that face (matrixfree.jl: "hooks bind per
-FACE and are applied per mortar (uniform on a split face)"), while spectre's
-`ModifyBoundaryData` is keyed by `mortar_id`. A conforming face therefore packs exactly, and so
-does a 2:1 face whose mortars happen to carry identical data; a 2:1 face whose two mortars carry
-DIFFERENT Ψ^𝒫 — which the production lattice does have, because the worldtube column is
-pre-refined one level above its left neighbour (yaml:83-88) — cannot be expressed and raises an
-`ArgumentError` naming the face. `skip_split = true` omits such faces instead (leaving their
-jump unimposed, for diagnostics only); the real fix is the per-mortar hook seam, which is node
-`dg-jump-conditions`' documented extension point and consumes
-[`worldtube_jump_data`](@ref) directly — the data are already per-mortar.
+**BLOCKER — the sealed hook seam is per FACE, the data are per MORTAR.** EllipticCore binds one
+hook object per FACE and applies it to every mortar of that face (matrixfree.jl: "hooks bind
+per FACE and are applied per mortar (uniform on a split face)"), while spectre's
+`ModifyBoundaryData` is keyed by `mortar_id`. A conforming face packs exactly, and so does an
+h-nonconforming face whose mortars happen to carry identical data; a 2:1 face whose mortars
+carry DIFFERENT Ψ^𝒫 cannot be expressed at all.
+
+The production lattice HAS such faces, and their number GROWS:
+
+| initial level `L` | unpackable worldtube faces (both charts) |
+|---|---|
+| 0 | 1 |
+| 1 | 2 |
+| L | `2^L` |
+
+because the worldtube column is pre-refined to `(L+1, L+1)` while its left neighbour column
+stays at `(L, L)` (yaml:78-93), so every one of that column's `2^L` transverse element faces
+meets two finer ones. Node `amr-driver` then refines the puncture column eight more times, so
+the count keeps growing. **`worldtube_hooks` is therefore NOT production-wirable as it stands,
+and this is a blocker for nodes `dg-jump-conditions`, `solver-stack-ssf` and `amr-driver`:**
+node `dg-jump-conditions` must extend `MeshOperator` to bind a hook (or a fixed delta) per
+mortar index / neighbour id and then consume [`worldtube_jump_data`](@ref) directly — the data
+are already per-mortar, in the receiver's mortar order.
+
+`acknowledge_omitted` is the only way to get a partial table, and it is DIAGNOSTICS-ONLY:
+
+- `nothing` (the default) — any unpackable face is an `ArgumentError` naming the faces.
+- a collection of face keys — must list EXACTLY the unpackable faces (as a set), otherwise an
+  `ArgumentError` names the difference. Those faces are then omitted from the table.
+
+An omitted face carries NO jump: the operator there is bitwise the no-hook operator, so the
+reconstructed field is discontinuous across it and the error GROWS with resolution (measured
+on the production lattice: the split face's owner sits at 3.4e-2 at `N = 4` and 8.9e-2 at
+`N = 10`). **The solver driver must never pass `acknowledge_omitted`.**
 """
-function worldtube_hooks(jump_data::AbstractDict; skip_split::Bool = false)
+function worldtube_hooks(jump_data::AbstractDict; acknowledge_omitted = nothing)
+    unpackable = Tuple{ElementId,Int,Int}[]
+    for (face, ms) in jump_data
+        length(ms) > 1 &&
+            !all(k -> ms[k].psi == ms[1].psi && ms[k].nflux == ms[1].nflux, 2:length(ms)) &&
+            push!(unpackable, face)
+    end
+    sort!(unpackable; by = f -> (f[1].block, f[1].segments[1].level, f[1].segments[1].index,
+                                 f[1].segments[2].level, f[1].segments[2].index, f[2], f[3]))
+    if !isempty(unpackable)
+        if acknowledge_omitted === nothing
+            throw(ArgumentError(
+                "worldtube_hooks: $(length(unpackable)) worldtube face(s) are " *
+                "h-nonconforming with DIFFERENT Ψ^P jump data on their mortars, which the " *
+                "sealed per-FACE FixedDataHook seam cannot express (EllipticCore " *
+                "matrixfree.jl applies one hook object to every mortar of a face, while " *
+                "spectre's ModifyBoundaryData is keyed by mortar_id): $unpackable. This is " *
+                "the node dg-jump-conditions BLOCKER — extend MeshOperator to bind a hook " *
+                "or fixed delta per mortar index / neighbour id and consume " *
+                "worldtube_jump_data directly (it is already per-mortar). To obtain a " *
+                "DIAGNOSTIC partial table, pass acknowledge_omitted = that exact list; the " *
+                "solver driver must never do so, because an omitted face carries no jump " *
+                "at all and its error grows with resolution"))
+        end
+        ack = Set(Tuple{ElementId,Int,Int}[(f[1], Int(f[2]), Int(f[3]))
+                                           for f in acknowledge_omitted])
+        ack == Set(unpackable) || throw(ArgumentError(
+            "worldtube_hooks: acknowledge_omitted must list EXACTLY the faces that cannot " *
+            "be packed. Missing from it: $(sort(collect(setdiff(Set(unpackable), ack)); by = string)); " *
+            "listed but packable: $(sort(collect(setdiff(ack, Set(unpackable))); by = string))"))
+    elseif acknowledge_omitted !== nothing && !isempty(acknowledge_omitted)
+        throw(ArgumentError(
+            "worldtube_hooks: acknowledge_omitted lists $(collect(acknowledge_omitted)) but " *
+            "every worldtube face packs exactly — nothing is omitted"))
+    end
+    omit = Set(unpackable)
     out = Dict{Tuple{ElementId,Int,Int},BoundaryDataHook}()
     for (face, ms) in jump_data
-        if length(ms) > 1 &&
-           !all(k -> ms[k].psi == ms[1].psi && ms[k].nflux == ms[1].nflux, 2:length(ms))
-            skip_split && continue
-            throw(ArgumentError(
-                "worldtube_hooks: face $face is h-nonconforming and its $(length(ms)) " *
-                "mortars carry DIFFERENT Ψ^P jump data, which the sealed per-FACE " *
-                "FixedDataHook seam cannot express (EllipticCore matrixfree.jl applies one " *
-                "hook object to every mortar of a face, while spectre's ModifyBoundaryData " *
-                "is keyed by mortar_id). Consume worldtube_jump_data directly — it is " *
-                "already per-mortar — or pass skip_split = true to omit this face"))
-        end
+        face in omit && continue
         out[face] = FixedDataHook(ms[1])
     end
-    return out
+    return (out, unpackable)
 end
 
 # ============================== fixed-source assembly ======================================

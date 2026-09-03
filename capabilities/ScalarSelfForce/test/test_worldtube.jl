@@ -70,11 +70,19 @@
 #      construction contracts, and the puncture-snap CORNER property on the production mesh.
 #  (7) CRP-domain DG residual with the assembled jumps + sources: an ENVELOPE with a p-trend
 #      and a no-hook falsifier (the puncture is log-singular, main.tex:522-523, so this is a
-#      discretization measurement, not a machine-zero identity).
+#      discretization measurement, not a machine-zero identity), reported WITH its scale.
+#  (8) the per-MORTAR ORDER of `worldtube_jump_data` (the row-40 contract), made falsifiable
+#      by a 2:1 variant whose Ψ^𝒫 depends on the TRANSVERSE coordinate, delivered through a
+#      test-local emulation of the widened per-mortar seam; the REVERSED order is the
+#      falsifier (calibrated forward ≤ 4.4e-13 vs reversed ≥ 35).
+#  (9) the SMOOTH-PUNCTURE CONTROL on the production lattice — the same construction with an
+#      exactly representable puncture converges SPECTRALLY (42× per +2 in N), which is what
+#      identifies (7)'s flat envelope as truncation of the unresolved singular field.
 using Test
 using ScalarSelfForce
 using ScalarSelfForce.EllipticCore
-using ScalarSelfForce.EllipticCore: refelement, element_matrices
+using ScalarSelfForce.EllipticCore: refelement, element_matrices, element_coefficients,
+                                    element_state
 
 # ---- independent transcriptions (parse-free literals) -------------------------------------
 # The production lattice (anc/ScalarSelfForce.yaml:55-110 at the header example yaml:9-12):
@@ -134,6 +142,29 @@ EllipticCore.ghost_state(::WTTransmissive, int::FaceState) = FaceState(int.psi, 
 EllipticCore.ghost_state_linearized(::WTTransmissive, int::FaceState) =
     FaceState(int.psi, -int.nflux)
 
+# TEST-LOCAL EMULATION OF THE WIDENED PER-MORTAR SEAM (node `dg-jump-conditions`' job).
+# EllipticCore binds ONE hook object per FACE and applies it to each mortar of that face in
+# the receiver's mortar order (matrixfree.jl `_exterior`: a comprehension over k = 1…K,
+# sequential, once per application). A stateful hook that hands mortar k its own FaceState
+# therefore reproduces exactly what a mortar-keyed seam would do — which is what makes the
+# per-mortar ORDER of `worldtube_jump_data` falsifiable (gate (8)). Applications are run with
+# `threaded = false` so the k counter is deterministic; each face's hook is touched by its
+# owning element only, so even the threaded sweep would not race.
+mutable struct WTPerMortarHook{T} <: EllipticCore.BoundaryDataHook
+    deltas::Vector{FaceState{T}}
+    k::Int
+end
+function EllipticCore.modify_boundary_data(h::WTPerMortarHook, int::FaceState, ext::FaceState)
+    d = h.deltas[h.k]
+    h.k = h.k % length(h.deltas) + 1
+    return FaceState(ext.psi .+ d.psi, ext.nflux .+ d.nflux)
+end
+EllipticCore.modify_boundary_data_linearized(::WTPerMortarHook, ::FaceState, e::FaceState) = e
+
+wt_pm_hooks(jd; rev = false) =
+    Dict{Tuple{ElementId,Int,Int},BoundaryDataHook}(
+        f => WTPerMortarHook(rev ? reverse(ms) : copy(ms), 1) for (f, ms) in jd)
+
 # independent enumeration of the worldtube-boundary faces straight off the Mesh2D topology
 function wt_expected_faces(dom)
     mesh = dom.mesh
@@ -151,10 +182,15 @@ function wt_expected_faces(dom)
     return out
 end
 
-# ---- (3) manufactured singular/regular split, driven through the SHIPPED assembly ---------
-# `variant` ∈ (:conforming, :twoone); `flip` ∈ (:none, :psi, :flux, :source) injects a sign
-# error into the DATA (never into the assembly) to calibrate the falsifiers.
-function wt_manufactured(variant::Symbol; flip::Symbol = :none, Npt = 6, C = 1.5)
+# ---- (3)/(8) manufactured singular/regular split, driven through the SHIPPED assembly -----
+# `variant` ∈ (:conforming, :twoone, :twoone_transverse); `flip` ∈ (:none, :psi, :flux,
+# :source) injects a sign error into the DATA (never into the assembly) to calibrate the
+# falsifiers; `hookmode` ∈ (:face, :permortar, :reversed, :none) selects how the per-mortar
+# jump data are delivered — `:face` is the sealed `worldtube_hooks` packing (valid only when
+# every face's mortars agree), `:permortar` the emulated widened seam, `:reversed` the same
+# with the mortar order REVERSED (the ordering falsifier), `:none` no hooks at all.
+function wt_manufactured(variant::Symbol; flip::Symbol = :none, Npt = 6, C = 1.5,
+                         hookmode::Symbol = :face)
     blk = Block(90, LinearMap1D(0.0, 1.0), LinearMap1D(0.0, 1.0))
     if variant === :conforming
         ids = vec([ElementId(90, SegmentId(2, ix), SegmentId(2, iy)) for ix in 0:3, iy in 0:3])
@@ -183,7 +219,16 @@ function wt_manufactured(variant::Symbol; flip::Symbol = :none, Npt = 6, C = 1.5
     # the manufactured puncture. In the 2:1 variant it depends on the NORMAL coordinate only,
     # so the split face's two mortars carry IDENTICAL data and one FixedDataHook is exact —
     # the sealed hook seam binds per face, not per mortar.
-    P, Px, Py, Pxx, Pyy = if variant === :twoone
+    P, Px, Py, Pxx, Pyy = if variant === :twoone_transverse
+        # depends on the TRANSVERSE coordinate y of the split x-face, so the coarse face's
+        # two mortars carry genuinely DIFFERENT data — only a per-mortar seam can serve it
+        ((x, y) -> (0.45 - 0.25im) * y^3 - (0.7 + 0.2im) * x * y^2 + (0.5 + 0.6im) * y +
+                   (0.3 - 0.1im) * x^2 + 0.2,
+         (x, y) -> -(0.7 + 0.2im) * y^2 + 2(0.3 - 0.1im) * x,
+         (x, y) -> 3(0.45 - 0.25im) * y^2 - 2(0.7 + 0.2im) * x * y + (0.5 + 0.6im),
+         (x, y) -> 2(0.3 - 0.1im) + 0.0im,
+         (x, y) -> 6(0.45 - 0.25im) * y - 2(0.7 + 0.2im) * x)
+    elseif variant === :twoone
         ((x, y) -> (0.45 - 0.25im) * x^3 - (0.7 + 0.2im) * x^2 + (0.5 + 0.6im) * x + 0.2 + 0.1im,
          (x, y) -> 3(0.45 - 0.25im) * x^2 - 2(0.7 + 0.2im) * x + (0.5 + 0.6im),
          (x, y) -> 0.0 + 0.0im,
@@ -204,7 +249,15 @@ function wt_manufactured(variant::Symbol; flip::Symbol = :none, Npt = 6, C = 1.5
     ss = flip === :source ? -1 : 1
     vals(x, y) = (psi = sp * P(x, y), flux_1 = sf * A1 * Px(x, y), flux_2 = sf * A2 * Py(x, y))
     jd = worldtube_jump_data(mesh, isinside, vals)
-    hooks = worldtube_hooks(jd)
+    hooks = if hookmode === :face
+        h, omitted = worldtube_hooks(jd)
+        @test isempty(omitted)                          # this variant packs per FACE exactly
+        h
+    elseif hookmode === :none
+        Dict{Tuple{ElementId,Int,Int},BoundaryDataHook}()
+    else
+        wt_pm_hooks(jd; rev = (hookmode === :reversed))
+    end
     # b = M·(background source) + the worldtube fixed source −△Ψ^𝒫_man inside
     b = worldtube_massive_source(mesh, el -> true, LU, ComplexF64) .+
         worldtube_massive_source(mesh, isinside, (x, y) -> -ss * LP(x, y), ComplexF64)
@@ -230,7 +283,7 @@ function wt_manufactured(variant::Symbol; flip::Symbol = :none, Npt = 6, C = 1.5
     end
     op = MeshOperator(ComplexF64, mesh, Af, bf, gf; C = C, hooks = hooks, bcs = bcs)
     y = similar(u)
-    apply_full!(y, op, u)
+    apply_full!(y, op, u; threaded = false)
     return maximum(abs, y .- b) / maximum(abs, b), length(jd), sum(length, values(jd))
 end
 
@@ -254,8 +307,18 @@ function wt_crp_residual(Npt; spin = 0.0, m = 2, hooks_on = true)
         u[rng] .= vec([-worldtube_jump_values(p, m, dom.chart, em.x[1][i], em.x[2][j]).psi
                        for i in 1:mesh.orders[e][1], j in 1:mesh.orders[e][2]])
     end
-    hooks = hooks_on ? worldtube_hooks(wt; skip_split = true) :
-                       Dict{Tuple{ElementId,Int,Int},BoundaryDataHook}()
+    hooks = if hooks_on
+        # DIAGNOSTICS ONLY (see the worldtube_hooks docstring): the production lattice's
+        # split face cannot be packed per FACE, so it is explicitly acknowledged here and
+        # its owner is excluded from the gate below.
+        h, omitted = worldtube_hooks(wt;
+            acknowledge_omitted = [f for (f, ms) in worldtube_jump_data(wt)
+                                   if length(ms) > 1 &&
+                                      !all(k -> ms[k].psi == ms[1].psi, 2:length(ms))])
+        h
+    else
+        Dict{Tuple{ElementId,Int,Int},BoundaryDataHook}()
+    end
     bcs = Dict(f => WTTransmissive() for f in boundary_faces(mesh))
     op = MeshOperator(ComplexF64, mesh, coef.A, coef.beta, coef.gamma;
                       C = cfg.dg.penalty_parameter, hooks = hooks, bcs = bcs)
@@ -269,18 +332,66 @@ function wt_crp_residual(Npt; spin = 0.0, m = 2, hooks_on = true)
         e = mesh.index[el]
         length(mesh.faces[e][d][sidx].nbs) > 1 && push!(split, e)
     end
-    rin = 0.0; rout = 0.0; rsplit = 0.0
+    rin = 0.0; rout = 0.0; rsplit = 0.0; rscale = 0.0
     for e in eachindex(mesh.elements)
-        v = maximum(abs, view(r, mesh.offsets[e]+1 : mesh.offsets[e]+prod(mesh.orders[e])))
+        rng = mesh.offsets[e]+1 : mesh.offsets[e]+prod(mesh.orders[e])
+        v = maximum(abs, view(r, rng))
         if e in split
             rsplit = max(rsplit, v)
-        elseif inside_worldtube(dom, mesh.elements[e])
-            rin = max(rin, v)
-        else
-            rout = max(rout, v)
+            continue                       # excluded from BOTH the residual and its scale
         end
+        rscale = max(rscale, maximum(abs, view(y, rng)))
+        inside_worldtube(dom, mesh.elements[e]) ? (rin = max(rin, v)) : (rout = max(rout, v))
     end
-    return (rin = rin, rout = rout, rsplit = rsplit, nsplit = length(split))
+    return (rin = rin, rout = rout, rsplit = rsplit, nsplit = length(split),
+            bscale = maximum(abs, b), rscale = rscale)
+end
+
+# ---- (9) SMOOTH-PUNCTURE CONTROL on the PRODUCTION mesh -----------------------------------
+# The same construction as (7) but with an exactly representable (degree ≤ 3, so inside every
+# N ≥ 4 element space) manufactured puncture in place of Ψ^𝒫. It isolates the INTERFACE
+# consistency of the assembled jump data on the real lattice from the truncation error of the
+# unresolved log-singular puncture — and it needs the emulated per-mortar seam, so the split
+# face is INCLUDED (no exclusion anywhere). `b` is the DG's OWN volume residual of the field,
+# so the measured quantity is purely the face terms.
+function wt_smooth_control(Npt; hookmode::Symbol = :permortar, spin = 0.0, m = 2)
+    cfg = wt_cfg(spin = spin, m = m)
+    orb = wt_orbit(cfg)
+    dom = block_domain(orb, cfg; orders = (Npt, Npt))
+    mesh = dom.mesh
+    coef = domain_coefficients(dom, orb, cfg)
+    isin(el) = inside_worldtube(dom, el)
+    c1, c2, c3 = 0.021 - 0.013im, 0.35 + 0.24im, -0.11 + 0.07im
+    P(r, w)  = c1*(r-10)^3 + c2*w^3 + c3*(r-10)*w^2 + (0.4-0.2im)*(r-10)*w + (0.7+0.3im)
+    Pr(r, w) = 3c1*(r-10)^2 + c3*w^2 + (0.4-0.2im)*w
+    Pw(r, w) = 3c2*w^2 + 2c3*(r-10)*w + (0.4-0.2im)*(r-10)
+    vals(r, w) = (psi = P(r, w), f1 = coef.A[1](r, w)*Pr(r, w), f2 = coef.A[2](r, w)*Pw(r, w))
+    jd = worldtube_jump_data(mesh, isin, vals)
+    hooks = hookmode === :none ? Dict{Tuple{ElementId,Int,Int},BoundaryDataHook}() :
+                                 wt_pm_hooks(jd; rev = (hookmode === :reversed))
+    u = zeros(ComplexF64, mesh.ndofs)
+    b = zeros(ComplexF64, mesh.ndofs)
+    for e in eachindex(mesh.elements)
+        el = mesh.elements[e]
+        isin(el) || continue
+        blk = mesh.blocks[mesh.blockindex[el.block]]
+        em = element_matrices(ComplexF64, blk, el, mesh.orders[e])
+        c = element_coefficients(em, blk, el, coef.A, coef.beta, coef.gamma)
+        nx, ny = mesh.orders[e]
+        ue = vec([-P(em.x[1][i], em.x[2][j]) for i in 1:nx, j in 1:ny])
+        st = element_state(em, c, ue)
+        vol = em.M * (c.beta .* st.psi .+ c.gamma[1] .* st.dpsi[1] .+
+                      c.gamma[2] .* st.dpsi[2]) .- em.MD[1]*st.F[1] .- em.MD[2]*st.F[2]
+        rng = mesh.offsets[e]+1 : mesh.offsets[e]+nx*ny
+        u[rng] .= ue
+        b[rng] .= vol
+    end
+    bcs = Dict(f => WTTransmissive() for f in boundary_faces(mesh))
+    op = MeshOperator(ComplexF64, mesh, coef.A, coef.beta, coef.gamma;
+                      C = cfg.dg.penalty_parameter, hooks = hooks, bcs = bcs)
+    y = similar(u)
+    apply_full!(y, op, u; threaded = false)
+    return maximum(abs, y .- b)
 end
 
 @testset "Worldtube formulation: region, jump data, fixed source (worldtube-formulation)" begin
@@ -617,11 +728,36 @@ end
         # lattice's 2:1 worldtube face carries genuinely different data on its two mortars, so
         # `worldtube_hooks` REFUSES it and names the extension point (node dg-jump-conditions)
         wt = worldtube_data(dom, orb, cfg)
-        @test_throws ArgumentError worldtube_hooks(wt)
-        hk = worldtube_hooks(wt; skip_split = true)
+        split52 = (wt_el(1, 0, 0, 0, 0), 1, 2)
+        @test_throws ArgumentError worldtube_hooks(wt)                 # no silent omission
+        @test_throws ArgumentError worldtube_hooks(wt; acknowledge_omitted = [])
+        @test_throws ArgumentError worldtube_hooks(wt;                 # wrong face listed
+            acknowledge_omitted = [(wt_el(3, 0, 0, 1, 0), 1, 1)])
+        hk, omitted = worldtube_hooks(wt; acknowledge_omitted = [split52])
+        @test omitted == [split52]                                     # returned, never silent
         @test length(hk) == 10
         @test all(h -> h isa FixedDataHook, values(hk))
-        @test !haskey(hk, (wt_el(1, 0, 0, 0, 0), 1, 2))
+        @test !haskey(hk, split52)
+        # a fully packable table returns an EMPTY omitted list and refuses a bogus ack
+        jd_conf = Dict(k => v for (k, v) in worldtube_jump_data(wt) if length(v) == 1)
+        hk2, om2 = worldtube_hooks(jd_conf)
+        @test isempty(om2) && length(hk2) == 10
+        @test_throws ArgumentError worldtube_hooks(jd_conf; acknowledge_omitted = [split52])
+
+        # [HOLE] SCOPE: the unpackable count is 2^L and GROWS — the worldtube column is
+        # pre-refined to (L+1, L+1) while its left neighbour column stays at (L, L)
+        # (yaml:78-93), so each of that column's 2^L transverse element faces meets two finer
+        # ones. Node `amr-driver` refines the puncture column eight more times on top.
+        for L in (0, 1)
+            for cfgL in (wt_cfg(m = 2, L = L), wt_full_z(wt_cfg(m = 2, L = L)))
+                oL = wt_orbit(cfgL)
+                dL = block_domain(oL, cfgL)
+                jL = worldtube_jump_data(worldtube_data(dL, oL, cfgL))
+                nun = count(v -> length(v) > 1 &&
+                                 !all(k -> v[k].psi == v[1].psi, 2:length(v)), values(jL))
+                @test nun == 1 << L
+            end
+        end
         # allocation-free per-point evaluation (the sealed bundle is 0-byte)
         worldtube_jump_values(p, m, :z2, 9.0, 0.1)
         @test (@allocated worldtube_jump_values(p, m, :z2, 9.0, 0.1)) == 0
@@ -637,13 +773,82 @@ end
         a4 = wt_crp_residual(4)
         a8 = wt_crp_residual(8)
         n4 = wt_crp_residual(4; hooks_on = false)
-        println("worldtube-formulation CRP residual N=4: in ", a4.rin, " out ", a4.rout,
+        println("worldtube-formulation CRP residual (ABSOLUTE truncation magnitudes, ",
+                "not relative residuals) N=4: |R−b|∞ in ", a4.rin, " out ", a4.rout,
+                " |b=M·S|∞ ", a4.bscale, " |R|∞ ", a4.rscale,
                 " (split-owner ", a4.rsplit, ", ", a4.nsplit, " excluded) | N=8: in ",
-                a8.rin, " out ", a8.rout, " | no-hook N=4: in ", n4.rin, " out ", n4.rout)
+                a8.rin, " out ", a8.rout, " |b|∞ ", a8.bscale,
+                " | p-trend rin(4)/rin(8) ", a4.rin / a8.rin,
+                " | no-hook N=4: in ", n4.rin, " out ", n4.rout)
         @test a4.nsplit == 1
         @test a4.rin ≤ 2e-2 && a8.rin < a4.rin              # calibrated 8.21e-3 → 2.93e-3
         @test a4.rout ≤ 2e-3 && a8.rout < a4.rout           # calibrated 4.84e-4 → 1.45e-4
         @test n4.rin / a4.rin > 20                          # FALSIFIER: calibrated 71.6
         @test n4.rout / a4.rout > 100                       # calibrated 1331
+        # SCALE (the reason this is an envelope): |R−b|∞ is an ABSOLUTE truncation magnitude
+        # and is the same size as |R|∞ itself, while |b = M·S|∞ is three orders SMALLER —
+        # i.e. the unresolved log-singular Ψ^𝒫 dominates the whole residual, and no relative
+        # gate against the 1e-10 of the manufactured tests is meaningful here.
+        @test a4.bscale < a4.rin                            # calibrated 2.48e-5 vs 8.21e-3
+        @test isapprox(a4.rscale, a4.rin; rtol = 0.2)       # calibrated 8.21e-3 / 8.21e-3
+        @test a4.rin / a8.rin < 4                           # p-trend FLATTENS (calibrated 2.8)
+    end
+
+    # =====================================================================================
+    @testset "(8) per-mortar ORDER of the jump data (the row-40 contract)" begin
+        # The contract "one FaceState per mortar, in the RECEIVER's mortar order" is only
+        # falsifiable when the mortars of a split face carry DIFFERENT data. Ψ^𝒫_man now
+        # depends on the TRANSVERSE coordinate of the split face, and the data are delivered
+        # through the emulated widened seam; reversing the k order is the falsifier.
+        fwd = [wt_manufactured(:twoone_transverse; Npt = N, hookmode = :permortar)[1]
+               for N in (4, 6, 8)]
+        rev = [wt_manufactured(:twoone_transverse; Npt = N, hookmode = :reversed)[1]
+               for N in (4, 6, 8)]
+        noh = [wt_manufactured(:twoone_transverse; Npt = N, hookmode = :none)[1]
+               for N in (4, 6, 8)]
+        println("worldtube-formulation per-mortar order N=4,6,8: forward ", fwd,
+                " | REVERSED ", rev, " | no-hook ", noh)
+        @test maximum(fwd) ≤ 1e-10                          # calibrated 4.4e-14 … 4.4e-13
+        @test minimum(rev) > 1e+1                           # calibrated 35.5 … 331
+        @test minimum(noh) > 1e+1                           # calibrated 85.3 … 685
+        # the sealed per-FACE packing cannot serve this variant at all, and says so
+        let blk = Block(90, LinearMap1D(0.0, 1.0), LinearMap1D(0.0, 1.0)),
+            ids = [ElementId(90, SegmentId(1, 0), SegmentId(0, 0)),
+                   ElementId(90, SegmentId(1, 1), SegmentId(1, 0)),
+                   ElementId(90, SegmentId(1, 1), SegmentId(1, 1))]
+            mesh = Mesh2D(blk, ids, (6, 6))
+            inside = Set(ids[2:3])
+            jd = worldtube_jump_data(mesh, el -> el in inside,
+                (x, y) -> ((0.5 + 0.1im) * y^2 + x, 1.0 + 0.0im, 2y + 0.0im))
+            @test count(v -> length(v) > 1, values(jd)) == 1
+            @test_throws ArgumentError worldtube_hooks(jd)
+            hk, om = worldtube_hooks(jd; acknowledge_omitted =
+                [f for (f, v) in jd if length(v) > 1])
+            @test length(om) == 1 && length(hk) == 2
+        end
+    end
+
+    # =====================================================================================
+    @testset "(9) smooth-puncture control on the production mesh" begin
+        # THE DISCRIMINATOR for gate (7): the identical construction on the identical CRP
+        # lattice with an exactly representable manufactured puncture converges SPECTRALLY,
+        # so the flat envelope of (7) is the truncation error of the unresolved log-singular
+        # Ψ^𝒫 and not a defect of the assembled jump data. The split face is INCLUDED here
+        # (the emulated per-mortar seam serves it), so nothing is excluded from the measure.
+        c = [wt_smooth_control(N) for N in (4, 6, 8, 10)]
+        cr = [wt_smooth_control(N; hookmode = :reversed) for N in (4, 8)]
+        cn = [wt_smooth_control(N; hookmode = :none) for N in (4, 8)]
+        println("worldtube-formulation smooth-puncture control N=4,6,8,10: ", c,
+                " | ratios ", [c[i] / c[i+1] for i in 1:3],
+                " | REVERSED(4,8) ", cr, " | no-hook(4,8) ", cn)
+        @test c[1] ≤ 1e-3                                   # calibrated 4.45e-4
+        @test all(i -> c[i] / c[i+1] > 10, 1:3)             # SPECTRAL: calibrated 42.7/42.4/41.7
+        @test c[4] ≤ 1e-8                                   # calibrated 5.89e-9
+        @test minimum(cr) / c[1] > 1e2                      # calibrated 330 … 1.4e6
+        @test minimum(cn) / c[1] > 1e3                      # calibrated 2.97e4 … 5.1e6
+        # …and the residual of the REAL puncture on the same mesh does NOT converge that way
+        r4 = wt_crp_residual(4).rin
+        r8 = wt_crp_residual(8).rin
+        @test r4 / r8 < 10 * (c[1] / c[3])                  # 2.8 vs 1810: three orders apart
     end
 end

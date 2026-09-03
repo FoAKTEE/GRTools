@@ -59,7 +59,9 @@ formulation and consumes the physics-free hp-DG solver stack from
   as one `FaceState` per mortar (`worldtube_jump_data`, signed by
   `worldtube_jump_signs` — the single normative statement of the sender-normal
   sign table — and packable as EllipticCore `FixedDataHook`s through
-  `worldtube_hooks`, so they reach the right-hand side via `operator_on_zero`);
+  `worldtube_hooks` (per FACE; a 2:1 face with differing per-mortar data raises
+  — node `dg-jump-conditions` widens the seam to the mortar index), so they
+  reach the right-hand side via `operator_on_zero`);
   and the fixed source ``+S^{\rm eff}_m`` inside and exactly zero outside, in
   the nodal (`worldtube_source`) and the massive ``M\cdot S``
   (`worldtube_massive_source`) form. `worldtube_jump_values` is the pointwise
