@@ -35,8 +35,9 @@
 # {0, dz², 1}. The full-z lattice covers the SAME physical domain, so its rows are the SIGNED
 # SQUARE ROOTS {−1, −√dz², +√dz², 1} — exactly the angular `BlockBounds` of spectre's
 # non-equatorial input file (`tests/InputFiles/SelfForce/ScalarCircularOrbit.yaml:59`,
-# [−1, −0.5, 0.5, 1] for dz² = 0.25). The equator is then an INTERIOR block interface, not a
-# boundary, and the middle row is the worldtube row.
+# [−1, −0.5, 0.5, 1] for dz² = 0.25). The equator is then an interior POINT of the middle
+# block row — z = 0 is not a block bound in the full chart — and that middle row is the
+# worldtube row.
 #
 # WHAT LATER NODES BIND TO (the contract this node establishes):
 #   * `boundary_face_classes` / `boundary_class` — every domain-boundary face tagged
@@ -46,7 +47,11 @@
 #     all): Bayliss-Turkel on `:outer` for m ≠ 0 (`None` at m = 0, yaml:115-125), and nothing
 #     physical on `:horizon`/`:equator`/`:pole` — the flux coefficients vanish there
 #     (F^r(r₊) = 0, F^z(±1) = 0, main.tex:385), which is why the paper needs no boundary
-#     condition on those faces.
+#     condition on those faces. For `:horizon` that is a PRECONDITION, not a consequence: it
+#     holds only because the inner radial bound is placed AT r₊ (main.tex:529), which
+#     `block_domain` now ENFORCES — at r_in = 2 with a = 0.5 (r₊ = 1.866) the sealed
+#     coefficient measures A^rr = 5.88e-2, and inside the horizon (a = 0.9, r_in = 1.3) it is
+#     NEGATIVE (−4.0e-2), so those faces would silently need data node 41 does not supply.
 #   * `worldtube_blocks` — the regularized-region block (the red rectangle of fig:domain), the
 #     one containing the particle at (r₀, equator); node `worldtube-formulation` imposes the
 #     Ψ^R = Ψ − Ψ^P jump on its interfaces with the rest of the domain.
@@ -126,8 +131,13 @@ end
 # non-equatorial 5×3 twin — specify the refinement as a function of the RADIAL COLUMN ALONE
 # (the same (nx, ny) in every angular row), which is what lets the same config drive either
 # number of rows; a table that is not row-uniform is refused rather than guessed at.
-# Columns no patch covers keep `InitialLevels` (yaml:75).
-function _column_refinements(config::RunConfig, nr::Int)
+# Columns no patch covers keep `InitialLevels` (yaml:75). Both corner indices are bounds-
+# checked against the lattice, as spectre does (`AlignedLattice.cpp:123-131` PARSE_ERRORs when
+# `upper_corner_index[i] >= block_bounds_[i].size()` in EITHER dimension). DELIBERATE
+# DIVERGENCE from spectre: where overlapping patches would silently leave spectre's last write
+# standing, a conflicting overlap is an `ArgumentError` here — an ambiguous refinement table
+# must not be resolved by input ordering.
+function _column_refinements(config::RunConfig, nr::Int, nz::Int)
     L = config.domain.initial_levels
     col = Dict{Int,NTuple{2,Int}}()
     for p in config.domain.refined_levels
@@ -136,6 +146,8 @@ function _column_refinements(config::RunConfig, nr::Int)
             "block_domain: RefinedLevels patch $lo → $hi is empty"))
         hi[1] <= nr || throw(ArgumentError(
             "block_domain: RefinedLevels patch $lo → $hi exceeds the $nr radial columns"))
+        hi[2] <= nz || throw(ArgumentError(
+            "block_domain: RefinedLevels patch $lo → $hi exceeds the $nz angular rows"))
         for i in lo[1]:hi[1]-1
             r = (Int(p.refinement[1]), Int(p.refinement[2]))
             get(col, i, r) == r || throw(ArgumentError(
@@ -220,8 +232,9 @@ function block_domain(orbit::CircularOrbit, config::RunConfig{T};
                             "(yaml:68); got $(config.domain.distributions_z2)"))
 
     v = vtu_slicing(orbit, config)                      # validates orbit ≡ config point
+    _require_horizon_inner_bound(orbit, bounds_r)
     regs = _column_regions(v, config, bounds_r)
-    colref = _column_refinements(config, nr)
+    colref = _column_refinements(config, nr, nz)
 
     block_ids = [i + nr * j for i in 0:nr-1, j in 0:nz-1]
     blocks = Block[]
@@ -282,6 +295,30 @@ function block_domain(orbit::CircularOrbit, config::RunConfig{T};
                            block_ids, regions, refinements, worldtube, bclasses)
 end
 
+# The `:horizon` precondition. The CRP domain starts AT the outer horizon (main.tex:529,
+# fig:domain), where the SEALED radial flux coefficient A^rr = Δ/(r²+a²) is exactly zero
+# because Δ is carried as (r − r₊)(r − r₋) off the orbit's cached horizons — so F^r = A^rr ∂_rΨ
+# carries no data through the inner radial faces and they need no boundary condition
+# (main.tex:385). That is a property of WHERE the bound is placed, not of the face: at
+# r_in = 2 with a = 0.5 (r₊ = 1.8660254037844386) the same coefficient measures 5.88e-2, at
+# a = −0.7 it measures 1.09e-1, and INSIDE the horizon (a = 0.9, r_in = 1.3) it is −4.0e-2 —
+# the operator is not even elliptic there. Enforcing the placement here hands node
+# `dg-boundary-conditions` the FACT that `:horizon` faces need no data, instead of a bare tag.
+# Tolerance: 8 ulp relative (the bound must BE the horizon, not merely near it); the measured
+# A^rr is reported in the error so a caller sees the size of what it would have to supply.
+function _require_horizon_inner_bound(orbit::CircularOrbit, bounds_r::AbstractVector)
+    rin = bounds_r[1]
+    RT = promote_type(typeof(rin), typeof(orbit.rp))
+    rtol = 8 * eps(one(RT))
+    isapprox(rin, orbit.rp; rtol = rtol) || throw(ArgumentError(
+        "block_domain: the inner radial block bound must be the outer horizon " *
+        "r₊ = $(orbit.rp) (main.tex:529; enforced to $(rtol) relative), got $rin — at which " *
+        "the sealed radial flux coefficient is A^rr = $(flux_coeff_r(orbit, rin)) ≠ 0, so " *
+        "the :horizon faces would carry flux and need boundary data this domain does not " *
+        "supply (main.tex:385 holds only AT r₊)"))
+    return nothing
+end
+
 """
     block_lattice_index(dom::BlockDomain, id::Integer) -> (i, j)
 
@@ -321,8 +358,12 @@ worldtube_blocks(dom::BlockDomain) = dom.worldtube
 Every domain-boundary face of `dom.mesh` (the keys are exactly
 [`boundary_faces`](@ref)`(dom.mesh)`) tagged with the physical boundary it lies on:
 
-- `:horizon` — the inner radial boundary `r = BlockBounds[r][1]` (at or inside `r₊` under
-  `PenetratingHorizon`). `F^r` vanishes at `r₊` (main.tex:385), so no boundary data are needed.
+- `:horizon` — the inner radial boundary `r = BlockBounds[r][1]`, which
+  [`block_domain`](@ref) REQUIRES to be the outer horizon `r₊` (main.tex:529). No boundary
+  data are needed there — but only because of that placement: `A^rr = Δ/(r²+a²)` is exactly
+  zero at `r₊`, so `F^r` carries nothing through the face (main.tex:385). Away from `r₊` the
+  coefficient is nonzero (5.88e-2 at `r_in = 2`, `a = 0.5`) and negative inside the horizon,
+  so the precondition is enforced at construction rather than assumed here.
 - `:outer` — the outer radial boundary `r = R`, where the order-2 Bayliss–Turkel/Sommerfeld
   radiation condition lives for `m ≠ 0` (`None` at `m = 0`, yaml:115-125).
 - `:equator` — `z² = 0`, present only in the equatorial-symmetry chart; the angular flux

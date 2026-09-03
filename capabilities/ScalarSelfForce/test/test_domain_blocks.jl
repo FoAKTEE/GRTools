@@ -59,8 +59,20 @@
 #      main.tex:316-322, chain-ruled to the z² chart) to 1e-10 — calibrated worst 6.2e-13 over
 #      the whole parameter sweep, while the SAME check with the callables of a WRONG region
 #      lands at 2.1e-2 … 7.5e+1 (the falsifier: this is what proves the region tags).
-#      Plus: at the production order P = 4 the operator merely builds and applies finitely on
-#      every block, with zero-data ghosts.
+#      Plus (3d), the PRODUCTION-order statement, machine-checked rather than asserted in
+#      prose: at P = 4 (element space = degree ≤ 3 per dimension) a probe that IS in the space
+#      and whose angular flux product stays in it (deg_w ≤ N−2, since A^{z²} = 4w(1−w)/(r²+a²)
+#      is degree 2 in w) reproduces △_m to ~1e-14; what survives at representable degree is
+#      ANGULAR, not radial — deg (0, N−1) leaves 5.4e-2 while deg (N−1, 0) stays at 1.8e-14,
+#      the radial sector cancelling identically because both sides write it as the collocation
+#      of the flux; and the operator is CONSISTENT at P = 4: at fixed N = 4 the deviation
+#      h-converges at rate 2.29-3.45 on the source column.
+#  (3e) the :horizon precondition — `block_domain` REQUIRES the inner radial bound to be the
+#      outer horizon r₊ (main.tex:529), because that placement is the only reason the inner
+#      faces need no boundary data: A^rr = Δ/(r²+a²) is exactly zero AT r₊ but measures
+#      5.88e-2 at r_in = 2 with a = 0.5 and −4.0e-2 inside the horizon (a = 0.9, r_in = 1.3).
+#      Every spin variation below therefore moves the inner bound to that spin's r₊, and the
+#      throw is gated.
 #  (4) refinement/variation/precision — the source (worldtube) column carries L+1 in both
 #      dimensions, element counts per block match 2^(nx+ny) for L ∈ {0,1,2}; parameter
 #      variation (r0, w, dz², spin incl. a < 0, m = 0, m = 20) keeps every invariant;
@@ -100,6 +112,14 @@ function db_full_z(cfg::RunConfig{T}) where {T}
 end
 
 db_orbit(cfg) = CircularOrbit(cfg.orbit.black_hole_spin, cfg.orbit.orbital_radius)
+
+# `block_domain` requires the inner radial bound to BE the outer horizon (main.tex:529), and
+# the yaml's inner_radius = 2 is r₊ only at the production spin a = 0. Any spin variation must
+# therefore move the inner bound with the horizon; `db_cfg` is `crp_paper_config` with that
+# one substitution, so a = 0 reproduces the production config exactly.
+db_cfg(; spin = 0.0, orbital_radius = 10.0, kwargs...) =
+    crp_paper_config(; spin = spin, orbital_radius = orbital_radius,
+                     inner_radius = CircularOrbit(spin, orbital_radius).rp, kwargs...)
 
 # ---- independent expected topology, enumerated from the transcribed tables ----------------
 # elements of the lattice, in the layout order the node contracts: block-major (radial index
@@ -183,30 +203,53 @@ db_H_table(region) = region === :v ? -1 : region === :t ? 0 : 1   # main.tex:316
 # every face is a domain-boundary face), apply the assembled operator built from the sealed
 # `region` bundle to an exactly-representable polynomial with exact-trace Dirichlet ghosts,
 # and compare against M·db_triangle with boost `Href` (defaults to the region's table value).
-function db_identity(cfg, region, bid, N; Href = nothing)
+function db_identity(cfg, region, bid, N; Href = nothing, k = 0, deg = (DB_DX, DB_DY))
     orb = db_orbit(cfg)
     dom = block_domain(orb, cfg)
     blk = dom.mesh.blocks[findfirst(b -> b.id == bid, dom.mesh.blocks)]
-    el = ElementId(bid, SegmentId(0, 0), SegmentId(0, 0))
-    mesh1 = Mesh2D(blk, [el], (N, N))
+    els = ElementId[]
+    for iy in 0:(1<<k)-1, ix in 0:(1<<k)-1          # ix fastest, the layout convention
+        push!(els, ElementId(bid, SegmentId(k, ix), SegmentId(k, iy)))
+    end
+    mesh1 = Mesh2D(blk, els, (N, N))
     fc = fluxform_callables(orb, cfg, region)
+    dx, dy = deg
+    P(z1, z2) = sum(DB_COEF[i+1, j+1] * z1^i * z2^j for i in 0:dx, j in 0:dy)
     xi = refelement(Float64, N).nodes
-    U = [db_poly(p, q) for p in xi, q in xi]
+    # block-logical coordinates of one element's nodes along `dim`
+    function zeta(el, dim)
+        lo, hi = logical_interval(Float64, el, dim)
+        return [(lo * (1 - x) + hi * (1 + x)) / 2 for x in xi]
+    end
+    u = zeros(ComplexF64, mesh1.ndofs)
+    for (e, el) in enumerate(els)
+        z1, z2 = zeta(el, 1), zeta(el, 2)
+        off = mesh1.offsets[e]
+        u[off+1:off+N*N] .= vec([P(p, q) for p in z1, q in z2])
+    end
     bcs = Dict{Tuple{ElementId,Int,Int},GhostBoundary}()
-    for (e, d, sidx) in boundary_faces(mesh1)
-        zf = sidx == 1 ? -1.0 : 1.0
-        tr = d == 1 ? [db_poly(zf, q) for q in xi] : [db_poly(p, zf) for p in xi]
-        bcs[(e, d, sidx)] = DirichletGhost(ComplexF64.(tr))
+    for (el, d, sidx) in boundary_faces(mesh1)
+        lo, hi = logical_interval(Float64, el, d)
+        zf = sidx == 1 ? lo : hi
+        zt = zeta(el, 3 - d)
+        tr = d == 1 ? [P(zf, q) for q in zt] : [P(p, zf) for p in zt]
+        bcs[(el, d, sidx)] = DirichletGhost(ComplexF64.(tr))
     end
     op = MeshOperator(ComplexF64, mesh1, fc.A, fc.beta, fc.gamma;
                       C = cfg.dg.penalty_parameter, bcs = bcs)
-    y = apply_full!(zeros(ComplexF64, mesh1.ndofs), op, vec(U))
-    em = element_matrices(ComplexF64, blk, el, (N, N))
+    y = apply_full!(zeros(ComplexF64, mesh1.ndofs), op, u)
+    ref = zeros(ComplexF64, mesh1.ndofs)
     D = refelement(Float64, N).D
-    R = db_triangle(orb, cfg.orbit.m_mode_number,
-                    Href === nothing ? db_H_table(region) : Href, dom.chart,
-                    em.x[1], em.x[2], (1 ./ em.jac[1]) .* D, (1 ./ em.jac[2]) .* D, U)
-    ref = em.M * vec(R)
+    for (e, el) in enumerate(els)
+        em = element_matrices(ComplexF64, blk, el, (N, N))
+        z1, z2 = zeta(el, 1), zeta(el, 2)
+        U = [P(p, q) for p in z1, q in z2]
+        R = db_triangle(orb, cfg.orbit.m_mode_number,
+                        Href === nothing ? db_H_table(region) : Href, dom.chart,
+                        em.x[1], em.x[2], (1 ./ em.jac[1]) .* D, (1 ./ em.jac[2]) .* D, U)
+        off = mesh1.offsets[e]
+        ref[off+1:off+N*N] .= em.M * vec(R)
+    end
     return maximum(abs, y .- ref) / maximum(abs, ref)
 end
 
@@ -234,6 +277,9 @@ end
         @test rb ≈ [2.0, 2.8, 5.2, 14.8, 24.4, 1.0e4] atol = 1e-14
         @test rb[2] != 2.8                       # 10.0 − 4.8·1.5 = 2.8000000000000007
         @test issorted(rb) && allunique(rb)
+        # the yaml's inner_radius IS the outer horizon at the production spin (main.tex:529):
+        # 2 = r₊(a = 0) exactly — the precondition `block_domain` enforces
+        @test rb[1] == orb.rp == 2.0
         # the vtu transitions ARE block bounds (main.tex:323) — the invariant that makes the
         # region a per-block property
         @test cfg.orbit.hyperboloidal_slicing_transitions[1] == rb[2]
@@ -377,8 +423,8 @@ end
     end
 
     @testset "(3a) region tags, worldtube block, and the sealed-bundle wiring" begin
-        for cfg in (crp_paper_config(), crp_paper_config(spin = 0.5),
-                    db_full_z(crp_paper_config(spin = -0.7)))
+        for cfg in (crp_paper_config(), db_cfg(spin = 0.5),
+                    db_full_z(db_cfg(spin = -0.7)))
             orb = db_orbit(cfg)
             dom = block_domain(orb, cfg)
             v = vtu_slicing(orb, cfg)
@@ -424,7 +470,7 @@ end
         # the driver (solver-stack-ssf) needs ONE coefficient bundle for the whole mesh:
         # `MeshOperator` evaluates β and γ at volume nodes only and 𝔄 at faces too — and 𝔄 is
         # H-INDEPENDENT — so the radius-dispatching bundle is exact everywhere it is sampled
-        for cfg in (crp_paper_config(spin = 0.5), db_full_z(crp_paper_config()))
+        for cfg in (db_cfg(spin = 0.5), db_full_z(crp_paper_config()))
             orb = db_orbit(cfg)
             dom = block_domain(orb, cfg)
             gc = domain_coefficients(dom, orb, cfg)
@@ -461,9 +507,10 @@ end
                 bad === good ? (@test dev <= 1e-10) : (@test dev > 1e-3)
             end
         end
-        # production order P = 4: the operator merely BUILDS and applies finitely on every
-        # block with zero-data ghosts (the aliasing floor there is a discretization property,
-        # not a wiring one — the identity above is gated at N = 12)
+        # production order P = 4: the operator BUILDS and applies finitely on every block
+        # with zero-data ghosts. The QUANTITATIVE production-order statement is gate (3d);
+        # the identity above is gated at N = 12, where the degree-(6,4) probe is inside the
+        # element space
         orb = db_orbit(cfg)
         dom = block_domain(orb, cfg)
         for bid in 0:9
@@ -480,6 +527,75 @@ end
             @test all(isfinite, y)
             @test eltype(y) == ComplexF64
         end
+    end
+
+    @testset "(3d) P = 4: representable-degree exactness, the angular residual, h convergence" begin
+        # The production-order statement, machine-checked. At N = 4 the element space is
+        # degree ≤ 3 per dimension, so the N = 12 gate's degree-(6,4) probe is NOT in it and
+        # the shipped instrument reports O(1) there (4.29 / 5.54 / 3.14 on blocks 0 / 2 / 4) —
+        # that number measures the INSTRUMENT's exact-trace Dirichlet data (the ghost carries
+        # the exact polynomial's face value while the element carries its degree-3
+        # interpolant, and the difference rides the penalty term), not a defect of the
+        # mapping. The three assertions below separate the channels; the calibration that
+        # isolates them is evidence/domain-blocks-map/calibrate_followup2.log.
+        cfg = crp_paper_config()
+        N = cfg.domain.initial_grid_points[1]                       # 4
+        for (region, bid) in ((:v, 0), (:t, 2), (:u, 4))
+            # (i) a probe inside the space whose ANGULAR flux product also stays inside it
+            #     (deg_w ≤ N−2, because A^{z²} = 4w(1−w)/(r²+a²) is degree 2 in w) is exact
+            @test db_identity(cfg, region, bid, N; deg = (N - 1, N - 2)) <= 1e-12
+            @test db_identity(cfg, region, bid, N; deg = (2, 2)) <= 1e-12
+            # (ii) the RADIAL sector cancels identically — both sides write it as the
+            #      collocation of the flux — so radial degree N−1 is exact too
+            @test db_identity(cfg, region, bid, N; deg = (N - 1, 0)) <= 1e-12
+            # (iii) what survives at representable degree is ANGULAR: one more degree in w
+            #       pushes A^{z²}·∂_wΨ out of the N-point space
+            @test db_identity(cfg, region, bid, N; deg = (0, N - 1)) > 1e-3
+            @test db_identity(cfg, region, bid, N; deg = (0, N - 2)) <= 1e-12
+        end
+        # (iv) and the operator is CONSISTENT at the production order: at FIXED N = 4 the
+        #      deviation h-converges under uniform refinement of the source column
+        devs = [db_identity(cfg, :t, 2, N; k = kk) for kk in 0:3]
+        rates = [log2(devs[i] / devs[i+1]) for i in 1:3]
+        @test issorted(devs; rev = true)
+        @test minimum(rates) >= 2
+        @test devs[1] / devs[end] >= 100
+        println("domain-blocks-map gate (3d) P = 4 h convergence, source column: devs = ",
+                devs, "  rates = ", rates)
+    end
+
+    @testset "(3e) the :horizon precondition is ENFORCED, not assumed" begin
+        # `:horizon` needs no boundary data ONLY because the inner bound is r₊, where the
+        # sealed A^rr is exactly zero (main.tex:385 + 529). Away from r₊ it is not.
+        for (a, rin) in ((0.5, 2.0), (-0.7, 2.0), (0.9, 1.3), (-0.9, 1.3))
+            orb = CircularOrbit(a, 10.0)
+            @test flux_coeff_r(orb, orb.rp) == 0                    # AT the horizon: exact
+            @test abs(flux_coeff_r(orb, rin)) > 1e-2                # away from it: not
+            bad = crp_paper_config(spin = a, inner_radius = rin)
+            @test bad.domain.block_bounds_r[1] == rin
+            @test_throws ArgumentError block_domain(orb, bad)       # refused at construction
+        end
+        # inside the horizon the coefficient even changes sign (ellipticity is lost)
+        @test flux_coeff_r(CircularOrbit(0.9, 10.0), 1.3) < 0
+        # the horizon-anchored twin of each of those configs builds
+        for a in (0.5, -0.7, 0.9, -0.9)
+            cfg = db_cfg(spin = a)
+            orb = db_orbit(cfg)
+            @test cfg.domain.block_bounds_r[1] == orb.rp
+            dom = block_domain(orb, cfg)
+            @test flux_coeff_r(orb, dom.bounds_r[1]) == 0
+            # every :horizon face sits at r₊ with an identically vanishing radial flux
+            for ((el, d, sidx), c) in boundary_face_classes(dom)
+                c === :horizon || continue
+                blk = dom.mesh.blocks[findfirst(b -> b.id == el.block, dom.mesh.blocks)]
+                lo, hi = logical_interval(Float64, el, d)
+                @test flux_coeff_r(orb, map_forward(blockmap(blk, d), sidx == 1 ? lo : hi)) == 0
+            end
+        end
+        # a tiny perturbation is still refused: the bound must BE the horizon
+        orb = CircularOrbit(0.5, 10.0)
+        @test_throws ArgumentError block_domain(orb,
+            crp_paper_config(spin = 0.5, inner_radius = orb.rp * (1 + 1e-8)))
     end
 
     @testset "(4a) refinement levels L ∈ {0,1,2} and the L+1 source pre-refinement" begin
@@ -502,18 +618,17 @@ end
 
     @testset "(4b) parameter variation keeps every invariant" begin
         cases = (crp_paper_config(),
-                 crp_paper_config(spin = 0.5),
-                 crp_paper_config(spin = -0.7),
-                 crp_paper_config(spin = 0.9, inner_radius = 1.3),
-                 crp_paper_config(spin = -0.9, inner_radius = 1.3),
+                 db_cfg(spin = 0.5),
+                 db_cfg(spin = -0.7),
+                 db_cfg(spin = 0.9),
+                 db_cfg(spin = -0.9),
                  crp_paper_config(m_mode = 0),
                  crp_paper_config(m_mode = 20),
-                 crp_paper_config(orbital_radius = 8.0, worldtube_radius = 2.0,
-                                  worldtube_dz2 = 0.125, inner_radius = 1.4,
-                                  outer_radius = 500.0, P = 6, L = 1),
-                 db_full_z(crp_paper_config(spin = 0.5)),
-                 db_full_z(crp_paper_config(spin = -0.7, orbital_radius = 8.0,
-                                            worldtube_radius = 2.0, worldtube_dz2 = 0.36)))
+                 db_cfg(orbital_radius = 8.0, worldtube_radius = 2.0,
+                        worldtube_dz2 = 0.125, outer_radius = 500.0, P = 6, L = 1),
+                 db_full_z(db_cfg(spin = 0.5)),
+                 db_full_z(db_cfg(spin = -0.7, orbital_radius = 8.0,
+                                  worldtube_radius = 2.0, worldtube_dz2 = 0.36)))
         worst = 0.0
         for cfg in cases
             orb = db_orbit(cfg)
@@ -559,8 +674,9 @@ end
 
     @testset "(4d) BigFloat(256) precision inheritance" begin
         setprecision(BigFloat, 256) do
+            rp = CircularOrbit(big"0.5", big"10.0").rp
             cfg = crp_paper_config(spin = big"0.5", orbital_radius = big"10.0",
-                                   inner_radius = big"2.0", outer_radius = big"1.0e4",
+                                   inner_radius = rp, outer_radius = big"1.0e4",
                                    worldtube_radius = big"4.8", worldtube_dz2 = big"0.25")
             @test cfg isa RunConfig{BigFloat}
             orb = db_orbit(cfg)
@@ -616,6 +732,28 @@ end
                 for f in fieldnames(RunConfig{Float64}))...)
         @test_throws ArgumentError block_domain(orb, badp)
         # unknown block id
+        # a RefinedLevels patch outside the lattice in EITHER dimension (spectre PARSE_ERRORs
+        # on both: AlignedLattice.cpp:123-131 tests upper_corner_index[i] >= block_bounds[i]
+        # size for every i). The radial overflow was already refused; the angular one is the
+        # symmetric check.
+        for badpatch in (BlockRefinement((0, 1), (1, 3), (0, 0)),      # row 2 of a 2-row chart
+                         BlockRefinement((4, 0), (6, 1), (0, 0)))      # column 5 of 5
+            badref = RunConfig{Float64}((f === :domain ?
+                    typeof(cfg.domain)((g === :refined_levels ?
+                        vcat(cfg.domain.refined_levels, [badpatch]) : getfield(cfg.domain, g)
+                        for g in fieldnames(typeof(cfg.domain)))...) : getfield(cfg, f)
+                    for f in fieldnames(RunConfig{Float64}))...)
+            @test_throws ArgumentError block_domain(orb, badref)
+        end
+        # overlapping RefinedLevels regions that disagree are an error here, NOT spectre's
+        # silent last-write-wins (deliberate divergence, documented in blocks.jl)
+        clash = RunConfig{Float64}((f === :domain ?
+                typeof(cfg.domain)((g === :refined_levels ?
+                    vcat(cfg.domain.refined_levels,
+                         [BlockRefinement((2, 0), (3, 1), (7, 7))]) : getfield(cfg.domain, g)
+                    for g in fieldnames(typeof(cfg.domain)))...) : getfield(cfg, f)
+                for f in fieldnames(RunConfig{Float64}))...)
+        @test_throws ArgumentError block_domain(orb, clash)
         dom = block_domain(orb, cfg)
         @test_throws KeyError block_region(dom, 99)
         @test_throws ArgumentError block_lattice_index(dom, 99)
