@@ -32,6 +32,26 @@ formulation and consumes the physics-free hp-DG solver stack from
   adds the worldtube's
   ``(\Psi^{\mathcal P}, \partial\Psi^{\mathcal P})`` data plus the
   near-worldline roundoff-loss diagnostic (`term_scale`, `cancellation`).
+- **Worldtube** — the worldtube formulation of the regularized region
+  (``\triangle_m \Psi^{\mathcal R}_m = S^{\rm eff}_m`` inside,
+  ``\triangle_m \Psi_m = 0`` outside,
+  ``\Psi^{\mathcal R}_m = \Psi_m - \Psi^{\mathcal P}_m`` across the
+  interface) as pure data for the DG layer: `worldtube_data(dom, orbit, config)`
+  assembles a `WorldtubeData` in one pass over the sealed effective-source
+  bundle. It carries the region partition (`inside_worldtube`,
+  `worldtube_elements`, `worldtube_boundary_faces` — the interior faces between
+  an inside and an outside element, with their mortar geometry from
+  `worldtube_face_points`); the jump data
+  ``\pm\Psi^{\mathcal P}_m`` / ``\mp n_i\mathcal{A}^{ij}\partial_j\Psi^{\mathcal P}_m``
+  as one `FaceState` per mortar (`worldtube_jump_data`, signed by
+  `worldtube_jump_signs` — the single normative statement of the sender-normal
+  sign table — and packable as EllipticCore `FixedDataHook`s through
+  `worldtube_hooks`, so they reach the right-hand side via `operator_on_zero`);
+  and the fixed source ``+S^{\rm eff}_m`` inside and exactly zero outside, in
+  the nodal (`worldtube_source`) and the massive ``M\cdot S``
+  (`worldtube_massive_source`) form. `worldtube_jump_values` is the pointwise
+  kernel and the home of the ``z^2`` chain rule
+  ``\mathcal{F}^{z^2} = A^{z^2}\partial_w\Psi``, ``\partial_w = \partial_z/(2z)``.
 - **Domain** — `RunConfig` runtime configuration (`crp_paper_config`,
   `CRP_PAPER_MMODES`) and the EllipticCore `Mesh2D` block lattice:
   `block_domain(orbit, config)` instantiates the `BlockDomain` — 5 radial × 2
@@ -82,7 +102,7 @@ formulation and consumes the physics-free hp-DG solver stack from
 Planned, each landing written test-first once it is grounded:
 `EffectiveSource/series.jl` (the near-worldline power series that takes over
 where the direct assembly's cancellation exceeds the caller's budget),
-`Worldtube` (``\Psi^P`` mortar jump data, fixed-source assembly), the rest of
+the rest of
 `Solve` (single-mode driver, hp-AMR loop, process-parallel m fan-out), and the
 rest of `Extraction` (``F_r^m`` extraction from a solved mode, and the mode sum
 itself).

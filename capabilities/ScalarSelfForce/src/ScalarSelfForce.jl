@@ -215,6 +215,26 @@ include("EffectiveSource/direct.jl")         # effective-source-direct
 # of main.tex:488-490) that node `effective-source-series` will switch on — data, not a switch.
 export puncture_psi_chart, effective_source_m, effective_source_bundle
 
+include("Worldtube/worldtube.jl")            # worldtube-formulation
+# The worldtube formulation (main.tex:505-523 + 596-608) as PURE DATA for the DG layer:
+# worldtube_data(dom, orbit, config) assembles, in one pass over the sealed
+# effective_source_bundle, (i) the regularized-region partition of a BlockDomain
+# (inside_worldtube / worldtube_elements / worldtube_boundary_faces — the interior faces
+# between an inside and an outside element, with their mortar geometry from
+# worldtube_face_points), (ii) the eq:jump_worldtube data ±Ψ^P / ∓n·𝓕(Ψ^P) as one FaceState
+# per mortar (worldtube_jump_data; worldtube_jump_signs is the ONE normative statement of the
+# sender-normal sign table, spectre Equations.cpp:80-91), packable as EllipticCore
+# FixedDataHooks (worldtube_hooks — trial-independent, so they reach the RHS through
+# operator_on_zero), and (iii) the fixed source +effective_source_m inside / exactly zero
+# outside in the nodal and the massive M·S form (worldtube_source /
+# worldtube_massive_source). worldtube_jump_values is the pointwise kernel, carrying the
+# printed z² chain rule 𝓕^{z²} = A^{z²}∂_wΨ, ∂_w = ∂_z/(2z). NO solve, NO operator, NO vtu
+# junction wiring — node dg-jump-conditions binds this into the hooks table.
+export WorldtubeData, worldtube_data, inside_worldtube, worldtube_elements
+export worldtube_boundary_faces, worldtube_face_points, worldtube_jump_signs
+export worldtube_jump_values, worldtube_jump_data, worldtube_hooks
+export worldtube_source, worldtube_massive_source
+
 include("Solve/bc_glue.jl")                  # dg-boundary-conditions
 # The physical boundary conditions of the CRP domain bound to the EllipticCore ghost seam
 # (main.tex:396-401 + 612-618): boundary_conditions(dom, orbit, config; mesh) is the
