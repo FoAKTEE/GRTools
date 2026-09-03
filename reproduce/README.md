@@ -26,10 +26,11 @@ number from a paper) lives here as a **thin driver** plus a **golden** (`expecte
 | **arXiv:2601.19123**<br>`arXiv-2601.19123/` | hybrid EMRI waveform generation | 3 | 2 fig · 1 chk | 3 fast | 2 solid · 1 prelim |
 | **arXiv:2603.12189**<br>`arXiv-2603.12189/` | post-Newtonian self-force comparison | 2 | 2 fig | 2 fast | 2 solid |
 | **arXiv:2603.13482**<br>`arXiv-2603.13482/` | elliptic scalar self-force | 2 | 2 fig | 2 fast | 2 solid |
+| **arXiv:2606.04998**<br>`arXiv-2606.04998/` | Vu et al. — self-force with NR methods (mission paper) | 1 | 1 fig | 0 fast · 1 heavy | 1 solid |
 | **arXiv:2608.17003**<br>`arXiv-2608.17003/` | EMRI in a gas disc — spiral-wave torque (mission paper) | 15 | 14 fig · 1 chk | 1 fast · 14 heavy | 13 solid · 2 prelim |
 | **arXiv:gr-qc-0703028**<br>`arXiv-gr-qc-0703028/` | Berti, Cardoso & Starinets — QNM tables | 1 | 1 tab | 1 fast | 1 solid |
 | **_selftest**<br>`_selftest/` | harness self-test (not a paper) | 1 | 1 chk | 1 fast | 1 solid |
-| **total** | 12 papers | **55** | 39 fig · 8 tab · 8 chk | 32 fast · 23 heavy | 48 solid · 5 prelim · 2 future |
+| **total** | 13 papers | **56** | 40 fig · 8 tab · 8 chk | 32 fast · 24 heavy | 49 solid · 5 prelim · 2 future |
 
 ### By result
 
@@ -77,6 +78,7 @@ The **golden** column is measured on the file, not declared: `n values / size`,
 | arXiv:2603.12189 | `fig07` | figure | fast | solid | `arXiv-2603.12189/fig07.jl` | 16 / 6 KB | `Perturbation` `Spacetime` |
 | arXiv:2603.13482 | `fig_FE1_Cplus1_220k` | figure | fast | solid | `arXiv-2603.13482/fig_FE1_Cplus1_220k.jl` | 8 / 2 KB | `Perturbation` `Spacetime` |
 | arXiv:2603.13482 | `fig_delta_Omega` | figure | fast | solid | `arXiv-2603.13482/fig_delta_Omega.jl` | 18 / 17 KB | `Spacetime` |
+| arXiv:2606.04998 | `fig_matrix` | figure | heavy | solid | `arXiv-2606.04998/fig_matrix.jl` | 59 / 4 KB | `ScalarSelfForce` `EllipticCore` |
 | arXiv:2608.17003 | `check-printed-numbers` | check | fast | prelim | `arXiv-2608.17003/check_printed_numbers.jl` | (none) | `AccretionDisc` |
 | arXiv:2608.17003 | `fig01` | figure | heavy | solid | `arXiv-2608.17003/fig01.jl` | 153 / 44 KB | `AccretionDisc` `Spacetime` |
 | arXiv:2608.17003 | `fig02` | figure | heavy | solid | `arXiv-2608.17003/fig02.jl` | 80 / 35 KB | `AccretionDisc` `Spacetime` |
@@ -95,8 +97,8 @@ The **golden** column is measured on the file, not declared: `n values / size`,
 | arXiv:gr-qc-0703028 | `skh_tables` | table | fast | solid | `arXiv-gr-qc-0703028/check_skh_tables.jl` | 11 / 1 KB | `Perturbation` `Harmonics` `Spacetime` |
 | _selftest | `harness-selftest` | check | fast | solid | `_selftest/selftest.jl` | 13 / 1 KB | `Spacetime` |
 
-**55 registered results** across 12 papers (+ the harness self-test): 48 solid · 5 prelim · 2 future.
-32 run at the default `--tier fast` ceiling; 52 goldens on disk, 816 KB total (cap 200 KB each).
+**56 registered results** across 13 papers (+ the harness self-test): 49 solid · 5 prelim · 2 future.
+32 run at the default `--tier fast` ceiling; 53 goldens on disk, 821 KB total (cap 200 KB each).
 
 > **Not yet reproduced (2)** — declared open, not a defect: `2303.16798::tableI_full` (future, heavy, no golden yet), `2303.16798::fig_comparison_spherical` (future, heavy, no golden yet). 2 of them are `heavy`, so the default `--tier fast` sweep does not select them.
 <!-- END GENERATED INDEX -->

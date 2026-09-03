@@ -48,6 +48,7 @@ const PAPER_TITLES = Dict(
     "2601.19123"     => "hybrid EMRI waveform generation",
     "2603.12189"     => "post-Newtonian self-force comparison",
     "2603.13482"     => "elliptic scalar self-force",
+    "2606.04998"     => "Vu et al. — self-force with NR methods (mission paper)",
     "2608.17003"     => "EMRI in a gas disc — spiral-wave torque (mission paper)",
 )
 
