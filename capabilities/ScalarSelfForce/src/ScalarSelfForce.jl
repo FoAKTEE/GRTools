@@ -314,4 +314,23 @@ include("Solve/driver.jl")                   # solver-stack-ssf (the row-42 JOIN
 export solver_options, ModeSolution, solve_mode, solve_mode!, rebuild_for_mesh!
 export mode_fixed_source, mode_residual, reconstruct_full_field, field_at
 
+include("Solve/amr.jl")                      # amr-driver (the row-43 production loop)
+# THE hp-AMR SWEEP: solve_mode_amr(orbit, config, m) runs the paper's Amr.Iterations levels of
+# "h-refine the elements containing the puncture, p-refine everywhere else" over ONE
+# ModeSolution (one stack, one epoch, one pair of caches, each level warm-started from the
+# transferred previous solution) and returns an AmrHistory - per level the mesh, the puncture
+# elements, the SolveRecord (iterations, residual staircase, build_time, cache counters) and
+# the particle diagnostics Psi^R(x_p), d_r Psi^R(x_p) - plus the final ModeSolution.
+# amr_flags is the CRITERION: spectre's RefineAtPuncture (block-logical snap + CLOSED element
+# containment, so a puncture on a corner flags every element that touches it) merged with
+# IncreaseResolution, under the yaml Limits; the one normative statement of the criterion and
+# its snapping rule lives in its docstring. amr_level_options is the multigrid LEVEL POLICY
+# (InitialCoarseLevels at level 0 - the direct bottom solve - then coarsening to the fixed
+# block structure so the bottom LU stays a cache hit, with shrink = 0.5 so a graded hp cascade
+# reaches it in a handful of levels). amr_step! is one level. The particle diagnostics are read
+# through the SEALED row-42 field_at / field_grad_at - this node adds no read-out of its own.
+# NO self-force extraction (row 44), NO process fan-out (row 47), NO figure.
+export puncture_chart_position, amr_flags, amr_level_options, amr_step!
+export solve_mode_amr, AmrLevel, AmrHistory
+
 end # module

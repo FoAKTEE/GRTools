@@ -228,14 +228,17 @@ formulation and consumes the physics-free hp-DG solver stack from
   irreducible block structure, a grid that does not move as AMR adds finer
   levels, so the bottom LU is factorized once and hit at every later level
   (main.tex:674). `amr_step!` is one level, `puncture_chart_position` is
-  ``(r_0, 0)`` in the discretization chart, and `field_gradient_at` is
-  `field_at`'s derivative companion, built from the sealed differentiation
-  matrix through the exact identity ``\ell'_i(\xi) = \sum_k D_{ki}\ell_k(\xi)``.
+  ``(r_0, 0)`` in the discretization chart. The per-level particle diagnostics
+  are read through the sealed `field_at` / `field_grad_at` above, so the driver
+  adds no read-out surface of its own.
   Measured over the 8-level sweep at ``a = 0.5``, ``r_0 = 10M``, ``m = 2``:
   20 → 69 elements and 320 → 5720 dofs, GMRES 1 then 9-10 iterations per level,
   bottom LU built twice and hit seven times, and successive differences of
   ``\partial_r\Psi^{\mathcal R}(x_p)`` falling geometrically
-  (``8.5\times10^{-5} \to 3.7\times10^{-10}``, ratios 0.06-0.33).
+  (``8.5\times10^{-5} \to 3.7\times10^{-10}``, ratios 0.06-0.33) — the whole
+  sweep in 15.4 s of warm single-threaded compute, which needs
+  `OPENBLAS_NUM_THREADS=1` (the dense subdomain solves are tiny, and the host's
+  default thread pool costs a factor 8.9).
 - **Extraction** — Heffernan m-mode regularization parameters of the radial
   self-force for circular equatorial Kerr orbits (arXiv:1211.6446), in the
   folded ``m \ge 0`` ×2 real-part convention:
