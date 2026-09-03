@@ -47,6 +47,16 @@ status = "tracked-generator"
 note = "BEST-IN-REPO pattern: test_effsource_fixtures.jl:318-345 re-runs the generator and asserts byte-identity whenever the toolchain and mirror are present"
 
 [[fixture]]
+file = "test/fixtures/effsource/series_coeffs_rational.jl"
+sha256 = "7ed9fb1d3cafd89c3dada35af8b494f791347702f87251cfd55dd7ffc3bf04b4"
+bytes = 14085
+capture = "test/fixtures/effsource/generator/capture_series_rational.py"
+oracle = "ref-code/EffectiveSource/kerr-circular-comoving.c effsource_calc_m_series (SHA 1cb9834f) evaluated EXACTLY in Python fractions.Fraction — no third-party package, the C body used verbatim as Python source"
+oracle_commit = "1cb9834f8a8f666aaf7b1f924b3197743efb4120"
+status = "tracked-generator"
+note = "DOUBLE-TRANSCRIPTION oracle for the generated src/EffectiveSource/series_coeffs.jl: shares no rewrite rule and no extraction step with src/EffectiveSource/generator/transcribe_series.py (Fraction eval + substitution/Vandermonde solve vs pow-rewrite + textual surgery). test_effective_source_series.jl asserts Rational{BigInt} EQUALITY, zero tolerance, on all 198 rows; regeneration is byte-identical"
+
+[[fixture]]
 file = "test/fixtures/effsource/effsource_configs.jl"
 sha256 = "ee8acf1e76ac9c95ac9756e2b86fe88f1dc212a804a23d1d4119e3009c5c50cd"
 bytes = 12954

@@ -215,6 +215,22 @@ include("EffectiveSource/direct.jl")         # effective-source-direct
 # of main.tex:488-490) that node `effective-source-series` will switch on — data, not a switch.
 export puncture_psi_chart, effective_source_m, effective_source_bundle
 
+include("EffectiveSource/series_coeffs.jl")  # effective-source-series (GENERATED, see the
+include("EffectiveSource/series.jl")         # generator header) + effective-source-series
+# The NEAR-WORLDLINE SERIES and the route SWITCH (main.tex:488-504):
+# effective_source_series_coefficients = the paper's eleven coefficients S^[0], S^[1]_1,
+# S^[2]_{2,0,2L,0L,4,6,8,10,12} (mechanically transcribed from kerr-circular-comoving.c
+# `effsource_calc_m_series`, with the half-integer harmonic number H_{−m−1/2} completing
+# S^[2]_0 / S^[2]_2 exactly); effective_source_series_m = S^eff_m from that series in the
+# SAME convention as effective_source_m, accurate through O(λ²) with an O(λ³ log ϱ)
+# remainder and FINITE on the worldline circle; effective_source_switched_bundle /
+# effective_source_m_switched = the combined evaluator that trades the series truncation
+# against the direct route's eps·cancellation roundoff — THE evaluator the DG fixed-source
+# assembly calls. The criterion (and its precision-aware eps^{1/5} crossover) is stated once,
+# in the effective_source_switched_bundle docstring.
+export effective_source_series_coefficients, effective_source_series_m
+export effective_source_switched_bundle, effective_source_m_switched
+
 include("Worldtube/worldtube.jl")            # worldtube-formulation
 # The worldtube formulation (main.tex:505-523 + 596-608) as PURE DATA for the DG layer:
 # worldtube_data(dom, orbit, config) assembles, in one pass over the sealed

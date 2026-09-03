@@ -32,6 +32,19 @@ formulation and consumes the physics-free hp-DG solver stack from
   adds the worldtube's
   ``(\Psi^{\mathcal P}, \partial\Psi^{\mathcal P})`` data plus the
   near-worldline roundoff-loss diagnostic (`term_scale`, `cancellation`).
+  Alongside it, the **near-worldline series** and the route **switch**: the
+  direct assembly cancels four orders of singularity, so its relative accuracy
+  degrades like ``\varepsilon\,\lambda^{-2}`` towards the worldline, and the
+  paper's power series — accurate through ``\mathcal O(\lambda^2)`` with the
+  ``\log\varrho`` terms and the ``H_{-m-1/2}`` m-dependence, whose eleven
+  coefficients `effective_source_series_coefficients` returns and
+  `effective_source_series_m` evaluates — takes over there (it is finite even
+  ON the worldline circle). `effective_source_switched_bundle` /
+  `effective_source_m_switched` are the combined evaluator: they compare the
+  series' predicted truncation with the direct route's predicted roundoff and
+  pick the smaller, so the crossover moves inward like
+  ``\varepsilon^{1/5}`` as the working precision rises. The DG fixed-source
+  assembly calls `effective_source_m_switched`.
 - **Worldtube** — the worldtube formulation of the regularized region
   (``\triangle_m \Psi^{\mathcal R}_m = S^{\rm eff}_m`` inside,
   ``\triangle_m \Psi_m = 0`` outside,
@@ -99,10 +112,7 @@ formulation and consumes the physics-free hp-DG solver stack from
     ``\sum_{m \ge m_{\rm start}} F^m_{r[order]}`` that completes a truncated
     mode sum.
 
-Planned, each landing written test-first once it is grounded:
-`EffectiveSource/series.jl` (the near-worldline power series that takes over
-where the direct assembly's cancellation exceeds the caller's budget),
-the rest of
+Planned, each landing written test-first once it is grounded: the rest of
 `Solve` (single-mode driver, hp-AMR loop, process-parallel m fan-out), and the
 rest of `Extraction` (``F_r^m`` extraction from a solved mode, and the mode sum
 itself).
