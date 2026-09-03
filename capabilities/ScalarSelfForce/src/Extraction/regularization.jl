@@ -337,3 +337,33 @@ function mmode_reg_tail_Fr(order::Integer, a::Real, r0::Real, mstart::Integer;
     F = reg_param_Fr(order, a, r0; M = M)
     return F * mmode_reg_factor_tail(typeof(F), order, mstart)
 end
+
+"""
+    mmode_reg_term_Fr(order, orbit::CircularOrbit, m) -> T
+    mmode_reg_term_Fr(order, a, r0, m; M = 1) -> T
+
+THE ONE HELPER for the folded/unfolded bookkeeping: the term to subtract from an
+Osburn–Nishimura Eq. (3.10) radial force mode `F_r^m`, namely
+[`mmode_reg_Fr`](@ref)`(order, …, m)` for `m ≥ 1` and HALF of it at `m = 0`.
+
+WHY THE HALVING (the operational rule stated in [`mmode_reg_factor_over_pi`](@ref), made
+executable here so no caller re-derives it): the printed m-dependence is a single analytic
+function of `m` with no `m = 0` branch, so the ×2 real-part folding sits INSIDE
+`F^m_{r[2j]}` at every `m`, `m = 0` included — while Eq. (3.10)'s `m = 0` branch,
+`q ∇_α(Ψ^ℛ_0/r)`, is UNFOLDED. Subtracting the unhalved parameter from an unfolded force mode
+would double-count the `m = 0` term.
+
+The rule is equivalent to the vanishing of the doubly-infinite parameter sum,
+`F^0/2 + Σ_{m≥1} F^m = 0`, i.e. `mmode_reg_term_Fr(order, orbit, 0) ==
+−`[`mmode_reg_tail_Fr`](@ref)`(order, orbit, 1)`, which is how it is gated in
+`test/test_regularization.jl`. [`regularized_mode_force`](@ref) (row 44) and the mode sum
+(row 46) both go through this function and never apply the factor themselves.
+"""
+mmode_reg_term_Fr(order::Integer, orbit::CircularOrbit, m::Integer) =
+    m == 0 ? mmode_reg_Fr(order, orbit, 0) / 2 : mmode_reg_Fr(order, orbit, m)
+
+function mmode_reg_term_Fr(order::Integer, a::Real, r0::Real, m::Integer;
+                           M::Real = one(float(promote_type(typeof(a), typeof(r0)))))
+    F = mmode_reg_Fr(order, a, r0, m; M = M)
+    return m == 0 ? F / 2 : F
+end

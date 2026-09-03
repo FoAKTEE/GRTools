@@ -1,72 +1,106 @@
 # test_selfforce.jl — ESSF node `mode-self-force-extraction` (GLOBAL_DAG row 44, wave 12,
-# worker ESSF-W12-A), written BEFORE `src/Extraction/selfforce.jl` exists (TDD; `tests_red.log`
-# captured against the missing file). THIS IS THE NUMBER THE PAPER IS ABOUT: F_r^m at the
-# particle, out of a converged m-mode solution.
+# worker ESSF-W12-A). THIS IS THE NUMBER THE PAPER IS ABOUT: F_r^m at the particle, out of a
+# converged m-mode solution.
 #
 # WHAT THE NODE DELIVERS (`Extraction/selfforce.jl`):
 #   * `mode_self_force(orbit, m, psi, dpsi_r, dpsi_z; phi_p)` — the pure Osburn–Nishimura
 #     Eq. (3.10) formula on raw ingredients (type-generic, BigFloat-clean);
-#   * `mode_self_force(sol::ModeSolution)` / `mode_self_force(hist::AmrHistory; level)` —
-#     the same, read through the SEALED row-42 `field_at` / `field_grad_at` at the puncture;
-#   * `regularized_mode_force(...; order = 4)` — `F_r^m − F^m_{r[order]}` with the sealed
-#     m = 0 halving rule, the per-m term the mode sum (row 46) adds up;
-#   * `mode_self_force_history(hist)` and `mode_force_convergence(hist)` — the per-AMR-level
-#     sequence and its successive-difference table (rows 50 / 53's resolution floor).
+#   * `mode_self_force(sol::ModeSolution)` — the same read through the SEALED row-42
+#     `field_at` / `field_grad_at`, reduced by the MEAN over every element containing the
+#     puncture (spectre parity); `element = e` gives one one-sided trace instead;
+#   * `mode_self_force(hist::AmrHistory; level, reduction)` — per AMR level, `:trace` by
+#     default (the sealed `AmrLevel` diagnostics) so a convergence sequence is homogeneous;
+#   * `mode_self_force_history`, `mode_force_convergence` — the sequence and its
+#     successive-difference table (rows 50 / 53's resolution floor);
+#   * `regularized_mode_force(...; order = 4)` — `F_r^m − F^m_{r[order]}` through
+#     `mmode_reg_term_Fr` (row 45's helper, which owns the m = 0 halving).
 #
-# ORACLE COLUMN (the DAG row-44 gate column + the READ-ONLY mirrors, transcribed by hand):
-#   * Osburn & Nishimura, arXiv:2206.07031, `src/main.tex:178-184` (Eq. 3.10):
-#         F^m_α = q ∇_α(Ψ^R_m / r)                                            , m = 0
-#         F^m_α = 2q Re[ ∇_α( Ψ^R_m e^{imΔφ} e^{im(φ−Ωt)} / r ) ]             , m > 0
-#     with `Δφ(r) = a/(r₊−r₋) ln((r−r₊)/(r−r₋))` (`main.tex:94`) — so `dΔφ/dr = a/Δ` and the
-#     radial derivative carries the DEPHASING term `+ i m (a/Δ) Ψ^R_m / r`.
-#   * CRP arXiv:2606.04998 `main.tex:428-430` (`F^self_α = q ∇_α Φ^R|_{x_p}`) and
-#     `main.tex:701-703` ("We extract the radial self-force contributions F_r^m from each
-#     m-mode solution up to m = 20 following Eq. (3.10) in [Osburn_2022]").
-#   * spectre `src/Elliptic/Systems/SelfForce/Scalar/Events/ObserveSelfForce.cpp:52-77` — the
-#     reference implementation, ported LINE BY LINE below as `sf_spectre_force` (an
-#     independent oracle, not a call into ours).
-#   * spectre REGRESSION ROWS: `tests/InputFiles/SelfForce/ScalarCircularOrbit.yaml:19-23`
-#     at `a = 0.5`, `r₀ = 10`, `m = 1`, `AbsoluteTolerance: 2.0e-7`; the column legend is
-#     `tests/Unit/.../Events/Test_ObserveSelfForce.cpp:195-199` =
-#     `IterationId | NumGridPoints | NumContributingElements | Re(F_r) | Im(F_r) | Re(F_θ) | Im(F_θ)`:
-#         [0, 480, 4,  0.0,       0.0,      0, 0]
-#         [1, 480, 4, -9.183e-5,  9.451e-5, 0, 0]
-#         [2, 975, 4, -1.365e-4,  9.138e-5, 0, 0]
-#     THEIR mesh is not ours (that yaml is `ImposeEquatorialSymmetry: False`, a 5×3 lattice on
-#     block bounds `[r₊, 5, 6, 14, 25, 1e4]`, `Amr: Iterations: 2`); the honest comparison is
-#     stated in gate (b) and measured, never fudged.
-#   * `src/MModeOperator/ansatz.jl` `mode_term` — the LOCKED ansatz
-#     `Φ = Σ_m Ψ_m sin^{|m|}θ / r · e^{+im(φ̄ − Ωt)}`, `φ̄ = φ + χ(r)`;
-#     `src/Extraction/regularization.jl` `mmode_reg_factor_over_pi` — the LOCKED folding rule
-#     (the ×2 is inside the parameter at every m, so an UNFOLDED m = 0 force term subtracts
-#     `mmode_reg_Fr(order, orbit, 0)/2`).
+# THE ORACLES, IN ORDER OF STRENGTH (this ordering is the point — see gate (a0)):
+#   1. INDEPENDENT, and the only one that is: a BigFloat central-difference of the FULL
+#      FOLDED FIELD `Φ = 2Re[Ψ_m sin^{|m|}θ/r · e^{im(φ + χ(r) − Ωt)}]` (m = 0: the unfolded
+#      `Re[Ψ_0/r]`) with respect to `(t, r, θ, φ)` at the particle. It never writes the
+#      dephasing term, the ×2, the phase or the θ-chain down — they emerge from
+#      differentiating `Φ`. It is what gives `F_θ` an oracle at all: spectre HARD-CODES
+#      `F_θ = 0` (`ObserveSelfForce.cpp:49-51`) and publishes no value to compare against.
+#   2. REGRESSION CHECKS, NOT INDEPENDENT ORACLES: `sf_spectre_force` (a line-by-line port of
+#      `ObserveSelfForce.cpp:52-77`) and `sf_closed_form` (the same algebra transcribed from
+#      `arXiv:2206.07031 main.tex:178-184`). They are transcriptions of the SAME algebra the
+#      implementation transcribes, so agreement between them is a transcription check — it
+#      catches a typo, never a shared misreading. Retained for exactly that.
+#   3. THE EXTERNAL ANCHOR: spectre's own regression rows
+#      `tests/InputFiles/SelfForce/ScalarCircularOrbit.yaml:19-23` at `a = 0.5`, `r₀ = 10`,
+#      `m = 1`, column legend
+#      `tests/Unit/Elliptic/Systems/SelfForce/Scalar/Events/Test_ObserveSelfForce.cpp:195-199`.
+#      They exist at ONE configuration and for the RADIAL component only.
 #
-# PREDECESSOR SCOPE (sealed; consumed, never re-derived here): `amr-driver` (`solve_mode_amr`,
-# `AmrHistory`, `AmrLevel`, `puncture_chart_position`), `solver-stack-ssf` (`ModeSolution`,
-# `solve_mode`, `field_at`, `field_grad_at`), `mode-ansatz-decomposition` (the conventions),
-# `orbits-adapters` (`CircularOrbit`, `Omega`), `heffernan-regularization` (`mmode_reg_Fr`),
-# Spacetime (`kerr_varphi`, `kerr_varphi_offset_dr = a/Δ`).
+# PAPER ANCHORS: `arXiv:2206.07031 src/main.tex:178-184` (Eq. 3.10) and `:89-94` (`Δφ(r)`);
+# CRP `arXiv:2606.04998 main.tex:428-430` (`F^self_α = q ∇_αΦ^ℛ`, the normalization),
+# `:701-703` (the extraction follows Eq. 3.10), `:719-724` (the resolution floor);
+# `src/MModeOperator/ansatz.jl` `mode_term` (the locked ansatz);
+# `src/Extraction/regularization.jl` `mmode_reg_term_Fr` (the m = 0 halving rule).
+#
+# GATE CONSTANTS: named below, ALWAYS separately from the values observed — a threshold is a
+# contract, an observation is a measurement of one mesh sequence. Every threshold was
+# calibrated on throwaway prototypes in the node evidence
+# (`proto{1,2,3}_w12a.jl` for the original landing, `proto4_w12a.jl` for this follow-up,
+# re-measured on main ≥ 6df9f51 with the mean reduction) BEFORE this file was written or
+# rewritten. ONE gate was deliberately WEAKENED after the original green run — gate (b)'s
+# level-index statement became a contiguous-tail statement — because a golden AMR level index
+# is not a contract; that change is recorded in the node's `process_incidents.md` §3. No
+# threshold has ever been loosened to make a failing assertion pass.
 #
 # NO mode sum (row 46), NO figures (rows 48-53), NO parallel fan-out (row 47).
-#
-# GATE CONSTANTS — every one calibrated on the throwaway prototypes
-# `evidence/mode-self-force-extraction/proto{1,2,3}_w12a.jl` BEFORE this file was written,
-# never tuned afterwards to pass. The measured value is quoted beside each gate.
 
 using Test
 using Printf
 using ScalarSelfForce
 using EllipticCore
+using ScalarSelfForce: kerr_varphi_offset, sinm_theta
+
+# ------------------------------------ GATE CONSTANTS ---------------------------------------
+const SF_FD_ORACLE_RTOL    = 1.0e-20   # (a0) vs the independent BigFloat FD of the full field
+const SF_FORMULA_RTOL      = 1.0e-12   # (a1)/(a2) the DAG row-44 analytic-field tolerance
+const SF_SPECTRE_ATOL      = 2.0e-7    # spectre's OWN tolerance, ScalarCircularOrbit.yaml:22
+const SF_SPECTRE_BAND      = 5.0e-8    # (b) OUR regression band on the deviation, mean
+                                       #     reduction, pinned config; 4x tighter than theirs
+const SF_TRACE_SPREAD_ATOL = 1.0e-10   # (b) mean vs one-sided trace, tied to the DG spread
+const SF_LINEARITY_RTOL    = 1.0e-14   # (b) mean-of-ingredients == mean-of-forces
+const SF_TWO_STEP_MAX      = 0.5       # (c) two-level contraction factor
+const SF_RATIO_BAND        = 2.0       # (c) broad non-divergence band on the 1-step ratios
+const SF_RES_ERR_ATOL      = 1.0e-9    # (c) resolution floor, absolute
+const SF_RES_ERR_RTOL      = 1.0e-5    # (c) resolution floor, relative
+const SF_SLOPE_TARGET      = -6.0      # (e) the Heffernan-subtracted residual's decay
+const SF_SLOPE_BAND        = 0.3       # (e) row 45's band
+const SF_SLOPE_HEADROOM    = 3.0       # (e) |residual| / level-difference required of a point
+const SF_SLOPE_SIGMA_MAX   = 0.1       # (e) propagated slope uncertainty required of a fit
 
 # ---- configs (sf_-prefixed: sibling test files share the runtests.jl include scope) --------
 sf_cfg(; spin = 0.5, r0 = 10.0, m = 1, L = 0, P = 4) =
     crp_paper_config(; spin = spin, orbital_radius = r0, m_mode = m,
                      inner_radius = CircularOrbit(spin, r0).rp, P = P, L = L)
 
-# ---- ORACLE 1: spectre `ObserveSelfForce.cpp:52-77`, ported statement by statement ---------
-# `field` = Ψ^R_m(x_p); `dfield` = ∂_{x0}Ψ^R_m(x_p) with x0 the block's radial coordinate
-# (= r when `PenetratingHorizon: True`, which is the CRP setting and ours). Returns spectre's
-# COMPLEX `self_force[0]`, i.e. the pair its regression rows print as Re/Im.
+# ---- ORACLE 1 (INDEPENDENT): the full folded field, differentiated numerically -------------
+# An analytic Ψ_m with genuine r AND z dependence, so ∂_zΨ ≠ 0 and F_θ is a real number.
+const SFC = (Complex{BigFloat}(big"0.37", big"-0.21"), Complex{BigFloat}(big"-0.13", big"0.29"),
+             Complex{BigFloat}(big"0.41", big"0.17"), Complex{BigFloat}(big"-0.07", big"0.23"),
+             Complex{BigFloat}(big"0.19", big"-0.11"))
+sf_psi(r, z, r0)    = SFC[1] + SFC[2]*(r-r0) + SFC[3]*z + SFC[4]*z^2 + SFC[5]*(r-r0)*z
+sf_psi_dr(r, z, r0) = SFC[2] + SFC[5]*z
+sf_psi_dz(r, z, r0) = SFC[3] + 2*SFC[4]*z + SFC[5]*(r-r0)
+
+# Φ(t, r, θ, φ) — the ansatz of `mode_term`, folded. The dephasing term, the ×2, the phase and
+# the θ-chain are NOT written here; χ(r) simply sits inside and the derivative is numerical.
+function sf_Phi(orb, m, t, r, th, ph)
+    z = cos(th)
+    varphi = ph + kerr_varphi_offset(orb.a, r)
+    term = sf_psi(r, z, orb.r0) * sinm_theta(m, z) / r * cis(m * (varphi - orb.Omega * t))
+    return m == 0 ? real(term) : 2 * real(term)
+end
+sf_fd(f, x, h) = (f(x + h) - f(x - h)) / (2h)
+
+# ---- ORACLE 2 (REGRESSION): spectre `ObserveSelfForce.cpp:52-77`, statement by statement ----
+# `field` = Ψ^ℛ_m(x_p); `dfield` = ∂_{x0}Ψ^ℛ_m(x_p), x0 = r when `PenetratingHorizon: True`
+# (the CRP setting and ours). Returns spectre's COMPLEX `self_force[0]` = our `Fr_complex`.
 function sf_spectre_force(a, r0, M, m::Integer, field, dfield; penetrating = true)
     r_plus = M * (1 + sqrt(1 - (a / M)^2))
     r_minus = M * (1 - sqrt(1 - (a / M)^2))
@@ -84,10 +118,7 @@ function sf_spectre_force(a, r0, M, m::Integer, field, dfield; penetrating = tru
     return sf
 end
 
-# ---- ORACLE 2: the hand-differentiated closed form, written from the tex, not from src -----
-# Φ^R ⊃ Ψ^R_m(r,z) sin^{|m|}θ / r · e^{im(φ̄ − Ωt)}, φ̄ = φ + Δφ(r), evaluated at
-# (t, r, θ, φ) = (0, r₀, π/2, φ_p). ∂_r hits Ψ^R_m, 1/r AND the phase; sin^{|m|}θ = 1 and its
-# θ-derivative |m| sin^{|m|−1}θ cosθ vanishes at the equator, so ∂_θ hits only Ψ^R_m.
+# ---- ORACLE 2b (REGRESSION): the same algebra transcribed from the tex ---------------------
 function sf_closed_form(a, r0, m::Integer, psi, dpsi_r, dpsi_z; phi_p = 0)
     rp = 1 + sqrt(1 - a^2)
     rm = 1 - sqrt(1 - a^2)
@@ -121,9 +152,75 @@ function sf_fill_collocation!(sol, f)
     return sol
 end
 
-# ============================== (a) THE FORMULA, exactly =====================================
+# =========== (a0) THE INDEPENDENT ORACLE: all four components against a FD of Φ ==============
 
-@testset "(a1) the extraction formula against two independent oracles" begin
+@testset "(a0) all four components against a BigFloat finite difference of the full field" begin
+    setprecision(BigFloat, 240) do
+        worst = big(0.0)
+        wtheta = big(0.0)
+        for a in (big"0.0", big"0.5", big"-0.9"), r0 in (big"6.0", big"10.0"),
+            m in (0, 1, 2, 3, 5), phi_p in (big"0.7", big"-1.3")
+            orb = CircularOrbit(a, r0)
+            h = BigFloat(10)^-25
+            thp = big(pi) / 2
+            got = mode_self_force(orb, m, sf_psi(orb.r0, big(0.0), orb.r0),
+                                  sf_psi_dr(orb.r0, big(0.0), orb.r0),
+                                  sf_psi_dz(orb.r0, big(0.0), orb.r0); phi_p = phi_p)
+            Fr  = sf_fd(r  -> sf_Phi(orb, m, big(0.0), r, thp, phi_p), orb.r0, h)
+            Ft  = sf_fd(t  -> sf_Phi(orb, m, t, orb.r0, thp, phi_p), big(0.0), h)
+            Fth = sf_fd(th -> sf_Phi(orb, m, big(0.0), orb.r0, th, phi_p), thp, h)
+            Fph = sf_fd(ph -> sf_Phi(orb, m, big(0.0), orb.r0, thp, ph), phi_p, h)
+            rel(x, y) = abs(x - y) / max(abs(y), big(1e-40))
+            worst = max(worst, rel(got.Fr, Fr), rel(got.Ft, Ft), rel(got.Fphi, Fph))
+            wtheta = max(wtheta, rel(got.Ftheta, Fth))
+            # F_θ is a REAL number here (the analytic Ψ has genuine z dependence), so this is
+            # a live oracle for it, not a comparison of two zeros
+            @test abs(Fth) > big(1e-3)
+        end
+        @printf("mode-self-force (a0) observed worst rel dev vs the FD oracle: %.3e (F_r/F_t/F_φ), \
+                 %.3e (F_θ); gate %.1e\n", Float64(worst), Float64(wtheta), SF_FD_ORACLE_RTOL)
+        @test worst <= SF_FD_ORACLE_RTOL
+        @test wtheta <= SF_FD_ORACLE_RTOL
+    end
+end
+
+@testset "(a0b) the FD oracle DISCRIMINATES each convention piece" begin
+    setprecision(BigFloat, 240) do
+        orb = CircularOrbit(big"0.5", big"10.0")
+        h = BigFloat(10)^-25
+        phi_p = big"0.7"
+        m = 2
+        Fr = sf_fd(r -> sf_Phi(orb, m, big(0.0), r, big(pi)/2, phi_p), orb.r0, h)
+        p = sf_psi(orb.r0, big(0.0), orb.r0)
+        dr = sf_psi_dr(orb.r0, big(0.0), orb.r0)
+        ph = cis(m * (phi_p + kerr_varphi_offset(orb.a, orb.r0)))
+        brad = dr / orb.r0 - p / orb.r0^2
+        rel(x) = Float64(abs(x - Fr) / abs(Fr))
+        nodeph = real(2 * ph * brad)                       # dephasing term dropped
+        nox2   = real(ph * (brad + im*m*(orb.a/(orb.r0^2 - 2*orb.r0 + orb.a^2))*p/orb.r0))
+        nophse = real(2 * (brad + im*m*(orb.a/(orb.r0^2 - 2*orb.r0 + orb.a^2))*p/orb.r0))
+        @printf("mode-self-force (a0b) observed falsifier margins vs the FD oracle: \
+                 no-dephasing %.3e, no-x2 %.3e, no-phase %.3e\n",
+                rel(nodeph), rel(nox2), rel(nophse))
+        @test rel(nodeph) > 1.0e-2
+        @test rel(nox2) > 1.0e-1
+        @test rel(nophse) > 1.0e-2
+    end
+end
+
+# ================= (a1)-(a4) transcription regression checks and structure ===================
+
+# spectre's non-penetrating branch is the one thing the port has that we deliberately do not:
+# assert that it is a DIFFERENT number, so "we skip /= alpha" is a decision, not an omission.
+function got_penetrating_only()
+    a, r0, m = 0.5, 10.0, 2
+    psi, dr = 0.31 - 0.47im, -0.13 + 0.29im
+    pen = sf_spectre_force(a, r0, 1.0, m, psi, dr; penetrating = true)
+    tor = sf_spectre_force(a, r0, 1.0, m, psi, dr; penetrating = false)
+    return pen != tor && mode_self_force(CircularOrbit(a, r0), m, psi, dr, 0.0).Fr_complex ≈ pen
+end
+
+@testset "(a1) the formula against two TRANSCRIPTION regression checks" begin
     worst_c, worst_s = 0.0, 0.0
     for a in (0.0, 0.5, -0.9), m in (0, 1, 2, 5), r0 in (10.0, 6.0)
         orb = CircularOrbit(a, r0)
@@ -137,67 +234,58 @@ end
         s = sf_spectre_force(a, r0, 1.0, m, psi, dr)
         worst_s = max(worst_s, abs(got.Fr_complex - s) / abs(s))
     end
-    @test worst_c <= 1e-12          # MEASURED 0.0 (bitwise) on the proto1 grid
-    @test worst_s <= 1e-12          # MEASURED 2.03e-16
-    @printf("mode-self-force (a1) worst rel dev vs closed form %.3e ; vs spectre port %.3e\n",
-            worst_c, worst_s)
+    @printf("mode-self-force (a1) observed worst rel dev vs the tex transcription %.3e ; \
+             vs the spectre port %.3e ; gate %.1e\n", worst_c, worst_s, SF_FORMULA_RTOL)
+    @test worst_c <= SF_FORMULA_RTOL
+    @test worst_s <= SF_FORMULA_RTOL
+    @test got_penetrating_only()
 end
 
 @testset "(a2) analytic field on a REAL ModeSolution mesh (collocation fill)" begin
-    cfg = sf_cfg(; m = 1)
     orb = CircularOrbit(0.5, 10.0)
-    sol = solve_mode(orb, cfg, 1)
-    @test sol.dom.chart === :z2
-    xp = puncture_chart_position(sol.dom, orb)
+    xp = puncture_chart_position(block_domain(orb, sf_cfg(; m = 1)), orb)
     @test xp == (10.0, 0.0)
-    # a manufactured polynomial of the element's own degree in the DISCRETIZATION chart
-    # (x1 = r, x2 = w = z²), so interpolation and differentiation are exact to roundoff
     f(x, y)  = (0.7 - 0.3im) + (0.11 + 0.05im) * (x - 10) - (0.23 - 0.4im) * y +
                (0.017 + 0.009im) * (x - 10)^2 * y + (0.004 - 0.002im) * (x - 10)^3
     fx(x, y) = (0.11 + 0.05im) + 2 * (0.017 + 0.009im) * (x - 10) * y +
                3 * (0.004 - 0.002im) * (x - 10)^2
-    sf_fill_collocation!(sol, f)
     psi_e, dr_e = f(xp[1], xp[2]), fx(xp[1], xp[2])
-
     worst = 0.0
     for m in (0, 1, 2, 5)
-        cfgm = sf_cfg(; m = m)
-        solm = solve_mode(CircularOrbit(0.5, 10.0), cfgm, m)
+        solm = solve_mode(orb, sf_cfg(; m = m), m)
+        @test solm.dom.chart === :z2
         sf_fill_collocation!(solm, f)
-        got = mode_self_force(solm)
+        got = mode_self_force(solm)                       # the MEAN reduction (default)
         ref = sf_closed_form(0.5, 10.0, m, psi_e, dr_e, 0.0)
         worst = max(worst, abs(got.Fr - ref.Fr) / abs(ref.Fr))
+        @test got.reduction === :mean
         @test got.psi ≈ psi_e atol = 1e-13
         @test got.dpsi_r ≈ dr_e atol = 1e-13
         @test got.dpsi_z == 0                      # ∂_z = 2z∂_w with z = 0: EXACTLY zero
         @test got.Ftheta == 0                      # ... hence F_θ ≡ 0 bitwise
         @test got.m == m
     end
-    @test worst <= 1e-12                           # MEASURED ~4.4e-16 (proto1 (B))
-    @printf("mode-self-force (a2) worst rel dev on the mesh path: %.3e\n", worst)
+    @printf("mode-self-force (a2) observed worst rel dev on the mesh path: %.3e ; gate %.1e\n",
+            worst, SF_FORMULA_RTOL)
+    @test worst <= SF_FORMULA_RTOL
 end
 
-@testset "(a3) falsifiers: each convention piece changes the answer" begin
+@testset "(a3) structural falsifiers on the raw-ingredient formula" begin
     orb = CircularOrbit(0.5, 10.0)
     psi, dr = 0.31 - 0.47im, -0.13 + 0.29im
     full = mode_self_force(orb, 2, psi, dr, 0.0)
-    # (i) DROP the dephasing term +im(a/Δ)Ψ/r — an O(a) error
-    nodeph = 2 * cis(2 * kerr_varphi(0.5, 10.0, 0)) * (dr / 10 - psi / 100)
-    @test abs(real(nodeph) - full.Fr) / abs(full.Fr) > 1e-2      # MEASURED 9.6e-2 on proto1
-    # ... and it vanishes identically at a = 0 (the term IS a/Δ)
-    orb0 = CircularOrbit(0.0, 10.0)
-    @test mode_self_force(orb0, 2, psi, dr, 0.0).Fr_complex ==
+    # the dephasing term vanishes IDENTICALLY at a = 0 (the term IS a/Δ)
+    @test mode_self_force(CircularOrbit(0.0, 10.0), 2, psi, dr, 0.0).Fr_complex ==
           2 * (dr / 10 - psi / 100)
-    # (ii) DROP the ×2 real-part folding
-    @test abs(full.Fr / 2 - full.Fr) / abs(full.Fr) ≈ 0.5
-    # (iii) m = 0 must be UNFOLDED (no ×2, no phase, no dephasing)
+    # m = 0 is UNFOLDED: no ×2, no phase, no dephasing, no F_t / F_φ
     f0 = mode_self_force(orb, 0, psi, dr, 0.0)
     @test f0.Fr_complex == dr / 10 - psi / 100
     @test f0.Ft == 0 && f0.Fphi == 0
-    @test abs(f0.Fr - full.Fr) / abs(full.Fr) > 1e-2             # MEASURED 5.5e-1
-    # (iv) the phase is e^{+im(φ_p+χ)}, not its conjugate
+    @test f0.phase == 1
+    # the phase is e^{+im(φ_p+χ)}, not its conjugate
     @test mode_self_force(orb, 2, psi, dr, 0.0; phi_p = 0.31).Fr !=
           mode_self_force(orb, 2, psi, dr, 0.0; phi_p = -0.31).Fr
+    @test full.reduction === :direct && full.element == 0 && isempty(full.elements)
 end
 
 @testset "(a4) F_t, F_φ and F_θ structure" begin
@@ -205,9 +293,8 @@ end
     psi, dr = 0.31 - 0.47im, -0.13 + 0.29im
     for m in (0, 1, 2, 5)
         g = mode_self_force(orb, m, psi, dr, 0.0)
-        # the ∂_t → −imΩ / ∂_φ → +im rule of the ansatz phase, exactly
-        @test g.Ft_complex == -orb.Omega * g.Fphi_complex
-        @test g.Ft == -orb.Omega * g.Fphi                     # circular-orbit identity
+        @test g.Ft_complex == -orb.Omega * g.Fphi_complex     # by construction; F_t = −ΩF_φ
+        @test g.Ft == -orb.Omega * g.Fphi
         @test g.Ftheta == 0                                   # dpsi_z = 0 ⇒ bitwise zero
         if m > 0
             @test g.Ft_complex ≈ 2 * cis(m * kerr_varphi(orb.a, orb.r0, 0)) *
@@ -216,109 +303,111 @@ end
             @test g.Ft_complex == 0
         end
     end
-    # a NON-zero ∂_zΨ propagates into F_θ with the ∂_θ = −sinθ ∂_z sign
     g = mode_self_force(orb, 1, psi, dr, 0.17 + 0.4im)
     @test g.Ftheta ≈ real(2 * cis(kerr_varphi(orb.a, orb.r0, 0)) *
                           (-(0.17 + 0.4im) / orb.r0)) rtol = 1e-14
 end
 
 # ================= the ONE production sweep, shared by gates (b), (c), (d) ===================
-# a = 0.5, r₀ = 10, m = 1 — spectre's own regression configuration — at the paper's 8 AMR
-# iterations. MEASURED cost in a cold process: 227 s including JIT; ~20 s warm.
 const SF_ORB = CircularOrbit(0.5, 10.0)
 const SF_HIST = solve_mode_amr(SF_ORB, sf_cfg(; m = 1), 1; iterations = 8)
 const SF_LEVELS = mode_self_force_history(SF_HIST)
 
-# ============================ (b) THE SPECTRE REGRESSION ROWS ================================
-# spectre's rows are its OWN coarse-mesh regression on a DIFFERENT lattice (that yaml is
+# =========================== (b) THE SPECTRE REGRESSION ROWS =================================
+# spectre's rows are its own coarse-mesh regression on a DIFFERENT lattice (that yaml is
 # `ImposeEquatorialSymmetry: False`, a full-z 5×3 lattice on block bounds
 # [r₊, 5, 6, 14, 25, 1e4], `Amr: Iterations: 2`, 480 → 975 grid points), and its 2e-7
-# absolute tolerance is a build-to-build reproducibility bound on ITS numbers. So the
-# comparison is made at three levels of strength, and the honest one is stated in each:
-#   (i)   our ARITHMETIC agrees with spectre's to roundoff — gate (a1), 2.03e-16;
-#   (ii)  at MATCHING AMR ITERATION the two sequences do NOT agree (different lattices):
-#         our level 1 is 3.95e-5 from spectre's iteration-1 row. That is a FINDING, asserted
-#         below so a later reader cannot mistake (iii) for a per-iteration match;
-#   (iii) our CONVERGED value reproduces spectre's own final (iteration-2) row INSIDE the
-#         DAG's 2e-7 absolute gate — MEASURED |ΔRe| 1.708e-8, |ΔIm| 8.665e-10, i.e. inside
-#         the 4 significant figures spectre prints.
-const SF_SPECTRE_ROWS = ((1, -9.183e-5, 9.451e-5, 0.0, 0.0),
-                         (2, -1.365e-4, 9.138e-5, 0.0, 0.0))
-const SF_SPECTRE_ATOL = 2.0e-7          # ScalarCircularOrbit.yaml:22
+# absolute tolerance is a build-to-build reproducibility bound on ITS numbers. Only the
+# ITERATION-2 (final) row is used as an anchor: it is the only one of the two that its own
+# sequence has converged towards, and GLOBAL_DAG row 44 quotes both rows at 2e-7 without
+# saying so. At MATCHING AMR ITERATION the two sequences do not agree — the deviation is
+# PRINTED below as documentation of the lattice difference, and deliberately NOT asserted: a
+# "we disagree" assertion is green for any wrong code.
+const SF_SPECTRE_ITER2 = (-1.365e-4, 9.138e-5, 0.0, 0.0)
+const SF_SPECTRE_ITER1 = (-9.183e-5, 9.451e-5)
 
 @testset "(b) the spectre regression rows at a = 0.5, r0 = 10, m = 1" begin
-    conv = SF_LEVELS[end]
-    _, sre, sim, sthr, sthi = SF_SPECTRE_ROWS[2]
-    dre = abs(real(conv.Fr_complex) - sre)
-    dim = abs(imag(conv.Fr_complex) - sim)
-    @printf("mode-self-force (b) converged F_r^{m=1} = %+.12e %+.12e im ; spectre iter 2 row \
-             %+.4e %+.4e ; |dRe| %.3e |dIm| %.3e (atol %.1e)\n",
-            real(conv.Fr_complex), imag(conv.Fr_complex), sre, sim, dre, dim, SF_SPECTRE_ATOL)
-    @test dre <= SF_SPECTRE_ATOL                    # MEASURED 1.708e-8
-    @test dim <= SF_SPECTRE_ATOL                    # MEASURED 8.665e-10
-    @test conv.Ftheta == sthr && imag(conv.Ftheta_complex) == sthi   # their F_θ columns
+    sre, sim, sthr, sthi = SF_SPECTRE_ITER2
+    mean = mode_self_force(SF_HIST.solution)                  # the DEFAULT: spectre parity
+    @test mean.reduction === :mean
+    dre = abs(real(mean.Fr_complex) - sre)
+    dim = abs(imag(mean.Fr_complex) - sim)
+    @printf("mode-self-force (b) observed converged F_r^{m=1} (mean of %d elements) = \
+             %+.12e %+.12e im ; spectre iter-2 row %+.4e %+.4e ; |dRe| %.5e |dIm| %.5e \
+             (their atol %.1e, our band %.1e)\n", length(mean.elements),
+            real(mean.Fr_complex), imag(mean.Fr_complex), sre, sim, dre, dim,
+            SF_SPECTRE_ATOL, SF_SPECTRE_BAND)
+    @test dre <= SF_SPECTRE_ATOL                      # spectre's own tolerance
+    @test dim <= SF_SPECTRE_ATOL
+    @test dre <= SF_SPECTRE_BAND                      # OUR tighter regression band
+    @test dim <= SF_SPECTRE_BAND
+    @test mean.Ftheta == sthr && imag(mean.Ftheta_complex) == sthi   # their F_θ columns
 
-    # (ii) the honest non-match at matching AMR iteration — a lattice difference, not a bug
-    _, s1re, s1im, _, _ = SF_SPECTRE_ROWS[1]
-    d1 = abs(real(SF_LEVELS[2].Fr_complex) - s1re)
-    @printf("mode-self-force (b) matching-iteration deviation, level 1 vs spectre iter 1: \
-             %.3e (their lattice is a different one)\n", d1)
-    @test d1 > SF_SPECTRE_ATOL                      # MEASURED 3.953e-5
+    # the reduction IS spectre's: mean over every containing element. Averaging the
+    # INGREDIENTS (what the implementation does) equals averaging the FORCES, by linearity.
+    per_el = [mode_self_force(SF_HIST.solution; element = e).Fr for e in mean.elements]
+    mean_of_forces = sum(per_el) / length(per_el)
+    spread = maximum(per_el) - minimum(per_el)
+    trace = mode_self_force(SF_HIST; level = lastindex(SF_HIST.levels))
+    @printf("mode-self-force (b) observed elements %d ; mean %+.12e ; first trace %+.12e ; \
+             spread %.4e ; mean(ingredients)−mean(forces) %.3e\n", length(mean.elements),
+            mean.Fr, trace.Fr, spread, abs(mean.Fr - mean_of_forces))
+    @test length(mean.elements) >= 2
+    @test abs(mean.Fr - mean_of_forces) <= SF_LINEARITY_RTOL * abs(mean.Fr)
+    @test abs(mean.Fr - trace.Fr) <= SF_TRACE_SPREAD_ATOL      # tied to the DG trace spread
+    @test spread <= SF_TRACE_SPREAD_ATOL
+    @test trace.reduction === :trace && trace.element in mean.elements
+    # `reduction = :mean` on the final level of the history IS the ModeSolution reduction
+    @test mode_self_force(SF_HIST; reduction = :mean).Fr == mean.Fr
+    @test_throws ArgumentError mode_self_force(SF_HIST; level = 1, reduction = :mean)
 
-    # (iii) the sequence ENTERS the gate and stays there — a contiguous tail ending at the
-    # last level. Stated as a tail, not as a fixed first level: the AMR mesh sequence moves
-    # slightly with EllipticCore's hp_refine order map, so where the crossing happens is a
-    # re-measurement, not a contract. MEASURED here: levels 3-8 (3.5e-8 down to 1.7e-8),
-    # level 2 still outside at 4.2e-7.
+    # documentation only (printed, not asserted): the matching-iteration lattice difference
+    @printf("mode-self-force (b) observed matching-iteration deviation, our level 1 vs \
+             spectre iter 1: %.3e — a different lattice, not a disagreement about physics\n",
+            abs(real(SF_LEVELS[2].Fr_complex) - SF_SPECTRE_ITER1[1]))
+    # the sequence ENTERS the gate and stays there (a tail, not a golden level index)
     inside = [k - 1 for k in eachindex(SF_LEVELS)
               if abs(real(SF_LEVELS[k].Fr_complex) - sre) <= SF_SPECTRE_ATOL]
-    @printf("mode-self-force (b) AMR levels inside the 2e-7 gate: %s\n", string(inside))
+    @printf("mode-self-force (b) observed AMR levels inside the 2e-7 gate: %s\n", string(inside))
     @test !isempty(inside) && last(inside) == 8
-    @test inside == collect(first(inside):8)        # contiguous: it enters and never leaves
-    @test length(inside) >= 4                       # MEASURED 6
-
-    # the one-sided-trace choice is immaterial at production resolution: spectre AVERAGES the
-    # extraction over its NumContributingElements (ObserveSelfForce.hpp:97-107, funcl::Plus
-    # then funcl::Divides by datum 2); we take the first containing element. MEASURED spread.
-    sol = SF_HIST.solution
-    xp = SF_HIST.x_p
-    es = [e for e in eachindex(sol.mesh.elements)
-          if all(abs.(ScalarSelfForce._dr_logical(sol.mesh, e, xp[1], xp[2])) .<= 1 + 16eps())]
-    fs = [mode_self_force(sol; element = e).Fr for e in es]
-    @printf("mode-self-force (b) containing elements %d ; mean %+.12e ; first %+.12e ; \
-             spread %.3e\n", length(es), sum(fs) / length(fs), conv.Fr,
-            maximum(fs) - minimum(fs))
-    @test length(es) >= 2
-    @test abs(sum(fs) / length(fs) - conv.Fr) <= SF_SPECTRE_ATOL   # MEASURED ~1e-11
-    # ... and the history's last level IS the final ModeSolution's extraction
-    @test mode_self_force(sol).Fr == conv.Fr
+    @test inside == collect(first(inside):8)
+    @test length(inside) >= 4
 end
 
 # ============================== (c) AMR CONVERGENCE ==========================================
 
-@testset "(c) F_r^m converges geometrically over the AMR sweep" begin
+@testset "(c) two-level contraction envelope of F_r^m over the AMR sweep" begin
     cv = mode_force_convergence(SF_HIST)
     @test length(cv.values) == 9 && cv.steps == collect(0:8)
-    @printf("mode-self-force (c) F_r^m per level: %s\n",
+    @printf("mode-self-force (c) observed F_r^m per level: %s\n",
             join((@sprintf("%+.9e", v) for v in cv.values), " "))
-    @printf("mode-self-force (c) diffs: %s\n",
-            join((@sprintf("%.3e", d) for d in cv.diffs), " "))
-    @printf("mode-self-force (c) 1-step ratios: %s\n",
-            join((@sprintf("%.4f", r) for r in cv.ratios), " "))
-    @printf("mode-self-force (c) 2-step ratios: %s\n",
-            join((@sprintf("%.4f", r) for r in cv.two_step_ratios), " "))
-    @printf("mode-self-force (c) resolution error: %.3e absolute, %.3e relative\n",
-            cv.resolution_error, cv.relative_resolution_error)
-    # The SINGLE-step ratio is NOT universally < 0.5 — the sealed row-43 contract says so and
-    # MEASURED 1.3133 here at level 5. The honest geometric statement is the TWO-step ratio:
-    @test all(<(0.5), cv.two_step_ratios[2:end])       # MEASURED max 0.2379
-    # ... and the envelope over the whole sweep is geometric with mean ratio well under 0.5
-    @test (cv.diffs[end] / cv.diffs[1])^(1 / (length(cv.diffs) - 1)) < 0.5   # MEASURED 0.168
-    # final-level stability (the error budget's "numerical resolution floor", main.tex:723)
-    @test cv.resolution_error <= 1.0e-9                # MEASURED 4.648e-11
-    @test cv.relative_resolution_error <= 1.0e-5       # MEASURED 3.405e-7
-    # a wrong component name is an error, not a silent zero
+    @printf("mode-self-force (c) observed diffs: %s\n",
+            join((@sprintf("%.4e", d) for d in cv.diffs), " "))
+    @printf("mode-self-force (c) observed 1-step ratios: %s (max %.4f, band %.1f)\n",
+            join((@sprintf("%.4f", r) for r in cv.ratios), " "), maximum(cv.ratios),
+            SF_RATIO_BAND)
+    @printf("mode-self-force (c) observed 2-step ratios: %s (max %.4f, gate %.1f)\n",
+            join((@sprintf("%.4f", r) for r in cv.two_step_ratios), " "),
+            maximum(cv.two_step_ratios), SF_TWO_STEP_MAX)
+    @printf("mode-self-force (c) observed resolution error: %.4e absolute, %.4e relative \
+             (gates %.1e / %.1e)\n", cv.resolution_error, cv.relative_resolution_error,
+            SF_RES_ERR_ATOL, SF_RES_ERR_RTOL)
+    # THE contraction statement: every two-level ratio contracts. The one-step ratio of an
+    # exponentially convergent sequence with plateaus is NOT bounded below 1 — it is held only
+    # to a broad non-divergence band, and its observed maximum is historical, not a contract.
+    @test all(<(SF_TWO_STEP_MAX), cv.two_step_ratios)
+    @test maximum(cv.ratios) < SF_RATIO_BAND
+    @test (cv.diffs[end] / cv.diffs[1])^(1 / (length(cv.diffs) - 1)) < SF_TWO_STEP_MAX
+    @test cv.resolution_error <= SF_RES_ERR_ATOL
+    @test cv.relative_resolution_error <= SF_RES_ERR_RTOL
     @test_throws ArgumentError mode_force_convergence(SF_HIST; component = :nope)
+end
+
+@testset "(c2) mode_force_convergence refuses a table too short to contract" begin
+    short = solve_mode_amr(SF_ORB, sf_cfg(; m = 1), 1; iterations = 2)   # 3 levels
+    @test length(short.levels) == 3
+    @test_throws ArgumentError mode_force_convergence(short)
+    @test length(mode_self_force_history(short)) == 3       # the sequence itself is fine
 end
 
 @testset "(d) F_θ, F_t and F_φ on the production sweep" begin
@@ -327,62 +416,103 @@ end
     @test conv.Ftheta == 0                          # ... so F_θ is a BITWISE zero
     @test conv.Ftheta_complex == 0
     @test conv.Ft == -SF_ORB.Omega * conv.Fphi      # circular-orbit identity, per mode
-    @printf("mode-self-force (d) F_r^{m=1} = %+.12e  F_t^{m=1} = %+.12e  F_φ^{m=1} = %+.12e\n",
-            conv.Fr, conv.Ft, conv.Fphi)
-    # F_t follows from F_r's own ingredients through the ansatz phase rule ∂_t → −imΩ
+    @printf("mode-self-force (d) observed F_r^{m=1} = %+.12e  F_t^{m=1} = %+.12e  \
+             F_φ^{m=1} = %+.12e\n", conv.Fr, conv.Ft, conv.Fphi)
     @test conv.Ft_complex ≈ 2 * cis(kerr_varphi(SF_ORB.a, SF_ORB.r0, 0)) *
                             (-im * SF_ORB.Omega) * conv.psi / SF_ORB.r0 rtol = 1e-13
 end
 
-# ============================== (e) THE m-SWEEP ==============================================
-# m ∈ {0, 1, 2, 5, 10} at 6 AMR levels; after subtracting the Heffernan F^m_{r[4]} (HALVED at
-# m = 0, the sealed folding rule of `mmode_reg_factor_over_pi`) the residual should fall like
-# m^{-6} (row 45's [FUTURE] slope gate, discharged here on real data).
+# rebuild a RunConfig with one nested field replaced (the config structs are immutable)
+function sf_setfield(cfg::RunConfig{T}, group::Symbol, field::Symbol, value) where {T}
+    g = getfield(cfg, group)
+    G = typeof(g)
+    g2 = G((f === field ? value : getfield(g, f) for f in fieldnames(G))...)
+    return RunConfig{T}((f === group ? g2 : getfield(cfg, f)
+                         for f in fieldnames(RunConfig{T}))...)
+end
 
-@testset "(e) m-sweep: the Heffernan-subtracted residual falls like m^-6" begin
+@testset "(d2) the radial chart contract is checked, not assumed" begin
+    # spectre's `/= alpha` (ObserveSelfForce.cpp:61-65) converts ∂_{r_*} to ∂_r in its
+    # NON-penetrating chart. Ours is horizon-penetrating BL r, so the factor is absent — and a
+    # configuration that ever declared otherwise must THROW, not return a scaled number.
+    @test sf_cfg(; m = 1).orbit.penetrating_horizon        # the production config is penetrating
+    sol = SF_HIST.solution
+    good = sol.config
+    bad = sf_setfield(good, :orbit, :penetrating_horizon, false)
+    @test !bad.orbit.penetrating_horizon
+    sol.config = bad
+    try
+        @test_throws ArgumentError mode_self_force(sol)
+    finally
+        sol.config = good
+    end
+    # the AmrHistory carries its OWN config, so the guard is checked there too
+    @test_throws ArgumentError ScalarSelfForce._sf_check_chart(bad)
+    @test ScalarSelfForce._sf_check_chart(SF_HIST.config) === nothing
+    @test mode_self_force(sol).reduction === :mean          # restored, and working again
+end
+
+# ============================== (e) THE m-SWEEP ==============================================
+# m ∈ {0, 1, 2, 5, 10} at 6 AMR levels; after subtracting F^m_{r[4]} (through
+# `mmode_reg_term_Fr`, which owns the m = 0 halving) the residual should fall like m^{-6}.
+#
+# ROW 45's GATE IS **NOT** DISCHARGED HERE and this file does not claim it is. What IS gated is
+# the slope over the pair of modes whose residuals are RESOLVED at 6 levels — a point is
+# resolved when |residual| is at least SF_SLOPE_HEADROOM times the level-to-level difference —
+# together with the uncertainty that difference propagates into the slope. The largest-m point
+# available here (m = 10) does NOT meet that bar at 6 levels; its slope is printed with its
+# uncertainty and is not asserted. A discharge of row 45 needs the row-47 fan-out: 8 levels,
+# m up to 20, and this same propagated uncertainty.
+
+@testset "(e) m-sweep: the Heffernan-subtracted residual decay, on resolved modes only" begin
     ms = (0, 1, 2, 5, 10)
     frs, res, ldiff = Float64[], Float64[], Float64[]
     for m in ms
-        # m = 1 reuses the 8-level sweep TRUNCATED to level 6 — the same mesh sequence
-        f, d = if m == 1
-            (SF_LEVELS[7].Fr, abs(SF_LEVELS[7].Fr - SF_LEVELS[6].Fr))
-        else
-            h = solve_mode_amr(SF_ORB, sf_cfg(; m = m), m; iterations = 6)
-            v = mode_self_force_history(h)
-            (v[end].Fr, abs(v[end].Fr - v[end-1].Fr))
-        end
-        push!(frs, f); push!(ldiff, d)
-        r = m == 1 ? regularized_mode_force(SF_HIST; level = 7) :
-                     f - (m == 0 ? mmode_reg_Fr(4, SF_ORB, 0) / 2 : mmode_reg_Fr(4, SF_ORB, m))
-        push!(res, r)
-        @printf("mode-self-force (e) m = %2d : F_r^m %+.9e  F^m_{r[4]} %+.9e  residual %+.9e \
-                 level-diff %.3e\n", m, f,
-                m == 0 ? mmode_reg_Fr(4, SF_ORB, 0) / 2 : mmode_reg_Fr(4, SF_ORB, m), r, d)
+        h = m == 1 ? SF_HIST : solve_mode_amr(SF_ORB, sf_cfg(; m = m), m; iterations = 6)
+        v = m == 1 ? SF_LEVELS : mode_self_force_history(h)
+        k = m == 1 ? 7 : lastindex(v)                    # AMR level 6 in both cases
+        f, d = v[k].Fr, abs(v[k].Fr - v[k-1].Fr)
+        r = f - mmode_reg_term_Fr(4, SF_ORB, m)
+        push!(frs, f); push!(res, r); push!(ldiff, d)
+        @printf("mode-self-force (e) observed m = %2d : F_r^m %+.9e  term %+.9e  \
+                 residual %+.9e  level-diff %.3e  headroom %.2f\n",
+                m, f, mmode_reg_term_Fr(4, SF_ORB, m), r, d, abs(r) / d)
     end
-    slope(idx) = begin
+    # `regularized_mode_force` IS that subtraction, and it goes through row 45's ONE helper
+    @test regularized_mode_force(SF_HIST; level = 7) ≈ res[2]
+    @test regularized_mode_force(SF_ORB, 0, 1.0) == 1.0 - mmode_reg_term_Fr(4, SF_ORB, 0)
+    @test mmode_reg_term_Fr(4, SF_ORB, 0) == mmode_reg_Fr(4, SF_ORB, 0) / 2
+    @test regularized_mode_force(SF_ORB, 3, 1.0) == 1.0 - mmode_reg_Fr(4, SF_ORB, 3)
+    @test regularized_mode_force(SF_ORB, 3, 1.0; order = 2) == 1.0 - mmode_reg_Fr(2, SF_ORB, 3)
+
+    headroom = [abs(res[k]) / ldiff[k] for k in eachindex(res)]
+    # a two-point log-log slope, with the uncertainty the level differences propagate into it
+    function slope2(i, j)
+        s = log(abs(res[j]) / abs(res[i])) / log(ms[j] / ms[i])
+        ds = (ldiff[i] / abs(res[i]) + ldiff[j] / abs(res[j])) / log(ms[j] / ms[i])
+        (s, ds)
+    end
+    s25, d25 = slope2(3, 4)        # m = 2 → 5, both resolved
+    s510, d510 = slope2(4, 5)      # m = 5 → 10, m = 10 not resolved at 6 levels
+    lsq(idx) = begin
         xs = [log(Float64(ms[k])) for k in idx]; ys = [log(abs(res[k])) for k in idx]
         mx = sum(xs) / length(xs); my = sum(ys) / length(ys)
         sum((xs .- mx) .* (ys .- my)) / sum((xs .- mx) .^ 2)
     end
-    s_asym = slope(3:5)     # m = 2, 5, 10
-    s_all = slope(2:5)      # m = 1, 2, 5, 10 — m = 1 is not in the asymptotic regime
-    s_top = slope(4:5)      # m = 5, 10 — resolution-limited at 6 levels, see below
-    @printf("mode-self-force (e) log-log slopes: m∈{2,5,10} %+.4f ; m∈{1,2,5,10} %+.4f ; \
-             m∈{5,10} %+.4f\n", s_asym, s_all, s_top)
-    @test -6.3 <= s_asym <= -5.7                    # MEASURED -6.1345 (row 45's -6 ± 0.3)
-    @test s_all > s_asym                            # m = 1 flattens the fit: MEASURED -5.0607
-    # HONEST BOUND on the largest-m point: at 6 AMR levels the m = 10 residual is only a few
-    # times the level-to-level difference, so the {5,10} slope is resolution-limited.
-    @printf("mode-self-force (e) m = 10 residual / level-diff = %.2f (resolution headroom)\n",
-            abs(res[5]) / ldiff[5])
-    @test abs(res[5]) > ldiff[5]                    # MEASURED 2.80x
+    @printf("mode-self-force (e) observed slopes: m∈{2,5} %+.4f ± %.4f (headroom %.0f / %.0f) ; \
+             m∈{5,10} %+.4f ± %.4f (headroom %.0f / %.2f) ; least-squares {2,5,10} %+.4f ; \
+             {1,2,5,10} %+.4f\n", s25, d25, headroom[3], headroom[4], s510, d510,
+            headroom[4], headroom[5], lsq(3:5), lsq(2:5))
+    # GATED: the resolved pair only
+    @test headroom[3] >= SF_SLOPE_HEADROOM
+    @test headroom[4] >= SF_SLOPE_HEADROOM
+    @test d25 <= SF_SLOPE_SIGMA_MAX
+    @test abs(s25 - SF_SLOPE_TARGET) <= SF_SLOPE_BAND
+    # NOT gated, printed above: m = 10's residual and every fit that uses it. Recorded here as
+    # the reason — it is a [FUTURE] obligation on row 45, not a passing gate.
+    @test headroom[5] < SF_SLOPE_HEADROOM || d510 <= SF_SLOPE_SIGMA_MAX
     # the raw (unsubtracted) sequence is NOT monotone at small m — m = 0 and m = 1 dominate
     @test abs(frs[1]) > abs(frs[3]) && abs(frs[2]) > abs(frs[3])
-    # `regularized_mode_force` IS the subtraction, with the m = 0 halving
-    @test regularized_mode_force(SF_HIST) ≈ SF_LEVELS[end].Fr - mmode_reg_Fr(4, SF_ORB, 1)
-    @test regularized_mode_force(SF_ORB, 0, 1.0) == 1.0 - mmode_reg_Fr(4, SF_ORB, 0) / 2
-    @test regularized_mode_force(SF_ORB, 3, 1.0) == 1.0 - mmode_reg_Fr(4, SF_ORB, 3)
-    @test regularized_mode_force(SF_ORB, 3, 1.0; order = 2) == 1.0 - mmode_reg_Fr(2, SF_ORB, 3)
 end
 
 # =========================== API surface: guards and equivalences ============================
@@ -392,18 +522,16 @@ end
     @test_throws ArgumentError mode_self_force(SF_HIST, 2)       # m ≠ hist.m
     @test_throws ArgumentError mode_self_force(SF_HIST.solution, 2)
     @test_throws BoundsError mode_self_force(SF_HIST; level = 99)
-    # the ModeSolution and AmrHistory paths agree bitwise on the final level
+    @test_throws ArgumentError mode_self_force(SF_HIST; reduction = :median)
+    # the history's :trace level and the ModeSolution's SAME element agree bitwise
     a = mode_self_force(SF_HIST)
-    b = mode_self_force(SF_HIST.solution)
+    b = mode_self_force(SF_HIST.solution; element = SF_HIST.levels[end].element)
     @test (a.Fr, a.Ft, a.Ftheta, a.Fphi) == (b.Fr, b.Ft, b.Ftheta, b.Fphi)
     @test a.element == b.element == SF_HIST.levels[end].element
     @test a.step == 8 && a.ndofs == SF_HIST.levels[end].mesh.ndofs
     @test length(SF_LEVELS) == length(SF_HIST.levels)
-    # explicit `element` overrides the default choice
-    other = first(e for e in eachindex(SF_HIST.solution.mesh.elements) if e != a.element &&
-                  all(abs.(ScalarSelfForce._dr_logical(SF_HIST.solution.mesh, e,
-                                                       SF_HIST.x_p[1], SF_HIST.x_p[2])) .<=
-                      1 + 16eps()))
+    # a different element is a different one-sided trace
+    other = first(e for e in mode_self_force(SF_HIST.solution).elements if e != a.element)
     @test mode_self_force(SF_HIST.solution; element = other).element == other
     @test mode_self_force(SF_HIST.solution; element = other).Fr != a.Fr
 end
@@ -421,7 +549,6 @@ end
         @test g.Fr_complex isa Complex{BigFloat}
         ref = sf_closed_form(big"0.5", big"10.0", 2, psi, dr, zero(psi))
         @test abs(g.Fr - ref.Fr) / abs(ref.Fr) < big"1e-50"
-        # and it AGREES with the Float64 path to Float64 accuracy
         g64 = mode_self_force(CircularOrbit(0.5, 10.0), 2, ComplexF64(psi),
                               ComplexF64(dr), 0.0)
         @test abs(Float64(g.Fr) - g64.Fr) / abs(g64.Fr) < 1e-13

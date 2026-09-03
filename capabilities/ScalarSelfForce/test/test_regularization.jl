@@ -406,6 +406,24 @@ end
         @test mmode_reg_factor_tail_over_pi(order, 1) == -mmode_reg_factor_over_pi(order, 0) // 2
         @test mmode_reg_factor_tail_over_pi(order, 0) == mmode_reg_factor_over_pi(order, 0) // 2
     end
+    # `mmode_reg_term_Fr` is THE ONE HELPER that applies that rule (added by node
+    # `mode-self-force-extraction`, row 44, which is its first consumer; row 46 uses the same
+    # one). Gated against the zero-sum identity itself, on real orbits: the m = 0 term it
+    # returns is exactly minus the analytic tail from m = 1, for every published order and
+    # both signs of the spin.
+    for order in HEFFERNAN_MMODE_ORDERS, a in (0.0, 0.5, -0.9), r0 in (6.0, 10.0)
+        ob = CircularOrbit(a, r0)
+        order in HEFFERNAN_CIRCULAR_FR_ORDERS || continue      # F_{r[6]}, F_{r[8]}: fits only
+        @test mmode_reg_term_Fr(order, ob, 0) == mmode_reg_Fr(order, ob, 0) / 2
+        @test w7e_relerr(mmode_reg_term_Fr(order, ob, 0),
+                         -mmode_reg_tail_Fr(order, ob, 1)) <= 1e-14
+        for m in (1, 2, 5, 20)
+            @test mmode_reg_term_Fr(order, ob, m) == mmode_reg_Fr(order, ob, m)
+        end
+        # the (a, r0; M) form agrees with the orbit form, and halves at m = 0 too
+        @test mmode_reg_term_Fr(order, a, r0, 0) == mmode_reg_Fr(order, a, r0, 0) / 2
+        @test mmode_reg_term_Fr(order, a, r0, 3) == mmode_reg_Fr(order, a, r0, 3)
+    end
     # float wrappers and the orbit-level tail
     setprecision(BigFloat, 256) do
         for T in (Float64, BigFloat), order in HEFFERNAN_MMODE_ORDERS, mstart in (0, 1, 5, 21)
