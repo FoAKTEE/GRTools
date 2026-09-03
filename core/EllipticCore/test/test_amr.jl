@@ -873,19 +873,29 @@ end
         new = hp_refine(prev, punct)
         # the element set is exactly the h step's
         @test new.elements == h_refine(prev, punct).elements
-        # orders: a flagged parent's children keep its order, everything else gains one
+        # orders: a parent SPLIT in dimension d keeps its order in d and gains one in the
+        # other — and "split" means the CLOSED decision set, the caller's flags raised to
+        # Split wherever the 2:1 rule forces it (spectre UpdateAmrDecision.cpp:82-87 +
+        # Projectors/Mesh.cpp:30-34: extents grow only where the FINAL flag is still
+        # IncreaseResolution).
+        cl = balanced_flags(prev, punct)
         for (e, id) in enumerate(new.elements)
             anc = amr_ancestor_of(prev.elements, id)
             o = prev.orders[prev.index[anc]]
-            @test new.orders[e] == (punct(anc) ? o : (o[1] + 1, o[2] + 1))
+            h = get(cl, anc, (false, false))
+            @test new.orders[e] == (h[1] ? o[1] : o[1] + 1, h[2] ? o[2] : o[2] + 1)
         end
-        # ... which is p-then-h BY CONSTRUCTION (hp_refine is literally that composition);
-        # kept as a regression pin on the composition order
-        ph = h_refine(p_refine(prev; hold = punct), punct)
+        # every caller flag survives into the closure, and the closure only ADDS splits
+        @test all(id -> get(cl, id, (false, false)) == (true, true),
+                  filter(punct, prev.elements))
+        # ... which is p-then-h on the CLOSED flags BY CONSTRUCTION (hp_refine is literally
+        # that composition); kept as a regression pin on the composition order
+        ph = h_refine(p_refine(prev; hold = cl), cl)
         @test ph.elements == new.elements && ph.orders == new.orders
-        # ... and h-then-p with the flags lifted along ancestry (the two halves commute)
+        # ... and h-then-p with the CLOSED flags lifted along ancestry (the halves commute)
         hstep = h_refine(prev, punct)
-        lifted = Set(filter(id -> punct(amr_ancestor_of(prev.elements, id)), hstep.elements))
+        lifted = Dict(id => get(cl, amr_ancestor_of(prev.elements, id), (false, false))
+                      for id in hstep.elements)
         hp2 = p_refine(hstep; hold = lifted)
         @test hp2.elements == new.elements && hp2.orders == new.orders
         # the CRP invariant: N = 4 in every puncture element, N > 4 away from it
@@ -939,6 +949,78 @@ end
     @test length(v2) == hp_refine(m2, id -> id.block == 1 &&
                                         amr_contains(id, 0.87, 0.31)).ndofs
     @test all(isfinite, v2)
+end
+
+# ---- (l) the 2:1 CLOSURE of the flag set, and what it does to the ORDER map ----------------
+# spectre semantics, transcribed from the reference (Domain/Amr/UpdateAmrDecision.cpp:82-87
+# REPLACES a per-dimension flag by Flag::Split when the 2:1 rule forces the split;
+# ParallelAlgorithms/Amr/Projectors/Mesh.cpp:30-34 grows the extents ONLY where the final flag
+# is still Flag::IncreaseResolution). An element that the balancer splits therefore must NOT
+# carry a p increment in the split dimension — it does in the OTHER dimension, because
+# `Amr.Policies.Isotropy: Anisotropic` (anc/ScalarSelfForce.yaml:145) and
+# `EnforceTwoToOneBalanceInNormalDirection: True` (yaml:146) make the decision per dimension.
+@testset "(l) balanced_flags: the 2:1 closure holds the order in the SPLIT dimension" begin
+    blk = amr_blk1()
+
+    # ---- (l1) ANISOTROPIC balance split, one dimension only -------------------------------
+    # dim 1 columns [0, 1/2] at level 1 and [1/2, 3/4], [3/4, 1] at level 2; dim 2 unrefined.
+    X = ElementId(21, SegmentId(1, 0), SegmentId(0, 0))
+    B = ElementId(21, SegmentId(2, 2), SegmentId(0, 0))
+    C = ElementId(21, SegmentId(2, 3), SegmentId(0, 0))
+    mesh = Mesh2D([blk], [X, B, C], (4, 4))
+    @test two_to_one_balanced(mesh.elements)                     # the source IS balanced
+    flags = Dict(B => (true, false))                             # split B in dim 1 only
+    cl = balanced_flags(mesh, flags)
+    # X is forced to split — in dimension 1 ONLY (the offending one), never quartered
+    @test cl[B] == (true, false)
+    @test cl[X] == (true, false)
+    @test !haskey(cl, C)
+    new = hp_refine(mesh, flags)
+    # B and X children: order HELD in dim 1, incremented in dim 2. C: incremented in both.
+    for (e, id) in enumerate(new.elements)
+        anc = amr_ancestor_of(mesh.elements, id)
+        @test new.orders[e] == (anc === C ? (5, 5) : (4, 5))
+    end
+    @test two_to_one_balanced(new.elements)
+    # the element set is the h step's, and the closure is already a fixpoint
+    @test new.elements == h_refine(mesh, flags).elements
+    @test balanced_flags(mesh, cl) == cl
+
+    # ---- (l2) CASCADE: a balance split forcing a further balance split ---------------------
+    # dim 1: [0,1/2] level 1, [1/2,3/4] level 2, [3/4,7/8] and [7/8,1] level 3.
+    W = ElementId(21, SegmentId(1, 0), SegmentId(0, 0))
+    X2 = ElementId(21, SegmentId(2, 2), SegmentId(0, 0))
+    B2 = ElementId(21, SegmentId(3, 6), SegmentId(0, 0))
+    F = ElementId(21, SegmentId(3, 7), SegmentId(0, 0))
+    m2 = Mesh2D([blk], [W, X2, B2, F], (4, 4))
+    @test two_to_one_balanced(m2.elements)
+    cl2 = balanced_flags(m2, Dict(B2 => (true, false)))
+    @test cl2[B2] == (true, false)
+    @test cl2[X2] == (true, false)                               # forced by B2's children
+    @test cl2[W] == (true, false)                                # forced by X2's children
+    @test !haskey(cl2, F)
+    n2 = hp_refine(m2, Dict(B2 => (true, false)))
+    for (e, id) in enumerate(n2.elements)
+        anc = amr_ancestor_of(m2.elements, id)
+        @test n2.orders[e] == (anc === F ? (5, 5) : (4, 5))
+    end
+    @test two_to_one_balanced(n2.elements)
+
+    # ---- (l3) no balance work ⇒ the closure IS the caller's flag set -----------------------
+    ids4 = [ElementId(21, SegmentId(1, i), SegmentId(1, j)) for j in 0:1 for i in 0:1]
+    m3 = Mesh2D([blk], ids4, (4, 4))
+    one = Dict(ids4[1] => (true, true))
+    @test balanced_flags(m3, one) == one
+    @test balanced_flags(m3, Dict{ElementId,NTuple{2,Bool}}()) ==
+          Dict{ElementId,NTuple{2,Bool}}()
+    # an empty closure ⇒ hp_refine is a pure p step
+    p3 = hp_refine(m3, Dict{ElementId,NTuple{2,Bool}}())
+    @test p3.elements == m3.elements && all(o -> o == (5, 5), p3.orders)
+
+    # ---- (l4) the CRP lattice: the closure fires exactly where the cascade needs it --------
+    # a centred puncture on a 2x2 root: the flagged element's split never violates 2:1, so the
+    # closure adds nothing at the first step and the order map is the pure hp one.
+    @test balanced_flags(m3, id -> id === ids4[4]) == Dict(ids4[4] => (true, true))
 end
 
 end # testset

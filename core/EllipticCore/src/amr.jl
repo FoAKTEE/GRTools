@@ -17,8 +17,8 @@
 #     CRP "element contains the puncture" predicate lives in ScalarSelfForce;
 #   * the AMR LOOP (solve → flag → refine → carry over → re-solve) is the `amr-driver`
 #     node, which composes [`h_split`](@ref), [`balance_two_to_one`](@ref),
-#     [`h_refine`](@ref), [`p_refine`](@ref), [`hp_refine`](@ref) and
-#     [`transfer_solution`](@ref);
+#     [`balanced_flags`](@ref), [`h_refine`](@ref), [`p_refine`](@ref), [`hp_refine`](@ref)
+#     and [`transfer_solution`](@ref);
 #   * coarsening / element JOIN is NOT implemented — the CRP strategy never coarsens, and
 #     `transfer_solution` REFUSES a target element with no ancestor in the source mesh
 #     rather than silently producing a projection.
@@ -84,7 +84,8 @@
 # may legitimately keep their cached factorization — that reuse is the CRP caching claim of
 # main.tex:716 and is the driver's decision, not this module's.
 
-export h_split, balance_two_to_one, h_refine, p_refine, hp_refine, transfer_solution
+export h_split, balance_two_to_one, balanced_flags, h_refine, p_refine, hp_refine,
+       transfer_solution
 
 # ---- refinement flags ---------------------------------------------------------------------
 # `flags` is the caller-supplied criterion. Accepted forms, all reduced to a per-dimension
@@ -270,6 +271,73 @@ function balance_two_to_one(ids::AbstractVector{ElementId};
                          "bounded by it)"))
 end
 
+"""
+    balanced_flags(mesh::Mesh2D, flags; maxsweeps = 128) -> Dict{ElementId,NTuple{2,Bool}}
+
+The caller's refinement `flags` CLOSED under the two-to-one rule: the per-dimension decision
+each element of `mesh` actually ends up with once [`balance_two_to_one`](@ref) has forced the
+offenders to split as well. Absent keys mean "no split in either dimension".
+
+# WHY THE CLOSURE IS A SEPARATE OBJECT (normative)
+
+Because a balance-induced split is a SPLIT, not a p refinement, and the two are mutually
+exclusive per dimension. spectre keeps ONE `amr::Flag` per element per dimension:
+`amr::update_amr_decision` REPLACES that flag by `Flag::Split` when a neighbour's decision
+would break the 2:1 rule (`Domain/Amr/UpdateAmrDecision.cpp:82-87`), and the mesh projector
+grows the extents only where the FINAL flag is still `Flag::IncreaseResolution`
+(`ParallelAlgorithms/Amr/Projectors/Mesh.cpp:30-34`). An element the balancer splits therefore
+KEEPS its polynomial order in the split dimension, and [`hp_refine`](@ref) needs this closure —
+not the caller's raw flags — to hold the right orders.
+
+The closure is ANISOTROPIC, matching `Amr.Policies.Isotropy: Anisotropic` and
+`EnforceTwoToOneBalanceInNormalDirection: True` (`anc/ScalarSelfForce.yaml:145-146`): only the
+OFFENDING dimension is raised, so an element quartered by the balancer is one that genuinely
+violates the rule in both dimensions. [`balance_two_to_one`](@ref) marks exactly that
+dimension (`_amr_ask!`), so this function inherits the policy rather than restating it.
+
+# HOW IT IS COMPUTED
+
+A fixpoint over the SPLIT LEAF SET, which is the same algorithm [`balance_two_to_one`](@ref)
+already runs: apply the current decisions with [`h_split`](@ref), balance the result, and read
+each leaf's level rise against its ancestor in `mesh.elements` back as a per-dimension
+decision. Adding decisions only adds splits, so the iteration is monotone and terminates;
+`maxsweeps` is a defensive cap. The result is a FIXPOINT — `balanced_flags(mesh, closed)`
+returns `closed` (gated) — and it is idempotent under composition with `h_refine`, whose own
+balancing pass then has nothing left to do except any SECOND split of an element the balancer
+must halve twice in one step (the decision container holds one bit per dimension; the extra
+split is still applied, and its children still inherit the parent's held order).
+
+`flags` accepts every form [`h_split`](@ref) documents.
+"""
+function balanced_flags(mesh::Mesh2D, flags; maxsweeps::Integer = 128)
+    ids = mesh.elements
+    dec = Dict{ElementId,NTuple{2,Bool}}()
+    for id in ids
+        d = _amr_flag(flags, id)
+        (d[1] || d[2]) && (dec[id] = d)
+    end
+    lookup = Dict{ElementId,Bool}(id => true for id in ids)
+    for _ in 1:maxsweeps
+        leaves = balance_two_to_one(h_split(ids, dec); connections = mesh.connections)
+        changed = false
+        for leaf in leaves
+            anc = _amr_ancestor(lookup, leaf)
+            anc === nothing && continue
+            cur = get(dec, anc, (false, false))
+            nxt = (cur[1] || leaf.segments[1].level > anc.segments[1].level,
+                   cur[2] || leaf.segments[2].level > anc.segments[2].level)
+            if nxt != cur
+                dec[anc] = nxt
+                changed = true
+            end
+        end
+        changed || return dec
+    end
+    throw(ErrorException("balanced_flags: the decision fixpoint was not reached in " *
+                         "$maxsweeps sweeps — this is a bug (decisions only ever gain " *
+                         "splits, so the sweep count is bounded by the element count)"))
+end
+
 # ---- ancestry ---------------------------------------------------------------------------------
 
 # the unique ancestor-or-equal of `id` present in `lookup` (a Dict keyed by ElementId), or
@@ -319,7 +387,9 @@ mesh's own [`BlockConnection`](@ref)s), and rebuild the mesh through the public
 
 Children INHERIT their parent's polynomial order (`h` refinement changes the element size,
 not the order; the CRP raises the order only in the un-flagged elements, which is
-[`p_refine`](@ref), and the combined step is [`hp_refine`](@ref)). Blocks and connections
+[`p_refine`](@ref), and the combined step is [`hp_refine`](@ref) — which closes the flag set
+with [`balanced_flags`](@ref) FIRST, so that an element the balancer splits keeps its order in
+the split dimension instead of inheriting a p increment it never earned). Blocks and connections
 are carried over unchanged. `mesh` is not mutated and shares no mutable state with the
 result.
 
@@ -383,14 +453,26 @@ other element keeps its extent and gains `increment` orders ([`p_refine`](@ref))
 two-to-one balance is restored by splitting the offenders — whose children inherit their
 parent's already-incremented order.
 
-LITERALLY the composition `h_refine(p_refine(mesh; hold = flags, increment), flags)` — one
-criterion, used as "hold the order" by the p half and "split" by the h half. It is also equal
-to the other order once the flags are lifted along ancestry (gated): the two halves act on
-disjoint element sets, so they commute. This is the step the `amr-driver` node iterates; the
-criterion behind `flags` stays the caller's.
+LITERALLY the composition `h_refine(p_refine(mesh; hold = closed, increment), closed)` with
+`closed = `[`balanced_flags`](@ref)`(mesh, flags)` — ONE criterion, used as "hold the order"
+by the p half and "split" by the h half. It is also equal to the other order once the closed
+flags are lifted along ancestry (gated): the two halves act on disjoint element sets, so they
+commute. This is the step the `amr-driver` node iterates; the criterion behind `flags` stays
+the caller's.
+
+THE CLOSURE IS NOT OPTIONAL. An element the 2:1 rule forces to split must NOT also gain a
+polynomial order in the split dimension: spectre replaces the per-dimension flag by
+`Flag::Split` (`Domain/Amr/UpdateAmrDecision.cpp:82-87`) and grows extents only where the FINAL
+flag is `IncreaseResolution` (`ParallelAlgorithms/Amr/Projectors/Mesh.cpp:30-34`). Passing the
+caller's RAW flags to the p half instead — as this function did before — p-increments the
+offenders and their children inherit that order, which moves the order map, the dof count, the
+Schwarz cache keys and the iteration counts away from the reference. The decision stays
+per-dimension throughout, so an anisotropic balance split holds the order in the split
+dimension and still increments the other one.
 """
 function hp_refine(mesh::Mesh2D, flags; increment::Integer = 1)
-    return h_refine(p_refine(mesh; hold = flags, increment = increment), flags)
+    closed = balanced_flags(mesh, flags)
+    return h_refine(p_refine(mesh; hold = closed, increment = increment), closed)
 end
 
 # ---- solution carry-over ------------------------------------------------------------------------
