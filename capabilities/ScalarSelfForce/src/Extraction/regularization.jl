@@ -71,13 +71,15 @@ parameters — the ×2 real-part factor of `Φ = Φ^{(0)} + 2 Σ_{m≥1} Re[Φ^{
 already inside them, so a mode sum adds `F^m_{r[2j]}` once per `m ≥ 1`. Retrograde orbits are
 encoded by `a < 0` (motion always `+φ`), never by `m < 0`.
 
-`m = 0` SPECIAL CASE: the closed form is a single analytic function of `m` with no `m = 0`
-branch, so at `m = 0` it returns TWICE the (unfolded) `m = 0` mode integral — the folding
-factor is unconditional. Equivalently the doubly-infinite sum vanishes,
+`m = 0` SPECIAL CASE (operational rule): the closed form is a single analytic function of
+`m` with no `m = 0` branch, so the ×2 real-part folding is INSIDE the parameter at every `m`,
+`m = 0` included. Node 46 (`mode-sum-total-force`) must therefore use
+`mmode_reg_Fr(order, orbit, 0)/2` wherever its `m = 0` force term is the UNFOLDED
+`q ∇(Ψ^ℛ_0 / r)` of Osburn–Nishimura Eq. (3.10) (first branch); for `m ≥ 1` use the value as
+returned. Equivalently the doubly-infinite sum vanishes,
 `Σ_{m∈ℤ} F^{|m|}/2 = F^0/2 + Σ_{m≥1} F^m = 0`, i.e.
 `mmode_reg_factor_tail_over_pi(order, 1) == −mmode_reg_factor_over_pi(order, 0)//2` (gated).
-A mode sum that carries `m = 0` at full weight must therefore halve this value there. The
-subtraction is in any case a LARGE-m model: [H14] uses it for the tail, never at small `m`.
+The subtraction is in any case a LARGE-m model: [H14] uses it for the tail, never at small `m`.
 """
 function mmode_reg_factor_over_pi(order::Integer, m::Integer)
     m >= 0 || throw(ArgumentError(
@@ -239,6 +241,19 @@ The full parameter is `F^m_{r[order]} = F_{r[order]} · `[`mmode_reg_factor`](@r
 ×2 real-part convention locked in [`mmode_reg_factor_over_pi`](@ref) (and in
 [`mode_term`](@ref) for the field itself). Retrograde orbits are `a < 0`; the coefficients are
 smooth through `a = 0` and are NOT symmetric under `a → −a`.
+
+Units: `q²/M²`, with the scalar charge `q = 1` package-wide (the same normalization as the
+Warburton–Barack reference tables, which print `(M²/q²)F_r`).
+
+VALIDATION ASYMMETRY (read before trusting either order): `order == 4` is cross-checked
+against the INDEPENDENT Wardell–Thornburg notebook oracle (`Fmr[4]`, arXiv:1610.09319
+`anc/m-ModeKerrRegularizationParameters.nb`, baked as `test/fixtures/heffernan_mmode_reg.jl`).
+`order == 2` has NO independent source — the notebook ships no `[2]` cell and no published
+Schwarzschild m-mode statement exists — so it rests on the double transcription (factored
+display vs an independently hand-expanded monomial table, exact in `Rational{BigInt}`) plus
+the `a → 0` reduction below [HOLE]. The CRP uses only `[4]` (main.tex:723), its fourth-order
+puncture having already removed the `[2]` parameter through the effective source
+([H14]:1786-1789).
 
 `T = float(promote_type(typeof(a), typeof(r0), typeof(M)))`, so `BigFloat` precision is
 inherited. `order ∈ `[`HEFFERNAN_CIRCULAR_FR_ORDERS`](@ref) (otherwise `ArgumentError`);

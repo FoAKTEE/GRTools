@@ -51,6 +51,37 @@
 #      log-log slope -6 within 0.3 — i.e. the subtraction removes exactly the m^-4 content.
 using Test
 using ScalarSelfForce
+using SHA: sha256
+
+# TestKit supplies the repo-wide oracle-availability gate (oracle_root / oracle_or_skip), but
+# it is a TEST-ONLY dep that is on the load path only under `Pkg.test`. This file must ALSO run
+# standalone under `--project=capabilities/ScalarSelfForce` (the ledger's verification command),
+# so import it when present and otherwise fall back to a shim with IDENTICAL semantics —
+# `Broken(:skipped)` on absence, hard failure under `GRTOOLS_STRICT_ORACLES=1` — rather than
+# silently dropping the gate. Under `Pkg.test` the real TestKit always wins.
+const W7E_HAVE_TESTKIT = try
+    @eval using TestKit: oracle_root, oracle_or_skip
+    true
+catch
+    false
+end
+if !W7E_HAVE_TESTKIT
+    w7e_strict_oracles() =
+        lowercase(strip(get(ENV, "GRTOOLS_STRICT_ORACLES", ""))) in ("1", "true", "yes", "on")
+    oracle_root(envvar::AbstractString, default::AbstractString) =
+        String(get(ENV, envvar, default))
+    function oracle_or_skip(available::Bool, what::AbstractString; env = nothing)
+        available && return true
+        hint = env === nothing ? "" : " (set ENV[\"$env\"])"
+        msg = string(what, " — oracle absent", hint)
+        if w7e_strict_oracles()
+            @test msg == "no missing oracle (GRTOOLS_STRICT_ORACLES=1)"
+        else
+            Test.record(Test.get_testset(), Test.Broken(:skipped, msg))
+        end
+        return false
+    end
+end
 
 # ---------------------------------------------------------------- [TW] notebook oracle
 include(joinpath(@__DIR__, "fixtures", "heffernan_mmode_reg.jl"))
@@ -278,10 +309,35 @@ end
                              parse(Float64, HEFF_MMODE_FMR4[(ar, r0, m)])) <= 1e-14
         end
     end
-    # fixture header pins (drift of the read-only mirror forces a fixture review)
+    # fixture header pins
     @test HEFF_MMODE_NB_CELL_LINES == 2806:9600
     @test length(HEFF_MMODE_NB_SHA256) == 64
     @test HEFF_MMODE_ORACLE_DIGITS == 50
+    @test HEFF_MMODE_NB_PATH ==
+          "ref-paper/arxiv-1610.09319/src/anc/m-ModeKerrRegularizationParameters.nb"
+    # DRIFT PIN against the READ-ONLY mirror itself (in-package pattern:
+    # test_runtime_config.jl:43-48, test_wb_fixtures.jl:158-164). Any change to the notebook
+    # invalidates the baked oracle and must force a fixture review; an absent mirror records a
+    # visible Broken (GRTOOLS_STRICT_ORACLES=1 promotes it to a failure).
+    let nb = joinpath(oracle_root("GRTOOLS_REFPAPER_ROOT",
+                                  "/data/haiyangw/claude/emri-disk/ref-paper"),
+                      "arxiv-1610.09319", "src", "anc",
+                      "m-ModeKerrRegularizationParameters.nb")
+        if oracle_or_skip(isfile(nb),
+                          "Wardell-Thornburg m-mode reg-parameter notebook sha256 drift pin";
+                          env = "GRTOOLS_REFPAPER_ROOT")
+            @test bytes2hex(sha256(read(nb))) == HEFF_MMODE_NB_SHA256
+            # the recorded window still bounds exactly one `Cell[BoxData[…]], "Input",` block —
+            # the SAME two structural asserts the capture script makes on the STRIPPED window
+            # (its first line, 2806, is a blank separator; the cell text starts on 2807)
+            nblines = readlines(nb)
+            @test length(nblines) >= last(HEFF_MMODE_NB_CELL_LINES)
+            cellblob = strip(join(nblines[HEFF_MMODE_NB_CELL_LINES], "\n"))
+            @test startswith(cellblob, "Cell[BoxData[")
+            @test endswith(cellblob, "\";\"}]], \"Input\",")
+            @test count(==("Cell[BoxData["), strip.(nblines[HEFF_MMODE_NB_CELL_LINES])) == 1
+        end
+    end
 end
 
 # ---------------------------------------------------------------------------------------
@@ -339,10 +395,13 @@ end
         @test mmode_reg_factor_tail_over_pi(2, m) == -2 // (2m - 1)
         @test mmode_reg_factor_tail_over_pi(4, m) == 4 // ((2m - 3) * (2m - 1) * (2m + 1))
     end
-    # FOLDED-TOTAL identity: sum over ALL integer m vanishes, i.e. with the m = 0 mode
-    # entering the folded sum at HALF weight, tail(order, 1) == -F^0_{[2j]}/2. This is the
-    # m = 0 special case: the closed form at m = 0 returns TWICE the (unfolded) m = 0 mode
-    # integral, because the x2 real-part folding is baked into the parameter for m >= 1.
+    # m = 0 SPECIAL CASE (operational rule, identical wording to the mmode_reg_factor_over_pi
+    # docstring): the closed form is a single analytic function of m with no m = 0 branch, so
+    # the x2 real-part folding is INSIDE the parameter at every m, m = 0 included. Node 46
+    # (mode-sum-total-force) must use mmode_reg_Fr(order, orbit, 0)/2 wherever its m = 0 force
+    # term is the UNFOLDED q grad(Psi^R_0 / r) of Osburn-Nishimura Eq. (3.10) (first branch);
+    # for m >= 1 use the value as returned. Equivalently the doubly-infinite sum vanishes:
+    # tail(order, 1) == -F^0_{[2j]}/2, asserted exactly below.
     for order in HEFFERNAN_MMODE_ORDERS
         @test mmode_reg_factor_tail_over_pi(order, 1) == -mmode_reg_factor_over_pi(order, 0) // 2
         @test mmode_reg_factor_tail_over_pi(order, 0) == mmode_reg_factor_over_pi(order, 0) // 2
@@ -361,6 +420,15 @@ end
                 @test w7e_relerr(mmode_reg_tail_Fr(order, orb, mstart),
                                  reg_param_Fr(order, orb) *
                                  mmode_reg_factor_tail(Float64, order, mstart)) <= 1e-14
+                # the raw 4-positional method (order, a, r0, mstart; M) agrees with the orbit
+                # method and, like the coefficient itself, scales as 1/M^2 (mirrors the M != 1
+                # check on reg_param_Fr above; the m-factor is dimensionless)
+                @test mmode_reg_tail_Fr(order, a, r0, mstart) ==
+                      mmode_reg_tail_Fr(order, orb, mstart)
+                M = 7 / 5
+                got = mmode_reg_tail_Fr(order, a * M, r0 * M, mstart; M = M)
+                @test got isa Float64
+                @test w7e_relerr(got * M^2, mmode_reg_tail_Fr(order, a, r0, mstart)) <= 1e-13
             end
         end
     end
@@ -379,10 +447,15 @@ end
 end
 
 # ---------------------------------------------------------------------------------------
-@testset "(6) subtraction ORDER on a manufactured m-sequence [FUTURE: real F_r^m]" begin
+@testset "(6) manufactured/tautological subtraction-order placeholder [FUTURE: real F_r^m]" begin
     # Row 45's slope gate wants the -6 +/- 0.3 log-log slope of |F_r^m - F^m_{r[4]}| on REAL
-    # node-44 data, which does not exist yet [FUTURE]. The machinery is gated here on a
-    # SYNTHETIC sequence whose asymptotics are known exactly: F^m_{[4]} + C * F^m_{[6]}-shape.
+    # node-44 data, which does not exist yet [FUTURE]. This is a PLACEHOLDER and is
+    # TAUTOLOGICAL BY CONSTRUCTION: the sequence is built as F^m_{[4]} + C * F^m_{[6]}, so the
+    # residual after subtracting the [4] term is EXACTLY C * mmode_reg_factor(6, m) and the
+    # -6 slope only re-measures that the shipped order-6 m-factor behaves as m^-6. It gates
+    # the plumbing (the subtraction removes all m^-4 content, the slope estimator node 46 will
+    # reuse works) and NOTHING about real residual data. It must be REPLACED, not merely
+    # supplemented, once mode-self-force-extraction (row 44) lands.
     orb = CircularOrbit(0.6, 10.0)                      # the [H14]:1784-1790 example orbit
     F4 = reg_param_Fr(4, orb)
     # sub-dominant order-6 admixture: kappa = 0.4 puts the [6] content at 2.2% of the [4]
@@ -453,6 +526,7 @@ println("heffernan-regularization gate (2) worst vs Wardell-Thornburg notebook o
 println("heffernan-regularization gate (3) worst a=0 Schwarzschild-limit rel dev: ",
         "Float64 ", W7E_WORST["schwarzschild_Float64"],
         ", BigFloat256 ", W7E_WORST["schwarzschild_BigFloat"])
-println("heffernan-regularization gate (4) manufactured m-sequence log-log slope: raw ",
-        W7E_WORST["slope_raw"], " -> after F^m_{r[4]} subtraction ",
-        W7E_WORST["slope_after_subtraction"])
+println("heffernan-regularization gate (4) manufactured/TAUTOLOGICAL placeholder ",
+        "(residual == C*factor(6,m) by construction; the row-45 slope gate needs node-44 ",
+        "data [FUTURE]): log-log slope raw ", W7E_WORST["slope_raw"],
+        " -> after F^m_{r[4]} subtraction ", W7E_WORST["slope_after_subtraction"])
