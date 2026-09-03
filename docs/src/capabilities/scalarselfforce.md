@@ -285,9 +285,42 @@ formulation and consumes the physics-free hp-DG solver stack from
     with the ``m = 0`` halving rule, the per-mode term the mode sum adds up;
     measured log-log slope ``-6.13`` over ``m \in \{2, 5, 10\}``.
 
+- **Solve — the process-parallel m fan-out** (`solve_modes_parallel`,
+  `solve_modes_serial`, `mode_pool`, `mode_config`, `mode_pool_size`,
+  `system_load`). The paper's ``m = 0\ldots20`` sweep (`CRP_PAPER_MMODES`,
+  main.tex:716 "Each m-mode is independent") run as **one independent process
+  per mode**: each worker rebuilds its own `mode_config` — only
+  `MModeNumber` and the ``m = 0`` no-outer-BC yaml branch move — runs the
+  sealed `solve_mode_amr` with its own stack and its own two caches, pins
+  BLAS explicitly, and ships back a `ModeResult` (every `AmrLevel` plus the
+  final `sol.u`; the live `ModeSolution` is process-local by the row-42 rule
+  and deliberately does not travel — 597 KB per mode against 2.5 GB of
+  process memory). The fan-out is over **processes, never threads**: the
+  solver stack and its caches are neither thread-safe nor reusable across
+  modes. `solve_modes_serial` is the same loop in-process and is the
+  **bitwise oracle** of the fan-out — measured bit-identical at the same BLAS
+  and Julia thread counts, and different at roundoff only (``3.2\times
+  10^{-12}`` relative) when the BLAS thread count changes, which is why the
+  pin is applied inside every worker rather than inherited.
+  The owner's compute policy is enforced mechanically and stated once, in the
+  `solve_modes_parallel` docstring: `mode_pool_size` keeps
+  ``n_{\rm workers} \times n_{\rm threads} \le`` `PARALLEL_CPU_BUDGET` = 24
+  for every input and reports every clamp, `system_load` reads the live
+  whole-system usage so the pre-launch guard can refuse with the numbers when
+  `live + planned` would cross `PARALLEL_LOAD_GUARD` = 0.90, and a monitor
+  task samples the machine into `run.samples` (and an optional log file) for
+  the whole run, `run.max_load` being the gate. `mode_pool` is the reusable
+  pool: a fresh worker pays a measured 166 s of JIT for its first solve and
+  45 s more for its first AMR step, against 15.9 s for a warm 8-level sweep,
+  so several sweeps must share one pool — the 21-mode ``\times`` 8-level run
+  takes 237 s on 21 workers against 544 s in one process (2.3``\times``,
+  JIT-bound), and the speed-up only approaches the worker count when there
+  are many more modes than workers or the pool is reused. A mode that throws
+  is reported by id in `set.failures`, warned with its remote backtrace, and
+  never swallowed; the other modes still return.
+
 Planned, each landing written test-first once it is grounded: the rest of
-`Solve` (the process-parallel m fan-out), and the rest of `Extraction`
-(the mode sum itself).
+`Extraction` (the mode sum itself).
 
 ## Conventions (locked package-wide)
 

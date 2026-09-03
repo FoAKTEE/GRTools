@@ -46,4 +46,5 @@ using ScalarSelfForce
     include("test_driver.jl")   # solver-stack-ssf (W10-A)
     include("test_amr_driver.jl")   # amr-driver (ESSF-W11-A)
     include("test_selfforce.jl")   # mode-self-force-extraction (ESSF-W12-A)
+    include("test_parallel.jl")   # mmode-parallel-driver (ESSF-W12-B)
 end

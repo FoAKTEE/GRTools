@@ -7,7 +7,9 @@ calculations with numerical relativity methods"). It owns the PHYSICS of the ell
 formulation and consumes the physics-free hp-DG solver stack from `core/EllipticCore`.
 
 Dependency budget (binding, enforced by `test/hygiene.jl` §7.7 gates): EXACTLY
-`{LinearAlgebra, Printf, NumericsCore, BigSpecial, Spacetime, EllipticCore, Data}`.
+`{LinearAlgebra, Printf, Distributed, NumericsCore, BigSpecial, Spacetime, EllipticCore,
+Data}` — `Distributed` is the stdlib IPC of the row-47 m-mode process fan-out, admitted by
+the wave-12 orchestrator decision (stdlib only, mirroring the SparseArrays decision).
 Special functions come ONLY through BigSpecial (no direct SpecialFunctions /
 HypergeometricFunctions); the EffectiveSource C oracles are baked test fixtures, NEVER
 live deps (no GSL/ccall channel); GPU stacks are banned (CUDA/KernelAbstractions).
@@ -50,6 +52,7 @@ module ScalarSelfForce
 
 using LinearAlgebra
 using Printf
+using Distributed          # stdlib; the row-47 process fan-out (see Solve/parallel.jl)
 using NumericsCore
 using BigSpecial
 using Spacetime
@@ -349,5 +352,27 @@ include("Extraction/selfforce.jl")           # mode-self-force-extraction (row 4
 # mode-sum-total-force (row 46); NO figure, NO fan-out.
 export mode_self_force, mode_self_force_history, mode_force_convergence
 export regularized_mode_force
+
+include("Solve/parallel.jl")                 # mmode-parallel-driver (the row-47 fan-out)
+# THE m-MODE FAN-OUT: solve_modes_parallel(orbit, config, ms = CRP_PAPER_MMODES) runs the
+# paper's independent modes (main.tex:716) as ONE PROCESS PER MODE - each worker rebuilds its
+# own mode_config, runs the sealed solve_mode_amr with its own stack and its own two caches,
+# pins BLAS explicitly, and ships back a ModeResult (every AmrLevel + the final sol.u; the
+# live ModeSolution is process-local by row 42's rule and deliberately does not travel).
+# solve_modes_serial is the same loop in-process and is the BITWISE ORACLE of the fan-out.
+# THE COMPUTE POLICY of the compute-usage skill is stated once, normatively, in the
+# solve_modes_parallel docstring and enforced mechanically: mode_pool_size caps
+# nworkers x threads_per_worker at PARALLEL_CPU_BUDGET = 24 (a bigger request is clamped AND
+# logged), system_load reads the LIVE whole-system usage so the pre-launch guard can REFUSE
+# with the numbers when live + planned would cross PARALLEL_LOAD_GUARD = 0.90, and a monitor
+# task samples the machine into the run record (and a log file) for the whole run. mode_pool
+# is the REUSABLE pool the figure drivers need: a fresh process pays ~200 s of JIT before its
+# first solve, so several sweeps must share one pool. mode_config is the per-m RunConfig (only
+# MModeNumber and the m = 0 no-outer-BC yaml branch move). NO extraction, NO figure, NO GPU.
+export PARALLEL_CPU_BUDGET, PARALLEL_MAX_THREADS_PER_WORKER, PARALLEL_LOAD_GUARD
+export LoadSample, system_load, mode_pool_size, mode_config
+export ModePool, mode_pool
+export ModeResult, ModeFailure, ModeRunRecord, ModeSet
+export solve_modes_serial, solve_modes_parallel
 
 end # module

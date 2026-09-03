@@ -1,8 +1,11 @@
 # §7.7 binding CI hygiene gates for ScalarSelfForce (elliptic-ssf mission: DESIGN.md §1.3 budget,
 # GLOBAL_DAG node `pkg-scaffold-scalarselfforce`, schedule W1-B).
 #
-# Budget (closed): EXACTLY {LinearAlgebra, Printf, NumericsCore, BigSpecial, Spacetime,
-# EllipticCore, Data}. Poison axes:
+# Budget (closed): EXACTLY {LinearAlgebra, Printf, Distributed, NumericsCore, BigSpecial,
+# Spacetime, EllipticCore, Data}. Distributed is a STDLIB, widened into the budget by the
+# wave-12 orchestrator decision as the IPC of the row-47 m-mode process fan-out
+# (src/Solve/parallel.jl) — stdlib only, no registry package, mirroring the SparseArrays
+# decision for EllipticCore's bottom LU. Poison axes:
 #   * GSL / live-C-oracle channel — the EffectiveSource C oracles (kerr-circular.c /
 #     kerr-circular-comoving.c) enter ONLY as baked fixtures ("legacy oracles are NEVER live test
 #     deps"); GSL*/Libdl in [deps] would be the live-ccall channel, so both are forbidden.
@@ -17,8 +20,8 @@ using TestKit
 
 ts_hygiene = @testset "hygiene (§7.7 gates)" begin
     TestKit.assert_dep_budget(joinpath(@__DIR__, "..", "Project.toml");
-        allow=["LinearAlgebra", "Printf", "NumericsCore", "BigSpecial", "Spacetime",
-               "EllipticCore", "Data"],
+        allow=["LinearAlgebra", "Printf", "Distributed", "NumericsCore", "BigSpecial",
+               "Spacetime", "EllipticCore", "Data"],
         forbid=["GSL*", "Libdl", "CUDA", "AMDGPU", "KernelAbstractions",
                 "SpecialFunctions", "HypergeometricFunctions",
                 "Krylov", "IterativeSolvers", "AlgebraicMultigrid",
