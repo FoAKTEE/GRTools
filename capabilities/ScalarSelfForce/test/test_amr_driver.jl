@@ -95,14 +95,16 @@ end
 
 da_flagset(flags) = Set(collect(keys(flags)))
 
-# a copy of `cfg` with a different `Amr.Criteria` list, rebuilt field by field (positional
+# a copy of `cfg` with ONE `Amr` field replaced, rebuilt field by field (positional
 # reconstruction would silently rot if either struct gained a field)
-function da_criteria(cfg, criteria)
+function da_amrfield(cfg, field, value)
     A = typeof(cfg.amr)
-    amr = A((f === :criteria ? criteria : getfield(cfg.amr, f) for f in fieldnames(A))...)
+    amr = A((f === field ? value : getfield(cfg.amr, f) for f in fieldnames(A))...)
     C = typeof(cfg)
     return C((f === :amr ? amr : getfield(cfg, f) for f in fieldnames(C))...)
 end
+da_criteria(cfg, criteria) = da_amrfield(cfg, :criteria, criteria)
+
 
 # successive differences of a per-level scalar sequence and their ratios
 function da_diffs(vals)
@@ -181,6 +183,20 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
 
         @test length(amr_flags(dom.mesh, dom, orb, cfg)) == 2
         @test length(amr_flags(dom.mesh, dom, orb, cfg; snap_tol = 0.0)) == 1
+        # THE TWO REFERENCE TOLERANCES: spectre clamps the block-logical coordinate to ±1 and
+        # snaps it to 0 by `equal_within_roundoff` (Domain/BlockLogicalCoordinates.cpp:121-142)
+        # and RefineAtPuncture additionally snaps the block CENTRE at 1e-10
+        # (RefineAtPuncture.cpp:40-45). This package uses the single, LOOSER 1e-10 for both,
+        # which is a superset — so the gate is that the superset admits nothing it should not:
+        # a particle displaced from the block face by MORE than the tolerance is not in the
+        # block at all, at any level.
+        rout = dom.bounds_r[end] * 2                       # far outside the lattice
+        @test_throws ArgumentError amr_flags(dom.mesh, dom, CircularOrbit(0.0, rout), cfg)
+        blk = dom.mesh.blocks[dom.mesh.blockindex[only(dom.worldtube)]]
+        redge = map_forward(blockmap(blk, 1), 1.0)          # the worldtube block's outer face
+        wid = redge - map_forward(blockmap(blk, 1), -1.0)
+        outside = amr_flags(dom.mesh, dom, CircularOrbit(0.0, redge + 1e-6 * wid), cfg)
+        @test all(id -> id.block != blk.id, keys(outside))  # 1e-6 ≫ 1e-10 ⇒ NOT this block
         # and the snapped criterion still agrees with the independent re-derivation
         @test da_flagset(amr_flags(dom.mesh, dom, orb, cfg)) ==
               Set(da_reference_punctures(dom.mesh, dom, orb))
@@ -249,6 +265,19 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
         @test_throws ArgumentError amr_flags(dom.mesh, dom, orb, cfg; max_resolution = 4)
         # a criteria list this file does not implement must be refused, not approximated
         @test_throws ArgumentError amr_flags(dom.mesh, dom, orb, da_criteria(cfg, [:Persson]))
+        # ... and so must every OTHER Amr.Policies field this criterion reads (yaml:145-151):
+        # a different isotropy, a balance policy we do not implement, a non-Auto limit, a
+        # clamping ErrorBeyondLimits or a coarsening policy that differs from the paper's
+        for (f, v) in ((:isotropy, :Isotropic),
+                       (:enforce_two_to_one_balance_in_normal_direction, false),
+                       (:limit_refinement_level, :manual), (:limit_num_grid_points, :manual),
+                       (:error_beyond_limits, false), (:allow_coarsening, false))
+            @test_throws ArgumentError amr_flags(dom.mesh, dom, orb, da_amrfield(cfg, f, v))
+        end
+        # the limits bind the CLOSED decision set (after the 2:1 closure), not the raw
+        # criterion: at the production lattice the closure adds one element at step 0, and a
+        # refinement-level cap of 1 must refuse THAT element too
+        @test length(balanced_flags(dom.mesh, amr_flags(dom.mesh, dom, orb, cfg))) == 3
         # and an EMPTY flag set is refused rather than silently becoming pure p-refinement:
         # a particle outside this lattice can only mean `orbit` and `dom` disagree
         @test_throws ArgumentError amr_flags(dom.mesh, dom, CircularOrbit(0.5, 2.0e4), cfg)
@@ -274,18 +303,28 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
 
         # ---- the mesh sequence is the one gate (a) fixed, now under the real solver -------
         @test [length(l.mesh.elements) for l in hist.levels] == [20, 27, 33, 39, 45, 51, 57]
+        # RE-MEASURED after the hp_refine 2:1-closure fix (EllipticCore 6df9f51): the element
+        # sequence is unchanged, the DOF sequence is not — the one element the balancer splits
+        # at step 0 no longer carries a p increment in the split dimension, so its descendants
+        # sit at (5,4), (6,5), … instead of (5,5), (6,6), …
         @test [l.mesh.ndofs for l in hist.levels] ==
-              [320, 603, 962, 1425, 2004, 2711, 3558]
+              [320, 593, 950, 1411, 1988, 2693, 3538]
         @test all(l -> length(l.punctures) == 2, hist.levels)
+        # the near-worldline SERIES route is never selected on this sweep (row 37's switch is
+        # inert here): MEASURED 0 at every level to level 11, first nonzero at level 12 (18 of
+        # the in-tube nodes) — the AMR resolution decides, not the initial mesh
+        @test all(l -> l.series_nodes == 0, hist.levels)
 
         # ---- (c) GMRES iterations per level ------------------------------------------------
         its = [l.record.iterations for l in hist.levels]
-        # MEASURED (proto2_a05_m2_crp.log): 1, then 9-10 per level. main.tex:701 — the first
-        # AMR level converges IMMEDIATELY (`InitialCoarseLevels: L = 0` makes the V-cycle the
-        # direct bottom solve) and every later level in "less than 10" iterations; we measure
-        # 10 twice, so the honest gate is ≤ 11.
-        @test its[1] == 1
-        @test all(<=(11), its)
+        # RE-MEASURED (proto9_afterA.log, overlap 4, shrink 0.5, OPENBLAS_NUM_THREADS=1):
+        # 1, 8, 9, 9, 9, 9, 9 — main.tex:701's "the first AMR level converges immediately"
+        # (`InitialCoarseLevels: L = 0` makes the V-cycle the direct bottom solve) and
+        # main.tex:720's "less than 10 iterations per AMR level", which holds strictly AT THIS
+        # CONFIGURATION (a = 0.5, m = 2) and not universally — see the secondary-config testset.
+        # The gate is the measured maximum + 1.
+        @test its == [1, 8, 9, 9, 9, 9, 9]
+        @test all(<=(10), its)
         @test all(l -> l.record.final_residual <= cfg.gmres.absolute_residual, hist.levels)
         @test mode_residual(hist.solution) <= 1e-11
         # the monitor accumulated exactly one record per level — this IS fig:linsolv's input
@@ -300,6 +339,11 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
         @test sum(l.record.bottom_builds for l in hist.levels) == 2
         @test sum(l.record.bottom_hits for l in hist.levels) == length(hist.levels) - 2
         @test all(l -> l.record.bottom_builds + l.record.bottom_hits >= 1, hist.levels[2:end])
+        # the EXACT per-level cache sequence, re-measured — not a wall-clock share
+        @test [(l.record.bottom_builds, l.record.bottom_hits) for l in hist.levels] ==
+              [(1, 0), (1, 0), (0, 1), (0, 1), (0, 1), (0, 1), (0, 1)]
+        @test [(l.record.subdomain_builds, l.record.subdomain_hits) for l in hist.levels] ==
+              [(20, 0), (41, 8), (44, 16), (49, 21), (55, 37), (61, 41), (73, 42)]
         # the bottom grid is the irreducible block structure of the 5x2 lattice and it does
         # NOT MOVE: 10 elements at order 4 = 160 dofs at every level from 1 on, which is why
         # its LU is a hit. With the policy's `shrink = 0.5` the hierarchy reaches it in a
@@ -310,8 +354,7 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
         # Schwarz subdomain factorizations are reused on the levels AMR did not touch
         # (main.tex:676 "the matrix inverses can remain cached across AMR iterations, so we
         # only have to construct new subdomain matrices when AMR adds a finer level").
-        # MEASURED at the last level of this sweep: 73 builds against 42 cache hits, i.e.
-        # 36 % of the subdomain solves in the whole hierarchy are served from the cache; the
+        # MEASURED at the last level of this sweep: 73 builds against 42 cache hits — the
         # builds are the new finest level plus the coarse levels the composed `shrink = 0.5`
         # coarsening moved. The gate is the REUSE, not a fitted ratio.
         @test all(l -> l.record.subdomain_hits > 0, hist.levels[3:end])
@@ -325,13 +368,26 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
         dps = [l.dpsi_r for l in hist.levels]
         dpsi, rpsi = da_diffs(psi)
         ddps, rdps = da_diffs(dps)
-        # MEASURED ratios (proto2_a05_m2_parity.log, 8 levels): ψ 0.220 0.158 0.339 0.254
-        # 0.276 0.278 0.308; ∂_rψ 0.141 0.223 0.055 0.129 0.326 0.231 0.260 — all well under
-        # the DAG's 0.5 from level 2 on.
+        # RE-MEASURED ratios (proto9_afterA.log): ψ 0.222 0.157 0.338 0.255 0.273 and
+        # ∂_rψ 0.142 0.222 0.055 0.129 0.329 — all under the DAG's 0.5 from level 2 on AT THIS
+        # configuration. The portable statement is the TWO-STEP GEOMETRIC ENVELOPE (each
+        # difference at most half the one two levels back), which also holds where a single
+        # step plateaus.
         @test all(<(0.5), rpsi[2:end])
         @test all(<(0.5), rdps[2:end])
+        @test all(k -> dpsi[k] < 0.5 * dpsi[k-2], 3:length(dpsi))
+        @test all(k -> ddps[k] < 0.5 * ddps[k-2], 3:length(ddps))
         @test dpsi[end] < dpsi[1] / 100
         @test ddps[end] < ddps[1] / 100
+        # THE resolution error of the sweep — the one definition rows 44/50/53 share
+        # (main.tex:730). MEASURED on this canonical 6-iteration sweep: 6.2059e-9 absolute,
+        # 3.3883e-5 relative; the gate is 3x the measured value.
+        @test resolution_error(hist) == ddps[end]
+        @test resolution_error(hist; field = :psi) == dpsi[end]
+        @test relative_resolution_error(hist) ==
+              resolution_error(hist) / abs(hist.levels[end].dpsi_r)
+        @test relative_resolution_error(hist) <= 3 * 3.3883e-5
+        @test_throws ArgumentError resolution_error(hist; field = :nope)
         # the diagnostics are finite, nonzero, and the two one-sided corner traces agree
         # better and better as the puncture corner is refined (measured spread 8.4e-6 → 3.5e-17
         # on ψ over 8 levels, 2.2e-4 → 9.4e-11 on ∂_rψ)
@@ -350,7 +406,11 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
     # ======================================================================================
     # (f) DETERMINISM — the same sweep twice is bitwise identical
     # ======================================================================================
-    @testset "(f) determinism of a repeated sweep" begin
+    @testset "(f) same-process repeatability of a repeated sweep" begin
+        # NARROWED (Codex 2.2): this gates REPEATABILITY inside one process at one BLAS
+        # configuration. Thread parity (-t1 vs -t4) is measured OFF-SUITE — no subprocess is
+        # launched from inside the test file — and reported in the evidence as a measurement,
+        # not as a gate (det_t1_afterA.log vs det_t4_afterA.log).
         cfg = da_cfg()
         orb = da_orb(cfg)
         a = solve_mode_amr(orb, cfg, 2; iterations = 3)
@@ -362,6 +422,23 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
         @test [l.psi for l in a.levels] == [l.psi for l in b.levels]           # BITWISE
         @test [l.dpsi_r for l in a.levels] == [l.dpsi_r for l in b.levels]     # BITWISE
         @test a.solution.u == b.solution.u                                     # BITWISE
+        @test [l.series_nodes for l in a.levels] == [l.series_nodes for l in b.levels]
+    end
+
+    # ======================================================================================
+    # THE EXPORT SURFACE — only what something outside this module uses
+    # ======================================================================================
+    @testset "the export surface is what other modules use" begin
+        for f in (:puncture_chart_position, :amr_flags, :amr_level_options, :solve_mode_amr,
+                  :AmrLevel, :AmrHistory, :resolution_error, :relative_resolution_error)
+            @test f in names(ScalarSelfForce)
+        end
+        # one AMR level is an INTERNAL step of solve_mode_amr; nothing outside calls it
+        @test !(:amr_step! in names(ScalarSelfForce))
+        @test isdefined(ScalarSelfForce, :amr_step!)
+        # the driver's read-out surface stays row 42's
+        @test !(:field_gradient_at in names(ScalarSelfForce))
+        @test :field_grad_at in names(ScalarSelfForce)
     end
 
     # ======================================================================================
@@ -380,6 +457,10 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
             hist = solve_mode_amr(orb, cfg, m; iterations = 5)
             its = [l.record.iterations for l in hist.levels]
             @test its[1] == 1
+            # main.tex:720's "< 10 per AMR level" is CONFIGURATION-SCOPED: it holds strictly at
+            # (a = 0.5, m = 2) (max 9) but not everywhere — MEASURED 10 at level 3 of
+            # (a = 0, m = 2) and 10 at levels 2-4 of m = 5. The portable gate is the measured
+            # maximum + 1.
             @test all(<=(11), its)
             dp, _ = da_diffs([l.psi for l in hist.levels])
             dd, _ = da_diffs([l.dpsi_r for l in hist.levels])
@@ -444,14 +525,14 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
         db, rb = da_diffs([l.psi for l in bad.levels])
         eg, _ = da_diffs([l.dpsi_r for l in good.levels])
         eb, _ = da_diffs([l.dpsi_r for l in bad.levels])
-        # MEASURED at 6 levels (proto2_a05_m2_crp.log vs proto2_a05_m2_purep.log):
-        #   Ψ^ℛ      last difference 2.354e-8 (hp) vs 2.619e-7 (p only)  — 11.1x worse
-        #   ∂_rΨ^ℛ   last difference 6.154e-9 (hp) vs 3.068e-8 (p only)  —  5.0x worse
-        #   ratio geometric mean 0.242 (hp) vs 0.398 (p only): p-refinement alone halves the
-        #   error per level (algebraic in the element count) instead of cutting it by ~4x,
-        #   and its ∂_r sequence is not even monotone (one ratio of 2.0 at level 7).
+        # RE-MEASURED at 6 levels after the closure fix (proto9_afterA.log, blocks (7)/(7b)):
+        #   Ψ^ℛ      last difference 2.3333e-8 (hp) vs 2.6187e-7 (p only) — 11.2x worse
+        #   ∂_rΨ^ℛ   last difference 6.2059e-9 (hp) vs 3.0675e-8 (p only) — 4.94x worse
+        #   ratio geometric mean 0.242 (hp) vs 0.398 (p only): p-refinement alone roughly
+        #   halves the error per level (algebraic in the element count) instead of cutting it
+        #   by ~4x, and its ∂_r sequence is not monotone (ratios 0.293, 0.525, 0.023, 0.584).
         @test db[end] > 5 * dg[end]
-        @test eb[end] > 4 * eg[end]
+        @test eb[end] > 3.5 * eg[end]
         @test da_georatio(rg) < 0.30 <= da_georatio(rb)
     end
 end

@@ -22,8 +22,11 @@
 # `map_jacobian` (row 9). NO self-force extraction (row 44), NO process fan-out (row 47),
 # NO figure (rows 48-53).
 
-export puncture_chart_position, amr_flags, amr_level_options, amr_step!,
-       solve_mode_amr, AmrLevel, AmrHistory
+export puncture_chart_position, amr_flags, amr_level_options,
+       solve_mode_amr, AmrLevel, AmrHistory, resolution_error, relative_resolution_error
+# `amr_step!` is deliberately NOT exported: one AMR level is an internal step of
+# `solve_mode_amr` and nothing outside this module calls it (checked across capabilities/ and
+# reproduce/). It stays public as `ScalarSelfForce.amr_step!` with its docstring.
 
 # The yaml's `Amr.Policies.Limits.{RefinementLevel, NumGridPoints}: Auto` (yaml:148-149)
 # resolved through spectre's own defaults: `amr::Limits::Limits()` takes them from
@@ -139,10 +142,7 @@ function amr_flags(mesh::Mesh2D{RT}, dom::BlockDomain, orbit::CircularOrbit,
                    snap_tol::Real = AMR_SNAP_TOL,
                    max_refinement_level::Integer = AMR_MAX_REFINEMENT_LEVEL,
                    max_resolution::Integer = AMR_MAX_RESOLUTION) where {RT}
-    config.amr.criteria == AMR_CRITERIA || throw(ArgumentError(
-        "amr_flags: this criterion implements Amr.Criteria = $(AMR_CRITERIA) " *
-        "(anc/ScalarSelfForce.yaml:131-133), but the config asks for " *
-        "$(config.amr.criteria)"))
+    _amrd_check_policies(config)
     snap_tol >= 0 || throw(ArgumentError("amr_flags: snap_tol must be ≥ 0, got $snap_tol"))
     xp = puncture_chart_position(dom, orbit)
 
@@ -163,12 +163,6 @@ function amr_flags(mesh::Mesh2D{RT}, dom::BlockDomain, orbit::CircularOrbit,
             (lo <= ξ[d] <= hi) || (inside = false; break)
         end
         inside || continue
-        for d in 1:2
-            id.segments[d].level < max_refinement_level || throw(ArgumentError(
-                "amr_flags: element $(id) contains the puncture but is already at " *
-                "refinement level $(id.segments[d].level) in dimension $d, the AMR limit " *
-                "(Amr.Policies.Limits.RefinementLevel, ErrorBeyondLimits: True)"))
-        end
         flags[id] = (true, true)
     end
 
@@ -178,17 +172,58 @@ function amr_flags(mesh::Mesh2D{RT}, dom::BlockDomain, orbit::CircularOrbit,
         "Check that `orbit` and `dom` describe the same problem (r₀ must lie inside the " *
         "block lattice $(dom.bounds_r[1]) … $(dom.bounds_r[end]))"))
 
-    # the IncreaseResolution half applies to every UNFLAGGED element, so its limit is theirs
+    # THE LIMITS APPLY TO THE CLOSED DECISION SET, not to the raw criterion: an element the
+    # 2:1 rule forces to split is Split for spectre too (UpdateAmrDecision.cpp:82-87), so it is
+    # the closure that must respect `RefinementLevel`, and only the elements OUTSIDE the
+    # closure are p-refined and bound by `NumGridPoints`.
+    closed = balanced_flags(mesh, flags)
     for (e, id) in enumerate(mesh.elements)
-        haskey(flags, id) && continue
+        c = get(closed, id, (false, false))
         for d in 1:2
-            mesh.orders[e][d] < max_resolution || throw(ArgumentError(
-                "amr_flags: element $(id) would be p-refined past $(mesh.orders[e][d]) " *
-                "grid points in dimension $d, the AMR limit " *
-                "(Amr.Policies.Limits.NumGridPoints, ErrorBeyondLimits: True)"))
+            if c[d]
+                id.segments[d].level < max_refinement_level || throw(ArgumentError(
+                    "amr_flags: element $(id) is split in dimension $d by the criterion or " *
+                    "by the two-to-one closure, but is already at refinement level " *
+                    "$(id.segments[d].level), the AMR limit " *
+                    "(Amr.Policies.Limits.RefinementLevel, ErrorBeyondLimits: True)"))
+            else
+                mesh.orders[e][d] < max_resolution || throw(ArgumentError(
+                    "amr_flags: element $(id) would be p-refined past $(mesh.orders[e][d]) " *
+                    "grid points in dimension $d, the AMR limit " *
+                    "(Amr.Policies.Limits.NumGridPoints, ErrorBeyondLimits: True)"))
+            end
         end
     end
     return flags
+end
+
+# `Amr.Policies` + `Amr.Criteria` (anc/ScalarSelfForce.yaml:131-151) — the production values
+# this criterion IMPLEMENTS. Anything else is a different AMR scheme and is refused rather
+# than approximated, which is also what `ErrorBeyondLimits: True` asks of the limits below.
+function _amrd_check_policies(config::RunConfig)
+    a = config.amr
+    a.criteria == AMR_CRITERIA || throw(ArgumentError(
+        "amr_flags: this criterion implements Amr.Criteria = $(AMR_CRITERIA) " *
+        "(anc/ScalarSelfForce.yaml:131-133), but the config asks for $(a.criteria)"))
+    a.isotropy === :Anisotropic || throw(ArgumentError(
+        "amr_flags: Amr.Policies.Isotropy = $(a.isotropy) is not implemented — the CRP runs " *
+        "`Anisotropic` (yaml:145), which is what makes the 2:1 closure mark only the " *
+        "offending dimension"))
+    a.enforce_two_to_one_balance_in_normal_direction || throw(ArgumentError(
+        "amr_flags: Amr.Policies.EnforceTwoToOneBalanceInNormalDirection = false is not " *
+        "implemented — the sealed `hp_refine` always balances (yaml:146)"))
+    a.limit_refinement_level === :auto && a.limit_num_grid_points === :auto || throw(ArgumentError(
+        "amr_flags: Amr.Policies.Limits = ($(a.limit_refinement_level), " *
+        "$(a.limit_num_grid_points)) — only `Auto` is mapped here (yaml:148-149); pass " *
+        "`max_refinement_level` / `max_resolution` explicitly for anything else"))
+    a.error_beyond_limits || throw(ArgumentError(
+        "amr_flags: Amr.Policies.Limits.ErrorBeyondLimits = false is not implemented — this " *
+        "criterion THROWS at a limit (yaml:150); clamping would silently change the scheme"))
+    a.allow_coarsening || throw(ArgumentError(
+        "amr_flags: Amr.Policies.AllowCoarsening = false differs from the CRP input " *
+        "(yaml:151). This criterion never emits a Join, so the value is inert here, but a " *
+        "config that disagrees with the paper's own is refused rather than ignored"))
+    return nothing
 end
 
 amr_flags(sol::ModeSolution; kwargs...) =
@@ -236,17 +271,17 @@ order map moves. MEASURED A/B over the sweep: see this node's evidence table. Th
 the config's own `InitialGridPoints`, which must be equal in the two dimensions (the sealed
 `coarse_orders` knob is a single order); pass it explicitly otherwise.
 
-**`shrink`.** `0.5`, NOT the sealed row-21 default `1`, and this is what makes the policy
-above affordable. A graded hp cascade coarsens ONE ring at a time, so `shrink = 1` — take a
-smoother on every coarsening step — gives **18** multigrid levels at AMR level 8, each one a
-full operator rebuild (worldtube bundle, hooks, boundary conditions, Schwarz subdomains).
-`shrink = 0.5` composes the transfer operators across steps that do not halve the problem and
-gives **4** levels for the same bottom grid. MEASURED over the 8-level sweep at `a = 0.5`,
-`r₀ = 10`, `m = 2`: iterations `1, 10, 9, 10, 10, 10, 9, 9, 9` against `1, 9, 9, 9, 10, 10, 9,
-9, 10` — ONE extra GMRES iteration over the whole sweep — for a last-level `build_time` of
-**19.7 s against 334.9 s** and the same fixed 160-dof bottom with its LU cached. The row-21
-caveat that `shrink = 0.5` "degrades anisotropic meshes" is therefore not active on the CRP's
-own AMR sequence; it is measured here, not assumed, and `shrink` stays a keyword.
+**`shrink`.** `0.5`, not the sealed row-21 default `1`. A graded hp cascade coarsens ONE ring
+at a time, so `shrink = 1` takes a smoother on every coarsening step and builds **18** multigrid
+levels at AMR level 8; `shrink = 0.5` composes the transfers across steps that do not halve the
+problem and reaches the SAME fixed 160-dof bottom in **4**. MEASURED A/B over the 8-level sweep
+at `a = 0.5`, `r₀ = 10`, `m = 2`, overlap 4, `OPENBLAS_NUM_THREADS=1`: the GMRES iteration
+counts are IDENTICAL (`1, 8, 9, 9, 9, 9, 9, 9, 9` either way) and so are the dof and cache
+sequences; the two differ in hierarchy DEPTH and in build time only (18.9 s against 21.7 s
+total, 15.5 s against 16.3 s of `build_time`). The row-21 caveat that `shrink = 0.5` "degrades
+anisotropic meshes" is therefore not active on the CRP's own AMR sequence — measured, not
+assumed — and `shrink` stays a keyword. The full table is in
+`evidence/amr-driver/shrink_ab_afterA.md`.
 """
 function amr_level_options(config::RunConfig, step::Integer;
                            coarse_orders::Union{Nothing,Integer} =
@@ -327,6 +362,12 @@ One level of an hp-AMR sweep — everything rows 44, 47, 48, 50, 52 and 53 read 
     `psi` and `dpsi_r` differ from the recorded ones. A DG field is discontinuous across
     faces, so this is a discretization diagnostic, and it collapses as the corner is refined
     (MEASURED 8.4e-6 → 3.5e-17 and 2.2e-4 → 9.4e-11 over the 8-level sweep).
+  - `series_nodes::Int` — how many of the in-worldtube collocation nodes of this level select
+    the near-worldline SERIES route of the switched effective source (row 37). It is `0`
+    throughout the paper's own sweep and the number exists to keep it honest: it is the AMR
+    resolution, not the initial mesh, that decides, so a driver that silently crossed into the
+    series regime would otherwise be invisible. Counted with the same sealed
+    [`effective_source_switched_bundle`](@ref) the volume source uses.
   - `wall_time::Float64` — seconds for this level (refine + carry-over + rebuild + solve;
     level 0 is the initial build and solve).
 """
@@ -340,6 +381,7 @@ struct AmrLevel{T<:Number,RT<:AbstractFloat}
     dpsi_r::T
     dpsi_w::T
     trace_spread::NTuple{2,RT}
+    series_nodes::Int
     wall_time::Float64
 end
 
@@ -388,7 +430,13 @@ end
 
 THE hp-AMR SWEEP of arXiv:2606.04998 for one m-mode: solve on the initial lattice, then run
 `iterations` levels of [`amr_step!`](@ref) — the paper's `Amr: Iterations: 8` (yaml:153) — and
-return the [`AmrHistory`](@ref). One `ModeSolution`, one stack, one epoch, one pair of caches,
+return the [`AmrHistory`](@ref).
+
+MEASURED ITERATION COUNTS ARE CONFIGURATION-SCOPED. main.tex:720's "less than 10 iterations per
+AMR level" holds strictly at the paper's own exemplar `a = 0.5`, `m = 2` (`1, 8, 9, 9, 9, 9, 9,
+9, 9` over eight levels, and still ≤ 9 out to thirteen levels and 14381 dofs — main.tex:722's
+scale independence). It is not universal: MEASURED 10 at level 3 of `a = 0, m = 2` and 10 at
+levels 2-4 of `m = 5`. Quote the claim with its configuration. One `ModeSolution`, one stack, one epoch, one pair of caches,
 carried through every level; the previous level's solution is transferred and warm-starts the
 next solve (main.tex:714).
 
@@ -406,12 +454,13 @@ policy and the measurements behind it.
 # WHAT IT COSTS, AND WHERE THE TIME GOES (measured, single thread, Float64/ComplexF64)
 
 At the paper's own point (`a = 0.5`, `r₀ = 10`, `m = 2`, `L = 0`, `P = 4`) the 8-level sweep
-grows the mesh 20 → 69 elements and 320 → 5720 dofs, converges every level in 1 and then 8-9
-preconditioned GMRES iterations, and takes **15.4 s** of warm single-threaded compute — the
+grows the mesh 20 → 69 elements and 320 → 5696 dofs, converges every level in 1 and then 8-9
+preconditioned GMRES iterations, and takes **18.9 s** of warm single-threaded compute — the
 paper's own "a few seconds per m-mode on an Apple M2 Pro" (main.tex:716), within a small
-factor. The cost is `SolveRecord.build_time` (12.6 s of the 15.4 s), the eager per-level
+factor. The cost is `SolveRecord.build_time` (15.5 s of the 18.9 s), the eager per-level
 rebuild of the operator and the Schwarz subdomain matrices, which the paper also names as its
-dominant operation (main.tex:678).
+dominant operation (main.tex:678). Four levels — what the m-sweep costs — is 3.6 s at m = 0,
+3.6 s at m = 1, 2.6 s at m = 2 and 4.5 s at m = 5.
 
 PIN `OPENBLAS_NUM_THREADS=1`. The subdomain and bottom solves are DENSE and TINY (a few
 hundred rows), and the host's default OpenBLAS thread pool spends more time in barriers than
@@ -423,12 +472,16 @@ level-to-level differences but not bitwise.
 Each m-mode is an INDEPENDENT problem with its own stack and caches, so the fan-out is over
 PROCESSES (row 47), never threads.
 
-THE DIAGNOSTICS CONVERGE EXPONENTIALLY but do not reach machine precision in 8 levels:
-MEASURED successive-difference ratios ≈ 0.22-0.34 for `Ψ^ℛ(x_p)` and ≈ 0.06-0.33 for
-`∂_rΨ^ℛ(x_p)`, ending at a relative change of 3.1e-6 and 2.0e-6 between levels 7 and 8. The
-sequence is the input of the error budget's resolution floor (main.tex:705-724), which is
-measured as the difference between the highest and second-highest level — not as a tolerance
-this loop meets.
+THE DIAGNOSTICS CONVERGE EXPONENTIALLY but do not reach machine precision in 8 levels. The
+honest measure is a TWO-STEP GEOMETRIC ENVELOPE — successive differences fall by a factor ≥ 2
+every two levels, which tolerates the occasional plateau a per-step ratio bound does not (one
+ratio of 0.687 measured at `a = 0.5, m = 1`). At the paper's 8 iterations the relative change
+between the last two levels is ~3e-6 (`Ψ^ℛ`) and ~2e-6 (`∂_rΨ^ℛ`); [`resolution_error`](@ref)
+is that quantity, and it IS the error budget's resolution estimate (main.tex:730).
+
+Pushed further the sequence reaches a FLOOR at level ~12 (a few times 1e-11 on `Ψ^ℛ` and
+1e-12 on `∂_rΨ^ℛ`). That floor is NOT the GMRES tolerance: tightening `abstol` from 1e-12 to
+1e-14 leaves it unchanged (measured), so it is discretization/round-off limited.
 """
 function solve_mode_amr(orbit::CircularOrbit, config::RunConfig{RT},
                         m::Integer = config.orbit.m_mode_number;
@@ -460,7 +513,9 @@ end
 
 function _amrd_level(step::Int, sol::ModeSolution{T,RT}, flags::AbstractDict, xp,
                      wall::Float64) where {T,RT}
-    es = _amrd_containing(sol.mesh, xp[1], xp[2])
+    es = _dr_containing(sol.mesh, xp[1], xp[2])       # the ONE locator, from Solve/driver.jl
+    isempty(es) && throw(ArgumentError(
+        "amr-driver: the puncture ($(xp[1]), $(xp[2])) lies in no element of this mesh"))
     e = first(es)
     psi = field_at(sol, xp[1], xp[2]; element = e)
     g = field_grad_at(sol, xp[1], xp[2]; element = e)
@@ -468,19 +523,69 @@ function _amrd_level(step::Int, sol::ModeSolution{T,RT}, flags::AbstractDict, xp
           maximum(q -> abs(field_grad_at(sol, xp[1], xp[2]; element = q)[1] - g[1]), es))
     punct = [id for id in sol.mesh.elements if haskey(flags, id)]
     return AmrLevel{T,RT}(step, sol.mesh, punct, sol.record, e, psi, g[1], g[2],
-                          (RT(sp[1]), RT(sp[2])), wall)
+                          (RT(sp[1]), RT(sp[2])), _amrd_series_nodes(sol), wall)
 end
 
-# every element containing the point, in mesh order — the same predicate (and the same 16 eps
-# logical tolerance) the sealed `field_at` locator uses, so `first` IS its default choice.
-function _amrd_containing(mesh::Mesh2D{RT}, x1::Real, x2::Real) where {RT}
-    tol = 16 * eps(RT)
-    out = Int[]
+# how many in-worldtube collocation nodes of this level's mesh select the SERIES route of the
+# switched effective source — the same nodes, the same sealed evaluator and the same switch the
+# volume source (`mode_fixed_source`) runs over, counted rather than summed.
+function _amrd_series_nodes(sol::ModeSolution)
+    dom, mesh = sol.dom, sol.mesh
+    p = Puncture(sol.orbit)
+    z2 = dom.chart === :z2
+    n = 0
     for e in eachindex(mesh.elements)
-        ξ = _dr_logical(mesh, e, x1, x2)
-        (-1 - tol <= ξ[1] <= 1 + tol && -1 - tol <= ξ[2] <= 1 + tol) && push!(out, e)
+        el = mesh.elements[e]
+        inside_worldtube(dom, el) || continue
+        em = element_matrices(Float64, mesh.blocks[mesh.blockindex[el.block]], el,
+                              mesh.orders[e])
+        nx, ny = mesh.orders[e]
+        for j in 1:ny, i in 1:nx
+            x1, x2 = em.x[1][i], em.x[2][j]
+            b = effective_source_switched_bundle(p, sol.m, x1, z2 ? sqrt(x2) : x2;
+                                                 phi_p = sol.phi_p)
+            b.route === :series && (n += 1)
+        end
     end
-    isempty(out) && throw(ArgumentError(
-        "amr-driver: ($x1, $x2) lies in no element of this mesh"))
-    return out
+    return n
+end
+
+# ============================ the resolution error, ONE definition ========================
+
+"""
+    resolution_error(hist::AmrHistory; field = :dpsi_r) -> Real
+    relative_resolution_error(hist::AmrHistory; field = :dpsi_r) -> Real
+
+THE numerical-resolution error of an AMR sweep, as arXiv:2606.04998 measures it: "We measure
+the error due to numerical resolution by the difference between the highest and second-highest
+AMR level" (main.tex:730). `resolution_error` is that absolute difference,
+`relative_resolution_error` divides it by `|value at the highest level|`.
+
+    resolution_error(hist) == abs(hist.levels[end].dpsi_r - hist.levels[end-1].dpsi_r)
+
+`field` selects the per-level [`AmrLevel`](@ref) quantity: `:dpsi_r` (the default — the
+`∂_rΨ^ℛ(x_p)` ingredient of `F_r^m`), `:psi` or `:dpsi_w`. This is the ONE definition rows 44,
+50 and 53 use, so that the error budget's resolution curve, the convergence figure and the
+extraction all mean the same thing by it; do not re-derive it from `levels` by hand.
+
+A sweep with fewer than two levels has no such estimate and is an `ArgumentError`.
+"""
+function resolution_error(hist::AmrHistory; field::Symbol = :dpsi_r)
+    length(hist.levels) >= 2 || throw(ArgumentError(
+        "resolution_error: needs at least two AMR levels, got $(length(hist.levels)) — the " *
+        "estimate IS the difference between the highest and second-highest (main.tex:730)"))
+    field in (:psi, :dpsi_r, :dpsi_w) || throw(ArgumentError(
+        "resolution_error: field must be one of :psi, :dpsi_r, :dpsi_w, got $(repr(field))"))
+    a = getfield(hist.levels[end], field)
+    b = getfield(hist.levels[end-1], field)
+    return abs(a - b)
+end
+
+function relative_resolution_error(hist::AmrHistory; field::Symbol = :dpsi_r)
+    d = resolution_error(hist; field = field)
+    v = abs(getfield(hist.levels[end], field))
+    iszero(v) && throw(ArgumentError(
+        "relative_resolution_error: the final-level $(field) is exactly zero, so there is no " *
+        "relative measure — use `resolution_error`"))
+    return d / v
 end

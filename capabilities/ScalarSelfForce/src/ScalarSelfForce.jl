@@ -187,7 +187,7 @@ include("Extraction/regularization.jl")      # heffernan-regularization
 # mode_term statement) — a < 0 is retrograde, and the closed form at m = 0 carries the ×2
 # unconditionally. Extraction of F_r^m and the sum itself are LATER nodes.
 export HEFFERNAN_MMODE_ORDERS, HEFFERNAN_CIRCULAR_FR_ORDERS
-export reg_param_Fr, mmode_reg_Fr, mmode_reg_tail_Fr, mmode_reg_term_Fr
+export reg_param_Fr, mmode_reg_Fr, mmode_reg_tail_Fr
 export mmode_reg_factor, mmode_reg_factor_over_pi
 export mmode_reg_factor_tail, mmode_reg_factor_tail_over_pi
 
@@ -330,11 +330,15 @@ include("Solve/amr.jl")                      # amr-driver (the row-43 production
 # its snapping rule lives in its docstring. amr_level_options is the multigrid LEVEL POLICY
 # (InitialCoarseLevels at level 0 - the direct bottom solve - then coarsening to the fixed
 # block structure so the bottom LU stays a cache hit, with shrink = 0.5 so a graded hp cascade
-# reaches it in a handful of levels). amr_step! is one level. The particle diagnostics are read
-# through the SEALED row-42 field_at / field_grad_at - this node adds no read-out of its own.
+# reaches it in a handful of levels). ScalarSelfForce.amr_step! is one level (not exported).
+# The particle diagnostics are read through the SEALED row-42 field_at / field_grad_at - this
+# node adds no read-out of its own - and resolution_error / relative_resolution_error are THE
+# one definition of the paper's numerical-resolution error (main.tex:730) that rows 44/50/53
+# share: the difference between the highest and second-highest AMR level.
 # NO self-force extraction (row 44), NO process fan-out (row 47), NO figure.
-export puncture_chart_position, amr_flags, amr_level_options, amr_step!
+export puncture_chart_position, amr_flags, amr_level_options
 export solve_mode_amr, AmrLevel, AmrHistory
+export resolution_error, relative_resolution_error
 
 include("Extraction/selfforce.jl")           # mode-self-force-extraction (row 44)
 # F_r^m AT THE PARTICLE, the number the paper is about (Osburn-Nishimura arXiv:2206.07031

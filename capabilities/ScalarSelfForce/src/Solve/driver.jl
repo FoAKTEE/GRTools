@@ -668,18 +668,27 @@ function _dr_logical(mesh::Mesh2D{RT}, e::Int, x1::Real, x2::Real) where {RT}
     end
 end
 
-# the first element containing the point; a face point belongs to both its neighbours, and
-# `field_at`'s `element` keyword is how a caller picks one (see that docstring).
+# EVERY element containing the point, in mesh order. A point on a face or corner belongs to
+# all of its neighbours, and this is the ONE locator of the package: `_dr_locate` is its first
+# entry (what `field_at`/`field_grad_at` use by default) and the AMR driver's per-level
+# diagnostics take the whole list to measure the spread between the one-sided traces.
 # COST: a LINEAR scan over the mesh, measured 1.9 us at 20 elements and growing in proportion
 # (2 `map_inverse` evaluations per element). That is negligible for a handful of probes but
 # NOT for a per-node sweep over a refined mesh — pass `element` (rows 44/48 know it from the
 # worldtube face or the element walk they are already doing) to take the O(1) fast path.
-function _dr_locate(mesh::Mesh2D{RT}, x1::Real, x2::Real) where {RT}
+function _dr_containing(mesh::Mesh2D{RT}, x1::Real, x2::Real) where {RT}
     tol = 16 * eps(RT)
+    out = Int[]
     for e in eachindex(mesh.elements)
         ξ = _dr_logical(mesh, e, x1, x2)
-        (-1 - tol <= ξ[1] <= 1 + tol && -1 - tol <= ξ[2] <= 1 + tol) && return e
+        (-1 - tol <= ξ[1] <= 1 + tol && -1 - tol <= ξ[2] <= 1 + tol) && push!(out, e)
     end
+    return out
+end
+
+function _dr_locate(mesh::Mesh2D, x1::Real, x2::Real)
+    es = _dr_containing(mesh, x1, x2)
+    isempty(es) || return first(es)
     throw(ArgumentError(
         "field_at: ($x1, $x2) lies in no element of this mesh. The coordinates are the " *
         "DISCRETIZATION chart: x1 = r (horizon-penetrating Boyer–Lindquist) and x2 = z² " *
