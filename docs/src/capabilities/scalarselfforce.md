@@ -257,10 +257,37 @@ formulation and consumes the physics-free hp-DG solver stack from
     `mmode_reg_tail_Fr(order, orbit, mstart)` — the closed-form analytic tail
     ``\sum_{m \ge m_{\rm start}} F^m_{r[order]}`` that completes a truncated
     mode sum.
+  - `mode_self_force(orbit, m, psi, dpsi_r, dpsi_z)` /
+    `mode_self_force(sol::ModeSolution)` /
+    `mode_self_force(hist::AmrHistory; level)` — ``F_r^m`` extraction at the
+    particle, Osburn–Nishimura Eq. (3.10) (arXiv:2206.07031) in the locked
+    ansatz conventions: unfolded at ``m = 0``, and for ``m > 0`` the ×2 real
+    part of ``e^{+im(\bar\varphi_p - \Omega t)}
+    [\partial_r\Psi^{\mathcal R}_m/r_0 - \Psi^{\mathcal R}_m/r_0^2
+    + i m (a/\Delta)\Psi^{\mathcal R}_m/r_0]`` — the last term is the
+    dephasing derivative the horizon-regular azimuth contributes to
+    ``\partial_r``. ``F_t^m = -\Omega F_\varphi^m`` mode by mode, and
+    ``F_\theta^m`` is a bitwise zero in the production ``z^2`` chart. The
+    ingredients are read through the sealed `field_at` / `field_grad_at`.
+    Returns the real components, the complex pre-real-part quantities (what
+    spectre's `ObserveSelfForce` regression rows print) and the ingredients.
+  - `mode_self_force_history(hist)` / `mode_force_convergence(hist)` — the
+    per-AMR-level ``F_r^m`` sequence and its successive-difference table,
+    including `resolution_error`, the error budget's numerical-resolution floor
+    (main.tex:723). Measured at ``a = 0.5``, ``r_0 = 10M``, ``m = 1`` over the
+    paper's 8 AMR levels: ``F_r^m`` converges to
+    ``-1.365170814\times10^{-4} + 9.138086647\times10^{-5}\,i`` with a
+    resolution error of ``4.6\times10^{-11}`` (``3.4\times10^{-7}``
+    relative), reproducing spectre's own regression row
+    ``[2, 975, 4, -1.365\times10^{-4}, 9.138\times10^{-5}, 0, 0]`` to
+    ``1.7\times10^{-8}``, inside its ``2\times10^{-7}`` tolerance.
+  - `regularized_mode_force(x, m; order = 4)` — ``F_r^m - F^m_{r[order]}``
+    with the ``m = 0`` halving rule, the per-mode term the mode sum adds up;
+    measured log-log slope ``-6.13`` over ``m \in \{2, 5, 10\}``.
 
 Planned, each landing written test-first once it is grounded: the rest of
 `Solve` (the process-parallel m fan-out), and the rest of `Extraction`
-(``F_r^m`` extraction from a solved mode, and the mode sum itself).
+(the mode sum itself).
 
 ## Conventions (locked package-wide)
 

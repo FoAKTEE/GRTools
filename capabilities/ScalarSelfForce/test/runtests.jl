@@ -45,4 +45,5 @@ using ScalarSelfForce
     include("test_assemble.jl")   # fig-matrix commit 1: operator assembly (W9-C)
     include("test_driver.jl")   # solver-stack-ssf (W10-A)
     include("test_amr_driver.jl")   # amr-driver (ESSF-W11-A)
+    include("test_selfforce.jl")   # mode-self-force-extraction (ESSF-W12-A)
 end

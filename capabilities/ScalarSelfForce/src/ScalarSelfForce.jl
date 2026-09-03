@@ -333,4 +333,21 @@ include("Solve/amr.jl")                      # amr-driver (the row-43 production
 export puncture_chart_position, amr_flags, amr_level_options, amr_step!
 export solve_mode_amr, AmrLevel, AmrHistory
 
+include("Extraction/selfforce.jl")           # mode-self-force-extraction (row 44)
+# F_r^m AT THE PARTICLE, the number the paper is about (Osburn-Nishimura arXiv:2206.07031
+# Eq. 3.10, main.tex:178-184; CRP main.tex:428-430 + 701-703): mode_self_force assembles
+# F_alpha = q d_alpha Phi^R from Psi^R_m and its chart derivatives at x_p in the locked ansatz
+# conventions - UNFOLDED at m = 0, and for m > 0 the x2 real part of e^{+im(varphi_p - Omega t)}
+# times [d_r Psi/r - Psi/r^2 + i m (a/Delta) Psi/r], where the last term is the DEPHASING
+# derivative that d_r picks up from the horizon-regular azimuth (spectre adds it by hand at
+# ObserveSelfForce.cpp:70-72). F_t = -Omega F_phi per mode; F_theta is a BITWISE zero in the
+# production z^2 chart. Ingredients come from the SEALED field_at / field_grad_at or the
+# sealed AmrLevel diagnostics - no stencil is re-derived. mode_self_force_history and
+# mode_force_convergence are the per-AMR-level sequence and the resolution floor
+# (main.tex:719-724); regularized_mode_force subtracts the Heffernan F^m_{r[order]} with the
+# sealed m = 0 HALVING rule and is the per-m term the mode sum adds up. THE SUM ITSELF is node
+# mode-sum-total-force (row 46); NO figure, NO fan-out.
+export mode_self_force, mode_self_force_history, mode_force_convergence
+export regularized_mode_force
+
 end # module
