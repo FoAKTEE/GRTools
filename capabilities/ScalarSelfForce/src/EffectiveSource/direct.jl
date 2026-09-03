@@ -58,15 +58,36 @@ Slots (all `Complex`; `Ψ^P_{−m} = conj(Ψ^P_m)` slot by slot):
     `∂²Δθ/∂z² = −z/sin³θ`) and the ansatz factor `sin^{|m|}θ` whose z-derivatives come from
     the sealed [`sinm_theta_dz`](@ref) / [`sinm_theta_d2z`](@ref) — the single ansatz home.
 
-Slicing: the puncture lives in the worldtube, inside the vtu `t` slab where `H = 0` and
-`h = 0`, so `Ψ^P_m ≡ Ψ̃^P_m` and no `e^{−imΩh}` factor applies (main.tex:280, 316-330).
-Requires `ϱ > 0` (off the worldline circle) and `|z| < 1`: the z-chart Jacobian
-`∂Δθ/∂z = −1/sinθ` diverges at the poles for every `m`, and for `m ≠ 0` so does the ansatz
-factor. Type-generic: BigFloat orbits/coordinates give `Complex{BigFloat}` slots.
+SLICING CONTRACT (binding on every caller): the puncture lives in the worldtube, which the
+production domain places strictly inside the vtu `t` slab (`r^v < r₀ − w_r`, `r₀ + w_r < r^u`;
+main.tex:316-330 + 545-548), where `H = 0` and `h = 0` — so `Ψ^P_m ≡ Ψ̃^P_m`, no `e^{−imΩh}`
+factor applies, and the coefficients used downstream are exactly
+`fluxform_callables(orbit, m, v, :t)`. There is deliberately no `region` argument: an
+effective source evaluated with a `v` or `u` boost would not be the source of any equation
+this package solves, and the worldtube never leaves the `t` slab. A caller that ever needs a
+boosted region must raise it as a formulation change, not pass a flag.
+
+DOMAIN (checked, not silently NaN): requires `ϱ > 0` (off the worldline circle — the mode
+function diverges logarithmically towards it, main.tex:424) and `|z| < 1` (the z-chart
+Jacobian `∂Δθ/∂z = −1/sinθ` diverges at the poles for every `m`, and for `m ≠ 0` so does the
+ansatz factor). Both raise `DomainError`; node `amr-driver`'s puncture-snap can otherwise put
+a collocation point exactly on the worldline and propagate a silent NaN into the fixed
+source. Type-generic: BigFloat orbits/coordinates give `Complex{BigFloat}` slots.
 """
 function puncture_psi_chart(p::Puncture, m::Integer, r::Real, z::Real; phi_p::Real = 0)
     o = p.orbit
-    b = puncture_d2phi_m(p, m, r - o.r0, -asin(z))       # Δθ = θ − π/2 = −asin z (locked)
+    # DOMAIN guards (see the docstring): the worldline circle and the poles are genuine
+    # singularities of this chart, and a silent NaN would propagate into the DG fixed source.
+    abs(z) < 1 || throw(DomainError(z,
+        "puncture_psi_chart: |z| < 1 required (z = cosθ; the ∂Δθ/∂z = −1/sinθ chart Jacobian, \
+         and for m ≠ 0 the sin^{|m|}θ ansatz factor, diverge at the poles)"))
+    dr = r - o.r0
+    dtheta = -asin(z)                                    # Δθ = θ − π/2 (locked branch)
+    rho2 = o.rho2_dr2 * dr^2 + o.rho2_dtheta2 * dtheta^2
+    rho2 > 0 || throw(DomainError((r, z),
+        "puncture_psi_chart: ϱ² > 0 required — (r, z) is ON the worldline circle (r₀, 0), \
+         where the m-mode puncture diverges logarithmically (main.tex:424)"))
+    b = puncture_d2phi_m(p, m, dr, dtheta)
     tp = 2 * oftype(b.phi, pi)
 
     # ansatz factors (ansatz.jl is the single home): N = r / (2π sin^{|m|}θ)

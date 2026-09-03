@@ -143,8 +143,18 @@ output is the mode FUNCTION, not the bare azimuthal integral [`puncture_phi_m`](
 
     Ψ^P_m(r, z) = r / (2π sin^{|m|}θ) · e^{−i m φ̄_p} · I_m(r − r_p, θ − π/2),
 
-with `z = cosθ` (θ − π/2 = −asin z, the locked branch) and `varphi_p` = the particle's
-azimuth in the horizon-regular chart φ̄ at t = 0 (the baked fixtures use φ_p = 0.31).
+with `z = cosθ` (θ − π/2 = −asin z, the locked branch).
+
+`varphi_p` IS THE ROTATION PHASE φ_p + χ(r) EVALUATED AT THE FIELD POINT `r`, not a constant
+particle azimuth: χ = `kerr_varphi_offset(a, r)` is the horizon-regular chart offset
+φ̄ = φ + χ(r), and eq:modeIntegral analyzes in φ̄ while Φ^P is a function of the
+Boyer–Lindquist Δφ, so the two differ by e^{−imχ(r)} AT THE FIELD POINT. **Pass
+`varphi_p = kerr_varphi(a, r, φ_p)`, NOT `kerr_varphi(a, r₀, φ_p)`** (the baked fixtures use
+the Boyer–Lindquist φ_p = 0.31): the constant-at-the-particle reading is O(1) wrong for
+a ≠ 0, and its ∂_r is additionally short by exactly −im·(a/Δ)·Ψ^P_m. Prefer
+[`puncture_psi_chart`](@ref), which applies the chain for you and is the single home of the
+convention transformation; this entry point keeps the raw phase slot so the bare
+`e^{−imφ_p}` fixture convention stays reachable (`varphi_p = φ_p`).
 Time-independence: the co-rotating puncture has φ̄_p(t) = φ̄_p + Ωt, whose e^{−imΩt}
 cancels eq:modeIntegral's e^{+imΩt} — gated against the ts ≠ 0 assembly in the tests.
 Slicing: the puncture lives in the worldtube/source region where H = 0 and h = 0

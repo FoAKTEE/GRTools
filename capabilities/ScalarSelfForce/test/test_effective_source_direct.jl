@@ -44,7 +44,8 @@
 #     DESTROYED by cancellation near the worldline … trustworthy only for ϱ² ≳ 1e-5").
 using Test
 using ScalarSelfForce
-using ScalarSelfForce: kerr_varphi_offset, kerr_varphi_offset_dr
+using ScalarSelfForce: kerr_varphi_offset, kerr_varphi_offset_dr,
+                       flux_coeff_r, flux_coeff_z, beta_m, gamma_r_m, gamma_z_m
 
 # fixture constants may already be loaded by earlier test files under Pkg.test; guard the
 # includes so this file also runs standalone.
@@ -90,6 +91,93 @@ _esd_d2_8(f, x, h) =
 
 # λ = ϱ, the puncture's local distance scale (main.tex:452)
 _esd_lambda(o, dr, dth) = sqrt(o.rho2_dr2 * dr^2 + o.rho2_dtheta2 * dth^2)
+
+# Exact-rational 6th-order central stencils (BigFloat legs only). The 2nd-order pair above is
+# enough where the operator's cancellation is 1e3…2e6 (the identity box), but NOT for the
+# near-worldline adjudication, where it reaches ~1e15: there a 2nd-order truncation of
+# (h/λ)²/12 = 8e-14 would be amplified to O(1). At 6th order and h = 1e-6·λ the truncation is
+# ~1e-36 and the amplified error ~1e-21 (measured step-stability 2.0e-17, calibration8.log).
+_esd_cd1_6(f, x, h) = (45 * (f(x + h) - f(x - h)) - 9 * (f(x + 2h) - f(x - 2h)) +
+                       (f(x + 3h) - f(x - 3h))) / (60h)
+_esd_cd2_6(f, x, h) = ((3 // 2) * (f(x + h) + f(x - h)) -
+                       (3 // 20) * (f(x + 2h) + f(x - 2h)) +
+                       (1 // 90) * (f(x + 3h) + f(x - 3h)) - (49 // 18) * f(x)) / h^2
+
+# THE IMPLEMENTATION-INDEPENDENT TRUTH for the near-worldline adjudication: −△_m applied by
+# BigFloat finite differences to the SEALED `puncture_psi_m` (at the chart-corrected φ̄) with
+# the SEALED `fluxform_callables` coefficients. It touches NOTHING from EffectiveSource/
+# direct.jl, so a shared algebraic error in the shipped route cannot hide inside it — the
+# defect both reviews raised against the previous version, which used
+# `effective_source_m` at higher precision as its own oracle.
+function _esd_truth_indep(oB, pB, m, rB, zB, ppB, hfac)
+    # horizon-safe slab radii (config 4 is the a = 0.998 ISCO, r₀ = 1.237 < r₊ + 1);
+    # `fluxform_callables` reads only the region symbol from the slicing.
+    v = vtu_slicing(oB, (oB.rp + oB.r0) / 2, oB.r0 + max(one(oB.r0), oB.r0))
+    fc = fluxform_callables(oB, m, v, :t)
+    psi(x, y) = puncture_psi_m(pB, m, x, y; varphi_p = kerr_varphi(oB.a, x, ppB))
+    d = _esd_lambda(oB, rB - oB.r0, -asin(zB))
+    hr = hfac * d / sqrt(oB.rho2_dr2)
+    hz = hfac * min(d / sqrt(oB.rho2_dtheta2), max(abs(zB), big"1e-3") / 2)
+    pr = _esd_cd1_6(x -> psi(x, zB), rB, hr)
+    prr = _esd_cd2_6(x -> psi(x, zB), rB, hr)
+    pz = _esd_cd1_6(y -> psi(rB, y), zB, hz)
+    pzz = _esd_cd2_6(y -> psi(rB, y), zB, hz)
+    dArr = _esd_cd1_6(x -> fc.A[1](x, zB), rB, hr)
+    dAzz = _esd_cd1_6(y -> fc.A[2](rB, y), zB, hz)
+    tri = -(fc.A[1](rB, zB) * prr + dArr * pr) - (fc.A[2](rB, zB) * pzz + dAzz * pz) +
+          fc.beta(rB, zB) * psi(rB, zB) + fc.gamma[1](rB, zB) * pr + fc.gamma[2](rB, zB) * pz
+    return -tri
+end
+
+# ---- manufactured single-mode field for the □ ↔ △_m link (see that testset) ----------------
+const _ESD_K0 = complex(big"0.83", big"-0.21")
+const _ESD_K1 = complex(big"0.40", big"0.90")
+const _ESD_K2 = complex(big"-0.37", big"0.62")
+_esd_mpsi(r, z) = exp(-((r - 9) / big"2.5")^2) * (_ESD_K0 + _ESD_K1 * z + _ESD_K2 * z^2)
+_esd_mpsi_r(r, z) = -2 * (r - 9) / big"2.5"^2 * _esd_mpsi(r, z)
+_esd_mpsi_rr(r, z) = (4 * (r - 9)^2 / big"2.5"^4 - 2 / big"2.5"^2) * _esd_mpsi(r, z)
+_esd_mpsi_z(r, z) = exp(-((r - 9) / big"2.5")^2) * (_ESD_K1 + 2 * _ESD_K2 * z)
+_esd_mpsi_zz(r, z) = exp(-((r - 9) / big"2.5")^2) * (2 * _ESD_K2)
+# the FULL 4D field of ONE mode (eq:mode_sum, main.tex:228-231) at t = 0, φ = 0 ⇒ φ̄ = χ(r)
+_esd_mPhi(o, m, r, th) = _esd_mpsi(r, cos(th)) * sin(th)^abs(m) / r *
+                         exp(im * m * kerr_varphi_offset(o.a, r))
+_esd_d1_4(f, x, h) = (-f(x + 2h) + 8f(x + h) - 8f(x - h) + f(x - 2h)) / (12h)
+_esd_d2_4(f, x, h) = (-f(x + 2h) + 16f(x + h) - 30f(x) + 16f(x - h) - f(x - 2h)) / (12h^2)
+# the Kerr scalar d'Alembertian in Boyer–Lindquist, inverse metric written out from the line
+# element (g^{tt} = −((r²+a²)²/Δ − a²sin²θ)/Σ, g^{tφ} = −2Mar/(ΣΔ),
+# g^{φφ} = (Δ − a²sin²θ)/(ΣΔsin²θ), plus ∂_r(Δ∂_r)/Σ and (1/sinθ)∂_θ(sinθ∂_θ)/Σ); t and φ are
+# EXACT through ∂_t → −imΩ, ∂_φ → +im, only (r, θ) are finite-differenced.
+function _esd_box_kerr(o, m, r, th, h)
+    a, M, Om = o.a, o.M, o.Omega
+    s = sin(th)
+    Sig = r^2 + a^2 * cos(th)^2
+    D = r^2 - 2M * r + a^2
+    w = r^2 + a^2
+    gtt = -(w^2 / D - a^2 * s^2) / Sig
+    gtp = -(2 * M * a * r) / (Sig * D)
+    gpp = (D - a^2 * s^2) / (Sig * D * s^2)
+    f = _esd_mPhi(o, m, r, th)
+    fr = _esd_d1_4(x -> _esd_mPhi(o, m, x, th), r, h)
+    frr = _esd_d2_4(x -> _esd_mPhi(o, m, x, th), r, h)
+    ft = _esd_d1_4(x -> _esd_mPhi(o, m, r, x), th, h)
+    ftt = _esd_d2_4(x -> _esd_mPhi(o, m, r, x), th, h)
+    dt = -im * m * Om
+    dp = im * m
+    return gtt * dt^2 * f + 2 * gtp * dt * dp * f + gpp * dp^2 * f +
+           (D * frr + (2r - 2M) * fr) / Sig + (ftt + (cos(th) / s) * ft) / Sig
+end
+# the SEALED flux-form operator applied to the manufactured Ψ with ANALYTIC derivatives
+function _esd_tri_m(o, m, r, z)
+    a, M = o.a, o.M
+    w = r^2 + a^2
+    D = (r - o.rp) * (r - o.rm)
+    Arr_r = ((2r - 2M) * w - 2r * D) / w^2
+    Azz_z = -2z / w
+    -(flux_coeff_r(o, r) * _esd_mpsi_rr(r, z) + Arr_r * _esd_mpsi_r(r, z)) -
+        (flux_coeff_z(o, r, z) * _esd_mpsi_zz(r, z) + Azz_z * _esd_mpsi_z(r, z)) +
+        beta_m(o, m, r, z) * _esd_mpsi(r, z) + gamma_r_m(o, m, r) * _esd_mpsi_r(r, z) +
+        gamma_z_m(o, m, r, z) * _esd_mpsi_z(r, z)
+end
 
 # THE convention transformation chain, transcribed INDEPENDENTLY of the implementation from
 # spectre CircularOrbit.cpp:322-332 + main.tex:210-262/414-460 (see the file header).
@@ -332,16 +420,64 @@ const _ESD_IDENTITY_CFGS = ((0.0, 10.0), (0.5, 10.0), (-0.9, 10.0),
         end
     end
 
+    @testset "□ ↔ △_m: the mode-projection identity the whole sign chain rests on" begin
+        # THE FOUNDATION of S^eff_m = −△_mΨ^P_m. eq:KG (main.tex:213) and eq:elliptic_eqn
+        # (main.tex:247-262) together assert, for ANY field F,
+        #     △̃_m[mode of F] = −(Σ/(r²+a²)) · P_m[□F] ,
+        # i.e. the package's flux-form operator IS the m-mode of the 4D Kerr d'Alembertian in
+        # the −Σ/(r²+a²) normalization. Nothing in the repository regression-guarded that link
+        # (nodes 26/29/30 gate △_m against the PRINTED eq:triangle, never against □ itself),
+        # yet a global sign or scale error there would flip S^eff_m wholesale while leaving
+        # every other gate in this file satisfied.
+        #
+        # Manufactured smooth single-mode field Φ = Ψ(r,z)·sin^{|m|}θ/r·e^{im(φ̄−Ωt)} with
+        # ANALYTIC Ψ derivatives on the △_m side; □Φ by 4th-order BigFloat(256) central
+        # differences in (r, θ), EXACT in t and φ (∂_t → −imΩ, ∂_φ → +im). Retrograde and
+        # near-extremal spins included. h = 1e-12 is the measured optimum (calibration8.log:
+        # 1.34e-39 at 1e-10, 1.34e-47 at 1e-12, 6.39e-48 at 1e-14).
+        setprecision(BigFloat, 256) do
+            worst = 0.0
+            npt = 0
+            for (a, r0) in ((big"0.0", big"10.0"), (big"0.5", big"10.0"),
+                            (big"-0.9", big"6.0"), (big"0.998", big"6.0"))
+                o = CircularOrbit(a, r0)
+                for m in (0, 1, 2, 5),
+                    (r, th) in ((big"7.3", big"1.13"), (big"12.7", big"1.9"),
+                                (big"4.0", big"0.7"))
+
+                    r <= o.rp + 1 && continue
+                    z = cos(th)
+                    Sigma = r^2 + o.a^2 * z^2
+                    w = r^2 + o.a^2
+                    ansatz = sin(th)^abs(m) / r * exp(im * m * kerr_varphi_offset(o.a, r))
+                    lhs = _esd_tri_m(o, m, r, z)
+                    rhs = -(Sigma / w) * _esd_box_kerr(o, m, r, th, big"1e-12") / ansatz
+                    res = Float64(abs(lhs - rhs) / abs(lhs))
+                    @test res <= 1e-40
+                    worst = max(worst, res)
+                    npt += 1
+                end
+            end
+            @test npt >= 40
+            println("effective-source-direct □ ↔ △_m mode-projection identity: worst rel ",
+                    "mismatch over ", npt, " points = ", worst)
+        end
+    end
+
     @testset "BigFloat(256) adjudication of the excluded near-worldline region" begin
         # WHY the λ < 1e-2 rows are excluded: there the C oracle's own direct evaluation is
         # destroyed by the cancellation (its fixture header says so), while ours is 2-5 orders
-        # closer to BigFloat(256) truth. Sampled deterministically: the first row of each
-        # (config, m) bucket with λ < 1e-3.
+        # closer to truth. Sampled deterministically: the first row of each (config, m) bucket
+        # with λ < 1e-3. The truth is built INDEPENDENTLY of the implementation under test
+        # ([`_esd_truth_indep`](@ref) above) — an earlier version used effective_source_m at
+        # BigFloat(256) as its own oracle, which two independent reviews correctly flagged as
+        # unfalsifiable (a shared algebraic error would have SHRUNK the ratio).
         setprecision(BigFloat, 256) do
             fix = EFFSOURCE_CALC_M_COMOVING
             seen = Set{Tuple{Int,Int}}()
             nchk = 0
             worst_ratio = 0.0
+            worst_agree = 0.0
             for col in 1:size(fix, 2)
                 cfg = Int(_esd_read(fix, col, 1))
                 m = Int(_esd_read(fix, col, 2))
@@ -357,18 +493,31 @@ const _ESD_IDENTITY_CFGS = ((0.0, 10.0), (0.5, 10.0), (-0.9, 10.0),
                 nchk += 1
                 oB = CircularOrbit(big(o.a), big(o.r0))
                 pB = Puncture(oB)
-                truth = effective_source_m(pB, m, big(r), big(z); phi_p = big(phi_p))
+                # (a) the truth is IMPLEMENTATION-INDEPENDENT: −△_m by BigFloat(256) 6th-order
+                #     finite differences of the SEALED puncture_psi_m under the SEALED
+                #     fluxform_callables — no EffectiveSource/direct.jl code enters it. Its
+                #     step-size stability (h = 1e-6λ vs 3e-7λ) is 2.0e-17 (calibration8.log),
+                #     and the SHIPPED BigFloat route must agree with it: this is what makes
+                #     the ratio gate below falsifiable, since a shared algebraic error would
+                #     show up HERE rather than cancelling out of the ratio.
+                truth = _esd_truth_indep(oB, pB, m, big(r), big(z), big(phi_p), big"1e-6")
+                shipped = effective_source_m(pB, m, big(r), big(z); phi_p = big(phi_p))
+                agree = Float64(abs(shipped - truth) / abs(truth))
+                @test agree <= 1e-15
+                worst_agree = max(worst_agree, agree)
+                # (b) the adjudication itself, now against the independent truth
                 ours = effective_source_m(p, m, r, z; phi_p = phi_p)
                 theirs = complex(_esd_read(fix, col, 36), _esd_read(fix, col, 37)) *
                          _esd_chain(o, m, r, z)
-                e_ours = Float64(abs(ours - truth) / abs(truth))
-                e_c = Float64(abs(theirs - truth) / abs(truth))
+                e_ours = Float64(abs(big(ours) - truth) / abs(truth))
+                e_c = Float64(abs(big(theirs) - truth) / abs(truth))
                 @test e_ours <= 1e-2 * e_c
                 worst_ratio = max(worst_ratio, e_ours / e_c)
             end
             @test nchk == 12          # 2 configs × 6 m values
             println("effective-source-direct near-worldline adjudication: worst ",
-                    "ours/C error ratio over ", nchk, " points = ", worst_ratio)
+                    "ours/C error ratio over ", nchk, " points = ", worst_ratio,
+                    " ; worst |shipped − independent|/|independent| = ", worst_agree)
         end
     end
 
@@ -526,14 +675,27 @@ const _ESD_IDENTITY_CFGS = ((0.0, 10.0), (0.5, 10.0), (-0.9, 10.0),
             @test eb.source isa Complex{BigFloat}
             @test eb.term_scale isa BigFloat
         end
-        # allocation sanity (Float64 production path; measured 0 bytes)
+        # DOMAIN guards: the worldline circle and the poles raise DomainError instead of
+        # returning a silent NaN (node `amr-driver`'s puncture-snap can land a collocation
+        # point exactly on the worldline). The guard branch is not taken on the production
+        # path, so the allocation gate below is unaffected.
+        let p = puncs[2], o = p.orbit
+            @test_throws DomainError puncture_psi_chart(p, 2, o.r0, 0.0; phi_p = phi_p)
+            @test_throws DomainError effective_source_m(p, 2, o.r0, 0.0; phi_p = phi_p)
+            @test_throws DomainError effective_source_bundle(p, 2, o.r0, 0.0; phi_p = phi_p)
+            @test_throws DomainError puncture_psi_chart(p, 2, o.r0 + 0.3, 1.0; phi_p = phi_p)
+            @test_throws DomainError puncture_psi_chart(p, 2, o.r0 + 0.3, -1.0; phi_p = phi_p)
+            # a point one ulp off the worldline is INSIDE the domain and finite
+            @test isfinite(abs(effective_source_m(p, 2, nextfloat(o.r0), 0.0; phi_p = phi_p)))
+        end
+        # allocation: EXACTLY zero on all three Float64 entry points (validator-confirmed)
         let p = puncs[2]
             effective_source_m(p, 5, 10.3, 0.03; phi_p = phi_p)
             effective_source_bundle(p, 5, 10.3, 0.03; phi_p = phi_p)
             puncture_psi_chart(p, 5, 10.3, 0.03; phi_p = phi_p)
-            @test (@allocated effective_source_m(p, 5, 10.3, 0.03; phi_p = phi_p)) <= 64
-            @test (@allocated effective_source_bundle(p, 5, 10.3, 0.03; phi_p = phi_p)) <= 64
-            @test (@allocated puncture_psi_chart(p, 5, 10.3, 0.03; phi_p = phi_p)) <= 64
+            @test (@allocated effective_source_m(p, 5, 10.3, 0.03; phi_p = phi_p)) == 0
+            @test (@allocated effective_source_bundle(p, 5, 10.3, 0.03; phi_p = phi_p)) == 0
+            @test (@allocated puncture_psi_chart(p, 5, 10.3, 0.03; phi_p = phi_p)) == 0
         end
     end
 

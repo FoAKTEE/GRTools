@@ -197,6 +197,13 @@ of the co-rotating puncture (φ̄_p(t) = φ̄_p + Ωt) is inherited from `punctu
 Conjugate symmetry: every slot of the `−m` bundle is the conjugate of the `+m` slot.
 Valid at `|z| < 1` for m ≠ 0 and off the worldline circle (ϱ > 0); type-generic
 (BigFloat inputs give `Complex{BigFloat}` slots).
+
+`varphi_p` HAS THE SAME MEANING AS IN [`puncture_psi_m`](@ref): the rotation phase
+φ_p + χ(r) evaluated at the FIELD POINT — pass `kerr_varphi(a, r, φ_p)`, NOT
+`kerr_varphi(a, r₀, φ_p)`. Note that `dr` here is ∂_r AT FIXED `varphi_p`, so a caller
+working in the horizon-regular chart must still add the chain term −im·(a/Δ)·psi
+(`Spacetime.kerr_varphi_offset_dr`); [`puncture_psi_chart`](@ref) does both and is the
+single home of the convention transformation chain.
 """
 function puncture_dpsi_m(p::Puncture, m::Integer, r::Real, z::Real; varphi_p::Real = 0)
     o = p.orbit
