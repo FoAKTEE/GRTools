@@ -24,7 +24,10 @@ decide script-vs-structure, iterate (`.claude/skills/vlm-figure-repro/SKILL.md`)
 > `spin = 0`, `orbital_radius = 10 M`, `m_mode = 2`, `inner_radius = 2 M` (= r₊ at a = 0),
 > `outer_radius = 10⁴ M`, `worldtube_radius = 4.8 M`, `worldtube_dz2 = 0.25`, `P = 4`,
 > `L = 0`, with `ImposeEquatorialSymmetry: True`. That is an ASSUMPTION where the figure does
-> not pin the value, and each driver states which of its registered numbers depend on it.
+> not pin the value, and each driver states which of its registered numbers depend on it. Where a
+> caption DOES name a parameter, the caption wins: Fig. 6 says "the m = 2 mode of the a = 0.5 M,
+> r0 = 10 M configuration" (main.tex:701), so `fig_linsolv.jl` runs at `spin = 0.5` and takes
+> `inner_radius = r₊(a = 0.5)` accordingly.
 
 > **Why `InitialCoarseLevels: L` means "no coarser levels" at `L = 0`.** Primary source:
 > spectre `src/ParallelAlgorithms/LinearSolver/Multigrid/Tags.hpp:30-37` — *"Maximum number of
@@ -35,8 +38,8 @@ decide script-vs-structure, iterate (`.claude/skills/vlm-figure-repro/SKILL.md`)
 
 | # | figure / check | driver | golden | tier | status | VLM verdict | notes |
 |---|---|---|---|---|---|---|---|
-| 1 | `fig:domain` — the DG computational domain: `\|Ψ_m\|` height- and colour-mapped over the (r, z²) element grid, `\|Ψ^ℛ_m\|` in the worldtube | `fig_domain.jl` | `expected/fig_domain.json` | heavy | **solid** | **match** | A single 3D panel plus an inset: |Ψ_m| height- **and** colour-mapped over the (r, z²) DG element grid with white element edges and the Legendre-Gauss collocation grid, |Ψ^ℛ_m| inside the red-framed worldtube, the v/t/u slicing arc with H = ∓1, and the six-step hp-AMR cascade at x_p magnified bottom-right. Seven AMR levels, 20 → 57 elements and 320 → 3538 dofs, GMRES 1, 8, 9, 8, 9, 9, 9. Structure reproduced: the two |Ψ_m| lobes of the published render — the tan ridge in the polar row over the worldtube's radial span and the sharper wedge just outside the tube in r at the equator — agree in count and position, as do the flat navy near-horizon band, the low navy tube patch and the teal wavezone plateau. `--check` 52/52 at rtol 1e-10 with max|Δ| = 0, `-t1` ≡ `-t4`. ~500 s at -t4, of which the sweep is 223.5 s — **heavy**. |
 | 2 | `fig:matrix` — DG operator sparsity at the coarsest grid level + element numbering | `fig_matrix.jl` | `expected/fig_matrix.json` | heavy | **solid** | **match** | Two panels: the B/W spy of the 320×320 coarsest-level matrix over a light-gray element-block checkerboard, and the domain sketch numbering the 20 elements that index its rows and columns. Structure reproduced exactly: 20 diagonal blocks + 33 symmetric off-diagonal block pairs, of which the 8 pairs across the four 2:1 interfaces (2↔3, 2↔4, 7↔9, 8↔9, 12↔13, 12↔14, 17↔19, 18↔19 in the paper's numbering) are fully dense 16×16 and the other 25 carry 64 entries. Adjacency graph-isomorphic to the domain topology in BOTH directions (0 matrix-only, 0 topology-only pairs). Reference block-occupancy extracted from `matrix.pdf` at 600 dpi and compared block-by-block: identical. 398.8 s at -t4 — **heavy**, although the numerics are ~10 s: the cost is the first-call specialization of the ComplexF64 `MeshOperator` (104 s) and of the first Plots/GR render. |
+| 6 | `fig:linsolv` — GMRES residual staircase over AMR levels + walltime per iteration | `fig_linsolv.jl` | `expected/fig_linsolv.json` | heavy | **preliminary** | **partial** | Two panels for the m = 2 mode at a = 0.5 M, r₀ = 10 M: the residual staircase of 8 consecutive AMR levels over a cumulative-iteration axis, and the walltime per iteration. Presentation and structure reproduce item by item (see the checklist below); the per-level ITERATION COUNTS do not — published `1, 7, 6, 5, 4, 3, 3, 2` (31 cumulative) against our `1, 8, 9, 9, 9, 9, 9, 9` (63). All five node gates pass (max 9 < 10 iterations per level; level 0 in 1 iteration; the count bounded across levels; the first iteration slowest on every level; every level below the 1e-12 tolerance), so the paper's stated claims hold — but the shape of the published staircases does not, which is a solver-quality finding escalated to rows 21 and 43, and why this row is `preliminary`. 252.7 s at -t4 in `run_all` with a warm depot (~400 s standalone with precompilation), of which the AMR sweep itself is 12.3 s. Generated on top of `6df9f51` (the `hp_refine` 2:1-closure fix). |
 
 ### What "the coarsest grid level" is
 
@@ -81,91 +84,95 @@ For the comparison with the published figure this matters in one way only: the r
 112-entry tensor pattern as every other diagonal block — which is consistent with the 9536
 structural entries of our own count, and is what `compare_blocks.py` measures block by block.
 
-## Fig. 1 — six h-steps, the drawn radial coordinate, and what Plots cannot do
+## Fig. 6 — how many AMR levels, and what does not reproduce
 
-### Why `iterations = 6`
+### The level count is a convention mapping, derived from the source
 
-main.tex:558, about this figure specifically: *"The result of this h refinement strategy after
-six refinement steps is shown in \cref{fig:domain}, with the region around the puncture magnified
-in the inset."* A *refinement step* is one `amr_step!` — spectre's `Amr.Iterations` counts
-**solves**, and its own trigger (`EveryNIterations {N: 1, Offset: 1}`, yaml:157-160) skips
-refinement on the initial guess, so `n` solves are separated by `n − 1` refinements — hence
-`solve_mode_amr(...; iterations = 6)`: seven levels, 0…6, not the yaml's production
-`Amr.Iterations: 8`. The published inset confirms it twice over: its cascade shows six
-2:1 steps into the puncture corner, and its coarse elements carry a 9-cell collocation grid, i.e.
-`N = P + 6 = 10`.
+`Amr.Iterations: 8` (yaml:153) counts spectre's AMR **solver iterations**, i.e. *solves*, and the
+yaml's own trigger `EveryNIterations {N: 1, Offset: 1}` (yaml:157-160, commented "Run AMR in every
+iteration, but not on the initial guess") skips refinement on iteration 0. Tracing spectre's loop
+— `src/Elliptic/Executables/Solver.hpp:348-357`
+(`RunEventsAndTriggers → StopAmr → ExecutePhaseChange → StepActions(solve) → IncrementIterationId`)
+against `src/Elliptic/Amr/Actions.hpp:56` (`HasConverged{num_iterations, 0}`) — the sweep is
+**8 solves separated by 7 refinements**. GRTools' `solve_mode_amr(; iterations = n)` counts
+`amr_step!`s, so the paper's configuration is `iterations = 7`; the driver derives it as
+`cfg.amr.iterations - cfg.amr.trigger_offset` rather than hard-coding a number. The published
+figure confirms the reading independently: its top panel carries exactly **8** disconnected
+staircases on a 0…32 axis.
 
-### The abscissa is the paper's own visualisation coordinate
+`ESSF::amr-driver` ran `iterations = 8`, i.e. **nine** levels; the ninth `9` of its published
+sequence `1, 8, 9, 9, 9, 9, 9, 9, 9` is that extra level. The first eight entries are this
+figure's.
 
-A domain running to `R = 10⁴ M` cannot be drawn against linear `r`. The paper's run observes
-`RadiallyCompressedCoordinates: {InnerRadius: *t_to_u_transition, OuterRadius: *outer_radius,
-Compression: *outer_shell_distribution}` (yaml:222-225), and spectre implements it
-(`src/Domain/RadiallyCompressedCoordinates.cpp:27-52` with `src/Domain/CoordinateMaps/Interval.cpp:120-129`)
-as the inverse of an `Interval` map from `[r_in, r_in·log₁₀R]` onto `[r_in, R]` — at the
-production point
+### The finding: the staircases do not shorten
 
-    r_c(r) = 97.779 − 1790.6/r   on  [24.4, 10⁴] → [24.4, 97.6],     r_c(r) = r   below r_in.
+| level | iters (paper) | iters (ours) | initial residual paper / ours | reduction per iteration paper / ours |
+|---|---|---|---|---|
+| 0 | 1 | 1 | 1.375 / 1.744 | — |
+| 1 | 7 | 8 | 2.59e-3 / 2.53e-3 | 26.0 / 16.4 |
+| 2 | 6 | 9 | 7.06e-4 / 3.26e-3 | 42.7 / 12.2 |
+| 3 | 5 | 9 | 8.75e-5 / 3.64e-4 | 48.0 / 9.0 |
+| 4 | 4 | 9 | 2.37e-5 / 2.18e-4 | 82.3 / 9.3 |
+| 5 | 3 | 9 | 4.01e-6 / 5.12e-5 | 244.6 / 7.6 |
+| 6 | 3 | 9 | 9.64e-7 / 1.03e-5 | 191.9 / 6.4 |
+| 7 | 2 | 9 | 2.60e-7 / 5.30e-6 | 567.0 / 6.0 |
+| **total** | **31** | **63** | | |
 
-That is this figure's horizontal coordinate, taken from `cfg.observers.rcc_*` rather than
-hard-coded. **Framing:** the published render itself stops at the u-block element boundary
-`r = 48.68 M`; measured on `ssf_domain.pdf` the published worldtube patch sits at 4.5–21.5 % of
-the drawn ribbon, which the compressed coordinate predicts as 5.6–21.9 % if the ribbon is cut
-there (against 3.5–13.5 % for the full `r_c ∈ [1.87, 97.6]`). The driver frames the same way
-(`R_FRAME = 52`) — the outermost wavezone element runs off the right edge exactly as it does in
-the paper. Nothing is removed from the solve or from the golden.
+The paper column is extracted from `linsolv.pdf`'s own **vector paths** (PyMuPDF; axes calibrated
+on the tick-label boxes and the bottom panel's minor-tick strokes, self-consistent to <1 %), not
+from pixels. "Reduction per iteration" is `(r₀ / r_final)^(1/iters)`.
 
-### What is plotted
+Both runs satisfy every claim the caption and main.tex:720 make — `< 10` iterations per level, the
+first level converging immediately, and no growth of the count as levels are added. What differs
+is that the paper's preconditioner becomes steadily **more** effective with depth while ours
+**degrades** (16.4× → 6.0×), and our per-level initial residual (the interpolated warm start) is 1.4–13× larger
+from level 2 on. Owner: `ESSF::solver-stack-core` (the GMRES ∘ multigrid ∘ Schwarz composition)
+and `ESSF::amr-driver` (the level policy). Row 43 already measured a nearby A/B: with
+`coarse_orders = nothing` (the min rule for the coarse multigrid orders, instead of spectre-parity
+pinning at `P`) the same sweep gives `1, 8, 8, 8, 7, 7, 6, 7, 6` — decreasing, though still not
+the published shape. That is the first lead to follow.
 
-`sol.u` everywhere, which by the row-42 `ModeSolution` contract is `Ψ^ℛ_m` inside the worldtube
-and `Ψ_m` outside it — verbatim what the caption asks for. `reconstruct_full_field` (`Ψ_m`
-everywhere, log-divergent at `x_p`) is computed only for the gates and is never drawn.
+### The golden is post-`hp_refine`-fix
 
-### Rendering — an honest list of Plots.jl-vs-ParaView differences
+It is generated on top of `6df9f51` (*fix(ellipticcore)!: hp_refine — hold the order in a
+balance-split dimension*), where an element that the 2:1 balance splits no longer also carries a
+p increment in the split dimension, matching spectre
+(`ParallelAlgorithms/Amr/UpdateAmrDecision.cpp:82-87`, `Amr/Projectors/Mesh.cpp:30-34`).
 
-The reference is a ParaView render annotated in Keynote. Plots.jl/GR has no 3D-surface primitive
-that carries a per-quad colour, a hard field discontinuity at the worldtube boundary and white
-element edges at once, so the driver does its own axonometric perspective projection and paints
-depth-sorted quadrilaterals into one `:shape` series (`fill_z` carrying a (value, shade)
-categorical palette). Consequences, none structural:
+Measured effect on this figure: the dof sequence moves from
+`320, 603, 962, 1425, 2004, 2711, 3558, 4557` to `320, 593, 950, 1411, 1988, 2693, 3538, 4535`,
+and the per-level final residuals move in their last digits. The GMRES **iteration counts are
+unchanged** at `1, 8, 9, 9, 9, 9, 9, 9`, so the reproduction gap documented above survives the
+fix rather than having been caused by it.
 
-* element edges and collocation-grid lines are drawn after all quads, so a line on a far element
-  is not hidden by a nearer fold (sub-pixel on this surface);
-* lighting is one Lambert term over an ambient floor — the reference's ParaView shading is what
-  makes its high-|Ψ| slopes read dark brown rather than tan;
-* the camera, the 2:1:0.78 scene box, the colour anchors (sampled from the reference render) and
-  every annotation offset are style constants, listed together at the top of the figure section
-  of the driver.
+### The bottom panel: eager build, attributed by addition
 
-### Gates
+The paper's first-iteration bump is the **lazy** construction of the Schwarz subdomain matrices
+inside that iteration (main.tex:702). This package builds them **eagerly** in `rebuild!`, so the
+same work is measured in `SolveRecord.build_time` and *not* inside `iteration_time[1]`. The bottom
+panel therefore plots `iteration_time[1] + build_time` at each level's first point: the same
+physical work charged to the same iteration, by addition rather than by measurement inside the
+timer — a bookkeeping equivalence, not a lazy build. Both columns stay separately registered in
+the golden. Measured consequences (envelope over the `-t1` and `-t4` runs): with the attribution the
+first/rest ratio is **37…144** (paper: 1.8…2.9); without it, **0.35…3.1**, i.e. scattered about 1
+with no trend in level — there is no first-iteration feature here at all without the attribution. Our per-iteration plateau is *faster* than the paper's
+(0.034 s vs 0.274 s on the deepest level); only the eager build makes the sweep total larger
+(12.3 s against the published stamp's 0:00:06).
 
-1. **The refinement/order map**, asserted level by level against the sealed AMR metadata rule:
-   the criterion flags exactly the two elements containing `x_p` (the `z²` chart puts it on the
-   domain boundary), they sit at h-level `L+1+k` in both dimensions with the order **held** at
-   `(P, P) = (4, 4)`, every other element descends from exactly one level-`k−1` element and
-   carries that ancestor's order **+1**, and every level is 2:1 balanced.
-2. **The field**: finite and non-zero at all 130 probes including the whole horizon column
-   and the poles; `puncture_chart_position` equal to `(r₀, 0)`; and `|Ψ^ℛ_m| < |Ψ_m|` at every
-   inner worldtube-boundary probe (worst ratio 0.0469) with the regularized field 17×
-   flatter across the tube than the retarded field.
-3. **Determinism**: `--check` after `--regen` at `rtol = 1e-10`, `-t1` and `-t4` identical.
-4. **VLM** against `ssf_domain.pdf`: **match**. All four structures the manual demands (warped coloured surface with white DG lines, flat far zone, detached red-framed patch, AMR inset) and 9/9 checklist items; the lobe count and placement agree. Five style differences are recorded in `evidence/fig-domain/vlm_verdict.md` — proportions (the published ParaView camera is not recoverable from the PDF), ParaView-vs-Lambert lighting, the added `H = ±1` labels, the drawn cliff face at the tube boundary, and the inset window.
+### Timings are reported, not gated
 
-### The order map is anchored to the fixed `hp_refine`
+Wall-clock values are registered under `reported_*` names with a deliberately loose tolerance, so
+`--check` cannot turn a busy machine into a red result. What is gated is the structure they carry
+(`first_bar_is_slowest_per_level`) and the residual histories, at `rtol = 1e-8` — three orders
+looser than the measured `-t1` vs `-t4` spread, which is **bitwise zero** with
+`OPENBLAS_NUM_THREADS=1`, and still an order tighter than the 4.2e-12 relative drift an unpinned
+BLAS thread count introduces. `residual_log10_flat` is registered beside `residual_flat` because
+the harness compares arrays norm-wise: on the raw vector the O(1) initial residual would mask a
+factor-2 move at the 1e-13 floor.
 
-EllipticCore closes the caller's AMR flags under the 2:1 rule (`balanced_flags`) *before* the
-p half, so an element the balancer splits keeps its polynomial order in the split dimension —
-spectre `Domain/Amr/UpdateAmrDecision.cpp:82-87` with
-`ParallelAlgorithms/Amr/Projectors/Mesh.cpp:30-34`. This golden was generated after that fix
-(`6df9f51`) and GATE 1b asserts the closed rule directly: measured, the two balance-split
-children of block 1 at level 1 carry `(5, 4)`, not `(5, 5)`. `element_id_sha256`, the drawn
-element boundaries and the inset cascade are independent of the closure (the h-refined element
-**set** is the same either way); `element_order_x/y`, `level_ndofs`, `level_map_sha256`,
-`level_gmres_iterations` and the sampled field values are not, and would move against a tree
-without it.
 
 ## Not yet reproduced
 
-Figures 3 (`precond`), 4 (`ssf_convergence`), 5 (`ssf_modes`), 6 (`linsolv`) and
-7 (`ssf_error_budget`) are later nodes of the elliptic-ssf DAG; they need
-the solver stack, the AMR driver and the mode-sum extraction. Nothing about them is claimed
-here.
+Figures 1 (`ssf_domain`), 3 (`precond`), 4 (`ssf_convergence`), 5 (`ssf_modes`) and
+7 (`ssf_error_budget`) are later nodes of the elliptic-ssf DAG; they need the mode-sum
+extraction and the m-mode fan-out. Nothing about them is claimed here.
