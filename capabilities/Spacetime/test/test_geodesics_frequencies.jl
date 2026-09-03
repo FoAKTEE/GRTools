@@ -185,9 +185,10 @@ end
         else
             # a < 0 flips to (−a, x = −1) and routes through the GENERIC branch, which is not
             # touched by this fix: there r3 → r1 = r2 and `sqrt(complex(...))` leaves a residual
-            # Ω_r ≈ 1e−9 instead of 0. Recorded, not fixed (out of node scope).
-            @test abs(fb.Omegar) <= 1e-7
-            @test abs(fp.Omegar) <= 1e-7
+            # instead of 0. Recorded, not fixed (out of node scope). Measured: BL Ω_r =
+            # 1.53/2.44/2.31e−9 and Proper Ω_r = 2.00/3.07/2.89e−9 over the three spins.
+            @test abs(fb.Omegar) <= 1e-8
+            @test abs(fp.Omegar) <= 1e-8
         end
         # Ω_φ against the independently sealed closed form (ESSF::spacetime-circular-kinematics).
         ut, uphi = kerr_circular_ut_uphi(a, r0)
@@ -220,15 +221,15 @@ end
                 @test fb.Omegaph isa BigFloat
                 @test fm.Ur isa BigFloat
                 @test fb.Omegar == 0                       # exact, not merely ≤ 1e-60
-                @test abs(fb.Omegar) <= big"1e-60"
                 ut, uphi = kerr_circular_ut_uphi(a, r0)
                 @test abs(fb.Omegaph - uphi/ut) <= big"1e-60" * abs(uphi/ut)
             end
-            # retrograde: generic branch, untouched — residual measured at 2.9e-40 (a = −0.5)
+            # retrograde: generic branch, untouched — residual measured at 2.9e-40 (a = −0.5),
+            # exactly 0 at a = −0.9 and a = −0.998
             for a in (big"-0.5", big"-0.9", big"-0.998")
                 fb = kerr_frequencies(a, kerr_isco(a), big"0.0", big"1.0")
                 @test fb.Omegar isa BigFloat
-                @test abs(fb.Omegar) <= big"1e-30"
+                @test abs(fb.Omegar) <= big"1e-35"
             end
         end
     end

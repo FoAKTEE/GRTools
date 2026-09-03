@@ -78,11 +78,13 @@ const ORBIT_SPINS = [0.0, 0.5, -0.5, 0.9, -0.9, 0.998, -0.998]
         @test isapprox(kerr_isco(-1.0), 9.0; rtol = 4 * eps())
     end
 
-    @testset "pinned AT the exact ISCO (avoids the kerr_frequencies circ-eq hole)" begin
-        # Upstream Spacetime.kerr_frequencies circ-eq path DomainErrors at exactly
-        # r0 = kerr_isco(a) (Mino Ur radicand → 0⁻ by roundoff; error ledger 2026-07-28).
-        # The adapter must therefore construct fine at the exact ISCO and get Ω from the
-        # closed form Ω = u^φ/u^t = 1/(a + √(r0³/M)) (main.tex:196), never the Mino path.
+    @testset "pinned AT the exact ISCO" begin
+        # The ISCO is a regular point of the upstream frequencies now: Spacetime's circ-eq Υ_r
+        # radicand is the Bardeen ISCO polynomial, so Υ_r ≡ 0 there for prograde orbits and the
+        # old DomainError at r0 = kerr_isco(a) is gone (node ESSF::fix-kerr-frequencies-isco;
+        # the 2026-07-28 error-ledger trial is discharged). The adapter still takes Ω from the
+        # closed form Ω = u^φ/u^t = 1/(a + √(r0³/M)) (main.tex:196) by design, and must
+        # construct fine at the exact ISCO.
         for a in ORBIT_SPINS
             r0 = kerr_isco(a)
             o = CircularOrbit(a, r0)                       # must not throw

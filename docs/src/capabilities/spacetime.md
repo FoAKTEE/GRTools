@@ -36,9 +36,11 @@ rehomed from Punctures).
 
 The two areas meet at the ISCO: the prograde circular-equatorial ``\Upsilon_r`` radicand of
 `kerr_frequencies` factors exactly as ``p\,(p^2 - 6p + 8a\sqrt{p} - 3a^2)/(2a\sqrt{p} +
-(p-3)p)``, whose numerator is the Bardeen polynomial solved by `kerr_isco`, so
-`kerr_frequencies(a, kerr_isco(a), 0, 1)` returns ``\Omega_r = 0`` exactly in any precision
-(radii inside the ISCO keep raising a `DomainError` — they are unstable circular orbits).
+(p-3)p)``, whose numerator is the Bardeen polynomial solved by `kerr_isco`, so for ``a > 0``
+(prograde) `kerr_frequencies(a, kerr_isco(a), 0, 1)` returns ``\Omega_r = 0`` exactly in any
+precision. Retrograde ``a < 0`` orbits route through the generic branch instead and leave
+``|\Omega_r| \lesssim 3\times10^{-9}``. Radii more than a few ulp inside the ISCO keep raising
+a `DomainError` — they are unstable circular orbits.
 
 ## Dependencies and poison-axis budget
 

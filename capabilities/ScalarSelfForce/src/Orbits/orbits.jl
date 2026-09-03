@@ -26,10 +26,12 @@ Fields:
   - `prograde` — `a >= 0` (sign convention above).
   - `E`, `Lz` — specific energy / axial angular momentum, `constants_of_motion(a, r0, 0, 1)`
             (equatorial `x = +1`; retrograde is encoded by `a < 0`, main.tex:176-190).
-  - `Omega` — orbital frequency `uphi/ut = 1/(a + √(r0³/M))` (main.tex:196). Deliberately
-            NOT `kerr_frequencies`: its circ-eq Mino path DomainErrors at exactly
-            `r0 = kerr_isco(a)` (roundoff; ESSF error ledger 2026-07-28), while this
-            closed form is regular through the ISCO.
+  - `Omega` — orbital frequency `uphi/ut = 1/(a + √(r0³/M))` (main.tex:196). The closed form
+            is used by design — it is one algebraic expression, regular through the ISCO, and
+            needs no elliptic evaluation. (`kerr_frequencies` is now regular at the ISCO too:
+            its circ-eq Υ_r radicand is the Bardeen polynomial, so Υ_r ≡ 0 there for prograde
+            orbits — GRTools `fix(spacetime)`, node ESSF::fix-kerr-frequencies-isco. The old
+            `DomainError` at `r0 = kerr_isco(a)` is gone.)
   - `ut`, `uphi` — four-velocity components, `kerr_circular_ut_uphi(a, r0)` (main.tex:192-196).
   - `rp`, `rm` — horizons r± = M ± √(M² − a²), `horizons(a)`.
   - `r_isco` — `kerr_isco(a)` (Bardeen closed form; main.tex:207-209 condition).

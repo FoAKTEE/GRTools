@@ -136,16 +136,24 @@ end
 #     i.e. nonzero, and no fixed tolerance would cover both regimes).
 #  2. A NEGATIVE radicand within the first-order rounding bound of that zero carries no
 #     significant digit either, so it is snapped to 0 as well — this catches a caller whose `p`
-#     is the ISCO only to a few ulp. The bound is K·eps(T)·Σ|terms|/|denominator| over the terms
-#     actually summed, with K = 16; the measured residual at `kerr_isco(a)` uses at most 0.19 of
-#     it for |a| ≥ 0.5, and the window stays inside |δp/p| ≤ 6.2e−13 even at a = 0.998. It is a
-#     roundoff guard only — near a → 0 `kerr_isco`'s own cancellation error exceeds this bound,
-#     which is precisely why (1) and not (2) is the mechanism that makes the ISCO exact.
+#     is the ISCO only to a few ulp, and it also removes a pre-existing throw just OUTSIDE the
+#     ISCO at near-extremal spin (15 of 400 radii in [r_ISCO, r_ISCO(1+1e−10)] for a ∈ [0.9,
+#     1−1e−12] had a negative radicand before; 0 of 400 throw now). The bound is
+#     K·eps(T)·Σ|terms|/|denominator| over the terms actually summed, with K = 16. Measured over
+#     5000 spins with |a| ≥ 0.5 the residual at `kerr_isco(a)` uses at most 0.29 of that budget
+#     (worst at a ≈ 0.5087; 0.18 in BigFloat), and the window GROWS with spin — |δp/p| ≤ 2.8e−15
+#     (a = 0.5), 2.5e−14 (0.9), 6.2e−13 (0.998), 5.0e−12 (0.9999), 2.3e−11 (0.99999).
+#     It is a roundoff guard only, and NOT sufficient on its own: near a → 0 `kerr_isco`'s own
+#     cancellation (3 − Z1 ~ a²) dominates and blows past this bound — the residual reaches
+#     4.6e6·K·eps·scale at a = 1e−8, where the pre-fix code returned a spurious Ω_r = 5.0e−6
+#     (1.4e−8 at a = 1e−3) or threw outright. That is precisely why (1) and not (2) is the
+#     mechanism that makes the ISCO exact.
 #
 # A radicand below −tol is a genuine inside-the-ISCO (unstable) orbit and keeps raising the
-# original `DomainError`; this is deliberately NOT a blanket `max(x, 0)` clamp. Every p that
-# previously returned a finite Υ_r is bit-for-bit unchanged: the radicand expression itself is
-# untouched, and the only value that moves is the ISCO point where 0 is exact.
+# original `DomainError`; this is deliberately NOT a blanket `max(x, 0)` clamp. No p away from
+# the ISCO moves: the radicand expression itself is character-identical to the pre-fix code, and
+# the only values that change are inside the roundoff neighbourhood of the zero, where 0 is the
+# exact answer.
 const _CIRCEQ_ISCO_ROUNDOFF_K = 16
 
 function _circeq_isco_radicand(rad, a, p)
@@ -206,7 +214,15 @@ kerr_isco(a), 0, 1)` returns `Υ_r = Ω_r = 0` EXACTLY in every precision — th
 radicand is `p·(p² − 6p + 8a√p − 3a²)/(2a√p + (p−3)p)`, whose numerator is the Bardeen ISCO
 polynomial itself. Radii inside the ISCO are unstable circular orbits with a genuinely negative
 radicand and still raise a `DomainError`. Retrograde circular equatorial orbits (`a < 0`) route
-through the generic branch, where the ISCO leaves a `|Ω_r| ≲ 1e-9` numerical residual instead.
+through the generic branch, where the ISCO leaves a `|Ω_r| ≲ 3e-9` numerical residual instead.
+
+The exact-zero guarantee holds when `p` is `kerr_isco(a)` evaluated at the same type AND the
+same precision as the call: the ISCO is recognised by exact equality, so a radius baked in one
+setting and consumed in another defeats it. Measured at a = 0.998: `a::BigFloat` with a Float64
+`r0` gives `Ω_r = 4.2e-9`, an `r0` baked at 256 bits and used at 128 bits gives `2.9e-20`, and
+`a::Float64` with `r0 = BigFloat(kerr_isco(a))` still raises the `DomainError` (the Float64 ISCO
+is genuinely ~1.5e-14 inside the 256-bit one). Bake `r0` with the same `a` and precision you
+call with.
 """
 function kerr_frequencies(a, p, e, x; Time = "BoyerLindquist")
     f = _mino_frequencies(a, p, e, x)
