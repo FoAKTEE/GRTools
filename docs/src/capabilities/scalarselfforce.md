@@ -43,8 +43,11 @@ formulation and consumes the physics-free hp-DG solver stack from
   `effective_source_m_switched` are the combined evaluator: they compare the
   series' predicted truncation with the direct route's predicted roundoff and
   pick the smaller, so the crossover moves inward like
-  ``\varepsilon^{1/5}`` as the working precision rises. The DG fixed-source
-  assembly calls `effective_source_m_switched`.
+  ``\varepsilon^{1/5}`` as the working precision rises. The truncation estimate
+  carries an unconditional geometric floor ``((1+|m|)\varrho/r_0)^3``: the
+  retained ``\lambda^2`` bracket is a signed sum whose zeros would otherwise
+  make the series look exact arbitrarily far from the worldline. The DG
+  fixed-source assembly calls `effective_source_m_switched`.
 - **Worldtube** — the worldtube formulation of the regularized region
   (``\triangle_m \Psi^{\mathcal R}_m = S^{\rm eff}_m`` inside,
   ``\triangle_m \Psi_m = 0`` outside,

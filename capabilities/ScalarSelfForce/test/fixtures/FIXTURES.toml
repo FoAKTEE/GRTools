@@ -47,6 +47,16 @@ status = "tracked-generator"
 note = "BEST-IN-REPO pattern: test_effsource_fixtures.jl:318-345 re-runs the generator and asserts byte-identity whenever the toolchain and mirror are present"
 
 [[fixture]]
+file = "test/fixtures/effsource/switch_calibration.jl"
+sha256 = "3c70675cb44a9edc9ff80343c82e07af409cbcefddb820861046da3651fc5034"
+bytes = 179384
+capture = "test/fixtures/effsource/generator/capture_switch_calibration.jl"
+oracle = "this package's own effective_source_m at BigFloat(256) (relative roundoff ~1e-65 near the worldline), against its Float64 series and direct routes — no external code or data"
+oracle_commit = ""
+status = "tracked-generator"
+note = "the 3240-point route-switch calibration grid (6 configs x m in {0,1,2,5,10,20} x 9 lambda x 5 directions x both signs of dr): per point, both routes' relative error against the BigFloat(256) truth and the direct route's eps*cancellation. Route-INDEPENDENT, so test_effective_source_series.jl replays the whole grid against the LIVE switch rule and asserts the three headline numbers (worst achieved/optimal factor, worst switched error, worst near-crossover disagreement) instead of quoting them from a comment. Regeneration costs ~11 min single-threaded"
+
+[[fixture]]
 file = "test/fixtures/effsource/series_coeffs_rational.jl"
 sha256 = "7ed9fb1d3cafd89c3dada35af8b494f791347702f87251cfd55dd7ffc3bf04b4"
 bytes = 14085

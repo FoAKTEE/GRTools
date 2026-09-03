@@ -103,6 +103,17 @@ end
 
 # ONE evaluation of the series: the complex source, the relative size `q` of the retained
 # λ² bracket (the switch's raw material) and ϱ².
+#
+# `q` USES THE SIGNED BRACKET AND IS THEREFORE NOT SUFFICIENT ON ITS OWN (validator finding
+# H1). The nine bracket terms carry mixed signs, so `br` vanishes on codimension-1 curves in
+# (r, z) — 46 of them located on the frozen configs alone. |br| collapses by 4-16 orders
+# across such a curve while the TRUE truncation error does not, so `q` alone declares the
+# series accurate arbitrarily far outside its validity: at a = 0.5, r₀ = 10, m = 20,
+# φ_p = 0.31, r = 10.034, z = 0.0098310 (λ = 0.105 — inside the production worldtube) it
+# selected `:series` and returned a value 93 % wrong where the direct route was accurate to
+# 3.5e-6. The switch therefore carries an UNCONDITIONAL GEOMETRIC FLOOR that no coefficient
+# zero can defeat — see [`effective_source_switched_bundle`](@ref), which also records the
+# measurement that rejected replacing `q` by the bracket's Σ|tᵢ| norm.
 function _series_eval(p::Puncture, m::Integer, r::Real, z::Real, phi_p::Real)
     o = p.orbit
     abs(z) < 1 || throw(DomainError(z,
@@ -158,10 +169,13 @@ effective_source_series_m(p::Puncture, m::Integer, r::Real, z::Real; phi_p::Real
 # (r, z) calibration sweep, restricted to the 2148 points where the direct value still has
 # ≥ 3 correct digits (so that its `cancellation` is itself meaningful): median 91, 90th
 # percentile 437, worst 2310 — and 307 on the sealed direct node's own near-puncture box.
-# The constant enters the crossover only as `ULPS^{1/5}` and is NOT sensitive: 1000, 2310
-# and 3000 all give the SAME worst switched relative error on that sweep (6.95e-4), with
-# worst achieved/optimal factors 42.1, 36.3 and 36.3. 1000 is kept as the working value
-# because it also gives the smallest near-crossover route disagreement (1.2e-3 vs 4.0e-2).
+# The constant enters the crossover only as `ULPS^{1/5}`. MEASURED on that sweep
+# (`calibration_switch.log`, `repair_select_rule.py`): ULPS = 300 gives a worst
+# achieved/optimal factor of 374.3, 1000 gives 42.1 and 3000 gives 36.3, all three with the
+# SAME worst switched relative error (6.95e-4). 1000 is CHOSEN because it minimises the
+# near-crossover route disagreement (1.2e-3, against 4.0e-2 at 3000). ULPS = 2310 has never
+# been run; an earlier revision of this comment claimed a measurement at that value, and
+# that claim is withdrawn.
 const _ESS_DIRECT_ULPS = 1000
 
 """
@@ -175,35 +189,60 @@ decision compares.
 
 THE CRITERION — pick the route with the smaller predicted error:
 
+    scale      = (1 + |m|)·ϱ/r₀                                      (per-order parameter)
     err_direct = _ESS_DIRECT_ULPS · eps(T) · cancellation            (roundoff)
-    err_series = q · max(q, (1 + |m|)·ϱ/r₀)                          (truncation)
+    err_series = max( q · max(q, scale) , scale³ )                   (truncation)
     route      = err_series ≤ err_direct ? :series : :direct
 
 with `cancellation` the sealed [`effective_source_bundle`](@ref) diagnostic (`term_scale/|S|`,
 the λ^{-2} amplification of the four cancelled orders) and `q = |bracket|/|s|` the relative
-size of the LAST RETAINED order of the series. `q` estimates `(λ/L)²` for the local expansion
-scale `L`, so `q·(1+|m|)λ/r₀` is the next (λ³) order; the `max` with `q` itself is the
-non-asymptotic guard — where the retained order is not yet small, the expansion is not
-converging and the series must not be trusted whatever λ says.
+size of the LAST RETAINED order of the series. `q` estimates `scale²`, so `q·scale` is the
+next (λ³) order; the `max` with `q` itself is the non-asymptotic guard — where the retained
+order is not yet small, the expansion is not converging and the series must not be trusted
+whatever λ says.
+
+THE `scale³` FLOOR IS NOT DECORATION (validator finding H1). `q` is built from the SIGNED sum
+of the nine λ² terms, which vanishes on codimension-1 curves in `(r, z)`; across such a curve
+`q` collapses by 4-16 orders while the true truncation error does not. Without the floor the
+rule selected `:series` at a = 0.5, r₀ = 10, m = 20, φ_p = 0.31, r = 10.034, z = 0.0098310
+(λ = 0.105, INSIDE the production worldtube) and returned a value 93.5 % wrong where the
+direct route was accurate to 3.5e-6 — an O(1)-wrong DG fixed source with no diagnostic. The
+floor is a pure geometric bound no coefficient zero can reach; it is the active term at
+46 of 46 zeros located on the frozen configs, with ≥ 167× margin over `err_direct` at every
+zero where the series is genuinely bad. A wider hunt (9 configs × 7 m × 11 λ bisected to
+130 bracket zeros, a 1 837 143-point dense worldtube sweep and a 200 000-point deterministic
+scatter) finds ZERO misfires and a worst achieved/optimal ratio of exactly 1 at every zero.
+Two alternatives were measured and rejected (`repair_select_rule.py`): replacing `q` by the
+bracket's `Σ|tᵢ|` NORM is equally safe but costs three orders on legitimate points (worst
+factor 1.87e4 vs 42.1, worst switched error 5.67e-3 vs 6.95e-4), because the λ² bracket has a
+PHYSICAL internal cancellation that the λ³ order shares (`Σ|tᵢ|/|bracket|` median 2.4, p99
+169, max 1.5e4); adding `Σ|tᵢ|·scale` on top of the floor costs 8× in the worst factor and
+3× in the crossover jump for no measured safety gain.
 
 The rule is precision-aware BY CONSTRUCTION: `err_series ~ λ³` and `err_direct ~ eps·λ^{-2}`
 cross at `λ* ~ eps(T)^{1/5}`, so raising the precision moves the switch INWARD — measured
 log₁₀λ* = −1.923 at Float64, −5.201 at BigFloat(106) and −14.320 at BigFloat(256) (a = 0.5,
 r₀ = 10, m = 2); it also moves inward with `m` and with decreasing r₀.
 
-MEASURED QUALITY (node evidence `calibration_switch.log`: a 3240-point sweep, 6 fixture
-configs × m ∈ {0,1,2,5,10,20} × 9 λ ∈ [1e-5, 1e-1] × 5 directions × both signs of Δr, against
-a BigFloat(256) truth). The switched evaluator's worst relative error is 6.9542e-4, against
+MEASURED QUALITY — ON THE BAKED CALIBRATION GRID
+`test/fixtures/effsource/switch_calibration.jl` (6 fixture configs × m ∈ {0,1,2,5,10,20} ×
+9 λ ∈ [1e-5, 1e-1] × 5 directions × both signs of Δr = 3240 points, each carrying both
+routes' relative error against a BigFloat(256) truth; the node test REPLAYS it rather than
+quoting these numbers). The switched evaluator's worst relative error is 6.9542e-4, against
 5.8608e-4 for an ORACLE that always picks the better route (ratio 1.187) — while on the same
 points the direct route ALONE reaches 6.0385e+2 and the series ALONE 4.0122e+0. The worst
 pointwise achieved/optimal ratio is 42.1, and for all 1080 points with λ ≤ 3.2e-4 the rule
-picks the series with ratio exactly 1.
+picks the series with ratio exactly 1. These are properties OF THAT GRID: an independent
+9072-point sweep reports 1.23e-3, 2389 and 4.07e-3 for the worst switched error, the worst
+factor and the crossover disagreement — all in the conservative direction. Adding the `scale³`
+floor changed NONE of the three numbers on the calibration grid.
 
 CONTINUITY. The two routes are not identical, so `source` jumps by |series − direct| at the
 crossover. That jump is BY CONSTRUCTION of the order of the local accuracy limit itself
 (both predicted errors are equal there): measured worst |series − direct|/|S| = 3.63e-4 at
-Float64 over the node test's grid and 1.2e-3 over the full calibration sweep, both at m = 20
-and λ ≈ 1e-2, where NEITHER route does better than ~1e-4. It is a jump in the DG fixed
+Float64 over the node test's 189-point grid, 1.1999e-3 over the 3240-point calibration grid
+and 4.07e-3 over the validator's independent 9072-point sweep, in every case at m = 20 and
+λ ≈ 1e-2, where NEITHER route does better than ~1e-4. It is a jump in the DG fixed
 source at a measure-zero set of quadrature points inside the worldtube; it is NOT gated below
 the DG discretization error, because at Float64 nothing about this source is more accurate
 than that jump — a caller needing continuity below it must raise the working precision, which
@@ -219,7 +258,11 @@ function effective_source_switched_bundle(p::Puncture, m::Integer, r::Real, z::R
                                           phi_p::Real = 0)
     f = _series_eval(p, m, r, z, phi_p)
     T = typeof(f.rho2)
-    err_series = f.q * max(f.q, (1 + abs(m)) * sqrt(f.rho2) / p.orbit.r0)
+    # `scale` = the per-order expansion parameter; `q·max(q, scale)` is the next order, and
+    # the unconditional `scale³` FLOOR keeps the estimate honest even if the bracket itself
+    # is anomalously small (a coefficient zero, not a convergence statement)
+    scale = (1 + abs(m)) * sqrt(f.rho2) / p.orbit.r0
+    err_series = max(f.q * max(f.q, scale), scale^3)
     if iszero(f.rho2)
         return (source = f.source, route = :series, err_series = err_series,
                 err_direct = T(Inf))

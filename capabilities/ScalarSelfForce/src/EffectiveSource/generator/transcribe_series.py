@@ -40,6 +40,7 @@ preserved verbatim so the Float64 evaluation tracks the C oracle):
 
 Usage:  python3 transcribe_series.py <out.jl> [<kerr-circular-comoving.c>]
 """
+import hashlib
 import io
 import re
 import sys
@@ -47,6 +48,11 @@ from pathlib import Path
 
 DEFAULT_CSRC = Path("/data/haiyangw/claude/emri-disk/ref-code/EffectiveSource/"
                     "kerr-circular-comoving.c")
+# sha256 of kerr-circular-comoving.c at the pinned upstream commit
+# 1cb9834f8a8f666aaf7b1f924b3197743efb4120. The generator REFUSES to emit from any other
+# file: the surgery table below is a set of exact substring matches against those very
+# bytes, so a drifted mirror must fail loudly rather than half-match.
+CSRC_SHA256 = "5b4f5647e0c673a29c0be9637804aba103d8153194617caa28951598ccf75d1f"
 LO, HI = 643, 677                      # 1-based inclusive: the whole function
 IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 GUARD = "(dr==0&&dth==0)? 0 : "
@@ -125,7 +131,15 @@ def to_julia(expr):
 
 
 def main(outpath, csrc=DEFAULT_CSRC):
-    lines = Path(csrc).read_text().split("\n")[LO - 1:HI]
+    raw = Path(csrc).read_bytes()
+    got = hashlib.sha256(raw).hexdigest()
+    if got != CSRC_SHA256:
+        raise SystemExit(
+            "kerr-circular-comoving.c sha256 mismatch: expected %s, got %s (%s).\n"
+            "The pinned upstream is EffectiveSource @ 1cb9834f8a8f666aaf7b1f924b3197743efb4120."
+            % (CSRC_SHA256, got, csrc))
+    self_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    lines = raw.decode().split("\n")[LO - 1:HI]
     assert lines[0].startswith("void effsource_calc_m_series("), lines[0]
 
     def body(idx, prefix):
@@ -180,11 +194,15 @@ def main(outpath, csrc=DEFAULT_CSRC):
         assert not re.search(r"\bmm\b", jl[n]), "%s must be m-INDEPENDENT" % n
 
     out = io.StringIO()
-    out.write('''\
+    out.write(('''\
 # series_coeffs.jl — GENERATED FILE, DO NOT EDIT BY HAND.
 # Regenerate (byte-identical) with:
 #   python3 src/EffectiveSource/generator/transcribe_series.py \\
 #           src/EffectiveSource/series_coeffs.jl <path-to>/kerr-circular-comoving.c
+#
+# PROVENANCE (both hashes verified by the generator at emit time):
+#   input  kerr-circular-comoving.c sha256 %s
+#   generator transcribe_series.py  sha256 %s
 #
 # Mechanical transcription of `effsource_calc_m_series`,
 # ref-code/EffectiveSource/kerr-circular-comoving.c:643-677 (READ-ONLY mirror, pinned SHA
@@ -212,7 +230,7 @@ orbital frequency, `zc` = z_c (`sqrt(orbit.zc2)`, eq:s2), `mm` = |m| ≥ 0.
 literals only), so BigFloat arguments give full-precision BigFloat coefficients.
 """
 function _series_coeffs(M, a, r0, Om, zc, mm)
-''')
+''') % (CSRC_SHA256, self_sha))
     for n in names:
         out.write("    %s = %s\n" % (n, jl[n]))
     out.write("    return (; " + ", ".join(names) + ")\nend\n")

@@ -3,6 +3,10 @@
 #   python3 src/EffectiveSource/generator/transcribe_series.py \
 #           src/EffectiveSource/series_coeffs.jl <path-to>/kerr-circular-comoving.c
 #
+# PROVENANCE (both hashes verified by the generator at emit time):
+#   input  kerr-circular-comoving.c sha256 5b4f5647e0c673a29c0be9637804aba103d8153194617caa28951598ccf75d1f
+#   generator transcribe_series.py  sha256 54ac739d19e4c39174be9e94f7a0c9adc08162348cb1a88333c18508b89c225a
+#
 # Mechanical transcription of `effsource_calc_m_series`,
 # ref-code/EffectiveSource/kerr-circular-comoving.c:643-677 (READ-ONLY mirror, pinned SHA
 # 1cb9834f8a8f666aaf7b1f924b3197743efb4120; https://github.com/barrywardell/EffectiveSource,
