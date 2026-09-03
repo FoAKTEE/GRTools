@@ -200,7 +200,7 @@ include("Domain/blocks.jl")                  # domain-blocks-map
 # :pole — node dg-boundary-conditions' ghost table), and the per-block / whole-domain
 # coefficient bundles over the sealed fluxform_callables. ZERO duplicated coefficient algebra.
 export BlockDomain, block_domain, block_lattice_bounds, block_lattice_index, block_region
-export worldtube_blocks, boundary_face_classes, boundary_class
+export worldtube_blocks, boundary_face_classes, boundary_class, boundary_class_rule
 export block_coefficients, domain_coefficients
 
 include("EffectiveSource/direct.jl")         # effective-source-direct

@@ -97,11 +97,34 @@ struct NoneGhost <: GhostBoundary end
 EllipticCore.ghost_state(::NoneGhost, int::FaceState) = FaceState(int.psi, -int.nflux)
 EllipticCore.ghost_state_linearized(bc::NoneGhost, int::FaceState) = ghost_state(bc, int)
 
+# `mesh` must be a mesh of THIS domain's lattice, not merely of one with the same shape.
+# Block ids alone do not establish that — two `BlockDomain`s built from different configs
+# carry the same 5×2 ids — so the block MAPS are checked against the domain's own bounds.
+# Endpoints are exact by the mesh2d contract (`block_domain` builds the maps from these very
+# numbers), so the comparison is exact equality, and it costs one pass over the ~10 blocks.
+# Without it, the `mkop` closure of a solver driver could silently pick up the wrong domain.
+function _bc_require_same_lattice(dom::BlockDomain, mesh::Mesh2D)
+    for blk in mesh.blocks
+        i, j = block_lattice_index(dom, blk.id)    # throws for a block outside the lattice
+        for (d, bounds, k) in ((1, dom.bounds_r, i), (2, dom.bounds_z, j))
+            mp = blockmap(blk, d)
+            lo = map_forward(mp, -one(eltype(bounds)))
+            hi = map_forward(mp, one(eltype(bounds)))
+            (lo == bounds[k+1] && hi == bounds[k+2]) || throw(ArgumentError(
+                "boundary_conditions: block $(blk.id) of the given mesh spans [$lo, $hi] in " *
+                "dimension $d, but lattice cell ($i, $j) of this BlockDomain spans " *
+                "[$(bounds[k+1]), $(bounds[k+2])] — the mesh belongs to a DIFFERENT domain"))
+        end
+    end
+    return nothing
+end
+
 # The class of ONE domain-boundary face of a mesh built from `dom`'s lattice. The lattice is
 # a full rectangle with every interior block face connected, so a face without a neighbour
-# lies on the perimeter and its class follows from the face's dimension and side — exactly
-# the rule the sealed `block_domain` uses for `dom.mesh` (gated equal to
-# `boundary_face_classes(dom)` there). Stated as a FUNCTION of the face rather than a lookup
+# lies on the perimeter, and the class then follows from the face's dimension and side
+# through the SHARED [`boundary_class_rule`](@ref) — the one-line rule `block_domain` itself
+# uses to build `boundary_face_classes(dom)`, CALLED here rather than duplicated (that the
+# two agree on `dom.mesh` and on a coarsened mesh is gated). Stated as a FUNCTION rather than a lookup
 # because the multigrid hierarchy hands `build_op` COARSER meshes whose element ids do not
 # exist in `dom.boundary_classes`. A face that is not on the lattice perimeter — i.e. a mesh
 # that is not derived from this domain — is refused rather than classified by default.
@@ -116,8 +139,7 @@ function _bc_face_class(dom::BlockDomain, face::Tuple{ElementId,Int,Int})
         "boundary_conditions: face $face is not on the perimeter of the " *
         "$(dom.nr)×$(dom.nz) lattice (lattice cell ($i, $j), segment $(seg)) — the mesh is " *
         "not derived from this BlockDomain"))
-    return d == 1 ? (sidx == 1 ? :horizon : :outer) :
-                    (sidx == 1 ? (dom.chart === :z2 ? :equator : :pole) : :pole)
+    return boundary_class_rule(dom.chart, d, sidx)
 end
 
 # The outer-boundary ghost of ONE face: the sealed Robin data evaluated at exactly the points
@@ -179,11 +201,36 @@ raises `ArgumentError` instead of being classified by default. The idiomatic sol
 
     dom  = block_domain(orbit, config)
     fcs  = domain_coefficients(dom, orbit, config)
-    mkop = m -> MeshOperator(ComplexF64, m, fcs.A, fcs.beta, fcs.gamma;
-                             C = config.dg.penalty_parameter,
-                             bcs = boundary_conditions(dom, orbit, config; mesh = m))
+    mkop = msh -> MeshOperator(ComplexF64, msh, fcs.A, fcs.beta, fcs.gamma;
+                               C = config.dg.penalty_parameter,
+                               bcs = boundary_conditions(dom, orbit, config; mesh = msh))
     op   = mkop(dom.mesh)
     gmres(op, b; Minv! = MultigridV(MultigridHierarchy(op, mkop)))
+
+The closure argument is named `msh`, not `m`: `m` is the mode number everywhere else in this
+package. A mesh belonging to a DIFFERENT `BlockDomain` — even one with the same lattice
+shape — is refused, because the block maps are checked against `dom.bounds_r`/`dom.bounds_z`;
+that is exactly the mistake such a closure could otherwise make silently.
+
+WHAT GATES WHAT (read this before citing a number from this node). The reduced-ODE
+contamination gate does NOT discriminate the Bayliss-Turkel wiring: replacing the outer
+[`BaylissTurkelGhost`](@ref) by [`NoneGhost`](@ref) passes the same 1e-6 gate with a 12.6x
+margin, and over 18 measured cells (two independent sources x m in {1, 2, 5} x P in
+{4, 6, 8}) the ratio BT/None lies in [0.86, 4.20] — on this u-sliced problem the outgoing
+field is non-oscillatory at R, so an absorbing outer condition buys nothing measurable
+there. The BT wiring is justified by the paper (main.tex:403-411 + 614-618) and gated by the
+sealed `bayliss-turkel-bc` node (the spectre Sommerfeld hard regressions, the O(1/R^2)
+reflection scale) together with this node's bitwise checks — the ghost's `robin` IS the
+sealed [`bt_robin_coefficient`](@ref) broadcast and the alpha it consumes IS the operator's
+own `Aface`. A gate that discriminated the two conditions would need an oscillatory
+(t-sliced or ingoing) probe.
+
+ONE MEASURED CAVEAT FOR THE DRIVER, at m = 0: with no outer condition anywhere the operator
+is about 4x worse conditioned than at m = 2 (cond 1.506e6 vs 3.824e5 at P = 6; 2.705e5 vs
+6.471e4 at P = 4), and the sealed [`gmres`](@ref) can then report `converged = false,
+breakdown = :stagnation` at an absolute residual of 3.8e-13 while the iterate is in fact
+correct to 4.5e-13 relative to `direct_solve`. An m = 0 solve must not be gated on
+`res.converged` alone.
 
 Type-generic: the geometry type of `dom` selects the coordinate precision and the sealed
 coefficient callables carry it into the Robin data (a `BlockDomain{BigFloat}` yields
@@ -196,6 +243,7 @@ function boundary_conditions(dom::BlockDomain{RT}, orbit::CircularOrbit,
     mesh isa Mesh2D{RT} || throw(ArgumentError(
         "boundary_conditions: the mesh geometry type $(typeof(mesh)) does not match the " *
         "domain's Mesh2D{$RT}"))
+    _bc_require_same_lattice(dom, mesh)
     fcs = domain_coefficients(dom, orbit, config)      # validates the chart against `config`
     bcs = Dict{Tuple{ElementId,Int,Int},GhostBoundary}()
     for face in boundary_faces(mesh)

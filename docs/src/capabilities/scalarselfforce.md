@@ -76,9 +76,10 @@ formulation and consumes the physics-free hp-DG solver stack from
   `block_lattice_bounds` (the yaml-derived bounds and the angular chart),
   `block_lattice_index` (the yaml block numbering ``i + n_r j``),
   `block_region` (the vtu ``v``/``t``/``u`` tag of a block),
-  `worldtube_blocks` (the regularized-region block), `boundary_face_classes`
-  and `boundary_class` (`:horizon`, `:outer`, `:equator`, `:pole` — the ghost
-  table of the boundary-condition node), and the `block_coefficients` /
+  `worldtube_blocks` (the regularized-region block), `boundary_face_classes`,
+  `boundary_class` and `boundary_class_rule` (`:horizon`, `:outer`,
+  `:equator`, `:pole` — the classification the ghost table of `Solve` shares
+  with the lattice, so the two cannot drift), and the `block_coefficients` /
   `domain_coefficients` bundles the solver hands to `MeshOperator`.
 - **Solve** — the boundary-condition glue only, so far:
   `boundary_conditions(dom, orbit, config; mesh = dom.mesh)` returns the

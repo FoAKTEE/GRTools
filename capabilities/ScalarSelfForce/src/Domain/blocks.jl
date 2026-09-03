@@ -59,7 +59,7 @@
 #     coefficient bundles the solver driver feeds to `MeshOperator`.
 
 export BlockDomain, block_domain, block_lattice_bounds, block_lattice_index, block_region,
-       worldtube_blocks, boundary_face_classes, boundary_class,
+       worldtube_blocks, boundary_face_classes, boundary_class, boundary_class_rule,
        block_coefficients, domain_coefficients
 
 """
@@ -179,6 +179,35 @@ function _column_regions(v::VtuSlicing, config::RunConfig, bounds_r::AbstractVec
 end
 
 """
+    boundary_class_rule(chart::Symbol, d::Integer, sidx::Integer) -> Symbol
+
+THE boundary-face classification rule of the CRP lattice, as a pure function of the angular
+`chart` (`:z2` or `:z`) and the face key's dimension/side — the single normative statement
+that [`block_domain`](@ref) uses to build [`boundary_face_classes`](@ref) and that
+`Solve/bc_glue.jl` re-applies to the COARSER meshes a multigrid hierarchy hands its
+`build_op` (whose element ids do not exist in `dom.boundary_classes`):
+
+    (d = 1, sidx = 1) → :horizon      (r = r₊, the inner radial bound)
+    (d = 1, sidx = 2) → :outer        (r = R)
+    (d = 2, sidx = 1) → :equator in the `:z2` chart, :pole in the `:z` chart
+    (d = 2, sidx = 2) → :pole
+
+It is valid only for faces ON the lattice perimeter; the callers establish that separately
+(`block_domain` from [`boundary_faces`](@ref) of a fully connected rectangle,
+[`boundary_conditions`](@ref) from an explicit perimeter check). Factored out so the two
+call sites cannot drift — that they agree on `dom.mesh` AND on a coarsened mesh is gated in
+test_bc_glue.jl. `d`/`sidx` outside `(1, 2)` throw `ArgumentError`.
+"""
+function boundary_class_rule(chart::Symbol, d::Integer, sidx::Integer)
+    (d == 1 || d == 2) ||
+        throw(ArgumentError("boundary_class_rule: dim must be 1 or 2, got $d"))
+    (sidx == 1 || sidx == 2) ||
+        throw(ArgumentError("boundary_class_rule: sidx must be 1 or 2, got $sidx"))
+    return d == 1 ? (sidx == 1 ? :horizon : :outer) :
+                    (sidx == 1 ? (chart === :z2 ? :equator : :pole) : :pole)
+end
+
+"""
     block_domain(orbit::CircularOrbit, config::RunConfig; orders = InitialGridPoints)
         -> BlockDomain
 
@@ -286,8 +315,7 @@ function block_domain(orbit::CircularOrbit, config::RunConfig{T};
     bclasses = Dict{Tuple{ElementId,Int,Int},Symbol}()
     for f in boundary_faces(mesh)
         _, d, sidx = f
-        bclasses[f] = d == 1 ? (sidx == 1 ? :horizon : :outer) :
-                      (sidx == 1 ? (chart === :z2 ? :equator : :pole) : :pole)
+        bclasses[f] = boundary_class_rule(chart, d, sidx)
     end
 
     RT = typeof(mesh).parameters[1]

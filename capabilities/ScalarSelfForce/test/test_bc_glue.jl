@@ -61,13 +61,22 @@
 #      smooth compactly-supported source in the worldtube column, the solution at the
 #      extraction column changes by 8.3e-8 (m = 2) / 1.0e-7 (m = 1) relative when R = 1e4 is
 #      replaced by 1e5 — against the 1e-6 node gate. That production-resolution number is
-#      DISCRETIZATION-limited: it falls to 2.0e-9 at P = 6 and 9.1e-11 at P = 8, i.e. below
-#      the BT reflection scale (m+1)/(2mΩ²R³) = 7.5e-10 of the sealed row-32 gate. FALSIFIER:
+#      DISCRETIZATION-limited: it falls to 2.0e-9 at P = 6 and 9.1e-11 at P = 8, the last of
+#      which is below the BT reflection scale (m+1)/(2mΩ²R³) = 7.5e-10 of the sealed row-32
+#      gate (P = 6 is still above it). FALSIFIER:
 #      a `DirichletGhost(0)` outer face gives 1.7e-6 at P = 4 and GROWS with resolution
 #      (3.1e-6 at P = 6, 5.7e-6 at P = 8) — a genuine BC error, not a truncation error.
 #      The solve runs through the sealed stack `gmres ∘ MultigridV(MultigridHierarchy(op,
 #      build_op))` (11 iterations, agreeing with `direct_solve` to 2.5e-14), which is what
-#      exercises `boundary_conditions` on the COARSE level meshes.
+#      exercises `boundary_conditions` on the COARSE level meshes. WHAT THIS GATE DOES NOT
+#      SHOW (testset (c3), validator finding F1/F2): it does not discriminate the
+#      Bayliss-Turkel wiring — `NoneGhost` at the outer face passes it with a 12.6×
+#      margin, and over 18 calibration cells (two independent sources × m ∈ {1, 2, 5} ×
+#      P ∈ {4, 6, 8}) BT/None ∈ [0.86, 4.20], i.e. the BT ghost is never better than None
+#      by more than 14 % and is often worse: under u-slicing the outgoing field is
+#      non-oscillatory at R. The BT WIRING is gated by (e) — robin bitwise == the sealed
+#      `bt_robin_coefficient` broadcast, α bitwise == the operator's own Aface — plus the
+#      sealed row-32 node; a discriminating outer gate would need an oscillatory probe.
 #  (d) m = 0 — `outer_radial_bc === nothing` ⇒ every face gets the None ghost; the operator
 #      builds, applies and solves (cond 2.7e5, residual 7.9e-13) and its answer at the
 #      extraction column is insensitive to R at 1.1e-10 (the static m = 0 mode does not
@@ -283,6 +292,62 @@ const BCG_CFG = crp_paper_config()                       # production 5×2, m = 
     # -----------------------------------------------------------------------------------
     # (b) the no-data faces: the flux coefficient vanishes and the seam is a no-op
     # -----------------------------------------------------------------------------------
+    @testset "(a3) the class rule is SHARED with the lattice, not duplicated" begin
+        # F5: `boundary_class_rule` is the single normative statement; `block_domain` builds
+        # `boundary_face_classes` from it and `boundary_conditions` re-applies it to the
+        # coarser level meshes. The two call sites must agree — on the fine mesh AND on a
+        # coarsened one, whose element ids do not exist in `dom.boundary_classes` at all.
+        for sym in (true, false)
+            cfg = sym ? BCG_CFG : bcg_full_z(BCG_CFG)
+            orb = bcg_orbit(cfg)
+            dom = block_domain(orb, cfg)
+            classes = boundary_face_classes(dom)
+            for f in boundary_faces(dom.mesh)
+                @test classes[f] === boundary_class_rule(dom.chart, f[2], f[3])
+            end
+            cm = coarsen_mesh(dom.mesh)
+            @test cm !== nothing
+            cmesh = cm[1]
+            b = boundary_conditions(dom, orb, cfg; mesh = cmesh)
+            @test Set(keys(b)) == Set(boundary_faces(cmesh))
+            nouter = 0
+            for f in boundary_faces(cmesh)
+                if boundary_class_rule(dom.chart, f[2], f[3]) === :outer
+                    @test b[f] isa BaylissTurkelGhost
+                    nouter += 1
+                else
+                    @test b[f] isa NoneGhost
+                end
+            end
+            @test nouter > 0
+        end
+        @test :boundary_class_rule in names(ScalarSelfForce)
+        @test boundary_class_rule(:z2, 1, 1) === :horizon
+        @test boundary_class_rule(:z2, 1, 2) === :outer
+        @test boundary_class_rule(:z2, 2, 1) === :equator
+        @test boundary_class_rule(:z, 2, 1) === :pole
+        @test boundary_class_rule(:z2, 2, 2) === :pole
+        @test_throws ArgumentError boundary_class_rule(:z2, 3, 1)
+        @test_throws ArgumentError boundary_class_rule(:z2, 1, 3)
+    end
+
+    @testset "(a4) a mesh of a DIFFERENT domain is refused, not silently accepted" begin
+        # F4: block ids alone do not identify the lattice — a BlockDomain of another config
+        # carries the same 5x2 ids. The block MAPS are checked against the domain's bounds,
+        # because a solver driver's `mkop` closure is exactly the shape that could pick up
+        # the wrong `dom`.
+        cfg = BCG_CFG
+        orb = bcg_orbit(cfg)
+        dom = block_domain(orb, cfg)
+        other = crp_paper_config(spin = 0.0, orbital_radius = 12.0, worldtube_radius = 4.0)
+        dom2 = block_domain(bcg_orbit(other), other)
+        @test size(dom2.block_ids) == size(dom.block_ids)         # same 5x2 shape
+        @test dom2.bounds_r != dom.bounds_r                       # different lattice
+        @test_throws ArgumentError boundary_conditions(dom, orb, cfg; mesh = dom2.mesh)
+        @test boundary_conditions(dom, orb, cfg; mesh = dom.mesh) isa AbstractDict
+        @test boundary_conditions(dom2, bcg_orbit(other), other) isa AbstractDict
+    end
+
     @testset "(b1) 𝔄 vanishes EXACTLY on horizon/equator/pole faces" begin
         for sym in (true, false)
             cfg = sym ? BCG_CFG : bcg_full_z(BCG_CFG)
@@ -430,6 +495,23 @@ const BCG_CFG = crp_paper_config()                       # production 5×2, m = 
     # -----------------------------------------------------------------------------------
     # (d) the m = 0 branch: the yaml's `None` outer boundary
     # -----------------------------------------------------------------------------------
+    @testset "(c3) gate (c) does NOT discriminate the Bayliss-Turkel wiring" begin
+        # F1/F2, the honest reading of gate (c): on this u-sliced problem the outgoing field
+        # is non-oscillatory at R, so leaving the outer face with NO condition at all passes
+        # the same 1e-6 gate — measured 7.96e-8, a 12.6x margin. Over the calibration sweep
+        # (two independent sources x m in {1, 2, 5} x P in {4, 6, 8}) BT/None is in
+        # [0.86, 4.20]: the BT ghost is never better than None by more than 14 % and is often
+        # worse. What gates the BT WIRING is testset (e) — robin bitwise == the sealed
+        # `bt_robin_coefficient` broadcast, alpha bitwise == the operator's own Aface — plus
+        # the sealed row-32 node (spectre Sommerfeld regressions, O(1/R^2) reflection scale).
+        cont_bt, _ = bcg_contamination(m = 2)
+        cont_none, _ = bcg_contamination(m = 2, outer = :none)
+        @info "bc-glue gate (c3) BT $(cont_bt) vs None $(cont_none); BT/None $(cont_bt / cont_none)"
+        @test cont_none < 1e-6                      # the gate passes WITHOUT the BT ghost
+        @test cont_bt / cont_none < 10              # calibrated 1.046; sweep max 4.20
+        @test cont_bt / cont_none > 0.1             # calibrated sweep min 0.86
+    end
+
     @testset "(d) m = 0 — no outer boundary condition" begin
         cfg = crp_paper_config(spin = 0.0, m_mode = 0)
         @test cfg.domain.outer_radial_bc === nothing     # yaml:115-125 Jinja2 branch
