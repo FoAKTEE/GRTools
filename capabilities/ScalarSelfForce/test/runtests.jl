@@ -41,4 +41,5 @@ using ScalarSelfForce
     include("test_domain_blocks.jl")   # domain-blocks-map (W7-D)
     include("test_worldtube.jl")   # worldtube-formulation (W8-C)
     include("test_bc_glue.jl")   # dg-boundary-conditions (W8-D)
+    include("test_jump_conditions.jl")   # dg-jump-conditions (W9-A)
 end

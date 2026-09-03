@@ -63,7 +63,7 @@ formulation and consumes the physics-free hp-DG solver stack from
   `worldtube_jump_signs` — the single normative statement of the sender-normal
   sign table — and packable as EllipticCore `FixedDataHook`s through
   `worldtube_hooks` (per FACE; a 2:1 face with differing per-mortar data raises
-  — node `dg-jump-conditions` widens the seam to the mortar index), so they
+  — `Solve`'s `jump_hooks` binds them per mortar instead), so they
   reach the right-hand side via `operator_on_zero`);
   and the fixed source ``+S^{\rm eff}_m`` inside and exactly zero outside, in
   the nodal (`worldtube_source`) and the massive ``M\cdot S``
@@ -84,7 +84,8 @@ formulation and consumes the physics-free hp-DG solver stack from
   `:equator`, `:pole` — the classification the ghost table of `Solve` shares
   with the lattice, so the two cannot drift), and the `block_coefficients` /
   `domain_coefficients` bundles the solver hands to `MeshOperator`.
-- **Solve** — the boundary-condition glue only, so far:
+- **Solve** — the two glue tables a `MeshOperator` over the block domain needs.
+  Boundary conditions (the `bcs` table):
   `boundary_conditions(dom, orbit, config; mesh = dom.mesh)` returns the
   `MeshOperator` `bcs` table of the block domain, covering exactly
   `boundary_faces(mesh)`. The `:outer` faces get the sealed
@@ -99,6 +100,28 @@ formulation and consumes the physics-free hp-DG solver stack from
   the ``m = 0`` outer branch of the production input file. `mesh` may be any
   coarser mesh of the same lattice, which is what a `MultigridHierarchy`
   `build_op` factory needs.
+
+  Jump conditions (the `hooks` table): `jump_hooks(dom, wt, orbit, config, m;
+  mesh = dom.mesh)` binds BOTH interior jump conditions of main.tex:596-608 onto
+  the EllipticCore `ModifyBoundaryData` seam, one hook **per mortar** in the
+  receiver's mortar order — the granularity the production lattice's ``2^L`` 2:1
+  worldtube faces need. The sealed `worldtube_jump_data` become `FixedDataHook`s:
+  trial-field independent, so they leave the linearized matrix untouched
+  (`build_matrix` is bitwise unchanged) and reach the right-hand side through
+  `operator_on_zero`. `vtu_junction_faces` tags every interior face that crosses
+  the vtu slicing — spectre's `NullSlicingBlocks` rule over the sealed
+  `block_region`, cross-checked against the transition radii ``r_v``, ``r_u`` —
+  with its sealed `VtuJunction`, and `vtu_junction_hook` turns
+  ``[\partial_{r_*}\Psi_m] = -im\Omega\Psi_m`` into the `LinearizedHook`
+  ``(n\cdot\mathcal{F})^{\rm ext} \to (n\cdot\mathcal{F})^{\rm ext} -
+  im\Omega\langle\!\langle\Psi_m\rangle\!\rangle``, which IS in the GMRES
+  matrix. No chart conversion is applied: ``A^{rr} = \Delta/(r^2+a^2)`` is
+  ``dr/dr_*``, so ``n\cdot\mathcal{F}`` already is the tortoise derivative. A
+  face carrying both composes as `ComposedHook(linearized, fixed)` in the sealed
+  W5-B order (it cannot happen on the CRP lattice — the tube spans
+  ``[5.2, 14.8]`` and the transitions sit at 2.8 and 24.4 — and is built
+  generically anyway). Callable per level mesh like `boundary_conditions`; the
+  mesh-bound `WorldtubeData` must be rebuilt by the caller for that mesh.
 - **Extraction** — Heffernan m-mode regularization parameters of the radial
   self-force for circular equatorial Kerr orbits (arXiv:1211.6446), in the
   folded ``m \ge 0`` ×2 real-part convention:

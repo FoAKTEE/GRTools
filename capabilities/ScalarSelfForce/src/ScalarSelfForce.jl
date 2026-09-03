@@ -264,4 +264,19 @@ include("Solve/bc_glue.jl")                  # dg-boundary-conditions
 # build_op contract): the face class is recomputed from the lattice perimeter.
 export NoneGhost, boundary_conditions
 
+include("Solve/jump_glue.jl")                # dg-jump-conditions
+# The two INTERIOR jump conditions of main.tex:596-608 bound onto the EllipticCore
+# ModifyBoundaryData seam: jump_hooks(dom, wt, orbit, config, m; mesh) is the MeshOperator
+# `hooks` table — one hook PER MORTAR (the receiver's mortar order), which is what the
+# production lattice's 2:1 worldtube faces need. The sealed worldtube_jump_data become
+# FixedDataHooks (trial-independent ⇒ they leave the matrix untouched and reach the RHS
+# through operator_on_zero), while vtu_junction_faces tags every interior face that crosses
+# the vtu slicing (spectre's NullSlicingBlocks rule over the sealed block_region, cross-checked
+# against the transition radii) with its sealed VtuJunction, and vtu_junction_hook turns
+# `[∂_{r_*}Ψ] = −imΩΨ` into a LinearizedHook — the term that IS in the GMRES matrix. A face
+# carrying both composes as ComposedHook(linearized, fixed) in the sealed W5-B order. NO
+# chart conversion: A^rr = dr/dr_* already makes n·𝓕 the tortoise derivative. Callable per
+# LEVEL mesh (multigrid/AMR); the mesh-bound worldtube data must be rebuilt by the caller.
+export vtu_junction_faces, vtu_junction_hook, jump_hooks
+
 end # module
