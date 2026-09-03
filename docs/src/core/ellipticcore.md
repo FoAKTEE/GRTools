@@ -62,11 +62,27 @@ The solver stack, bottom to top:
   passes per level (the CRP yaml configuration) — and is directly the `Minv!`
   callable of [`gmres`](@ref); [`vcycle!`](@ref) applies it to an existing
   iterate. Its coarsest-level `bottom` seam defaults to
-  [`dense_bottom_solver`](@ref) (one `lu` of `build_matrix`, factored once);
-  the cached sparse UMFPACK factorization lands with the bottom-solver node.
+  [`dense_bottom_solver`](@ref) (one `lu` of `build_matrix`, factored once).
   Measured contraction 0.171 at 3, 4 and 5 levels (level-independent) and on
   the graded puncture cascade, and 7 GMRES iterations where the Schwarz
   smoother alone needs 18-32.
+- **Bottom solver** — [`sparse_bottom_solver`](@ref) is the production filling
+  of that seam and the paper's own route (main.tex:674): the coarsest matrix
+  assembled by the sealed column probes, converted to `SparseArrays.sparse`,
+  factored with the stdlib sparse `lu` (UMFPACK; no new dependency), and
+  applied allocation-free (measured 0 bytes per solve, relative residual
+  ≤ 6.3e-16, agreeing with the dense route to 1.1e-15 and keeping the sealed
+  GMRES iteration counts). A caller-owned [`BottomSolverCache`](@ref) keeps the
+  factorization across every V-cycle **and** across AMR rebuilds whose coarsest
+  grid is unchanged — the CRP claim that the bottom LU survives AMR iterations,
+  measured as one build and seven hits over an eight-step AMR run. Its key is
+  the scalar type, the mesh identity, the penalty, the caller's `epoch`, and an
+  operator fingerprint `hash(A·v)` costing one extra operator apply (a cache
+  hit is 1.5 % of a build), so a coefficient, penalty or boundary-condition
+  change rebuilds even at an unchanged epoch. `BigFloat`, `Complex{BigFloat}`
+  and the 32-bit floats — everything UMFPACK does not take exactly — fall back
+  to the generic dense LU in the caller's own precision (4.9e-77 at
+  BigFloat(256)).
 - **AMR** — mesh transformations for the CRP hp-AMR strategy, with
   caller-supplied refinement criteria: [`h_split`](@ref) halves the flagged
   elements along their flagged dimensions, [`balance_two_to_one`](@ref)

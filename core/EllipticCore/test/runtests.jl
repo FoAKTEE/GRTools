@@ -20,7 +20,7 @@ using REPL   # Julia >=1.11: docstring lookup (@doc) is a no-op unless REPL is l
     # list ALPHABETICAL — that is the order `sort(readdir(...))` used, so the sequence in which
     # the files run is unchanged. Adding a test file means adding it here.
     TEST_FILES_EC = [
-        "test_amr.jl",
+        "test_amr.jl", "test_bottom_solve.jl",
         "test_boundary_hooks.jl", "test_dg_matrices.jl",
         "test_dg_operator.jl", "test_dg_penalty.jl",
         "test_gmres.jl", "test_matrixfree.jl",
