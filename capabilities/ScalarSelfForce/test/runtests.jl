@@ -38,4 +38,5 @@ using ScalarSelfForce
     include("test_effective_source_direct.jl")   # effective-source-direct (W7-C)
     include("test_regularization.jl")   # heffernan-regularization (W7-E)
     include("test_domain_blocks.jl")   # domain-blocks-map (W7-D)
+    include("test_bc_glue.jl")   # dg-boundary-conditions (W8-D)
 end

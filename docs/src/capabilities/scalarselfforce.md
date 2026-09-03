@@ -45,6 +45,21 @@ formulation and consumes the physics-free hp-DG solver stack from
   and `boundary_class` (`:horizon`, `:outer`, `:equator`, `:pole` — the ghost
   table of the boundary-condition node), and the `block_coefficients` /
   `domain_coefficients` bundles the solver hands to `MeshOperator`.
+- **Solve** — the boundary-condition glue only, so far:
+  `boundary_conditions(dom, orbit, config; mesh = dom.mesh)` returns the
+  `MeshOperator` `bcs` table of the block domain, covering exactly
+  `boundary_faces(mesh)`. The `:outer` faces get the sealed
+  `outer_boundary_ghost` — a `BaylissTurkelGhost` whose Robin data is evaluated
+  at that face's own quadrature points — and every other face gets `NoneGhost`,
+  the port of spectre's `None` boundary condition: the convention-N7
+  transmissive exterior ``(\psi_{\rm int}, -\varphi_{\rm int})``, through which
+  the numerical flux reduces bitwise to the interior flux so the face imposes
+  nothing. That is what the vanishing perpendicular flux coefficient at the
+  horizon (``\mathcal{A}^{rr}(r_+) = 0``) and at the angular boundaries
+  (``\mathcal{A}^{z^2}(0) = \mathcal{A}^{z^2}(1) = 0``) demands, and it is also
+  the ``m = 0`` outer branch of the production input file. `mesh` may be any
+  coarser mesh of the same lattice, which is what a `MultigridHierarchy`
+  `build_op` factory needs.
 - **Extraction** — Heffernan m-mode regularization parameters of the radial
   self-force for circular equatorial Kerr orbits (arXiv:1211.6446), in the
   folded ``m \ge 0`` ×2 real-part convention:
@@ -67,9 +82,10 @@ formulation and consumes the physics-free hp-DG solver stack from
 Planned, each landing written test-first once it is grounded:
 `EffectiveSource/series.jl` (the near-worldline power series that takes over
 where the direct assembly's cancellation exceeds the caller's budget),
-`Worldtube` (``\Psi^P`` mortar jump data, fixed-source assembly), `Solve`
-(single-mode driver, hp-AMR loop, process-parallel m fan-out), and the rest of
-`Extraction` (``F_r^m`` extraction from a solved mode, and the mode sum itself).
+`Worldtube` (``\Psi^P`` mortar jump data, fixed-source assembly), the rest of
+`Solve` (single-mode driver, hp-AMR loop, process-parallel m fan-out), and the
+rest of `Extraction` (``F_r^m`` extraction from a solved mode, and the mode sum
+itself).
 
 ## Conventions (locked package-wide)
 

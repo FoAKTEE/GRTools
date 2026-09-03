@@ -215,4 +215,17 @@ include("EffectiveSource/direct.jl")         # effective-source-direct
 # of main.tex:488-490) that node `effective-source-series` will switch on — data, not a switch.
 export puncture_psi_chart, effective_source_m, effective_source_bundle
 
+include("Solve/bc_glue.jl")                  # dg-boundary-conditions
+# The physical boundary conditions of the CRP domain bound to the EllipticCore ghost seam
+# (main.tex:396-401 + 612-618): boundary_conditions(dom, orbit, config; mesh) is the
+# MeshOperator `bcs` table — the sealed order-2 Bayliss–Turkel ghost on the `:outer` faces
+# for m ≠ 0 (Robin data evaluated at each face's own quadrature points) and NoneGhost
+# everywhere else. NoneGhost is the port of spectre's `None` boundary condition (empty
+# apply ⇒ the convention-N7 transmissive exterior FaceState(ψ_int, −φ_int)): the numerical
+# flux reduces to the interior flux bitwise, so the face imposes nothing — which is what
+# the vanishing perpendicular flux coefficient at the horizon/equator/poles demands, and
+# what the yaml's m = 0 outer branch selects. Callable per LEVEL mesh (the multigrid
+# build_op contract): the face class is recomputed from the lattice perimeter.
+export NoneGhost, boundary_conditions
+
 end # module
