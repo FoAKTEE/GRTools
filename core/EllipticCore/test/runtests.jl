@@ -24,9 +24,9 @@ using REPL   # Julia >=1.11: docstring lookup (@doc) is a no-op unless REPL is l
         "test_boundary_hooks.jl", "test_dg_matrices.jl",
         "test_dg_operator.jl", "test_dg_penalty.jl",
         "test_gmres.jl", "test_matrixfree.jl",
-        "test_mesh2d.jl", "test_mortars.jl", "test_multigrid.jl",
+        "test_mesh2d.jl", "test_mortar_hooks.jl", "test_mortars.jl", "test_multigrid.jl",
         "test_refelement.jl", "test_schwarz.jl",
-        "test_schwarz_shift.jl",
+        "test_schwarz_shift.jl", "test_solver_stack.jl",
     ]
 
     @testset "test-file registry is complete and exact" begin

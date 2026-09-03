@@ -23,6 +23,17 @@ The solver stack, bottom to top:
   mortar projection with mass-conservative restriction; boundary-data hooks
   and the external-BC ghost seam; the full matrix-free `apply!` composition
   plus `build_matrix` column probes.
+- **Per-mortar boundary data** — a [`MeshOperator`](@ref) `hooks` entry binds
+  either one [`BoundaryDataHook`](@ref) for a whole face or **one hook per
+  mortar**, in the receiver's mortar order (spectre keys `ModifyBoundaryData`
+  by `mortar_id`; the CRP's 2:1 worldtube faces carry different
+  ``\Psi^{\mathcal P}`` on their two halves). A single hook is replicated, so
+  the per-face spelling stays bitwise unchanged; a wrong-length collection is
+  an `ArgumentError` naming the face. [`mortar_points`](@ref) publishes the
+  mortar quadrature geometry the operator itself places — the face abscissa and
+  the per-mortar transverse points — so a caller building per-mortar data lands
+  on the operator's own grid; [`Mesh2D`](@ref)'s `faces` field and
+  [`MeshInterface`](@ref) are the public-read neighbour/mortar query behind it.
 - **Linear solvers** — complex-generic GMRES (Arnoldi/MGS with complex
   Givens); element-centered additive Schwarz smoothing with cached
   (complex-shifted) subdomain factorizations; the complex-shift **policy**

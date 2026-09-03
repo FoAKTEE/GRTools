@@ -51,11 +51,18 @@
 # (different block widths — the pairwise σ handles the size contrast). One connection per
 # block face, axis-aligned full-edge contact; richer layouts (partial-edge contact,
 # multiple neighbor blocks per face) are the domain-blocks-map node's scope.
-# Hooks bind per FACE and are applied per mortar (uniform on a split face) — per-mortar
-# data granularity (distinct fixed data on the two halves of a 2:1 face) is the
-# documented extension point for the dg-jump-conditions node.
+#
+# Hook granularity (dg-jump-conditions, GLOBAL_DAG row 40): a face key binds EITHER one
+# `BoundaryDataHook`, applied to every mortar of that face, OR one hook PER MORTAR in the
+# receiver's mortar order (`mesh.faces[e][d][sidx].nbs` order = `MORTAR_LOWER` before
+# `MORTAR_UPPER`) — spectre keys `ModifyBoundaryData` by `mortar_id` (Equations.cpp:70-91),
+# and the CRP worldtube column is pre-refined above its neighbour, so its 2:1 faces carry
+# genuinely different Ψ^P on their two halves. The two spellings are the SAME object per
+# mortar: a single hook is replicated, bitwise-identically to the pre-row-40 behavior.
+# [`mortar_points`](@ref) publishes the mortar quadrature geometry so a caller can build
+# per-mortar data on the operator's own points.
 
-export BlockConnection, Mesh2D, boundary_faces,
+export BlockConnection, Mesh2D, MeshInterface, boundary_faces, mortar_points,
        MeshOperator, apply!, apply_full!, operator_on_zero, build_matrix, direct_solve
 
 """
@@ -82,11 +89,29 @@ struct BlockConnection
     end
 end
 
-# One interior element face as seen from the RECEIVER: per mortar (transverse order,
-# lower first) the neighbor's element index, this side's / the neighbor side's mortar
-# coverage, the mortar's transverse dyadic segment (block-local logical coordinate,
-# shared bitwise across a connection by the identical-transverse-map requirement), and
-# the index of this interface in the NEIGHBOR face's mortar list.
+"""
+    MeshInterface
+
+One interior element face as seen from the RECEIVER — the precomputed topology
+[`Mesh2D`](@ref) stores in its `faces` field. **Public-read** (never constructed or mutated
+by a caller): downstream packages need the neighbour and mortar structure of a face to build
+per-mortar boundary data, and this is the documented query.
+
+All five vectors are indexed by the MORTAR INDEX `k` in the RECEIVER'S MORTAR ORDER — the
+order every per-mortar API of this package uses (the [`MeshOperator`](@ref) `hooks` table,
+[`MortarFlux`](@ref)'s `mortars`, [`mortar_points`](@ref)): one entry for a conforming or a
+coarse-neighbour face,
+and `MORTAR_LOWER` before `MORTAR_UPPER` on a 2:1 face seen from the coarse side.
+
+- `nbs::Vector{Int}` — the neighbour's index into `mesh.elements`.
+- `msize::Vector{MortarSize}` — this side's coverage of the mortar
+  ([`MORTAR_FULL`](@ref MortarSize)/`MORTAR_LOWER`/`MORTAR_UPPER`).
+- `nbmsize::Vector{MortarSize}` — the neighbour side's coverage of the same mortar.
+- `span::Vector{SegmentId}` — the mortar's transverse dyadic segment in block-local logical
+  coordinates (shared BITWISE across a block connection by the identical-transverse-map
+  requirement of [`BlockConnection`](@ref)).
+- `nbslot::Vector{Int}` — the index of this interface in the NEIGHBOUR face's mortar list.
+"""
 struct MeshInterface
     nbs::Vector{Int}
     msize::Vector{MortarSize}
@@ -111,6 +136,9 @@ Public fields (the documented layout contract):
   (by position) owns global dofs `offsets[e]+1 : offsets[e]+prod(orders[e])`, i-fastest
   `tensor_lin` ordering within the element.
 - `connections` — the cross-block seams ([`BlockConnection`](@ref)).
+- `faces` — the precomputed face topology, `faces[e][d][sidx]::Union{MeshInterface,Nothing}`
+  (`nothing` ⇔ a domain-boundary face). **Public-read** — this is the package's neighbour /
+  mortar query ([`MeshInterface`](@ref)); [`mortar_points`](@ref) turns it into geometry.
 
 Construction validates and precomputes the FULL face topology: within-block 2:1 balance
 (`two_to_one_balanced`, both dimensions), tiling (every interior face covered by exactly
@@ -299,6 +327,58 @@ function boundary_faces(mesh::Mesh2D)
 end
 
 """
+    mortar_points(mesh::Mesh2D{RT}, face) -> (xf::RT, points::Vector{Vector{RT}})
+
+The physical quadrature geometry of one INTERIOR `face = (element, dim, sidx)` (`sidx` 1 ↔
+side −1, 2 ↔ side +1): `xf` is the face's coordinate along its NORMAL dimension, and
+`points[k]` the transverse physical coordinates of the face's `k`-th mortar, in the
+RECEIVER'S MORTAR ORDER (the `nbs` order of the face's [`MeshInterface`](@ref) — one mortar
+on a conforming or coarse-neighbour face, `MORTAR_LOWER` before `MORTAR_UPPER` on a 2:1 face
+seen from the coarse side, which is also the order the `hooks` table is indexed in).
+
+These are EXACTLY the points at which [`MeshOperator`](@ref) evaluates the exchanged mortar
+data: the mortar carries the larger of the two abutting transverse orders (CRP
+main.tex:678-686) over its own dyadic sub-segment, and the operator samples the flux
+coefficient 𝔄 there once per interface (the W5-A pairwise-`(σ, Am)` contract), so BOTH sides
+of an interface return the same numbers bitwise. A caller building per-mortar boundary data —
+the worldtube Ψ^𝒫 jumps and the vtu junction data of the dg-jump-conditions node — therefore
+lands on the operator's own grid by construction instead of re-deriving the placement.
+
+On a CONFORMING face the single mortar's points are the element's own face collocation
+points (bitwise). Type-generic: a `Mesh2D{BigFloat}` returns `BigFloat` coordinates at the
+ambient precision. Throws `ArgumentError` for a bad `dim`/`sidx`, for an element that is not
+in `mesh`, and for a DOMAIN-boundary face (which has no mortars — those are
+[`boundary_faces`](@ref) and take a `GhostBoundary` instead).
+"""
+function mortar_points(mesh::Mesh2D{RT}, face::Tuple{ElementId,Integer,Integer}) where {RT}
+    el, dd, ss = face
+    d, sidx = Int(dd), Int(ss)
+    (d == 1 || d == 2) ||
+        throw(ArgumentError("mortar_points: dim must be 1 or 2, got $d"))
+    (sidx == 1 || sidx == 2) ||
+        throw(ArgumentError("mortar_points: sidx must be 1 (side −1) or 2 (side +1), " *
+                            "got $sidx"))
+    haskey(mesh.index, el) ||
+        throw(ArgumentError("mortar_points: $el is not an element of this mesh"))
+    e = mesh.index[el]
+    iface = mesh.faces[e][d][sidx]
+    iface === nothing && throw(ArgumentError(
+        "mortar_points: face $face is a DOMAIN boundary, not an interior interface"))
+    blk = _element_block(mesh, e)
+    lo_d, hi_d = logical_interval(RT, el, d)
+    xf = RT(map_forward(blockmap(blk, d), sidx == 1 ? lo_d : hi_d))
+    tmap = blockmap(blk, 3 - d)
+    pts = Vector{Vector{RT}}(undef, length(iface.nbs))
+    for k in eachindex(pts)
+        Nm = max(mesh.orders[e][3-d], mesh.orders[iface.nbs[k]][3-d])
+        lo, hi = logical_interval(RT, iface.span[k])
+        pts[k] = RT[map_forward(tmap, (lo * (1 - x) + hi * (1 + x)) / 2)
+                    for x in refelement(RT, Nm).nodes]
+    end
+    return (xf, pts)
+end
+
+"""
     MeshOperator(T, mesh::Mesh2D, A, β, γ; C = 1.5, hooks = Dict(), bcs) -> MeshOperator
 
 The global matrix-free elliptic DG operator over `mesh`: the owned composition of the
@@ -315,8 +395,16 @@ with the pairwise `(σ, Am)` constructed IDENTICALLY on both sides (W5-A contrac
 from mirrored [`Mortar`](@ref) constructor arguments. On conforming faces this is bitwise
 [`PenaltyFlux`](@ref)`(C)` (gated). Boundary faces use `PenaltyFlux(C)` with the ghost
 exterior from `bcs[(el, d, sidx)]::GhostBoundary` (every boundary face REQUIRED, nothing
-else allowed). `hooks[(el, d, sidx)]::BoundaryDataHook` post-process received interior
-interface data (per mortar, uniform on split faces; default [`NoHook`](@ref)).
+else allowed).
+
+`hooks[(el, d, sidx)]` post-processes the received data of one INTERIOR face. Its value is
+EITHER a single [`BoundaryDataHook`](@ref), applied to every mortar of that face, OR a
+collection of hooks — one per mortar in the receiver's mortar order (see
+[`mortar_points`](@ref) / [`MeshInterface`](@ref)), which is how spectre keys
+`ModifyBoundaryData` by `mortar_id` and how the CRP's 2:1 worldtube faces carry different
+jump data on their two halves. A single hook is REPLICATED over the mortars, so the two
+spellings are bitwise identical when the data are uniform; a collection whose length is not
+the face's mortar count is an `ArgumentError` naming the face. Default: [`NoHook`](@ref).
 
 Applications: [`apply!`](@ref) (LINEARIZED — the matrix; also available as the callable
 `op(y, u)` for [`gmres`](@ref)), [`apply_full!`](@ref) (affine), [`operator_on_zero`](@ref)
@@ -329,9 +417,34 @@ struct MeshOperator{S<:Number,RT<:AbstractFloat,TC<:Number,MT<:Mesh2D}
     coeffs::Vector{ElementCoefficients{TC}}
     flux::Vector{PerFaceFlux}
     sendP::Vector{NTuple{2,NTuple{2,Vector{Matrix{RT}}}}}
-    hooks::Vector{NTuple{2,NTuple{2,BoundaryDataHook}}}
+    hooks::Vector{NTuple{2,NTuple{2,Vector{BoundaryDataHook}}}}
     bcs::Vector{NTuple{2,NTuple{2,Union{Nothing,GhostBoundary}}}}
 end
+
+# One face's `hooks` entry -> the per-MORTAR vector the sweep indexes (length = the face's
+# mortar count, receiver order). A single hook is REPLICATED — the same object reaches every
+# mortar, so the arithmetic is bitwise the pre-row-40 per-face behavior. A collection must
+# already be per mortar; a length mismatch names the face rather than silently applying one
+# mortar's data to another (the row-38 worldtube [HOLE]).
+_hook_vector(h::BoundaryDataHook, nm::Int, key) = BoundaryDataHook[h for _ in 1:nm]
+function _hook_vector(hs::AbstractVector, nm::Int, key)
+    length(hs) == nm || throw(ArgumentError(
+        "MeshOperator: face $key carries $(length(hs)) per-mortar hooks but the face has " *
+        "$nm mortar(s) — a per-mortar hook collection needs exactly one entry per mortar, " *
+        "in the receiver's mortar order (mortar_points/MeshInterface: MORTAR_LOWER before " *
+        "MORTAR_UPPER)"))
+    out = Vector{BoundaryDataHook}(undef, nm)
+    for (k, h) in enumerate(hs)
+        h isa BoundaryDataHook || throw(ArgumentError(
+            "MeshOperator: face $key mortar $k carries a $(typeof(h)), not a " *
+            "BoundaryDataHook"))
+        out[k] = h
+    end
+    return out
+end
+_hook_vector(h, nm::Int, key) = throw(ArgumentError(
+    "MeshOperator: the hooks entry for face $key is a $(typeof(h)) — expected a " *
+    "BoundaryDataHook or a collection of them, one per mortar"))
 
 function MeshOperator(::Type{T}, mesh::Mesh2D, A::Tuple{Any,Any}, β, γ::Tuple{Any,Any};
                       C::Real = 1.5,
@@ -397,8 +510,9 @@ function MeshOperator(::Type{T}, mesh::Mesh2D, A::Tuple{Any,Any}, β, γ::Tuple{
     flux = [PerFaceFlux(ntuple(d -> ntuple(sidx ->
                 mesh.faces[e][d][sidx] === nothing ? pen :
                     MortarFlux([m for m in morts[e][d][sidx]]), 2), 2)) for e in 1:nel]
-    hk = [ntuple(d -> ntuple(sidx ->
-              get(hooks, (mesh.elements[e], d, sidx), NoHook())::BoundaryDataHook, 2), 2)
+    hk = [ntuple(d -> ntuple(sidx -> _hook_vector(
+              get(hooks, (mesh.elements[e], d, sidx), NoHook()), nm(e, d, sidx),
+              (mesh.elements[e], d, sidx)), 2), 2)
           for e in 1:nel]
     bc = [ntuple(d -> ntuple(sidx -> mesh.faces[e][d][sidx] === nothing ?
               (bcs[(mesh.elements[e], d, sidx)]::GhostBoundary) : nothing, 2), 2)
@@ -415,7 +529,8 @@ _scalar(::MeshOperator{S}) where {S} = S
 _default_threaded(op::MeshOperator{S}, u) where {S} =
     Threads.nthreads() > 1 && isbitstype(promote_type(S, eltype(u)))
 
-# hook application on one mortar's data: NoHook skips the interior projection entirely
+# hook application on ONE mortar's data (the hook is this mortar's own, per the receiver's
+# mortar order): NoHook skips the interior projection entirely
 _hooked(::NoHook, P, int::FaceState, raw::FaceState, lin::Bool) = raw
 function _hooked(h::BoundaryDataHook, P, int::FaceState, raw::FaceState, lin::Bool)
     intm = project_to_mortar(P, int)
@@ -432,8 +547,8 @@ function _exterior(op::MeshOperator, sts, e::Int, d::Int, sidx::Int, lin::Bool)
         return lin ? ghost_state_linearized(bc, int) : ghost_state(bc, int)
     end
     mf = op.flux[e].faces[d][sidx]::MortarFlux
-    hook = op.hooks[e][d][sidx]
-    parts = [_hooked(hook, mf.mortars[k].P, int,
+    hooks = op.hooks[e][d][sidx]
+    parts = [_hooked(hooks[k], mf.mortars[k].P, int,
                      project_to_mortar(op.sendP[e][d][sidx][k],
                                        sts[iface.nbs[k]].faces[d][3-sidx]), lin)
              for k in 1:length(iface.nbs)]

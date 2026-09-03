@@ -17,7 +17,10 @@ Owns (DESIGN.md §2.1, one DAG node = one commit per module):
   - `dg_penalty.jl` — internal-penalty numerical flux (σ per Vu:2024, C=1.5 default)
   - `mortars.jl` — 1D h/p mortar projection + mass-conservative restriction
   - `boundary_hooks.jl` — `ModifyBoundaryData` hooks + external-BC ghost seam
-  - `matrixfree.jl` — full `apply!` composition + `build_matrix` column probes
+  - `matrixfree.jl` — full `apply!` composition + `build_matrix` column probes;
+    boundary-data hooks bind per FACE **or per MORTAR** (one hook per mortar in the
+    receiver's order — spectre's `mortar_id` keying, needed by the CRP's 2:1
+    worldtube faces), and `mortar_points` publishes the mortar quadrature geometry
   - `gmres.jl` — complex-generic GMRES (Arnoldi/MGS + complex Givens)
   - `schwarz.jl` — element-centered additive Schwarz with cached (complex-shifted)
     subdomain factorizations
