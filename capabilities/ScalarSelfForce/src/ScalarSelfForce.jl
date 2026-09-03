@@ -178,4 +178,19 @@ export reg_param_Fr, mmode_reg_Fr, mmode_reg_tail_Fr
 export mmode_reg_factor, mmode_reg_factor_over_pi
 export mmode_reg_factor_tail, mmode_reg_factor_tail_over_pi
 
+include("Domain/blocks.jl")                  # domain-blocks-map
+# The CRP block lattice as an EllipticCore Mesh2D (main.tex:541-554): block_domain(orbit,
+# config) instantiates the 5 radial × 2 angular (r, z²) production lattice — or 5 × 3 in the
+# full (r, z) chart — from the sealed RunConfig, with LinearMap1D everywhere except the outer
+# wavezone column's 1/r InverseRadialMap1D (eq:compaction), the yaml block numbering
+# (i + nr·j, radial index fastest — pinned by NullSlicingBlocks), the RefinedLevels initial
+# h refinement (source column L+1), and one BlockConnection per interior lattice face. Carries
+# the metadata the later nodes bind to: block_region (the sealed vtu_domain classification),
+# worldtube_blocks (the regularized region), boundary_face_classes (:horizon/:outer/:equator/
+# :pole — node dg-boundary-conditions' ghost table), and the per-block / whole-domain
+# coefficient bundles over the sealed fluxform_callables. ZERO duplicated coefficient algebra.
+export BlockDomain, block_domain, block_lattice_bounds, block_lattice_index, block_region
+export worldtube_blocks, boundary_face_classes, boundary_class
+export block_coefficients, domain_coefficients
+
 end # module

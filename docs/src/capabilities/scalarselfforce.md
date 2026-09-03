@@ -19,7 +19,18 @@ formulation and consumes the physics-free hp-DG solver stack from
   basis), m-mode integrals over `BigSpecial.legendre_P3`, analytic
   derivatives.
 - **Domain** — `RunConfig` runtime configuration (`crp_paper_config`,
-  `CRP_PAPER_MMODES`) and EllipticCore `Mesh2D` block instantiation.
+  `CRP_PAPER_MMODES`) and the EllipticCore `Mesh2D` block lattice:
+  `block_domain(orbit, config)` instantiates the `BlockDomain` — 5 radial × 2
+  angular irreducible blocks in the ``(r, z^2)`` production chart (5 × 3 in the
+  full ``(r, z)`` chart), linear coordinate maps everywhere except the outer
+  wavezone column's ``1/r`` compactification — together with
+  `block_lattice_bounds` (the yaml-derived bounds and the angular chart),
+  `block_lattice_index` (the yaml block numbering ``i + n_r j``),
+  `block_region` (the vtu ``v``/``t``/``u`` tag of a block),
+  `worldtube_blocks` (the regularized-region block), `boundary_face_classes`
+  and `boundary_class` (`:horizon`, `:outer`, `:equator`, `:pole` — the ghost
+  table of the boundary-condition node), and the `block_coefficients` /
+  `domain_coefficients` bundles the solver hands to `MeshOperator`.
 - **Extraction** — Heffernan m-mode regularization parameters of the radial
   self-force for circular equatorial Kerr orbits (arXiv:1211.6446), in the
   folded ``m \ge 0`` ×2 real-part convention:
