@@ -1,9 +1,9 @@
 {
-  "generated_at_commit": "ad1aa6137de0d83e4250c9eff451d87cbde9d5a0",
+  "generated_at_commit": "c0e2143faec449be1b80084c9961097f97c715e9",
   "id": "fig_matrix",
   "julia": "1.12.6",
   "paper": "2606.04998",
-  "script_sha256": "f1fff1090cb6977a293ee6f464d80cc43fcdcccbfb3690436c16004ffb8afe47",
+  "script_sha256": "d2e53f18cf4c8e0a778e4dbd92a4fd301df3ee07e75e2b09e354d1b76274ef32",
   "values": {
     "block_bounds_r": [2.0, 2.8000000000000007, 5.2, 14.8, 24.4, 10000.0],
     "block_bounds_z2": [0.0, 0.25, 1.0],

@@ -175,7 +175,9 @@ as_wtf(dom, orb, cfg, m) = mesh -> worldtube_data(dom, orb, cfg, m; mesh = mesh)
     # a FOREIGN mesh (blocks that are not this lattice's) is refused by the sealed guards
     fmesh = Mesh2D(Block(91, LinearMap1D(0.0, 1.0), LinearMap1D(0.0, 1.0)),
                    [ElementId(91, SegmentId(0, 0), SegmentId(0, 0))], (4, 4))
-    @test_throws Exception assemble_operator(ComplexF64, dom, wt, orb, cfg, 2; mesh = fmesh)
+    # the sealed jump_hooks mesh-boundness guard fires first: the fine mesh's element ids are
+    # not elements of `fmesh`, so the datum cannot be bound to it
+    @test_throws ArgumentError assemble_operator(ComplexF64, dom, wt, orb, cfg, 2; mesh = fmesh)
 
     # ============================ (f) the parameter envelope ===============================
     for a in (0.0, 0.5), mm in (0, 1, 2)

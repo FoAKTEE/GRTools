@@ -144,7 +144,10 @@ formulation and consumes the physics-free hp-DG solver stack from
   (10 elements / 160 dofs on the 5×2 lattice, 15 / 240 on the 5×3).
   `linearized_rhs(op, wt)` folds the worldtube fixed source with the operator's
   own fixed-data lift, ``b = M\cdot S - A(0)``, extending EllipticCore's
-  general `linearized_rhs(op, b_phys)` method.
+  general `linearized_rhs(op, b_phys)` method. Its result is ALREADY folded, so
+  hand it to `solve_linearized!`, never to `solve!` (which folds for you) —
+  double-folding is an O(1) wrong answer that *converges*, so the solver reports
+  success on the wrong problem.
 
   Single-mode solver-stack driver: `solve_mode(orbit, config, m)` is the whole
   m-mode solve — block domain, mesh-bound worldtube bundle, operator,

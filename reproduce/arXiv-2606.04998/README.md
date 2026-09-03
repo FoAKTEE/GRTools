@@ -26,6 +26,11 @@ decide script-vs-structure, iterate (`.claude/skills/vlm-figure-repro/SKILL.md`)
 > `L = 0`, with `ImposeEquatorialSymmetry: True`. That is an ASSUMPTION where the figure does
 > not pin the value, and each driver states which of its registered numbers depend on it.
 
+> **Why `InitialCoarseLevels: L` means "no coarser levels" at `L = 0`.** Primary source:
+> spectre `src/ParallelAlgorithms/LinearSolver/Multigrid/Tags.hpp:30-37` — *"Maximum number of
+> coarser levels in the initial multigrid hierarchy. Set to `'0'` to create no coarser levels
+> initially. Set to `'Auto'` to coarsen all the way up to single-element blocks."*
+
 ## Results
 
 | # | figure / check | driver | golden | tier | status | VLM verdict | notes |
@@ -58,12 +63,22 @@ and is asserted on the mesh-order data.
 
 Exact-nonzero counting gives 10112 entries, 576 of which are roundoff: on the coarse side of
 a 2:1 interface the mortar projections satisfy `Σ R·P = I` analytically, so the 144
-off-pattern entries of each of those four diagonal blocks cancel. The structural count is
-**9536** for every relative threshold from 1e-8 to 1e-16 — a nine-decade plateau, asserted by
-the driver as `nnz_threshold_plateau` — and the figure uses `1e-12·max|A|`. The plateau stops
-at 1e-8, not lower: 56 genuine structural entries of the outer wavezone blocks lie between
-1e-8 and 1e-6 of the global maximum, since `max|A|` is set by the horizon column while `A^rr`
-varies over decades across the compactified domain.
+off-pattern entries of each of those four diagonal blocks cancel. Measured there, the largest
+off-pattern entry is 1.3e-17 … 9.6e-17 of its own block maximum against a smallest in-pattern
+entry of 4e-3 … 7e-3 — a gap of 10¹³ … 10¹⁴.
+
+The structural count is **9536** for every relative threshold from **1e-7 to 1e-16 — ten
+decades measured** (9528 at 3e-7, 9480 at 1e-6, 9838 at 1e-18 where roundoff enters); the
+driver asserts the inner window 1e-8 … 1e-16 at five thresholds as `nnz_threshold_plateau`
+and uses `1e-12·max|A|` for the figure and the block table. The plateau stops around 1e-7 on
+the high side because `max|A|` is set by the horizon column while `A^rr` varies over decades
+across the compactified domain, so the outer wavezone blocks' genuine structural entries are
+small in *global* relative terms.
+
+For the comparison with the published figure this matters in one way only: the reference does
+**not** draw those four coarse-side diagonal blocks dense — it draws them with the same
+112-entry tensor pattern as every other diagonal block — which is consistent with the 9536
+structural entries of our own count, and is what `compare_blocks.py` measures block by block.
 
 ## Not yet reproduced
 

@@ -164,22 +164,19 @@ function coarsest_operator(::Type{T}, dom::BlockDomain, orbit::CircularOrbit,
         nlevels += 1
     end
     wtc = worldtube(cur)::WorldtubeData
-    return (op = assemble_operator(T, dom, wtc, orbit, config, m; mesh = cur),
-            mesh = cur, wt = wtc, nlevels = nlevels)
+    # assembled through the SAME factory a MultigridHierarchy would be handed, so the level
+    # operator built here and the one a hierarchy builds cannot diverge (the bundle for `cur`
+    # is already built, hence the constant factory)
+    build = operator_builder(T, dom, orbit, config, m; worldtube = _ -> wtc)
+    return (op = build(cur), mesh = cur, wt = wtc, nlevels = nlevels)
 end
 
 # ------------------------------------------------------------------------------------------
 # The right-hand side. EllipticCore's `solver-stack-core` node owns the GENERAL fold
-# `linearized_rhs(op, b_phys) = b_phys − operator_on_zero(op)`; when that method is present in
-# the loaded EllipticCore this file EXTENDS it (one function, two methods) instead of defining
-# a second function of the same name — which `using EllipticCore` would make an error anyway.
-# Until it lands, the general method is defined here so the CRP driver has it. Either way the
-# arithmetic is written exactly ONCE, in one place, and both spellings are gated.
-if isdefined(EllipticCore, :linearized_rhs)
-    import EllipticCore: linearized_rhs
-else
-    linearized_rhs(op::MeshOperator, b_phys::AbstractVector) = b_phys .- operator_on_zero(op)
-end
+# `linearized_rhs(op, b_phys) = b_phys − operator_on_zero(op)`, so this file EXTENDS that
+# function with the CRP method below — one function, two methods, the subtraction written
+# exactly ONCE and gated in EllipticCore's own suite.
+import EllipticCore: linearized_rhs
 
 """
     linearized_rhs(op::MeshOperator, wt::WorldtubeData) -> Vector
@@ -197,6 +194,13 @@ with the same `wt` — or the two vectors belong to different discretizations.
 Skipping the `operator_on_zero` term is an O(1) wrong answer, not a small one: on the
 production lattice it is of the same order as the source itself, because it IS the worldtube
 jump data entering through the numerical flux.
+
+The result is ALREADY FOLDED, so hand it to [`solve_linearized!`](@ref), never to
+[`solve!`](@ref), which folds for you — double-folding is an O(1) wrong answer that
+CONVERGES, i.e. the solver reports success on the wrong problem. The two spellings are
+
+    solve!(u, stack, worldtube_massive_source(wt))            # fold done by solve!
+    solve_linearized!(u, stack, linearized_rhs(op, wt))       # fold done here
 
 NOTE for node `solver-stack-ssf`: the VOLUME source inside the tube that the production driver
 hands to `worldtube_data` is the SWITCHED evaluator (`effective_source_m_switched`); this

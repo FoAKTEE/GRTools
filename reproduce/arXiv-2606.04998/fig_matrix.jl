@@ -24,11 +24,15 @@
 #
 # THE COARSEST GRID LEVEL. `LinearSolver.Multigrid.InitialCoarseLevels: L` (yaml:188) counts
 # the COARSER levels only, so the hierarchy has `L + 1` levels and at the production `L = 0`
-# the coarsest level IS the initial mesh: 20 elements × 16 dofs = 320. That is what the
-# reference figure shows (its tick labels run 1…20) and what `coarsest_operator` returns at
-# its yaml-twin default. Coarsening further, to the irreducible block structure, would give 10
-# elements / 160 dofs — registered here as `nelements_block_structure` so the two readings of
-# "coarsest" stay distinguishable.
+# the coarsest level IS the initial mesh: 20 elements × 16 dofs = 320. The PRIMARY SOURCE for
+# that reading is spectre's own option documentation, `src/ParallelAlgorithms/LinearSolver/
+# Multigrid/Tags.hpp:30-37`: "Maximum number of coarser levels in the initial multigrid
+# hierarchy. Set to '0' to create no coarser levels initially. Set to 'Auto' to coarsen all
+# the way up to single-element blocks." The yaml sets it to `L`, i.e. 0 at the production
+# point — no coarser levels — and the reference figure agrees independently (its tick labels
+# run 1…20). Coarsening further, to the irreducible block structure, would give 10 elements /
+# 160 dofs — registered here as `nelements_block_structure` so the two readings of "coarsest"
+# stay distinguishable.
 #
 # ELEMENT NUMBERING — a documented CONVENTION difference, gated in both directions. The paper
 # numbers elements by block (the yaml flat block order, radial index fastest) and then, WITHIN
@@ -44,13 +48,21 @@
 # THE SPARSITY THRESHOLD is measured, not chosen. Counting exact nonzeros gives 10112 entries,
 # but 576 of them — the 144 off-pattern entries of each of the four COARSE-side diagonal
 # blocks of the 2:1 interfaces — are roundoff: the mortar projections satisfy
-# `Σ_mortars R·P = I` exactly, so those entries cancel analytically. The count is EXACTLY 9536
-# for every relative threshold from 1e-8 down to 1e-16 (a NINE-decade plateau, asserted by the
-# driver and registered as `nnz_threshold_plateau`), which is the structural gap; the figure
-# and the block table use `1e-12·max|A|`. The plateau does NOT extend to 1e-6: 56 genuine
-# structural entries of the outer wavezone blocks fall between 1e-8 and 1e-6 of the global
-# maximum, because `max|A|` is set by the horizon column and `A^rr` varies over decades across
-# the compactified domain.
+# `Σ_mortars R·P = I` exactly, so those entries cancel analytically. Measured on those four
+# blocks, the largest off-pattern entry is 1.3e-17 … 9.6e-17 of its own block maximum while
+# the smallest IN-pattern entry is 4e-3 … 7e-3 of it — a gap of 10^13 … 10^14. The count is
+# EXACTLY 9536 for every relative threshold from 1e-7 down to 1e-16 (TEN decades measured;
+# 9528 at 3e-7, 9480 at 1e-6, and 9838 at 1e-18 where roundoff starts to enter). The driver
+# asserts the INNER window 1e-8 … 1e-16 at five thresholds and registers the counts as
+# `nnz_threshold_plateau`; the figure and the block table use `1e-12·max|A|`, in the middle of
+# it. The plateau stops at ~1e-7 on the high side because `max|A|` is set by the horizon
+# column while `A^rr` varies over decades across the compactified domain, so the genuine
+# structural entries of the outer wavezone blocks are small in GLOBAL relative terms.
+#
+# What this means for the comparison with the published figure: the reference does NOT draw
+# those four coarse-side diagonal blocks dense — it draws them with the same 112-entry tensor
+# pattern as every other diagonal block — which is consistent with the 9536 structural entries
+# of our own count, and is what `compare_blocks.py` measures block by block.
 #
 #   julia --project=reproduce -t4 reproduce/arXiv-2606.04998/fig_matrix.jl --check
 #
@@ -66,7 +78,7 @@ using .ReproHarness
 
 opts = ReproHarness.parse_args()
 ReproHarness.setup!()
-ReproHarness.require_tier(opts, :fast)
+ReproHarness.require_tier(opts, :heavy)   # measured ~400-530 s at -t4; see the README
 
 using Printf, LinearAlgebra, SHA
 using GrTools
@@ -115,7 +127,8 @@ amax = maximum(abs, A)
         lvl.nlevels, nel, npe, mesh.ndofs, amax)
 
 # ───────────────────────────── the structural sparsity threshold ─────────────────────────────
-# measured, not chosen: the count is constant across eight decades (see the header)
+# measured, not chosen: the count is constant from 1e-7 to 1e-16 (ten decades; see the header).
+# The assertion below covers the inner window at five thresholds.
 const PLATEAU_TOLS = (1e-8, 1e-10, 1e-12, 1e-14, 1e-16)
 plateau = [count(x -> abs(x) > t * amax, A) for t in PLATEAU_TOLS]
 const TOL = 1e-12 * amax
