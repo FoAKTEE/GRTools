@@ -149,14 +149,20 @@ end
     @test s.cpu_fraction >= 0.0
     @test isfinite(s.cpu_fraction)
     @test s.loadavg1 >= 0.0
-    @test s.source in (:ps, :loadavg)
+    @test s.source in (:procstat, :ps, :loadavg)
     @test s.time >= 0.0
     # a second reading, relative to a caller-supplied origin, is later
     t0 = time()
     s2 = system_load(t0)
     @test s2.time >= 0.0
-    # this host is 256-core and shared; the reading must be a FRACTION, not a percentage
-    @test s.cpu_fraction < 100.0
+    # THE GUARDED QUANTITY IS BOUNDED. This is the whole point of measuring it from
+    # /proc/stat instead of the ps pcpu sum: `ps` prints each process' LIFETIME average, so
+    # the sum is not an instantaneous utilisation and is NOT bounded by the machine — this
+    # node measured ps_fraction = 2.868 (287 % of a 256-core host) during a compile storm,
+    # while the true utilisation never approached it. The skill's number is still recorded.
+    @test 0.0 <= s.cpu_fraction <= 1.0
+    @test s.source !== :procstat || s.ps_fraction >= 0.0     # recorded beside it
+    @test isfinite(s.ps_fraction)
 end
 
 # ============================ (2) the per-mode config =====================================
@@ -281,8 +287,14 @@ try
     @test all(r.blas_threads == 1 for r in set.results)
     @test all(r.julia_threads == pa_nth for r in set.results)
 
-    # (d) the load monitor sampled the LIVE system during the run and it stayed under the guard
+    # (d) the load monitor sampled the LIVE system during the run and it stayed under the
+    # guard. Sound because `cpu_fraction` is the BOUNDED /proc/stat busy fraction: the ps sum
+    # this replaced spiked to 2.868 on a 256-core host and tripped this very assertion. The
+    # assertion is still environmental — it asserts the machine really was quiet enough — and
+    # that is deliberate: if it fails, the host was too loaded to have run this test at all,
+    # which is exactly what the pre-launch guard would have said.
     @test length(set.run.samples) >= 2
+    @test all(0.0 <= s.cpu_fraction <= 1.0 for s in set.run.samples)
     @test all(s.cpu_fraction < PARALLEL_LOAD_GUARD for s in set.run.samples)
     @test set.run.max_load == maximum(s.cpu_fraction for s in set.run.samples)
     @test set.run.max_load < PARALLEL_LOAD_GUARD
@@ -293,6 +305,7 @@ try
     txt = read(logfile, String)
     @test occursin("cpu_fraction", txt)
     @test occursin(string(PARALLEL_CPU_BUDGET), txt)
+    @test occursin("ps_fraction", txt)
     @test count(==('\n'), txt) >= length(set.run.samples) + 3   # 3 header lines
 
     # (e) the cost record exists and is coherent

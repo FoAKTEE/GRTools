@@ -61,20 +61,28 @@ One reading of the whole-system CPU usage, the quantity the owner's 90 % guard i
 terms of. Fields:
 
   - `time::Float64` — seconds since the run's origin (`0` is the pre-launch guard sample).
-  - `cpu_fraction::Float64` — total CPU usage of ALL users as a fraction of the machine:
-    `Σ ps -eo pcpu / (100 · ncpu)`. This is THE guarded quantity.
-  - `loadavg1::Float64` — the 1-minute load average divided by `ncpu`, recorded alongside
-    (`uptime`'s number; it lags, so it guards nothing, but it is what a human reads).
+  - `cpu_fraction::Float64` — total CPU usage of ALL users as a fraction of the machine,
+    measured as the BUSY fraction of a short `/proc/stat` window (`1 − Δidle/Δtotal`). THE
+    guarded quantity, and bounded by construction to `[0, 1]`.
+  - `ps_fraction::Float64` — the `compute-usage` skill's own shell formula,
+    `Σ ps -eo pcpu / (100 · ncpu)`, recorded beside it. MEASURED to agree with `cpu_fraction`
+    on a quiet host (0.0456 against 0.0400) but NOT bounded: `ps` reports each process'
+    LIFETIME average, so a burst of short-lived processes that each averaged ~100 % sums far
+    above the machine — this node measured **2.868** (287 % of a 256-core host) during a
+    compile storm, which is why it is no longer the guarded quantity.
+  - `loadavg1::Float64` — the 1-minute load average divided by `ncpu` (`uptime`'s number). It
+    lags by up to a minute, so it guards nothing; it is what a human reads.
   - `ncpu::Int` — `Sys.CPU_THREADS`.
-  - `source::Symbol` — `:ps` when the `ps` sum was available, `:loadavg` when it was not and
-    `loadavg1` had to stand in for it. A `:loadavg` sample is a WEAKER reading, and it is
-    recorded on the sample so a run can be audited.
+  - `source::Symbol` — `:procstat` normally; `:ps` if `/proc/stat` was unreadable; `:loadavg`
+    if neither was. The two fallbacks are WEAKER readings, and the source travels with the
+    sample so a run can be audited.
 
 See [`system_load`](@ref).
 """
 struct LoadSample
     time::Float64
     cpu_fraction::Float64
+    ps_fraction::Float64
     loadavg1::Float64
     ncpu::Int
     source::Symbol
@@ -98,28 +106,67 @@ function _pf_ps_total()
     end
 end
 
+# the cumulative jiffy counters of /proc/stat's aggregate `cpu` line: (busy, total).
+# NOTE: procfs reports size 0, and `read(path, String)` trusts `filesize` and returns "" —
+# MEASURED here, and the reason this streams the first line off an open handle instead.
+function _pf_procstat()
+    try
+        line = open(readline, "/proc/stat")
+        startswith(line, "cpu ") || return nothing
+        f = [something(tryparse(Int64, w), Int64(0)) for w in eachsplit(strip(line)) if
+             tryparse(Int64, w) !== nothing]
+        length(f) >= 4 || return nothing
+        total = sum(f)
+        idle = f[4] + (length(f) >= 5 ? f[5] : 0)     # idle + iowait
+        return (total - idle, total)
+    catch
+        return nothing
+    end
+end
+
+"The width of the `/proc/stat` window `system_load` averages the busy fraction over."
+const PARALLEL_LOAD_WINDOW = 0.15
+
 """
-    system_load(t0::Real = time()) -> LoadSample
+    system_load(t0::Real = time(); window = PARALLEL_LOAD_WINDOW) -> LoadSample
 
 The LIVE whole-system CPU usage, read fresh at every call — the pre-launch guard, the
-during-run monitor and the post-run check all go through this one function.
+during-run monitor and the post-run check all go through this one function. `t0` is the origin
+the sample's `time` is measured from.
 
-`cpu_fraction` is `Σ ps -eo pcpu / (100 · Sys.CPU_THREADS)`, i.e. exactly the number the
-`compute-usage` skill's check command prints, expressed as a FRACTION of the machine. It
-counts every user's processes, not only ours — this host is shared, and the guard is a
-whole-system guard. `t0` is the origin the sample's `time` is measured from.
+`cpu_fraction` is the BUSY fraction of a `window`-second `/proc/stat` interval,
+`1 − Δ(idle + iowait)/Δtotal`, over the aggregate `cpu` line: every user's time, not only ours
+— this host is shared and the guard is a whole-system guard — and bounded to `[0, 1]` by
+construction, which is what makes it safe to compare against `PARALLEL_LOAD_GUARD`.
 
-If `ps` is unavailable the 1-minute load average stands in and the sample records
-`source = :loadavg`; that reading lags by up to a minute, so a run guarded by it is weaker
-evidence, which is why the source travels with the sample.
+`ps_fraction` records the `compute-usage` skill's own shell formula
+`Σ ps -eo pcpu / (100 · ncpu)` beside it. WHY BOTH, AND WHY THE SWITCH: `ps` prints each
+process' LIFETIME average, so the sum is not an instantaneous utilisation and is not bounded by
+the machine. On a quiet host the two agree (MEASURED 0.0456 against 0.0400); during a compile
+storm on this 256-core box the `ps` sum reached **2.868**, i.e. 287 % of the machine, and would
+have tripped a 0.90 gate that reality never crossed. The skill's number is kept because it is
+the number a human checks at the shell, but the guard is taken on the bounded one.
+
+`source` is `:procstat` normally, `:ps` if `/proc/stat` could not be read, `:loadavg` if
+neither was available — the last two are weaker readings and travel labelled.
 """
-function system_load(t0::Real = time())
+function system_load(t0::Real = time(); window::Real = PARALLEL_LOAD_WINDOW)
     ncpu = Sys.CPU_THREADS
     la = Sys.loadavg()[1] / ncpu
     total = _pf_ps_total()
+    psf = total === nothing ? NaN : total / (100 * ncpu)
+    a = _pf_procstat()
+    if a !== nothing
+        sleep(window)
+        b = _pf_procstat()
+        if b !== nothing && b[2] > a[2]
+            frac = clamp((b[1] - a[1]) / (b[2] - a[2]), 0.0, 1.0)
+            return LoadSample(time() - Float64(t0), frac, psf, la, ncpu, :procstat)
+        end
+    end
     t = time() - Float64(t0)
-    return total === nothing ? LoadSample(t, la, la, ncpu, :loadavg) :
-                               LoadSample(t, total / (100 * ncpu), la, ncpu, :ps)
+    return total === nothing ? LoadSample(t, la, psf, la, ncpu, :loadavg) :
+                               LoadSample(t, psf, psf, la, ncpu, :ps)
 end
 
 # The pre-launch refusal. `planned_share` is the fraction of the machine THIS job is about to
@@ -133,6 +180,7 @@ function _pf_guard(planned_share::Real, load_guard::Real, t0::Real, what::Abstra
     total <= load_guard || throw(ArgumentError(
         "$what: REFUSING TO LAUNCH — the whole-system CPU guard would be exceeded. " *
         "live usage $(round(s.cpu_fraction; digits = 4)) (source :$(s.source), " *
+        "ps sum $(round(s.ps_fraction; digits = 4)), " *
         "loadavg1/ncpu $(round(s.loadavg1; digits = 4)), ncpu $(s.ncpu)) " *
         "+ planned share $(round(planned_share; digits = 4)) = $(round(total; digits = 4)) " *
         "> load_guard $(load_guard). Wait for the host to quieten or shrink the pool."))
@@ -400,7 +448,7 @@ function _pf_monitor(t0::Real, interval::Real, log)
         println(io, "# ScalarSelfForce mmode-parallel-driver load monitor")
         println(io, "# owner compute policy (compute-usage skill): ≤ $PARALLEL_CPU_BUDGET CPUs for our jobs, ",
                 "whole system < $(PARALLEL_LOAD_GUARD), ncpu = ", Sys.CPU_THREADS)
-        println(io, "t_seconds\tcpu_fraction\tloadavg1_per_cpu\tsource")
+        println(io, "t_seconds\tcpu_fraction\tps_fraction\tloadavg1_per_cpu\tsource")
         flush(io)
     end
     return mon
@@ -409,7 +457,8 @@ end
 function _pf_sample!(mon::_PfMonitor, s::LoadSample = system_load(mon.t0))
     push!(mon.samples, s)
     if mon.io !== nothing
-        @printf(mon.io, "%.3f\t%.6f\t%.6f\t%s\n", s.time, s.cpu_fraction, s.loadavg1, s.source)
+        @printf(mon.io, "%.3f\t%.6f\t%.6f\t%.6f\t%s\n",
+                s.time, s.cpu_fraction, s.ps_fraction, s.loadavg1, s.source)
         flush(mon.io)
     end
     return s
