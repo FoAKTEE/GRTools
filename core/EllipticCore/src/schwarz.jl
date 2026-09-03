@@ -39,7 +39,7 @@
 # DAG nodes: schwarz-smoother (this file), schwarz-complex-shift (exercises `shift`).
 # Threading: never for non-isbits scalars (BigFloat — binding owner directive).
 
-export SchwarzSmoother, SubdomainCache, smooth!, subdomain_matrix
+export SchwarzSmoother, SubdomainCache, SchwarzWorkspace, smooth!, subdomain_matrix
 
 # ---- quintic smoothstep weighting (spectre Weighting.hpp pattern, RT-generic) ----------
 function _sw_smoothstep(x0::RT, x1::RT, x::RT) where {RT<:AbstractFloat}
@@ -335,23 +335,76 @@ with the diagonal `−i·shift` applied (gated at 1e-13 in test_schwarz.jl).
 subdomain_matrix(sm::SchwarzSmoother{S,RT,TS}, s::Int) where {S,RT,TS} =
     _sw_patch_matrix(sm.op, sm.subdomains[s], TS, sm.shift)
 
+"""
+    SchwarzWorkspace(sm::SchwarzSmoother)
+
+Preallocated scratch for [`smooth!`](@ref): the three length-`ndofs` pass vectors (the
+operator image, the residual and the accumulated overlap correction) plus one
+right-hand-side buffer per subdomain. Hand it back with
+`smooth!(u, sm, b; workspace = w)` and repeated smoothing on ONE smoother reuses the
+buffers instead of allocating them per call — which is what [`MultigridV`](@ref) does for
+every level of a V-cycle.
+
+Added by `ESSF::solver-stack-core` to discharge the allocation obligation
+`ESSF::multigrid-hierarchy` filed as [FUTURE]. MEASURED on the sealed 4-level model: a
+V-cycle apply allocated 19 869 600 B, of which `smooth!`'s own per-call workspace is
+835 584 B (4.2 %) and the sealed matrix-free [`apply!`](@ref) — five calls per non-bottom
+level — is the remaining 96 %. Preallocating `apply!`'s workspace needs `matrixfree.jl`
+and is a separate node.
+
+The pass vectors carry the promoted type of `(u, b, TS)` and the subdomain buffers the
+smoother's own `TS`, exactly as the per-call allocation did. A workspace whose types,
+length or subdomain count do not match the call is IGNORED and a fresh one is allocated,
+so a mismatched workspace can only cost allocation, never correctness. Every buffer is
+fully overwritten before it is read, so reuse is BITWISE the fresh-allocation path (gated
+in test_solver_stack.jl).
+
+NOT a lock: one workspace serves ONE `smooth!` at a time. The THREADED sweep inside a
+single call is safe (its per-subdomain buffers are indexed by subdomain and never shared),
+but two concurrent `smooth!` calls need two workspaces — which is why [`MultigridV`](@ref)
+owns its own set and stays "build one per thread", exactly as for its level vectors.
+"""
+struct SchwarzWorkspace{T<:Number,TS<:Number}
+    y::Vector{T}
+    r::Vector{T}
+    δ::Vector{T}
+    patch::Vector{Vector{TS}}
+end
+
+function _sw_workspace(::Type{Tw}, sm::SchwarzSmoother{S,RT,TS}) where {Tw,S,RT,TS}
+    n = sm.op.mesh.ndofs
+    return SchwarzWorkspace{Tw,TS}(Vector{Tw}(undef, n), Vector{Tw}(undef, n),
+                                   Vector{Tw}(undef, n),
+                                   [Vector{TS}(undef, length(sub.gdofs))
+                                    for sub in sm.subdomains])
+end
+
+SchwarzWorkspace(sm::SchwarzSmoother{S,RT,TS}) where {S,RT,TS} = _sw_workspace(TS, sm)
+
+# is this workspace usable for a `smooth!` call on `sm` with promoted type `Tw`? ONE method
+# (two would be ambiguous: neither `::Any` nor the parametric signature is more specific).
+_sw_usable(w, ::Type{Tw}, sm::SchwarzSmoother{S,RT,TS}) where {Tw,S,RT,TS} =
+    w isa SchwarzWorkspace{Tw,TS} &&
+    length(w.y) == sm.op.mesh.ndofs && length(w.patch) == length(sm.subdomains)
+
 # one additive sweep: acc += Σ_s scatter(w_s ⊙ A_ss⁻¹ r|_s). Serial scatters in
 # subdomain order; the threaded path solves subdomains in parallel into private
 # buffers (phase 1) then folds every dof's contributions in the SAME subdomain order
 # over disjoint dofs (phase 2) — bitwise identical to serial for any thread count.
 function _sw_sweep!(acc::AbstractVector, sm::SchwarzSmoother{S,RT,TS},
-                    r::AbstractVector, threaded::Bool) where {S,RT,TS}
+                    r::AbstractVector, threaded::Bool,
+                    work::SchwarzWorkspace) where {S,RT,TS}
     subs = sm.subdomains
     ns = length(subs)
+    ds = work.patch                       # preallocated per-subdomain right-hand sides
     if threaded
-        ds = Vector{Vector{TS}}(undef, ns)
         Threads.@threads for s in 1:ns
             g = subs[s].gdofs
-            rs = Vector{TS}(undef, length(g))
+            rs = ds[s]
             @inbounds for k in eachindex(g)
                 rs[k] = r[g[k]]
             end
-            ds[s] = ldiv!(sm.fact[s], rs)
+            ldiv!(sm.fact[s], rs)
         end
         dof_ptr, dof_s, dof_k = sm.dof_ptr, sm.dof_s, sm.dof_k
         Threads.@threads for g in 1:(length(dof_ptr) - 1)
@@ -369,7 +422,7 @@ function _sw_sweep!(acc::AbstractVector, sm::SchwarzSmoother{S,RT,TS},
         for s in 1:ns
             g = subs[s].gdofs
             w = subs[s].weights
-            rs = Vector{TS}(undef, length(g))
+            rs = ds[s]
             @inbounds for k in eachindex(g)
                 rs[k] = r[g[k]]
             end
@@ -387,7 +440,8 @@ _sw_default_threaded(sm::SchwarzSmoother{S,RT,TS}, u, b) where {S,RT,TS} =
     Threads.nthreads() > 1 && isbitstype(promote_type(TS, eltype(u), eltype(b)))
 
 """
-    smooth!(u, sm::SchwarzSmoother, b; passes = 1, threaded = auto) -> u
+    smooth!(u, sm::SchwarzSmoother, b; passes = 1, threaded = auto,
+            workspace = nothing) -> u
 
 Run `passes` Schwarz smoothing passes on `A·u = b` with the LINEARIZED operator
 (`b` must already carry any operator-on-zero correction). Each pass recomputes the
@@ -396,24 +450,36 @@ the weighted overlap combination `u += Σ_s R_sᵀ (w_s ⊙ A_ss⁻¹ r|_s)` (ma
 the paper runs 2 passes per multigrid level). `threaded` defaults to
 `Threads.nthreads() > 1` for bits scalar types (never for BigFloat — owner directive)
 and is BITWISE identical to serial (gated).
+
+`workspace` is an optional [`SchwarzWorkspace`](@ref) to smooth INTO: with one, repeated
+calls on the same smoother allocate nothing of their own; without one (the default) a
+fresh workspace is allocated per call, which is the historical behaviour and is bitwise
+identical. A workspace that does not fit this call (wrong scalar types, length, or
+subdomain count) is ignored in favour of a fresh one.
 """
 function smooth!(u::AbstractVector, sm::SchwarzSmoother{S,RT,TS}, b::AbstractVector;
                  passes::Integer = 1,
-                 threaded::Bool = _sw_default_threaded(sm, u, b)) where {S,RT,TS}
+                 threaded::Bool = _sw_default_threaded(sm, u, b),
+                 workspace = nothing) where {S,RT,TS}
     n = sm.op.mesh.ndofs
     length(u) == n ||
         throw(ArgumentError("smooth!: u has length $(length(u)), the mesh has $n dofs"))
     length(b) == n ||
         throw(ArgumentError("smooth!: b has length $(length(b)), the mesh has $n dofs"))
     Tw = promote_type(eltype(u), eltype(b), TS)
-    y = Vector{Tw}(undef, n)
-    r = Vector{Tw}(undef, n)
-    δ = Vector{Tw}(undef, n)
+    # function barrier: `workspace` is untyped at the call site, `work` is concrete below
+    work = _sw_usable(workspace, Tw, sm) ? workspace : _sw_workspace(Tw, sm)
+    return _sw_smooth!(u, sm, b, Int(passes), threaded, work)
+end
+
+function _sw_smooth!(u::AbstractVector, sm::SchwarzSmoother, b::AbstractVector,
+                     passes::Int, threaded::Bool, work::SchwarzWorkspace{Tw}) where {Tw}
+    y, r, δ = work.y, work.r, work.δ
     for _ in 1:passes
         apply!(y, sm.op, u; threaded = threaded)
         @. r = b - y
         fill!(δ, zero(Tw))
-        _sw_sweep!(δ, sm, r, threaded)
+        _sw_sweep!(δ, sm, r, threaded, work)
         @. u = u + δ
     end
     return u

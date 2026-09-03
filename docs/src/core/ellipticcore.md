@@ -40,8 +40,7 @@ The solver stack, bottom to top:
   [`helmholtz_shift`](@ref) (`s = (mΩ)²` in t-slicing, `0` under
   hyperboloidal/null slicing) with its mass-weighted application route and the
   [`schwarz_preconditioner`](@ref) adapter that feeds a Schwarz smoother to
-  `gmres` as a right preconditioner. (The right-preconditioned composition API
-  `solve!` arrives with the solver-stack node.)
+  `gmres` as a right preconditioner.
 - **Geometric multigrid** — [`MultigridHierarchy`](@ref) h-coarsens a
   [`Mesh2D`](@ref) down to the irreducible block structure, one
   [`coarsen_mesh`](@ref) step at a time: each step merges every **complete
@@ -94,6 +93,36 @@ The solver stack, bottom to top:
   and the 32-bit floats — everything UMFPACK does not take exactly — fall back
   to the generic dense LU in the caller's own precision (4.9e-77 at
   BigFloat(256)).
+- **Solver stack** — [`SolverStack`](@ref) is the paper's whole linear solver as
+  one object (main.tex:668-676, `fig:precond`): right-preconditioned complex
+  GMRES whose preconditioner is one multigrid V-cycle, two additive-Schwarz
+  passes per finer level, and a direct cached solve at the bottom. It is built
+  once per (mesh, operator) from a [`MeshOperator`](@ref) and the caller's
+  operator factory, configured by [`SolverStackOptions`](@ref) — a plain record
+  whose field names and defaults are the CRP's own solver input
+  (`anc/ScalarSelfForce.yaml:178-205`: abstol 1e-12, reltol 0, 500 iterations,
+  one V-cycle per GMRES iteration, pre-smoothing on, post-smoothing at the
+  bottom off, two Schwarz passes) — and driven by [`solve!`](@ref), which
+  returns the sealed [`GMRESResult`](@ref) unchanged. Two normative contracts
+  live in the [`SolverStack`](@ref) docstring: the right-hand side must arrive
+  through [`linearized_rhs`](@ref) (everything below GMRES is LINEARIZED-only,
+  so fixed boundary/hook data is folded in exactly once), and ONE caller-owned
+  `epoch` governs BOTH caches — the shared [`SubdomainCache`](@ref) and the
+  [`BottomSolverCache`](@ref) — and must be bumped on any matrix-affecting
+  change that is not a mesh change. [`rebuild!`](@ref) carries the stack across
+  an AMR step reusing every factorization the contracts allow (measured over
+  eight refinement steps: one bottom LU, and every unchanged coarser level's
+  subdomains reused); [`invalidate!`](@ref) bumps the epoch and rebuilds
+  everything. The preconditioner is a plain factory callable
+  `f(stack) -> (Minv!, hierarchy)` — no `Preconditioner`/`ldiv!` hierarchy
+  exists in this package — with [`multigrid_preconditioner`](@ref),
+  [`schwarz_only_preconditioner`](@ref) and [`no_preconditioner`](@ref)
+  shipped; on the five-block gate model their iteration counts order 8 < 18 <
+  229. A [`ResidualMonitor`](@ref) records one [`SolveRecord`](@ref) per solve —
+  the per-iteration residual staircase, wall clock, preconditioner allocation,
+  and the rebuild's build time and cache-counter deltas kept separate from the
+  iterations — which is the data surface of `fig:linsolv`
+  ([`cumulative_iterations`](@ref) gives its left-to-right AMR-level axis).
 - **AMR** — mesh transformations for the CRP hp-AMR strategy, with
   caller-supplied refinement criteria: [`h_split`](@ref) halves the flagged
   elements along their flagged dimensions, [`balance_two_to_one`](@ref)

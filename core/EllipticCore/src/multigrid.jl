@@ -709,17 +709,21 @@ for a CORRECTION (zero initial guess, restricted-residual source), so the V-cycl
 strictly LINEAR map and no fixed data may enter it (gated: `M(2v) == 2M(v)` bitwise on an
 operator whose fine AND coarse levels carry nonzero Dirichlet data).
 
-An apply allocates a CONSTANT number of bytes after warm-up but not zero: `MultigridV`
-preallocates its own per-level buffers here, and 100 % of the remaining allocation is the
-per-call workspace of the sealed [`smooth!`](@ref)/[`apply!`](@ref). Preallocating those is
-the solver-stack node's scope. The per-level work
-buffers are preallocated here, so one `MultigridV` is NOT safe to apply from two threads
-at once (build one per thread if you need that); the V-cycle itself is serial and its
-result is bitwise independent of the thread count (file header).
+An apply allocates a CONSTANT number of bytes after warm-up but not zero. `MultigridV`
+preallocates its own per-level solution/source/residual vectors AND one
+[`SchwarzWorkspace`](@ref) per level (`mg.work`, added by `ESSF::solver-stack-core`), so
+the smoother contributes nothing per call; what remains is entirely the per-call workspace
+of the sealed matrix-free [`apply!`](@ref), which a V-cycle calls five times per non-bottom
+level (one residual plus one per smoothing pass). MEASURED on the 4-level calibration
+model: 19 869 600 B per apply before the workspaces, of which `smooth!`'s own scratch was
+835 584 B (4.2 %) and `apply!` 96 %; preallocating `apply!` needs `matrixfree.jl` and is a
+separate node. Because those buffers are preallocated here, one `MultigridV` is NOT safe to
+apply from two threads at once (build one per thread if you need that); the V-cycle itself
+is serial and its result is bitwise independent of the thread count (file header).
 
 Apply with [`vcycle!`](@ref) to smooth an existing iterate in place.
 """
-struct MultigridV{H<:MultigridHierarchy,B,T<:Number}
+struct MultigridV{H<:MultigridHierarchy,B,T<:Number,W}
     hier::H
     passes::Int
     iterations::Int
@@ -729,6 +733,7 @@ struct MultigridV{H<:MultigridHierarchy,B,T<:Number}
     x::Vector{Vector{T}}
     b::Vector{Vector{T}}
     r::Vector{Vector{T}}
+    work::Vector{W}
 end
 
 function MultigridV(hier::MultigridHierarchy; passes::Integer = 2,
@@ -743,10 +748,11 @@ function MultigridV(hier::MultigridHierarchy; passes::Integer = 2,
     x = [zeros(T, l.mesh.ndofs) for l in hier.levels]
     b = [zeros(T, l.mesh.ndofs) for l in hier.levels]
     r = [zeros(T, l.mesh.ndofs) for l in hier.levels]
-    return MultigridV{typeof(hier),typeof(bottom),T}(hier, Int(passes), Int(iterations),
-                                                     pre_smoothing,
-                                                     post_smoothing_at_bottom, bottom,
-                                                     x, b, r)
+    # one Schwarz workspace per level, so a V-cycle apply allocates no smoother scratch
+    work = identity.([SchwarzWorkspace(l.smoother) for l in hier.levels])
+    return MultigridV{typeof(hier),typeof(bottom),T,eltype(work)}(
+        hier, Int(passes), Int(iterations), pre_smoothing, post_smoothing_at_bottom,
+        bottom, x, b, r, work)
 end
 
 # BigFloat is never threaded (owner directive); mirrors the schwarz/matrixfree default
@@ -805,18 +811,21 @@ function _mg_vcycle!(mg::MultigridV{H,B,T}, ℓ::Int, threaded::Bool) where {H,B
     lev = mg.hier.levels[ℓ]
     x = mg.x[ℓ]
     b = mg.b[ℓ]
+    w = mg.work[ℓ]
     if ℓ == length(mg.hier.levels)
         if mg.bottom === nothing
-            smooth!(x, lev.smoother, b; passes = mg.passes, threaded = threaded)
+            smooth!(x, lev.smoother, b; passes = mg.passes, threaded = threaded,
+                    workspace = w)
         else
             mg.bottom(x, b)
         end
         mg.post_smoothing_at_bottom &&
-            smooth!(x, lev.smoother, b; passes = mg.passes, threaded = threaded)
+            smooth!(x, lev.smoother, b; passes = mg.passes, threaded = threaded,
+                    workspace = w)
         return nothing
     end
     mg.pre_smoothing &&
-        smooth!(x, lev.smoother, b; passes = mg.passes, threaded = threaded)
+        smooth!(x, lev.smoother, b; passes = mg.passes, threaded = threaded, workspace = w)
     r = mg.r[ℓ]
     apply!(r, lev.op, x; threaded = threaded)
     @. r = b - r
@@ -825,6 +834,6 @@ function _mg_vcycle!(mg::MultigridV{H,B,T}, ℓ::Int, threaded::Bool) where {H,B
     _mg_vcycle!(mg, ℓ + 1, threaded)
     mg_prolong!(r, mg.hier, ℓ, mg.x[ℓ+1])
     @. x = x + r
-    smooth!(x, lev.smoother, b; passes = mg.passes, threaded = threaded)
+    smooth!(x, lev.smoother, b; passes = mg.passes, threaded = threaded, workspace = w)
     return nothing
 end

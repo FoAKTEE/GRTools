@@ -32,7 +32,12 @@ Owns (DESIGN.md §2.1, one DAG node = one commit per module):
     (`mg_prolong!`, `mg_restrict_residual!`/`mg_restrict_field!`, `mg_transfer_check`) and
     the `MultigridV` V-cycle preconditioner with its `dense_bottom_solver` bottom seam
   - `bottom_solve.jl` — coarsest-level cached sparse LU (UMFPACK), dense-LU fallback
-  - `solver_stack.jl` — right-preconditioned GMRES composition API `solve!`
+  - `solver_stack.jl` — the CRP solver stack as one object: `SolverStack` composes
+    right-preconditioned `gmres` over a `MultigridV` V-cycle, two Schwarz passes per
+    level and the cached bottom solve, configured by the yaml-twin `SolverStackOptions`
+    and driven by `solve!`/`rebuild!`/`invalidate!` with `linearized_rhs` folding fixed
+    data; a `ResidualMonitor` records the per-AMR-level GMRES staircase, wall clock and
+    cache-build counters (the `fig:linsolv` data surface)
   - `amr.jl` — the CRP hp-AMR mesh transformations: `h_split` + `balance_two_to_one`
     + `h_refine` (halving with 2:1 enforcement by splitting offenders), `p_refine`
     + `hp_refine` (order increment off the flagged elements, and the combined step),
