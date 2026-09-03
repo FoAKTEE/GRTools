@@ -167,17 +167,75 @@ formulation and consumes the physics-free hp-DG solver stack from
   statement of that rule is its docstring. Read-out: `mode_residual` (the DG
   residual against the FULL operator table), `reconstruct_full_field`
   (``\Psi_m`` everywhere, ``\Psi^{\mathcal R}_m + \Psi^{\mathcal P}_m``
-  inside) and `field_at` (tensor-product Lagrange interpolation on the element
-  containing a chart point, with an `element` keyword for a one-sided trace).
+  inside), `field_at` (tensor-product Lagrange interpolation on the element
+  containing a chart point, with an `element` keyword for a one-sided trace)
+  and `field_grad_at`, its chart gradient
+  ``(\partial_{x_1} f, \partial_{x_2} f)`` from the same reference element's
+  differentiation matrix — the ``\partial_r \Psi^{\mathcal R}`` at the
+  particle that self-force extraction needs.
   `rebuild_for_mesh!` is the one-step per-level rebuild an hp-AMR sweep calls —
   worldtube bundle, operator, factory hand-over and right-hand side, with no
   epoch bump because a pure mesh change is already in both cache keys.
+  `resolve_max_overlap(config)` maps `MaxOverlap: Auto` (yaml:198) onto the
+  smoother's `overlap` using spectre's own semantics — `Auto` means "no
+  restriction, the overlap covers the full neighbour"
+  (`Schwarz/Tags.hpp:29-35`) and resolves numerically as
+  ``\min(\text{volume extent}, \text{max\_overlap}) =`` the neighbour's
+  extent (`Schwarz/OverlapHelpers.cpp:21-24`), i.e. **4** at the production
+  ``P = 4``. Any field that changes the solve and cannot be represented is
+  *refused*: a non-zero `Multigrid.ComplexShift` (yaml:194) and an unmappable
+  `MaxOverlap` both raise rather than being silently dropped.
   Measured at the paper's own configuration (``a = 0.5``, ``r_0 = 10M``,
   ``m = 2``, ``L = 0``, ``P = 4``): converged to the yaml's absolute residual
   ``10^{-12}`` in **1** preconditioned GMRES iteration at a true residual of
   ``1.2\times10^{-15}`` — the paper's own first-AMR-level behaviour, since
   `InitialCoarseLevels: L = 0` makes the V-cycle a direct bottom solve; with a
-  genuine two-level hierarchy on the same mesh, 10 iterations.
+  genuine two-level hierarchy on the same mesh, 9 iterations at the resolved
+  overlap (10 at the package default 2).
+
+  Under the paper's own `RefineAtPuncture` criterion (yaml:132,
+  main.tex:552-560 — split only the elements *containing* the particle) over
+  five AMR levels (320 → 603 → 962 → 1425 → 2004 grid points), the counts are
+  9, 8, 8, 7, 6 with the min coarsening rule and 9, 8, 9, 9, 9 with spectre
+  parity (`coarse_orders = P`), which pins the bottom grid at 160 points and
+  builds its LU once. **main.tex:720's "less than 10 iterations per AMR level"
+  holds, and the count decreases with refinement depth.** Refining the *whole*
+  worldtube instead — which is not the paper's criterion — makes the counts
+  grow (9, 8, 9, 10, 11 and 9, 9, 11, 12, 18), so the refinement criterion, not
+  the solver, is what decides.
+
+  hp-AMR driver: `solve_mode_amr(orbit, config, m)` runs the paper's
+  `Amr: Iterations` levels of "``h``-refine every element that contains the
+  puncture, ``p``-refine everything else" (main.tex:552-560) over ONE
+  `ModeSolution` — one stack, one epoch, one pair of caches, each level
+  warm-started from the transferred previous solution — and returns an
+  `AmrHistory`: per level the `Mesh2D`, the puncture elements, the `SolveRecord`
+  (iterations, residual staircase, `build_time`, cache counters) and the
+  particle diagnostics ``\Psi^{\mathcal R}_m(x_p)``,
+  ``\partial_r\Psi^{\mathcal R}_m(x_p)``, plus the final `ModeSolution`.
+  `amr_flags` is the criterion: spectre's `RefineAtPuncture` — map the puncture
+  into each block, snap ``|\xi_d| < 10^{-10}`` to the block centre or face, and
+  keep every element whose CLOSED dyadic interval contains it, so the puncture
+  sitting on an element corner flags every element that touches it (two of them
+  in the ``z^2`` chart, where the equator is the domain boundary) — merged with
+  `IncreaseResolution` exactly as spectre merges criteria, `Split` outranking
+  `IncreaseResolution`, which is the sealed `hp_refine` one-container contract.
+  The yaml `Limits` (`Auto` = 15 refinement levels, 20 grid points) are enforced
+  with `ErrorBeyondLimits: True` semantics: an `ArgumentError`, never a silent
+  clip. `amr_level_options(config, step)` is the multigrid level policy — the
+  yaml's `InitialCoarseLevels` at level 0, so the first level converges
+  immediately on the direct bottom solve (main.tex:701), then coarsening to the
+  irreducible block structure, a grid that does not move as AMR adds finer
+  levels, so the bottom LU is factorized once and hit at every later level
+  (main.tex:674). `amr_step!` is one level, `puncture_chart_position` is
+  ``(r_0, 0)`` in the discretization chart, and `field_gradient_at` is
+  `field_at`'s derivative companion, built from the sealed differentiation
+  matrix through the exact identity ``\ell'_i(\xi) = \sum_k D_{ki}\ell_k(\xi)``.
+  Measured over the 8-level sweep at ``a = 0.5``, ``r_0 = 10M``, ``m = 2``:
+  20 → 69 elements and 320 → 5720 dofs, GMRES 1 then 9-10 iterations per level,
+  bottom LU built twice and hit seven times, and successive differences of
+  ``\partial_r\Psi^{\mathcal R}(x_p)`` falling geometrically
+  (``8.5\times10^{-5} \to 3.7\times10^{-10}``, ratios 0.06-0.33).
 - **Extraction** — Heffernan m-mode regularization parameters of the radial
   self-force for circular equatorial Kerr orbits (arXiv:1211.6446), in the
   folded ``m \ge 0`` ×2 real-part convention:
@@ -198,7 +256,7 @@ formulation and consumes the physics-free hp-DG solver stack from
     mode sum.
 
 Planned, each landing written test-first once it is grounded: the rest of
-`Solve` (hp-AMR loop, process-parallel m fan-out), and the rest of `Extraction`
+`Solve` (the process-parallel m fan-out), and the rest of `Extraction`
 (``F_r^m`` extraction from a solved mode, and the mode sum itself).
 
 ## Conventions (locked package-wide)

@@ -20,10 +20,62 @@
 #   refelement / interpolation_matrix (row 8) · helmholtz_shift (row 18).
 # NO new physics, NO AMR criterion, NO self-force extraction, NO figure.
 
-export solver_options, ModeSolution, solve_mode, solve_mode!, rebuild_for_mesh!,
-       mode_fixed_source, mode_residual, reconstruct_full_field, field_at
+export solver_options, resolve_max_overlap, ModeSolution, solve_mode, solve_mode!,
+       rebuild_for_mesh!, mode_fixed_source, mode_residual, reconstruct_full_field,
+       field_at, field_grad_at
 
 # ============================== the options twin ==========================================
+
+"""
+    resolve_max_overlap(config::RunConfig) -> Int
+
+The `LinearSolver.SchwarzSmoother.MaxOverlap` option (yaml:198) resolved to this package's
+[`SchwarzSmoother`](@ref) `overlap`, from spectre's OWN semantics rather than a guess:
+
+    // Schwarz/Tags.hpp:29-35
+    "Number of points that subdomains can extend into neighbors.
+     'Auto' means no restriction, so the overlap covers the full neighbor."
+    // Schwarz/OverlapHelpers.cpp:21-24
+    size_t overlap_extent(volume_extent, max_overlap) {
+      return std::min(volume_extent, max_overlap.value_or(volume_extent)); }
+
+So `Auto` is `max_overlap = nullopt` ⇒ `value_or(volume_extent)` ⇒ `min(v, v)` = the
+NEIGHBOUR'S FULL EXTENT in the overlap dimension. At the CRP production point
+(`InitialGridPoints: [P, P]` with `P = 4`, yaml:74) that is **`overlap = 4`**, not the
+package default 2.
+
+OUR SMOOTHER CAN EXPRESS IT EXACTLY: `schwarz.jl:120` clamps per face with
+`ovd = min(ov, Nn[d])`, the same `min` spectre applies, so any `overlap ≥ max` neighbour
+extent reproduces `Auto` on that mesh. This function returns `maximum(InitialGridPoints)` —
+exact for every mesh whose orders do not exceed `P`. UNDER p-AMR an element refined past `P`
+has a larger extent, and reproducing `Auto` there needs a correspondingly larger `overlap`;
+pass it explicitly through [`solver_options`](@ref)'s `overlap` keyword (row 43's business).
+
+MEASURED at `a = 0.5`, `r₀ = 10`, `m = 2`, `L = 0` on the two-level hierarchy (320 → 160 dofs),
+which is also the direct confirmation that the resolution is right: overlap 1/2/3 all take 10
+GMRES iterations, overlap 4 takes **9**, and overlap 5 is BITWISE overlap 4 (identical residual
+8.5766e-13) — the per-face clamp saturates at the neighbour's extent `Nn = P = 4`, exactly as
+spectre's `min` does. Mapping the field correctly therefore costs nothing and buys an
+iteration; over the five-level `RefineAtPuncture` sweep it is Δ = −1, −1, 0, 0, −1.
+
+Any other value is an `ArgumentError` rather than a silent default — the yaml twin must not
+quietly drop a field that changes the solve.
+
+[HOLE, not this node's file] the yaml permits an INTEGER `MaxOverlap`, but the sealed
+`SchwarzConfig` types the field `max_overlap::Symbol` (`Domain/config.jl:133`), so an integer
+cannot currently be carried at all. An integer is accepted here if one is ever passed, but
+representing it needs `Union{Symbol,Integer}` on the sealed config — node `runtime-config-fixture`.
+"""
+function resolve_max_overlap(config::RunConfig)
+    mo = config.schwarz.max_overlap
+    mo === :auto && return maximum(config.domain.initial_grid_points)
+    mo isa Integer && Int(mo) >= 0 && return Int(mo)
+    throw(ArgumentError(
+        "solver_options: LinearSolver.SchwarzSmoother.MaxOverlap = $(repr(mo)) cannot be " *
+        "mapped onto SchwarzSmoother's `overlap` (expected :auto — the neighbour's full " *
+        "extent, spectre OverlapHelpers.cpp:21-24 — or a non-negative integer). Refusing " *
+        "rather than silently preconditioning with a different subdomain than the config asks"))
+end
 
 """
     solver_options(config::RunConfig;
@@ -65,6 +117,14 @@ preconditioner, exactly as the paper's production run does.
 
 # THE TWO LEVEL-POLICY KNOBS (exposed on purpose — the AMR driver must choose)
 
+HIERARCHY DEPTH, MEASURED IN A CONTROLLED WAY (one fine operator, `maxlevels` varied — at
+`L = 2`, 5120 dofs): 1 level (the bottom solve IS the problem) 1 iteration; 2 levels
+`[5120, 1280]` 20; 3 levels `[5120, 1280, 320]` 24; 4 levels `[5120, 1280, 320, 160]` 25, and
+`nothing` reaches the same 4 levels. Depth alone costs a little here. Do NOT confuse this with
+a fine-mesh comparison: the earlier "10 / 15 / 25" figures were three DIFFERENT fine meshes
+(`L = 0` 320 dofs / `L = 1` 1280 / `L = 2` 5120), each with its own hierarchy, not one operator
+at three depths.
+
 `coarse_levels` is the yaml's `InitialCoarseLevels`: the number of COARSER multigrid levels.
 The stack's `maxlevels` is `coarse_levels + 1`. At the production point `L = 0` that is ONE
 level, so the multigrid V-cycle IS the direct bottom solve of the whole problem — which is
@@ -78,9 +138,34 @@ levels"; a driver that left `coarse_levels` at `L` would instead let the bottom 
 the fine grid upward. Pass `coarse_levels = nothing` to h-coarsen all the way to the
 irreducible block structure (main.tex:672) — the fixed bottom grid — or raise it by one per
 h-step. MEASURED on the production lattice at `L = 0`: `nothing` gives 2 levels
-(320 → 160 dofs) and **10** GMRES iterations; at `L = 1`, 3 levels and 15; at `L = 2`,
-4 levels and 25. Under the CRP's own hp-AMR sweep (h at the puncture, p elsewhere) the counts
-stay flat instead: 10, 9, 10, 12 over four steps. See this node's evidence table.
+(320 → 160 dofs) and **10** GMRES iterations.
+
+# THE ITERATION COUNT UNDER THE PAPER'S OWN REFINEMENT CRITERION (main.tex:720-722)
+
+`RefineAtPuncture` (yaml:132, main.tex:552-560) splits ONLY the elements containing the
+particle and raises `p` everywhere else. Under that criterion, at `a = 0.5`, `r₀ = 10`,
+`m = 2` over five levels (320 → 603 → 962 → 1425 → 2004 dofs), at the yaml-resolved overlap 4
+([`resolve_max_overlap`](@ref)):
+
+| `coarse_orders` | iterations | coarsest level dofs | bottom LU builds |
+|---|---|---|---|
+| `nothing` (MIN) | 9, 8, 8, 7, 6 | 160, 241, 340, 457, 592 | 1, 1, 1, 1, 1 |
+| `4` (spectre parity) | 9, 8, 9, 9, 9 | 160, 160, 160, 160, 160 | 1, 0, 0, 0, 0 |
+
+At the package default `overlap = 2` the same sweep gives 10, 9, 8, 7, 7 and 10, 9, 9, 9, 10.
+**main.tex:720's "less than 10 iterations per AMR level" HOLDS under the paper's own
+criterion, and the count DECREASES with refinement depth** (main.tex:722, scale independence).
+
+CONTRAST — UNIFORM h REFINEMENT OF THE WHOLE WORLDTUBE (every in-tube element split, which is
+NOT the paper's criterion) over five levels (320 → 681 → 1924 → 6252 → 21632 dofs): MIN
+9, 8, 9, 10, 11 and parity 9, 9, 11, 12, 18 at overlap 4 (10, 9, 10, 12, 14 and
+10, 10, 12, 15, 32 at overlap 2) — the counts GROW. The refinement CRITERION, not the solver,
+is what decides; a driver that splits the whole tube pays for it.
+
+The parity/MIN trade is therefore criterion-dependent: under `RefineAtPuncture` parity costs
+0, 0, +1, +2, +3 iterations across the five levels while pinning the bottom grid and never
+rebuilding its LU; under uniform in-tube refinement it costs 0, +1, +2, +3, +18. See this
+node's evidence tables.
 
 `coarse_orders` is the coarse-level POLYNOMIAL policy of [`MultigridHierarchy`](@ref):
 `nothing` (the default) p-coarsens by the MIN rule; an integer pins every coarser level at
@@ -101,7 +186,17 @@ function solver_options(config::RunConfig;
                         coarse_levels::Union{Nothing,Integer} =
                             config.multigrid.initial_coarse_levels,
                         coarse_orders::Union{Nothing,Integer} = nothing,
+                        overlap::Integer = resolve_max_overlap(config),
                         shrink::Real = 1)
+    # yaml:194 LinearSolver.Multigrid.ComplexShift has NO field on SolverStackOptions (the
+    # shift is subdomain-level only here, adopted decision 8). Its production value is 0.0;
+    # a NONZERO value would change the preconditioner and must not be dropped silently.
+    iszero(config.multigrid.complex_shift) || throw(ArgumentError(
+        "solver_options: LinearSolver.Multigrid.ComplexShift = " *
+        "$(config.multigrid.complex_shift) is not representable — the complex shift is " *
+        "SUBDOMAIN-level only in this package (adopted decision 8), so a multigrid-level " *
+        "shift has no twin. The CRP production value is 0.0 (yaml:194); refusing rather " *
+        "than solving a different preconditioned problem than the config specifies"))
     return SolverStackOptions(; abstol = config.gmres.absolute_residual,
                               reltol = config.gmres.relative_residual,
                               maxiter = config.gmres.max_iterations,
@@ -113,7 +208,7 @@ function solver_options(config::RunConfig;
                                   config.multigrid.post_smoothing_at_bottom,
                               shrink = shrink,
                               coarse_orders = coarse_orders,
-                              overlap = 2,
+                              overlap = overlap,
                               passes = config.schwarz.iterations,
                               subdomain_complex_shift =
                                   config.schwarz.subdomain_complex_shift)
@@ -149,11 +244,24 @@ vectors wherever the switch fires, and only the former may be used as the right-
 
 MEASURED ROUTE CENSUS at the production point (`a = 0.5`, `r₀ = 10`, `m = 2`, `L = 0`,
 `P = 4`, `Float64`): 0 of the 64 in-tube quadrature nodes select the series — the closest
-node sits at `λ = 1.004`, three orders outside the Float64 crossover `λ* ≈ 1.2e-2`, and it is
-still 0 of 4096 after three `hp_refine` steps (`λ_min = 0.333`). On THIS lattice the switch is
-therefore inert; it is the AMR puncture-snap resolution, not the initial mesh, that decides,
-and the rule is written here so the source cannot silently become the roundoff-limited one
-when it does.
+node sits at `λ = 1.0044`, about two orders outside the Float64 crossover `λ* ≈ 1.2e-2`.
+
+THE λ LADDER UNDER THE PAPER'S OWN `RefineAtPuncture` SWEEP (the quantity that decides when
+the switch first engages): `λ_min` = 1.0044, 0.6850, 0.4752, 0.3327, 0.2341 over the first
+four steps — a factor of about 1.44 per step, NOT 2, because the puncture sits on an element
+CORNER `(r₀, w = 0)` and only one logical direction halves the distance to the nearest Gauss
+node. Extrapolating, reaching `λ* ≈ 1.2e-2` needs roughly 12 steps, while the CRP production
+sweep is `Amr.Iterations: 8` (yaml:153) — SO THE SWITCH IS EXPECTED TO STAY INERT FOR THE
+WHOLE PRODUCTION SWEEP, and the switched and direct sources are bitwise equal there.
+
+[OPEN OBLIGATION carried from node `effective-source-series`, owned by rows 43/47] when the
+switch DOES engage (a deeper sweep, a smaller `r₀`, a larger `m`, or higher precision — the
+crossover moves inward like `eps^{1/5}`), the near-crossover route disagreement measured by
+that node (1.2e-3 on its calibration grid, 4.1e-3 on the validator's independent sweep) must
+be compared against the REALISED DG discretization error at that resolution; it is a jump in
+the fixed source at a measure-zero set of quadrature points and is only harmless while it
+stays below the discretization error. This node cannot close it because the switch never
+engages on any mesh it builds.
 
 The physical right-hand side of the solve is this vector: [`solve!`](@ref) folds the
 operator's own fixed-data lift (`− operator_on_zero(op)`, which carries the worldtube jump
@@ -502,6 +610,51 @@ function field_at(sol::ModeSolution, values::AbstractVector, x1::Real, x2::Real;
     return _dr_interp(mesh, values, e, _dr_logical(mesh, e, x1, x2))
 end
 
+"""
+    field_grad_at(sol::ModeSolution, x1, x2; element = nothing) -> (d1, d2)
+    field_grad_at(sol::ModeSolution, values, x1, x2; element = nothing) -> (d1, d2)
+
+The CHART GRADIENT `(∂f/∂x1, ∂f/∂x2)` of a nodal field at `(x1, x2)`, from the same sealed
+machinery [`field_at`](@ref) uses: the element's own tensor-product Lagrange interpolant
+differentiated with [`RefElement`](@ref)`.D` and divided by the chart Jacobian
+`dx_d/dξ_d = map_jacobian(blockmap(blk, d), ζ) · (hi − lo)/2`.
+
+NOTE the interpolated-derivative row is `Py·D`, NOT `D·Pyᵀ`: the derivative of the
+interpolant is `Σ_j ℓ′_j(ξ) u_j = (Py·D)·u`. (Getting this backwards is a real trap — it
+silently returns a plausible but wrong angular derivative; the node's own round-2 calibration
+did exactly that and the error only showed up as a non-convergent flux jump.)
+
+This is `∂_rΨ^ℛ` and `∂_wΨ^ℛ` for row 44's self-force extraction, which needs the REGULAR
+field's radial derivative at the particle. Chart conventions are [`field_at`](@ref)'s: `x1 = r`
+and `x2 = w = z²` under equatorial symmetry (`sol.dom.chart === :z2`), `z = cos θ` otherwise —
+so a caller wanting `∂_z` from the `z²` chart applies `∂_z = 2z ∂_w` itself.
+
+ONE-SIDED TRACES AT THE WORLDTUBE SEAM: a DG field is discontinuous across element faces and
+its DERIVATIVE is discontinuous there too, so at a face point (the worldtube boundary, an
+extraction radius) `element` selects which side's polynomial is differentiated. Omitted, the
+first element containing the point is used, which at a face is an arbitrary one of the two —
+pass `element` explicitly whenever the point can lie on a face. The physically meaningful
+quantity at the seam is the trace from the INSIDE (regular-field) element plus `∂Ψ^𝒫`, or
+from the outside element directly; the node's own seam gate measures both and compares.
+
+Exact for the element's own polynomial degree (gated against a manufactured polynomial) and
+spectrally accurate against a finite difference of [`field_at`](@ref).
+"""
+field_grad_at(sol::ModeSolution, x1::Real, x2::Real; element = nothing) =
+    field_grad_at(sol, sol.u, x1, x2; element = element)
+
+function field_grad_at(sol::ModeSolution, values::AbstractVector, x1::Real, x2::Real;
+                       element = nothing)
+    mesh = sol.mesh
+    length(values) == mesh.ndofs || throw(ArgumentError(
+        "field_grad_at: the field has length $(length(values)) but the mesh has " *
+        "$(mesh.ndofs) dofs"))
+    e = element === nothing ? _dr_locate(mesh, x1, x2) : Int(element)
+    (1 <= e <= length(mesh.elements)) || throw(ArgumentError(
+        "field_grad_at: element index $e is outside 1:$(length(mesh.elements))"))
+    return _dr_grad(mesh, values, e, _dr_logical(mesh, e, x1, x2), x1, x2)
+end
+
 # ---- element location + tensor-product interpolation (sealed refelement machinery) --------
 
 # logical coordinates of a physical point within element `e` (outside the element ⇒ |ξ| > 1)
@@ -516,7 +669,11 @@ function _dr_logical(mesh::Mesh2D{RT}, e::Int, x1::Real, x2::Real) where {RT}
 end
 
 # the first element containing the point; a face point belongs to both its neighbours, and
-# `field_at`'s `element` keyword is how a caller picks one (see that docstring)
+# `field_at`'s `element` keyword is how a caller picks one (see that docstring).
+# COST: a LINEAR scan over the mesh, measured 1.9 us at 20 elements and growing in proportion
+# (2 `map_inverse` evaluations per element). That is negligible for a handful of probes but
+# NOT for a per-node sweep over a refined mesh — pass `element` (rows 44/48 know it from the
+# worldtube face or the element walk they are already doing) to take the O(1) fast path.
 function _dr_locate(mesh::Mesh2D{RT}, x1::Real, x2::Real) where {RT}
     tol = 16 * eps(RT)
     for e in eachindex(mesh.elements)
@@ -527,6 +684,32 @@ function _dr_locate(mesh::Mesh2D{RT}, x1::Real, x2::Real) where {RT}
         "field_at: ($x1, $x2) lies in no element of this mesh. The coordinates are the " *
         "DISCRETIZATION chart: x1 = r (horizon-penetrating Boyer–Lindquist) and x2 = z² " *
         "under equatorial symmetry, z = cosθ otherwise — check `sol.dom.chart`"))
+end
+
+# chart gradient of the element interpolant at logical ξ (see `field_grad_at`): the
+# interpolated-derivative row is `P·D`, and dx_d/dξ_d is the composed block ∘ segment Jacobian
+function _dr_grad(mesh::Mesh2D{RT}, values::AbstractVector, e::Int, ξ, x1, x2) where {RT}
+    nx, ny = mesh.orders[e]
+    ex, ey = refelement(RT, nx), refelement(RT, ny)
+    Px = interpolation_matrix(ex, [ξ[1]])
+    Py = interpolation_matrix(ey, [ξ[2]])
+    Dx, Dy = Px * ex.D, Py * ey.D
+    off = mesh.offsets[e]
+    g1 = zero(eltype(values))
+    g2 = zero(eltype(values))
+    @inbounds for j in 1:ny, i in 1:nx
+        v = values[off + tensor_lin(i, j, nx)]
+        g1 += Dx[1, i] * Py[1, j] * v
+        g2 += Px[1, i] * Dy[1, j] * v
+    end
+    el = mesh.elements[e]
+    blk = mesh.blocks[mesh.blockindex[el.block]]
+    jac = ntuple(2) do d
+        lo, hi = logical_interval(RT, el, d)
+        ζ = (lo * (1 - ξ[d]) + hi * (1 + ξ[d])) / 2
+        map_jacobian(blockmap(blk, d), ζ) * (hi - lo) / 2
+    end
+    return (g1 / jac[1], g2 / jac[2])
 end
 
 function _dr_interp(mesh::Mesh2D{RT}, values::AbstractVector, e::Int, ξ) where {RT}

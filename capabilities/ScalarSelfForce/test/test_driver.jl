@@ -58,6 +58,14 @@ dv_cfg(; spin = 0.5, r0 = 10.0, m = 2, L = 0, P = 4) =
     crp_paper_config(; spin = spin, orbital_radius = r0, m_mode = m,
                      inner_radius = CircularOrbit(spin, r0).rp, P = P, L = L)
 dv_orb(cfg) = CircularOrbit(cfg.orbit.black_hole_spin, cfg.orbit.orbital_radius)
+# rebuild a RunConfig with one nested field replaced (the config structs are immutable)
+function dv_setfield(cfg::RunConfig{T}, group::Symbol, field::Symbol, value) where {T}
+    g = getfield(cfg, group)
+    G = typeof(g)
+    g2 = G((f === field ? value : getfield(g, f) for f in fieldnames(G))...)
+    return RunConfig{T}((f === group ? g2 : getfield(cfg, f)
+                         for f in fieldnames(RunConfig{T}))...)
+end
 dv_solve(; kw...) = (c = dv_cfg(; kw...); solve_mode(dv_orb(c), c, c.orbit.m_mode_number))
 
 # ---- an INDEPENDENT re-assembly of the volume fixed source (the gate (d4) oracle) ---------
@@ -200,7 +208,8 @@ end
     @test o.use_bottom_solver == cfg.multigrid.use_bottom_solver == true       # yaml:190
     @test o.post_smoothing_at_bottom == cfg.multigrid.post_smoothing_at_bottom == false
     @test o.passes == cfg.schwarz.iterations == 2                    # yaml:197
-    @test o.overlap == 2                                             # yaml:198 MaxOverlap: Auto
+    # yaml:198 MaxOverlap: Auto -> the NEIGHBOUR'S FULL EXTENT = P = 4 (see (0b)), not 2
+    @test o.overlap == 4 == resolve_max_overlap(cfg)
     @test o.subdomain_complex_shift == cfg.schwarz.subdomain_complex_shift == 0  # yaml:203
     @test o.shrink == 1                                              # the sealed row-21 default
     @test o.coarse_orders === nothing                                # the MIN rule by default
@@ -217,6 +226,57 @@ end
     orb = dv_orb(cfg)
     @test helmholtz_shift(2, orb.Omega; slicing = :vtu) == 0
     @test helmholtz_shift(2, orb.Omega; slicing = :t) ≈ (2 * orb.Omega)^2
+end
+
+@testset "(0b) H2: every RunConfig field that affects the solve is mapped or REFUSED" begin
+    cfg = dv_cfg()
+    # MaxOverlap: Auto (yaml:198) resolves to the NEIGHBOUR'S FULL EXTENT — spectre
+    # Tags.hpp:29-35 ("'Auto' means no restriction, so the overlap covers the full neighbor")
+    # and OverlapHelpers.cpp:21-24 (min(volume_extent, max_overlap.value_or(volume_extent))).
+    # At the production InitialGridPoints [4, 4] that is 4, NOT the package default 2.
+    @test cfg.schwarz.max_overlap === :auto
+    @test resolve_max_overlap(cfg) == 4
+    @test solver_options(cfg).overlap == 4
+    @test resolve_max_overlap(dv_cfg(; P = 6)) == 6
+    @test solver_options(cfg; overlap = 2).overlap == 2          # caller override kept
+    # any OTHER MaxOverlap value is REFUSED, not silently defaulted. [HOLE] the yaml permits
+    # an integer MaxOverlap but the sealed SchwarzConfig types the field `::Symbol`
+    # (Domain/config.jl:133), so an integer cannot be carried at all — node
+    # runtime-config-fixture would need Union{Symbol,Integer}; resolve_max_overlap already
+    # accepts one if it is ever passed.
+    @test fieldtype(typeof(cfg.schwarz), :max_overlap) === Symbol
+    @test_throws ArgumentError resolve_max_overlap(dv_setfield(cfg, :schwarz,
+                                                               :max_overlap, :full))
+    # Multigrid.ComplexShift (yaml:194) has no twin (subdomain-level shift only, decision 8);
+    # the production value is 0 and a NONZERO one is refused rather than silently dropped
+    @test cfg.multigrid.complex_shift == 0
+    @test_throws ArgumentError solver_options(dv_setfield(cfg, :multigrid,
+                                                          :complex_shift, 0.5))
+    # ENUMERATION of the solver-relevant RunConfig fields: each is mapped, or refused above
+    o = solver_options(cfg)
+    mapped = Dict(
+        :gmres_max_iterations      => o.maxiter   == cfg.gmres.max_iterations,
+        :gmres_relative_residual   => o.reltol    == cfg.gmres.relative_residual,
+        :gmres_absolute_residual   => o.abstol    == cfg.gmres.absolute_residual,
+        :multigrid_iterations      => o.multigrid_iterations == cfg.multigrid.iterations,
+        :multigrid_initial_coarse_levels => o.initial_coarse_levels ==
+                                            cfg.multigrid.initial_coarse_levels,
+        :multigrid_pre_smoothing   => o.pre_smoothing == cfg.multigrid.pre_smoothing,
+        :multigrid_use_bottom_solver => o.use_bottom_solver == cfg.multigrid.use_bottom_solver,
+        :multigrid_post_smoothing_at_bottom => o.post_smoothing_at_bottom ==
+                                               cfg.multigrid.post_smoothing_at_bottom,
+        :schwarz_iterations        => o.passes    == cfg.schwarz.iterations,
+        :schwarz_max_overlap       => o.overlap   == resolve_max_overlap(cfg),
+        :schwarz_subdomain_complex_shift => o.subdomain_complex_shift ==
+                                            cfg.schwarz.subdomain_complex_shift,
+        :dg_penalty_parameter      => cfg.dg.penalty_parameter == 1.5,  # consumed by assemble
+    )
+    for (k, v) in mapped
+        @test v || error("RunConfig field $k is not mapped onto the solver")
+    end
+    @test length(mapped) == 12
+    # the two verbosity/observer-only fields are deliberately NOT solver inputs
+    @test cfg.gmres.verbosity === :Quiet && cfg.multigrid.verbosity === :Silent
 end
 
 # ============================== (a) THE ROW-42 ORACLE ====================================
@@ -275,6 +335,61 @@ end
     @test field_at(sol, Ψ, sol.orbit.r0, 0.5) == field_at(sol, Ψ, sol.orbit.r0, 0.5)
     @test_throws ArgumentError field_at(sol, 1.0e9, 0.5)          # outside every element
     @test_throws ArgumentError field_at(sol, zeros(ComplexF64, 3), sol.orbit.r0, 0.5)
+end
+
+@testset "(M2) field_grad_at: exact on polynomials, spectral against a finite difference" begin
+    sol = sol05
+    mesh = sol.mesh
+    # ---- EXACTNESS on a manufactured polynomial of the element's own degree
+    e = 1
+    el = mesh.elements[e]
+    blk = mesh.blocks[mesh.blockindex[el.block]]
+    nx, ny = mesh.orders[e]
+    em = element_matrices(Float64, blk, el, mesh.orders[e])
+    f(x, y)  = 2.0 + 0.7x - 1.3y + 0.45x^2 * y - 0.2y^3 + 0.11x^3
+    fx(x, y) = 0.7 + 0.9x * y + 0.33x^2
+    fy(x, y) = -1.3 + 0.45x^2 - 0.6y^2
+    vals = zeros(ComplexF64, mesh.ndofs)
+    for j in 1:ny, i in 1:nx
+        vals[mesh.offsets[e] + tensor_lin(i, j, nx)] = f(em.x[1][i], em.x[2][j])
+    end
+    xq, yq = em.x[1][2], em.x[2][2]
+    g = field_grad_at(sol, vals, xq, yq; element = e)
+    @test isapprox(real(g[1]), fx(xq, yq); rtol = 1e-10)      # exact to roundoff
+    @test isapprox(real(g[2]), fy(xq, yq); rtol = 1e-10)
+    @test field_at(sol, vals, xq, yq; element = e) ≈ f(xq, yq) rtol = 1e-12
+
+    # ---- SPECTRAL agreement with a finite difference of field_at on the REAL solution
+    r0, w0 = sol.orbit.r0 + 1.7, 0.4
+    e2 = ScalarSelfForce._dr_locate(mesh, r0, w0)
+    gr = field_grad_at(sol, r0, w0; element = e2)
+    h = 1e-5
+    fd1 = (field_at(sol, r0 + h, w0; element = e2) -
+           field_at(sol, r0 - h, w0; element = e2)) / (2h)
+    fd2 = (field_at(sol, r0, w0 + h; element = e2) -
+           field_at(sol, r0, w0 - h; element = e2)) / (2h)
+    @test isapprox(gr[1], fd1; rtol = 1e-6)
+    @test isapprox(gr[2], fd2; rtol = 1e-6)
+    # the short form differentiates sol.u, and any nodal field is accepted
+    @test field_grad_at(sol, r0, w0; element = e2) == field_grad_at(sol, sol.u, r0, w0;
+                                                                   element = e2)
+    @test_throws ArgumentError field_grad_at(sol, zeros(ComplexF64, 3), r0, w0)
+
+    # ---- ONE-SIDED traces at the worldtube seam differ (a DG derivative is discontinuous)
+    f0 = first(worldtube_boundary_faces(mesh, el2 -> inside_worldtube(sol.dom, el2)))
+    elf, d, sidx = f0
+    ei = mesh.index[elf]
+    nb = mesh.faces[ei][d][sidx].nbs[1]
+    xf, mpts = worldtube_face_points(mesh, f0)
+    tq = mpts[1][1]
+    xa, xb = d == 1 ? (xf, tq) : (tq, xf)
+    gin  = field_grad_at(sol, xa, xb; element = ei)
+    gout = field_grad_at(sol, xa, xb; element = nb)
+    @test gin != gout
+    # ... and field_grad_at agrees with the test-local prototype it was promoted from
+    vi, di = dv_trace(mesh, sol.u, ei, xa, xb, d)
+    @test field_at(sol, xa, xb; element = ei) ≈ vi rtol = 1e-12
+    @test gin[d] ≈ di rtol = 1e-10
 end
 
 # ==================== (b) self-consistency: residual and direct_solve ====================
@@ -502,15 +617,20 @@ end
                    options = solver_options(cfg; coarse_levels = nothing))
     # h-coarsening to the irreducible block structure (main.tex:672): 20 → 10 elements
     @test s.record.level_ndofs == [320, 160]
-    @test s.result.residual <= cfg.gmres.absolute_residual   # MEASURED 2.55e-13
-    # MEASURED 10 iterations — AT the paper's "< 10 per AMR level" boundary, not below it.
-    # Recorded as a FINDING; the gate is the sealed row-21 envelope of 15.
+    @test s.result.residual <= cfg.gmres.absolute_residual
+    # MEASURED 9 at the yaml-resolved overlap 4 (10 at the package default 2) — BELOW the
+    # paper's "< 10 per AMR level". This is the L = 0 fine mesh; the sweep that tests
+    # main.tex:720 properly is (e5).
+    @test s.result.iterations == 9
     @test s.result.iterations <= 15
     @test s.stack.bottom_cache.builds == 1
     @test length(s.stack.hierarchy.levels) == 2
 end
 
-@testset "(e3) rebuild_for_mesh! on a coarsened and on an hp-refined mesh" begin
+# NOTE (e3)/(e4) refine EVERY worldtube element = UNIFORM in-tube h refinement. That is NOT
+# the paper's RefineAtPuncture criterion (yaml:132, main.tex:552-560) — see (e5), which is
+# the measurement of record for the iteration-count claim.
+@testset "(e3) rebuild_for_mesh! on a coarsened and a UNIFORMLY in-tube hp-refined mesh" begin
     cfg = dv_cfg(; spin = 0.5, m = 2)
 
     # ---- a COARSENED mesh
@@ -550,12 +670,14 @@ end
     @test_throws ArgumentError rebuild_for_mesh!(sol2, sol2.mesh; u = zeros(ComplexF64, 3))
 end
 
-@testset "(e4) coarse_orders: the MIN rule vs spectre parity over one hp step" begin
+@testset "(e4) coarse_orders MIN vs parity, one UNIFORM in-tube hp step" begin
     cfg = dv_cfg(; spin = 0.5, m = 2)
     rows = map((nothing, 4)) do co
+        # overlap pinned to the package default 2 so this contrast matches the table quoted
+        # below (the yaml-resolved overlap 4 shifts it to 9, 8 / 9, 9 — see (e6))
         s = solve_mode(dv_orb(cfg), cfg, 2;
                        options = solver_options(cfg; coarse_levels = nothing,
-                                                coarse_orders = co))
+                                                coarse_orders = co, overlap = 2))
         its0, bot0 = s.result.iterations, s.stack.bottom_cache.builds
         flags = [el for el in s.mesh.elements if inside_worldtube(s.dom, el)]
         nm = hp_refine(s.mesh, flags)
@@ -575,13 +697,110 @@ end
     # after the hp step spectre parity keeps THE BOTTOM GRID ITSELF fixed (main.tex:674:
     # "the bottom grid remains the same even when AMR adds finer levels"), so its cached LU
     # is a HIT; the MIN rule raises the coarsest order, changing the grid and rebuilding the
-    # LU. MEASURED over four hp steps — parity: coarsest 160 dofs throughout, bottom builds
-    # 1/0/0/0, iterations 10, 10, 12; MIN rule: coarsest 160 → 241 → 340 → 457 dofs, bottom
-    # builds 1/1/1/1, iterations 10, 9, 10, 12. The iteration cost of parity is ≤ 2.
+    # LU. MEASURED over FIVE levels of UNIFORM in-tube refinement (320 → 681 → 1924 → 6252 →
+    # 21632 dofs) at overlap 2 — MIN 10, 9, 10, 12, 14 (coarsest 160 → 241 → 340 → 457 → 592,
+    # bottom builds 1/1/1/1/1); parity 10, 10, 12, 15, 32 (coarsest 160 throughout, builds
+    # 1/0/0/0/0). Parity's cost here is 0, +1, +2, +3, +18 — it GROWS, it is not "≤ 2"; the
+    # ≤ 2 figure belongs to the RefineAtPuncture sweep of (e5).
     @test rows[2].coarsest == 160                       # the bottom grid did NOT move
     @test rows[1].coarsest > 160                        # ... under the MIN rule it did
     @test rows[2].bottom[2] == 1                        # built once, then hit
     @test rows[1].bottom[2] == 2                        # rebuilt on the hp step
+end
+
+# elements whose CLOSURE contains the particle (r0, w = 0) — the paper's RefineAtPuncture
+# criterion (yaml:132, main.tex:552-560), NOT "every worldtube element"
+function dv_puncture_elements(sol, mesh)
+    RT = Float64; tol = 1e-9; out = ElementId[]
+    for e in eachindex(mesh.elements)
+        el = mesh.elements[e]; blk = mesh.blocks[mesh.blockindex[el.block]]
+        inside = true
+        for d in 1:2
+            lo, hi = logical_interval(RT, el, d)
+            x = d == 1 ? sol.orbit.r0 : 0.0
+            ζ = map_inverse(blockmap(blk, d), x)
+            ξ = (2ζ - (lo + hi)) / (hi - lo)
+            (-1 - tol <= ξ <= 1 + tol) || (inside = false; break)
+        end
+        inside && push!(out, el)
+    end
+    return out
+end
+
+@testset "(e5) H1: RefineAtPuncture — the paper's own criterion, the measurement of record" begin
+    # THE CLAIM UNDER TEST is main.tex:720 ("less than 10 iterations per AMR level") together
+    # with main.tex:722 (scale independence). It must be measured under the paper's OWN
+    # refinement criterion; (e3)/(e4) refine the whole worldtube and are a different sweep.
+    cfg = dv_cfg(; spin = 0.5, m = 2)
+    for (co, expect) in ((nothing, [9, 8, 8, 7, 6]), (4, [9, 8, 9, 9, 9]))
+        s = solve_mode(dv_orb(cfg), cfg, 2;
+                       options = solver_options(cfg; coarse_levels = nothing,
+                                                coarse_orders = co))
+        its = [s.result.iterations]
+        nd = [s.mesh.ndofs]
+        coarsest = [s.stack.hierarchy.levels[end].mesh.ndofs]
+        bot = [s.stack.bottom_cache.builds]
+        for _ in 1:4
+            flags = dv_puncture_elements(s, s.mesh)
+            @test 1 <= length(flags) <= 4        # a CORNER point, not the whole tube
+            nm = hp_refine(s.mesh, flags)
+            u = transfer_solution(s.mesh, nm, s.u)
+            rebuild_for_mesh!(s, nm; u = u)
+            solve_mode!(s; x0 = s.u)
+            push!(its, s.result.iterations); push!(nd, s.mesh.ndofs)
+            push!(coarsest, s.stack.hierarchy.levels[end].mesh.ndofs)
+            push!(bot, s.stack.bottom_cache.builds)
+            @test s.result.residual <= cfg.gmres.absolute_residual
+        end
+        @test nd == [320, 603, 962, 1425, 2004]
+        @test its == expect                       # the WHOLE sequence, not one step
+        # main.tex:720 HOLDS under the paper's criterion, at every level
+        @test all(<=(10), its)
+        if co === nothing
+            @test its[end] < its[1]               # main.tex:722: the count DECREASES with depth
+            @test coarsest == [160, 241, 340, 457, 592]
+            @test bot == [1, 2, 3, 4, 5]          # MIN rule rebuilds the bottom LU every step
+        else
+            @test coarsest == fill(160, 5)        # main.tex:674: the bottom grid does NOT move
+            @test bot == fill(1, 5)               # ... and its LU is built ONCE, then hit
+        end
+    end
+end
+
+@testset "(e6) H2: the resolved overlap saturates at the neighbour extent" begin
+    # spectre's Auto = min(volume_extent, nullopt) = volume_extent, so overlap >= P is the
+    # same subdomain; our schwarz.jl:120 clamp `min(ov, Nn[d])` reproduces it BITWISE.
+    cfg = dv_cfg(; spin = 0.5, m = 2)
+    runs = map((3, 4, 5)) do ov
+        s = solve_mode(dv_orb(cfg), cfg, 2;
+                       options = solver_options(cfg; coarse_levels = nothing, overlap = ov))
+        (its = s.result.iterations, res = s.result.residual, u = s.u)
+    end
+    @test runs[1].its == 10                        # overlap 3
+    @test runs[2].its == 9                         # overlap 4 = the yaml's Auto
+    @test runs[3].its == runs[2].its               # overlap 5 saturates ...
+    @test runs[3].res == runs[2].res               # ... BITWISE
+    @test runs[3].u == runs[2].u
+end
+
+@testset "(e7) H3: controlled hierarchy-depth comparison on ONE fine operator" begin
+    cfg = dv_cfg(; spin = 0.5, m = 2, L = 2)      # 5120 dofs
+    orb = dv_orb(cfg)
+    dom = block_domain(orb, cfg)
+    rows = map((0, 1, 2, 3)) do mc
+        s = solve_mode(orb, cfg, 2; dom = dom,
+                       options = solver_options(cfg; coarse_levels = mc, overlap = 2))
+        (mc = mc, levels = length(s.record.level_ndofs), lv = s.record.level_ndofs,
+         its = s.result.iterations, res = s.result.residual)
+    end
+    @test [r.levels for r in rows] == [1, 2, 3, 4]
+    @test rows[4].lv == [5120, 1280, 320, 160]
+    @test [r.its for r in rows] == [1, 20, 24, 25]
+    for r in rows
+        @test r.res <= cfg.gmres.absolute_residual
+    end
+    # the depth study is on ONE operator; it is NOT the 10/15/25 fine-mesh comparison
+    @test all(r -> r.lv[1] == 5120, rows)
 end
 
 # ==================== (f) the residual staircase and the build cost ======================
