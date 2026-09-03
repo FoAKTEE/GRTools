@@ -40,8 +40,7 @@ The solver stack, bottom to top:
   [`helmholtz_shift`](@ref) (`s = (mΩ)²` in t-slicing, `0` under
   hyperboloidal/null slicing) with its mass-weighted application route and the
   [`schwarz_preconditioner`](@ref) adapter that feeds a Schwarz smoother to
-  `gmres` as a right preconditioner. (The right-preconditioned composition API
-  `solve!` arrives with the solver-stack node.)
+  `gmres` as a right preconditioner.
 - **Geometric multigrid** — [`MultigridHierarchy`](@ref) h-coarsens a
   [`Mesh2D`](@ref) down to the irreducible block structure, one
   [`coarsen_mesh`](@ref) step at a time: each step merges every **complete
@@ -103,6 +102,49 @@ The solver stack, bottom to top:
   and correctly hits. `BigFloat`, `Complex{BigFloat}` and the 32-bit floats —
   everything UMFPACK does not take exactly — fall back to the generic dense LU
   in the caller's own precision (4.9e-77 at BigFloat(256)).
+- **Solver stack** — [`SolverStack`](@ref) is the paper's whole linear solver as
+  one object (main.tex:668-676, `fig:precond`): right-preconditioned complex
+  GMRES whose preconditioner is one multigrid V-cycle, two additive-Schwarz
+  passes per finer level, and a direct cached solve at the bottom. It is built
+  once per (mesh, operator) from a [`MeshOperator`](@ref) and the caller's
+  operator factory, configured by [`SolverStackOptions`](@ref) — a plain record
+  whose field names and defaults are the CRP's own solver input
+  (`anc/ScalarSelfForce.yaml:178-205`: abstol 1e-12, reltol 0, 500 iterations,
+  one V-cycle per GMRES iteration, pre-smoothing on, post-smoothing at the
+  bottom off, two Schwarz passes) — and driven by [`solve!`](@ref), which
+  returns the sealed [`GMRESResult`](@ref) unchanged. Two normative contracts
+  live in the [`SolverStack`](@ref) docstring. First, everything below GMRES is
+  LINEARIZED-only, so [`solve!`](@ref) takes the PHYSICAL right-hand side and
+  folds [`linearized_rhs`](@ref) internally — one extra operator apply, about
+  1 % of a V-cycle — while [`solve_linearized!`](@ref) is the separately named
+  route for a caller who already holds a folded one; the two are bitwise the
+  same run, and the trap the default removes is that a physical right-hand side
+  handed to the linearized solver *converges* on the wrong system. Second, ONE
+  caller-owned `epoch` governs BOTH caches — the shared
+  [`SubdomainCache`](@ref) and the [`BottomSolverCache`](@ref) — and must be
+  bumped, together with the new operator factory, on any matrix-affecting
+  change that is not a mesh change; only the bottom cache carries a fingerprint
+  assertion, the Schwarz cache trusts the epoch. [`rebuild!`](@ref) carries the
+  stack across an AMR step, replacing the operator factory and reusing every
+  factorization the contracts allow (measured over eight h steps: one bottom
+  LU, and every unchanged coarser level's subdomains reused), and is
+  failure-atomic; [`invalidate!`](@ref) bumps the epoch and rebuilds
+  everything. Under `hp_refine`, set `coarse_orders` to the run's initial
+  order: spectre's multigrid coarsens *h* only and holds its coarser levels at
+  the initial extents, which is what keeps the bottom LU cached across AMR
+  (main.tex:674) — at the price of iterations once the fine order runs ahead
+  (measured over six hp steps: one bottom build and 8→17 iterations pinned,
+  against six builds and 8→10 under the default minimum-order rule). The
+  preconditioner is a plain factory callable `f(stack) -> (Minv!, hierarchy)` —
+  no `Preconditioner`/`ldiv!` hierarchy exists in this package — with
+  [`multigrid_preconditioner`](@ref), [`schwarz_only_preconditioner`](@ref) and
+  [`no_preconditioner`](@ref) shipped; on the five-block gate model their
+  iteration counts order 8 < 17 < 229. A [`ResidualMonitor`](@ref) records one
+  [`SolveRecord`](@ref) per solve — the per-iteration residual staircase, wall
+  clock and preconditioner allocation, plus the preceding rebuild's build time
+  (charged to that one record, split into hierarchy and bottom) and its
+  cache-counter deltas — which is the data surface of `fig:linsolv`
+  ([`cumulative_iterations`](@ref) gives its left-to-right AMR-level axis).
 - **AMR** — mesh transformations for the CRP hp-AMR strategy, with
   caller-supplied refinement criteria: [`h_split`](@ref) halves the flagged
   elements along their flagged dimensions, [`balance_two_to_one`](@ref)

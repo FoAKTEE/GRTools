@@ -348,7 +348,7 @@ every level of a V-cycle.
 Added by `ESSF::solver-stack-core` to discharge the allocation obligation
 `ESSF::multigrid-hierarchy` filed as [FUTURE]. MEASURED on the sealed 4-level model: a
 V-cycle apply allocated 19 869 600 B, of which `smooth!`'s own per-call workspace is
-835 584 B (4.2 %) and the sealed matrix-free [`apply!`](@ref) — five calls per non-bottom
+781 584 B (3.93 %) and the sealed matrix-free [`apply!`](@ref) — five calls per non-bottom
 level — is the remaining 96 %. Preallocating `apply!`'s workspace needs `matrixfree.jl`
 and is a separate node.
 

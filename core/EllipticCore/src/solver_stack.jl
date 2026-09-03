@@ -21,7 +21,8 @@
 # `schwarz_only_preconditioner`, `no_preconditioner`) and a caller may pass its own.
 
 export SolverStackOptions, SolverStack, SolveRecord, ResidualMonitor,
-       solve!, rebuild!, invalidate!, linearized_rhs, cumulative_iterations,
+       solve!, solve_linearized!, rebuild!, invalidate!, linearized_rhs,
+       cumulative_iterations,
        multigrid_preconditioner, schwarz_only_preconditioner, no_preconditioner
 
 # ---- options ----------------------------------------------------------------------------
@@ -60,6 +61,18 @@ physics and no capability dependency).
   - `shrink` — the level policy of [`MultigridHierarchy`](@ref); no yaml twin. Default `1`
     (never skip a coarsening step) — see the `shrink` paragraph of [`SolverStack`](@ref) for
     the measured tradeoff table that fixed that default.
+  - `coarse_orders` — the coarse-level polynomial policy of [`MultigridHierarchy`](@ref); no
+    yaml twin. Default `nothing` (the MIN rule). Set it to the run's initial `P` for an
+    `hp_refine` sweep: spectre's multigrid coarsens h ONLY and allocates every level from the
+    same `initial_extents`, so its coarse levels keep a fixed order while p-AMR raises the fine
+    grid — which is what makes main.tex:674 ("the bottom grid remains the same even when AMR
+    adds finer levels") true. Under the MIN rule an hp step raises the coarsest order too and
+    the cached bottom LU is rebuilt every step (measured 6/6). It is a TRADE, not a free win:
+    on a sweep that p-refines every element six times the pinned coarse space falls six
+    orders behind the fine grid and the count grows 8 -> 17, against 8 -> 10 for the MIN
+    rule that rebuilds the bottom LU each step. Choose per run; both curves are gated.
+    See the `coarse_orders`
+    paragraph of [`MultigridHierarchy`](@ref) for the spectre file:line citations.
   - the yaml's multigrid-level `ComplexShift` (yaml:194) has NO field: the complex shift is
     subdomain-level only in this package (adopted decision 8) and the CRP's production value
     is `0.0` anyway.
@@ -86,6 +99,7 @@ struct SolverStackOptions{RT<:AbstractFloat}
     use_bottom_solver::Bool
     post_smoothing_at_bottom::Bool
     shrink::RT
+    coarse_orders::Union{Nothing,Int}
     overlap::Int
     passes::Int
     subdomain_complex_shift::RT
@@ -97,6 +111,7 @@ function SolverStackOptions(; abstol::Real = 1e-12, reltol::Real = 0,
                             initial_coarse_levels::Union{Nothing,Integer} = nothing,
                             pre_smoothing::Bool = true, use_bottom_solver::Bool = true,
                             post_smoothing_at_bottom::Bool = false, shrink::Real = 1,
+                            coarse_orders::Union{Nothing,Integer} = nothing,
                             overlap::Integer = 2, passes::Integer = 2,
                             subdomain_complex_shift::Real = 0)
     RT = float(promote_type(typeof(abstol), typeof(reltol), typeof(shrink),
@@ -119,11 +134,16 @@ function SolverStackOptions(; abstol::Real = 1e-12, reltol::Real = 0,
         throw(ArgumentError("SolverStackOptions: overlap must be ≥ 0, got $overlap"))
     passes >= 1 ||
         throw(ArgumentError("SolverStackOptions: passes must be ≥ 1, got $passes"))
+    coarse_orders === nothing || coarse_orders >= 1 ||
+        throw(ArgumentError("SolverStackOptions: coarse_orders must be ≥ 1, " *
+                            "got $coarse_orders"))
     icl = initial_coarse_levels === nothing ? nothing : Int(initial_coarse_levels)
+    cor = coarse_orders === nothing ? nothing : Int(coarse_orders)
     return SolverStackOptions{RT}(RT(abstol), RT(reltol), Int(maxiter), Int(restart),
                                   Int(multigrid_iterations), icl, pre_smoothing,
                                   use_bottom_solver, post_smoothing_at_bottom, RT(shrink),
-                                  Int(overlap), Int(passes), RT(subdomain_complex_shift))
+                                  cor, Int(overlap), Int(passes),
+                                  RT(subdomain_complex_shift))
 end
 
 # yaml InitialCoarseLevels (COARSER levels) → MultigridHierarchy maxlevels (TOTAL levels)
@@ -159,14 +179,27 @@ Wall clock (seconds, `Float64` at every scalar type):
   - `preconditioner_time[j]`, `operator_time[j]` — the V-cycle apply and the `A·z` apply
     inside iteration `j`; `iteration_time - (preconditioner_time + operator_time)` is the
     Arnoldi/Givens work.
-  - `preconditioner_bytes[j]` — bytes allocated by iteration `j`'s preconditioner apply.
+  - `preconditioner_bytes[j]` — bytes allocated by iteration `j`'s preconditioner apply,
+    from `Base.gc_bytes()` differences. That counter is PROCESS-WIDE, so on a threaded run or
+    beside any concurrent allocation it is an upper bound, not an isolated measurement; take
+    the per-apply figure from a quiet serial run (as the allocation gate does) and read this
+    field as a monitor, not as a benchmark.
 
 Build side (the "first iteration on each new AMR level is slower" story — see the
 `build_time` paragraph of [`ResidualMonitor`](@ref)):
-  - `build_time` — wall clock of the [`rebuild!`](@ref) that produced the preconditioner this
-    solve used, and `subdomain_builds`/`subdomain_hits`/`bottom_builds`/`bottom_hits` its
-    cache-counter deltas: how many subdomain factorizations and bottom LUs that rebuild
-    actually constructed versus reused.
+  - `build_time` — wall clock of THIS solve's own preceding [`rebuild!`](@ref): the factory
+    call that built the hierarchy, its Schwarz factorizations and the bottom solve. It is
+    charged to exactly ONE record — the first solve after that rebuild — and is `0.0` on every
+    later solve over the same preconditioner, so summing the column over an AMR sweep gives
+    the sweep's true build cost with no double counting. `build_time_hierarchy` and
+    `build_time_bottom` split it (hierarchy construction, which includes every Schwarz patch
+    factorization, versus the coarsest-level assembly and LU); they are `0.0` for a
+    preconditioner factory that builds neither.
+    `subdomain_builds`/`subdomain_hits`/`bottom_builds`/`bottom_hits` are that same rebuild's
+    cache-counter deltas — how many subdomain factorizations and bottom LUs it actually
+    constructed versus reused — and are likewise zero on the later records.
+    WARM UP BEFORE TIMING: the first rebuild in a process carries JIT (measured 9.9 s against
+    0.25-0.67 s warm on the same mesh).
   - `level_ndofs`, `level_subdomains` — per multigrid level (finest first); empty for a
     preconditioner without a hierarchy.
 
@@ -186,6 +219,8 @@ struct SolveRecord{RT<:Real}
     final_residual::RT
     solve_time::Float64
     build_time::Float64
+    build_time_hierarchy::Float64
+    build_time_bottom::Float64
     level_ndofs::Vector{Int}
     level_subdomains::Vector{Int}
     subdomain_builds::Int
@@ -262,8 +297,8 @@ GMRES whose preconditioner is ONE multigrid V-cycle, with two additive-Schwarz p
 finer level and a direct, cached solve at the bottom. Built ONCE per (mesh, operator) and
 carried across AMR steps with [`rebuild!`](@ref); solved with [`solve!`](@ref).
 
-    stack = SolverStack(op, build_op)                       # production defaults = the yaml
-    res   = solve!(u, stack, linearized_rhs(op, b_phys))    # a GMRESResult
+    stack = SolverStack(op, build_op)              # production defaults = the yaml
+    res   = solve!(u, stack, b_phys)               # a GMRESResult
 
 `op` is the finest [`MeshOperator`](@ref) — the matrix GMRES applies. `build_op(mesh) ->
 MeshOperator` is the caller's operator FACTORY, rediscretizing the SAME problem on any mesh it
@@ -275,17 +310,19 @@ is handed with that mesh's own boundary conditions (the [`MultigridHierarchy`](@
 Everything below GMRES is LINEARIZED-only. [`apply!`](@ref) is the linear-homogeneous matrix
 (fixed hook data and inhomogeneous boundary data are NOT in it), the Schwarz smoother and the
 V-cycle inherit that, and the multigrid coarse levels solve for a CORRECTION from a zero guess,
-so no fixed data may enter them. Therefore the right-hand side handed to [`solve!`](@ref) must
-already carry the operator-on-zero lift:
+so no fixed data may enter them. The right-hand side therefore has to carry the
+[`operator_on_zero`](@ref) lift — and [`solve!`](@ref) APPLIES THAT LIFT FOR YOU:
 
-    b = linearized_rhs(op, b_phys)        # == b_phys − operator_on_zero(op)
-    solve!(u, stack, b)                   # solves apply!(·, op, u) = b
+    solve!(u, stack, b_phys)                        # folds internally; the safe default
+    solve_linearized!(u, stack, linearized_rhs(op, b_phys))   # the pre-folded route
 
-[`linearized_rhs`](@ref) is the ONE place that folds fixed data; call it once per operator (it
-costs one full-operator apply) and never fold twice. Passing the physical `b_phys` directly is
-silent and wrong: the answer is the solution of a different problem. The falsifier is gated —
-the stack solves the nonzero-Dirichlet 5-block model to `direct_solve` only through
-`linearized_rhs`, and the V-cycle is bitwise linear, `M(2v) == 2M(v)`.
+The two are bitwise the same run (gated). The fold costs one full-operator apply, about 1 % of
+a single V-cycle. [`linearized_rhs`](@ref) is the ONE place fixed data is folded; the failure it
+guards against is not loud — a physical right-hand side handed to the linearized solver
+CONVERGES, `converged = true`, on a different problem (measured 3.4e3 relative error on the
+5-block gate model), which is why the safe route is the default and the pre-folded one carries
+its own name instead of a flag. Folding TWICE (handing `linearized_rhs(op, b)` to `solve!`) is
+an O(1) wrong answer and is the caller's error; both directions are gated.
 
 # THE TWO-CACHES-ONE-EPOCH CONTRACT (normative)
 
@@ -308,6 +345,16 @@ mesh is in both keys. Never rely on a cache "noticing" a coefficient change — 
 cache's operator fingerprint is a CONSISTENCY ASSERTION, not a detector: at an unchanged epoch
 with a matching structural key but a different operator it raises, naming this rule.
 
+ONLY THE BOTTOM CACHE CARRIES A SMOKE ALARM; THE SCHWARZ CACHE TRUSTS THE EPOCH. The bottom
+cache stores an operator fingerprint beside each factorization and raises when a structural-key
+hit at an unchanged epoch meets a different operator; the Schwarz cache has no such check by
+design — one fingerprint per patch would cost an operator apply per subdomain, and there are
+hundreds — so at a constant epoch a coefficient change silently reuses stale patch factors.
+Right preconditioning keeps the ANSWER correct in that case; what degrades is the preconditioner,
+and the symptom is an iteration count, not a wrong result (gated as a stack-level falsifier: the
+stale-Schwarz solve costs iterations and the epoch bump restores them). The epoch is the
+safeguard — bump it.
+
 Both caches GROW without bound and are never evicted: the caller owns their lifetime. Drop the
 stack (or hand `rebuild!` a fresh pair) to release the factorizations of an AMR sequence.
 NEITHER CACHE IS THREAD-SAFE, and neither is the stack: one stack, one thread at a time —
@@ -318,6 +365,10 @@ the bottom LU ONCE (seven hits) and reuse every subdomain of every unchanged lev
 `invalidate!` rebuilds all of them.
 
 # THE PRECONDITIONER SEAM
+
+The stack is MUTABLE and its callable fields (`build_op`, `precondition_build_op`,
+`make_preconditioner`, `preconditioner`) are untyped, because [`rebuild!`](@ref) replaces them:
+the per-solve cost is one dynamic call per GMRES iteration against a V-cycle, which is noise.
 
 `preconditioner` is a plain factory callable `f(stack) -> (Minv!, hierarchy_or_nothing)` — the
 `Minv!` right-preconditioner hook of [`gmres`](@ref) (DESIGN.md §4.3: no `Preconditioner`/
@@ -376,24 +427,29 @@ callers whose meshes are graded.
 
 Fields: `op`, `build_op`, `precondition_build_op`, `options`, `subdomain_cache`,
 `bottom_cache`, `epoch`, `preconditioner` (the live `Minv!`), `hierarchy` (the live
-[`MultigridHierarchy`](@ref) or `nothing`), `build_time` and `build_stats` (the last
-[`rebuild!`](@ref)'s wall clock and its `(subdomain builds, hits, bottom builds, hits)`
-deltas). The stack is MUTABLE and single-application at a time, exactly like the
-[`MultigridV`](@ref) it holds: build one per thread.
+[`MultigridHierarchy`](@ref) or `nothing`), `build_time` with its `build_time_hierarchy` /
+`build_time_bottom` split and `build_stats` (the last [`rebuild!`](@ref)'s wall clock and its
+`(subdomain builds, hits, bottom builds, hits)` deltas), and `build_pending` (whether the next
+[`solve!`](@ref) still owes that rebuild's cost to its [`SolveRecord`](@ref)). The stack is
+MUTABLE and single-application at a time, exactly like the [`MultigridV`](@ref) it holds:
+build one per thread.
 """
-mutable struct SolverStack{T<:Number,RT<:AbstractFloat,F,G,P}
+mutable struct SolverStack{RT<:AbstractFloat}
     op::MeshOperator
-    build_op::F
-    precondition_build_op::G
+    build_op::Any
+    precondition_build_op::Any
     options::SolverStackOptions{RT}
-    make_preconditioner::P
+    make_preconditioner::Any
     subdomain_cache::SubdomainCache
     bottom_cache::BottomSolverCache
     epoch::Int
     preconditioner::Any
     hierarchy::Any
     build_time::Float64
+    build_time_hierarchy::Float64
+    build_time_bottom::Float64
     build_stats::NTuple{4,Int}
+    build_pending::Bool
 end
 
 function SolverStack(op::MeshOperator, build_op;
@@ -403,58 +459,106 @@ function SolverStack(op::MeshOperator, build_op;
                      subdomain_cache::SubdomainCache = SubdomainCache(),
                      bottom_cache::BottomSolverCache = BottomSolverCache(),
                      epoch::Integer = 0)
-    T = _scalar(op)
     RT = typeof(options).parameters[1]
-    stack = SolverStack{T,RT,typeof(build_op),typeof(precondition_build_op),
-                        typeof(preconditioner)}(
-        op, build_op, precondition_build_op, options, preconditioner,
-        subdomain_cache, bottom_cache, Int(epoch), nothing, nothing, 0.0, (0, 0, 0, 0))
+    stack = SolverStack{RT}(op, build_op, precondition_build_op, options, preconditioner,
+                            subdomain_cache, bottom_cache, Int(epoch), nothing, nothing,
+                            0.0, 0.0, 0.0, (0, 0, 0, 0), false)
     return rebuild!(stack, op; epoch = epoch)
 end
 
 """
-    rebuild!(stack::SolverStack, op = stack.op; epoch = stack.epoch) -> stack
+    rebuild!(stack::SolverStack, op = stack.op; epoch = stack.epoch,
+             build_op = stack.build_op, precondition_build_op = …) -> stack
 
-Rebuild the stack's preconditioner for a new finest operator `op` — the AMR step. Both caches
-are reused, so an unchanged coarser level costs zero factorizations and the bottom LU survives
-as long as the coarsest grid and coarsest operator do (the two-caches-one-epoch contract of
-[`SolverStack`](@ref)). Bump `epoch` to force an unconditional rebuild of everything; that is
-what [`invalidate!`](@ref) does. Records the rebuild's wall clock in `stack.build_time` and its
-cache-counter deltas in `stack.build_stats`, which the next [`solve!`](@ref) copies into its
-[`SolveRecord`](@ref).
+Rebuild the stack's preconditioner. This is BOTH the AMR step (a new mesh, same factory) and
+the coefficient step (the same mesh, a NEW factory) — and the two are not interchangeable:
+
+  - AMR: `rebuild!(stack, build_op(new_mesh))`. Both caches are reused, so an unchanged coarser
+    level costs zero factorizations and the bottom LU survives as long as the coarsest grid and
+    operator do. No `epoch` bump (the mesh is in both keys).
+  - COEFFICIENTS / hooks / boundary conditions / penalty / shift: hand `rebuild!` (or
+    [`invalidate!`](@ref)) the NEW `build_op` **and** bump the `epoch`. THE FACTORY IS WHAT THE
+    COARSE LEVELS ARE REDISCRETIZED FROM: leaving it stale silently preconditions with the old
+    operator on every level below the finest, which the residual never reveals because right
+    preconditioning keeps the answer correct — it only costs iterations. The stack therefore
+    replaces `build_op` here rather than capturing it once at construction.
+
+`precondition_build_op` defaults to `build_op` when the stack was UNDAMPED
+(`precondition_build_op === build_op` at the previous rebuild), so the undamped route follows
+the new factory automatically; a stack carrying a separate damped factory (the complex-shift
+route) keeps it, and a caller whose damping changed must pass the new one explicitly.
+
+FAILURE-ATOMIC: `op`, `epoch`, the factories, the preconditioner and the hierarchy are all
+committed only after the factory returns. If it throws, the stack is left exactly as it was and
+the exception propagates. The one thing that is NOT rolled back is the caller-owned caches: a
+factorization built before the throw stays in them. That is safe — every entry is keyed by
+`(element, shape, epoch, shift)` or by the bottom key, so it is a correct entry, merely built
+early — but it means `stack.build_stats` and the cache counters may move on a failed rebuild.
+
+Records this rebuild's wall clock in `stack.build_time` (split into `build_time_hierarchy` and
+`build_time_bottom`) and its cache-counter deltas in `stack.build_stats`; the NEXT
+[`solve!`](@ref) copies them into its [`SolveRecord`](@ref) and later solves record `0.0`
+(see [`SolveRecord`](@ref)).
 
 Every mesh-derived object of the previous step is stale after an AMR step (the sealed AMR
-contract), so hand `rebuild!` the operator built on the NEW mesh — the stack rebuilds
-everything below it.
+contract), so hand `rebuild!` the operator built on the NEW mesh.
 """
 function rebuild!(stack::SolverStack, op::MeshOperator = stack.op;
-                  epoch::Integer = stack.epoch)
+                  epoch::Integer = stack.epoch,
+                  build_op = stack.build_op,
+                  precondition_build_op =
+                      stack.precondition_build_op === stack.build_op ? build_op :
+                      stack.precondition_build_op)
     _scalar(op) === _scalar(stack.op) ||
         throw(ArgumentError("rebuild!: the new operator has scalar type $(_scalar(op)), " *
                             "the stack was built for $(_scalar(stack.op))"))
-    stack.op = op
-    stack.epoch = Int(epoch)
     sc, bc = stack.subdomain_cache, stack.bottom_cache
     b0 = (sc.builds, sc.hits, bc.builds, bc.hits)
-    t0 = time_ns()
-    pc, hier = stack.make_preconditioner(stack)
-    stack.build_time = (time_ns() - t0) / 1e9
+    saved = (stack.op, stack.build_op, stack.precondition_build_op, stack.epoch)
+    stack.op = op
+    stack.build_op = build_op
+    stack.precondition_build_op = precondition_build_op
+    stack.epoch = Int(epoch)
+    stack.build_time_hierarchy = 0.0
+    stack.build_time_bottom = 0.0
+    local pc, hier, dt
+    try
+        t0 = time_ns()
+        pc, hier = stack.make_preconditioner(stack)
+        dt = (time_ns() - t0) / 1e9
+    catch
+        stack.op, stack.build_op, stack.precondition_build_op, stack.epoch = saved
+        rethrow()
+    end
     stack.preconditioner = pc
     stack.hierarchy = hier
+    stack.build_time = dt
     stack.build_stats = (sc.builds - b0[1], sc.hits - b0[2], bc.builds - b0[3], bc.hits - b0[4])
+    stack.build_pending = true
     return stack
 end
 
 """
-    invalidate!(stack::SolverStack; epoch = stack.epoch + 1) -> stack
+    invalidate!(stack::SolverStack; epoch = stack.epoch + 1, build_op = stack.build_op,
+                precondition_build_op = …) -> stack
 
 Bump the caches' coefficient `epoch` and rebuild — the explicit invalidator of the
 two-caches-one-epoch contract ([`SolverStack`](@ref)). Call it whenever the operator's
-coefficients, hooks, boundary conditions or penalty changed without the mesh changing: no cache
-key can see a caller's closures, so a structural key alone would return a stale factorization.
+coefficients, hooks, boundary conditions or penalty changed without the mesh changing, and pass
+the NEW `build_op` along with the new finest `op`: the epoch alone invalidates the CACHES, the
+factory is what the coarse levels are rediscretized from ([`rebuild!`](@ref)).
+
+    op = new_build_op(mesh)
+    invalidate!(stack; build_op = new_build_op)      # after stack.op = op, or:
+    rebuild!(stack, op; epoch = stack.epoch + 1, build_op = new_build_op)
 """
-invalidate!(stack::SolverStack; epoch::Integer = stack.epoch + 1) =
-    rebuild!(stack, stack.op; epoch = epoch)
+invalidate!(stack::SolverStack; epoch::Integer = stack.epoch + 1,
+            build_op = stack.build_op,
+            precondition_build_op =
+                stack.precondition_build_op === stack.build_op ? build_op :
+                stack.precondition_build_op) =
+    rebuild!(stack, stack.op; epoch = epoch, build_op = build_op,
+             precondition_build_op = precondition_build_op)
 
 # ---- the shipped preconditioner factories -----------------------------------------------
 
@@ -477,17 +581,21 @@ hierarchy takes the stack's shared [`SubdomainCache`](@ref) and the bottom solve
 """
 function multigrid_preconditioner(stack::SolverStack)
     o = stack.options
+    th = time_ns()
     hier = MultigridHierarchy(_ss_precond_op(stack), stack.precondition_build_op;
                               caches = stack.subdomain_cache, epoch = stack.epoch,
                               overlap = o.overlap, shift = o.subdomain_complex_shift,
-                              maxlevels = _ss_maxlevels(o), shrink = o.shrink)
-    # the bottom solver is built on the COARSEST level's operator, never the finest
-    # (the ESSF::multigrid-bottom-solver contract). When that node's hierarchy-aware
-    # constructor `sparse_bottom_solver(hier; cache, epoch)` lands it selects the same
-    # operator; this call is the form that exists today.
+                              maxlevels = _ss_maxlevels(o), shrink = o.shrink,
+                              coarse_orders = o.coarse_orders)
+    stack.build_time_hierarchy = (time_ns() - th) / 1e9
+    tb = time_ns()
+    # the hierarchy-aware constructor of ESSF::multigrid-bottom-solver: it selects
+    # `hier.levels[end].op` itself, so the coarsest operator can never be confused with the
+    # finest one at this call site.
     bottom = o.use_bottom_solver ?
-             sparse_bottom_solver(hier.levels[end].op; cache = stack.bottom_cache,
-                                  epoch = stack.epoch) : nothing
+             sparse_bottom_solver(hier; cache = stack.bottom_cache, epoch = stack.epoch) :
+             nothing
+    stack.build_time_bottom = (time_ns() - tb) / 1e9
     mg = MultigridV(hier; passes = o.passes, iterations = o.multigrid_iterations,
                     pre_smoothing = o.pre_smoothing,
                     post_smoothing_at_bottom = o.post_smoothing_at_bottom, bottom = bottom)
@@ -539,37 +647,75 @@ linearized_rhs(stack::SolverStack, b_phys::AbstractVector) = linearized_rhs(stac
 # ---- solve ------------------------------------------------------------------------------
 
 """
-    solve!(u, stack::SolverStack, b; x0 = nothing, monitor = nothing,
+    solve!(u, stack::SolverStack, b_phys; x0 = nothing, monitor = nothing,
            true_residual_probe = false) -> GMRESResult
 
-Solve `apply!(·, stack.op, u) = b` with right-preconditioned GMRES over the stack's
-preconditioner, writing the solution into `u` and returning the sealed
-[`GMRESResult`](@ref) unchanged (`x`, `iterations`, `residual`, `converged`, `breakdown`,
-`history`).
+Solve `stack.op · u = b_phys` for the PHYSICAL right-hand side, writing the solution into `u`
+and returning the sealed [`GMRESResult`](@ref) unchanged (`x`, `iterations`, `residual`,
+`converged`, `breakdown`, `history`).
 
-`b` MUST already carry the operator-on-zero correction — `b = linearized_rhs(op, b_phys)` —
-see the linearized-RHS contract of [`SolverStack`](@ref). `x0` warm-starts the iteration
-(default zero).
+THE FOLD IS DONE FOR YOU. Everything below GMRES is LINEARIZED-only, so the operator's fixed
+boundary/hook data has to be lifted out of the right-hand side ([`linearized_rhs`](@ref));
+`solve!` does exactly that, once, and then calls [`solve_linearized!`](@ref):
 
-`monitor::ResidualMonitor` appends one [`SolveRecord`](@ref) with the per-iteration residual
-staircase, wall clock and preconditioner allocation, plus the preceding [`rebuild!`](@ref)'s
-build cost and cache-counter deltas. With `monitor = nothing` (the default) the call is
-literally `gmres(stack.op, b; Minv! = stack.preconditioner, …)` and nothing is measured;
-instrumentation wraps the two callables and does not touch the arithmetic, so a monitored
-solve is BITWISE an unmonitored one (gated). `true_residual_probe = true` additionally fills
-the record's `true_residual`/`preconditioned_residual` by re-solving with `maxiter = 1, 2, …`
-— exact, O(k²) applies, diagnostic only.
+    solve!(u, stack, b_phys) ≡ solve_linearized!(u, stack, linearized_rhs(stack.op, b_phys))
+
+(bitwise, gated). It costs ONE extra full-operator apply — about 1 % of a single V-cycle — and
+it removes the failure this API previously invited: a physical right-hand side handed to the
+linearized solver converges happily on the WRONG system (measured 3.4e3 relative error on the
+5-block gate model, `converged = true`). Callers that already hold a folded right-hand side use
+[`solve_linearized!`](@ref); DOUBLE-FOLDING (passing `linearized_rhs(op, b)` to `solve!`) is an
+O(1) wrong answer and is the caller's error, gated as a falsifier.
+
+`x0` warm-starts the iteration (default zero).
+
+`monitor::ResidualMonitor` appends one [`SolveRecord`](@ref) — see [`solve_linearized!`](@ref).
 """
-function solve!(u::AbstractVector, stack::SolverStack, b::AbstractVector;
+function solve!(u::AbstractVector, stack::SolverStack, b_phys::AbstractVector;
                 x0::Union{Nothing,AbstractVector} = nothing,
                 monitor::Union{Nothing,ResidualMonitor} = nothing,
                 true_residual_probe::Bool = false)
+    length(b_phys) == stack.op.mesh.ndofs ||
+        throw(ArgumentError("solve!: b has length $(length(b_phys)), the mesh has " *
+                            "$(stack.op.mesh.ndofs) dofs"))
+    return solve_linearized!(u, stack, linearized_rhs(stack.op, b_phys); x0 = x0,
+                             monitor = monitor, true_residual_probe = true_residual_probe)
+end
+
+"""
+    solve_linearized!(u, stack::SolverStack, b; x0 = nothing, monitor = nothing,
+                      true_residual_probe = false) -> GMRESResult
+
+The pre-folded route: solve `apply!(·, stack.op, u) = b` with right-preconditioned GMRES over
+the stack's preconditioner, for a `b` that ALREADY carries the operator-on-zero correction
+(`b = linearized_rhs(op, b_phys)`). Prefer [`solve!`](@ref), which folds for you; use this one
+when the folded right-hand side is already in hand (an AMR sweep that reuses it, or a caller
+assembling `b` in linearized form to begin with) and the extra apply is worth avoiding.
+
+`x0` warm-starts the iteration (default zero).
+
+`monitor::ResidualMonitor` appends one [`SolveRecord`](@ref) with the per-iteration residual
+staircase, wall clock and preconditioner allocation, plus — on the FIRST solve after a
+[`rebuild!`](@ref) — that rebuild's build cost and cache-counter deltas. With
+`monitor = nothing` (the default) the call is literally
+`gmres(stack.op, b; Minv! = stack.preconditioner, …)` and nothing is measured; instrumentation
+wraps the two callables and does not touch the arithmetic, so a monitored solve is BITWISE an
+unmonitored one (gated). `true_residual_probe = true` additionally fills the record's
+`true_residual`/`preconditioned_residual` by re-solving with `maxiter = 1, 2, …` — exact,
+O(k²) applies, diagnostic only.
+"""
+function solve_linearized!(u::AbstractVector, stack::SolverStack, b::AbstractVector;
+                           x0::Union{Nothing,AbstractVector} = nothing,
+                           monitor::Union{Nothing,ResidualMonitor} = nothing,
+                           true_residual_probe::Bool = false)
     o = stack.options
     n = stack.op.mesh.ndofs
     length(u) == n ||
-        throw(ArgumentError("solve!: u has length $(length(u)), the mesh has $n dofs"))
+        throw(ArgumentError("solve_linearized!: u has length $(length(u)), the mesh has " *
+                            "$n dofs"))
     length(b) == n ||
-        throw(ArgumentError("solve!: b has length $(length(b)), the mesh has $n dofs"))
+        throw(ArgumentError("solve_linearized!: b has length $(length(b)), the mesh has " *
+                            "$n dofs"))
     M! = stack.preconditioner
     if monitor === nothing
         res = gmres(stack.op, b; abstol = o.abstol, reltol = o.reltol, maxiter = o.maxiter,
@@ -623,11 +769,16 @@ function _ss_solve_monitored!(u, stack::SolverStack, b, x0, monitor::ResidualMon
     hier = stack.hierarchy
     lnd = hier === nothing ? Int[] : [l.mesh.ndofs for l in hier.levels]
     lns = hier === nothing ? Int[] : [length(l.smoother.subdomains) for l in hier.levels]
+    # THE BUILD COST BELONGS TO ONE RECORD. `rebuild!` arms `build_pending`; the first solve
+    # after it takes the cost, every later solve on the same preconditioner records 0.
+    bt, bth, btb, bs = stack.build_pending ?
+        (stack.build_time, stack.build_time_hierarchy, stack.build_time_bottom,
+         stack.build_stats) : (0.0, 0.0, 0.0, (0, 0, 0, 0))
+    stack.build_pending = false
     push!(monitor.records,
           SolveRecord{RT}(RT.(res.history), truer, pcr, itime, ptime, otime, pbytes,
                           res.iterations, res.converged, RT(res.residual), t_solve,
-                          stack.build_time, lnd, lns, stack.build_stats[1],
-                          stack.build_stats[2], stack.build_stats[3], stack.build_stats[4]))
+                          bt, bth, btb, lnd, lns, bs[1], bs[2], bs[3], bs[4]))
     return res
 end
 

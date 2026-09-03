@@ -17,8 +17,9 @@
 #      coefficients, and NONZERO fixed Dirichlet data on every boundary face folded through
 #      `linearized_rhs`. At the yaml production tolerance (abstol 1e-12, reltol 0, maxiter
 #      500) the stack converges in 8 iterations at the k=1 mesh (404 dofs, 23 elements, 4
-#      levels) and 10 at k=2 (1472 dofs, 83 elements, 6 levels) — gate < 15, the sealed
-#      multigrid model measured 7 on a uniform two-block mesh.
+#      levels) and 10 at k=2 (1472 dofs, 83 elements, 6 levels) — gate < 15. The sealed
+#      multigrid model's 7 was measured at reltol 1e-10 on a uniform two-block mesh; at THIS
+#      file's abstol 1e-12 that same sealed model also takes 8, so the two agree.
 #      LANDED DEVIATION on the planned "solution equals direct_solve to 1e-10": at abstol
 #      1e-12 on a UNIT-NORM right-hand side the measured agreement is 1.64e-10 (k=1) and
 #      1.75e-10 (k=2) — the model's residual-to-error amplification is ≈ 4.5e2, a
@@ -70,8 +71,10 @@ const SK_DIRECT_TOL     = 1e-9      # (a) at abstol 1e-12: measured 1.64e-10 / 1
 const SK_DIRECT_TIGHT   = 1e-10     # (a) at abstol 1e-14: measured 3.47e-12 / 6.15e-13
 const SK_TIGHT_ABSTOL   = 1e-14     # (a) the tolerance-limitation probe
 const SK_MG_ITERS       = 12        # (c) multigrid,     measured 8
-const SK_SW_ITERS       = 30        # (c) Schwarz-only,  measured 18
+const SK_SW_ITERS       = 30        # (c) Schwarz-only, measured 17 (RHS-dependent, 17-18)
 const SK_NONE_ITERS     = 400       # (c) unpreconditioned, measured 229
+const SK_STALE_ITERS    = 40        # (M2) stale-Schwarz cost, measured 77 against 7
+const SK_HP_ITER_GATE   = 20        # (M1) pinned coarse order over 6 hp steps: measured 17
 const SK_AMR_STEPS      = 8         # (e) mock AMR sweep length
 const SK_AMR_ITER_GATE  = 13        # (e) 8-deep corner cascade: measured 8,9,9,9,9,10,10,11
 const SK_AMR_EARLY_GATE = 10        # (e) the paper's "< 10" holds for the first 6 steps
@@ -168,7 +171,8 @@ end
 # ---------------------------------------------------- exports, options, docstrings -------
 @testset "exports, options and the normative docstrings" begin
     for f in (:SolverStackOptions, :SolverStack, :SolveRecord, :ResidualMonitor, :solve!,
-              :rebuild!, :invalidate!, :linearized_rhs, :cumulative_iterations,
+              :solve_linearized!, :rebuild!, :invalidate!, :linearized_rhs,
+              :cumulative_iterations,
               :multigrid_preconditioner, :schwarz_only_preconditioner, :no_preconditioner)
         @test isdefined(EllipticCore, f)
         @test Base.isexported(EllipticCore, f)
@@ -247,7 +251,7 @@ end
         @test linearized_rhs(stack, bphys) == b
 
         u = zeros(ComplexF64, n)
-        res = solve!(u, stack, b)
+        res = solve_linearized!(u, stack, b)
         @test res isa GMRESResult
         @test res.converged
         @test res.iterations == iters_expected
@@ -261,15 +265,28 @@ end
         # the planned 1e-10 IS reached — the agreement is tolerance-limited, not broken
         tight = SolverStack(op, fac; options = SolverStackOptions(; abstol = SK_TIGHT_ABSTOL))
         ut = zeros(ComplexF64, n)
-        rt = solve!(ut, tight, b)
+        rt = solve_linearized!(ut, tight, b)
         @test rt.converged
         @test rt.iterations < SK_ITER_GATE
         @test norm(ut - xd) / norm(xd) < SK_DIRECT_TIGHT
 
-        # FALSIFIER: skipping linearized_rhs is an O(1) wrong answer, never a small one
+        # H2: `solve!` takes the PHYSICAL rhs and folds internally — bitwise the pre-folded
+        # route, and the route a caller gets by default
+        up = zeros(ComplexF64, n)
+        rp = solve!(up, stack, bphys)
+        @test up == u
+        @test rp.iterations == res.iterations
+        @test rp.history == res.history
+        # FALSIFIER (now the CALLER's error, not the API's): folding twice is O(1) wrong
         uw = zeros(ComplexF64, n)
-        solve!(uw, stack, bphys)
+        solve!(uw, stack, b)
         @test norm(uw - xd) / norm(xd) > 0.1
+        # and the OLD trap is what `solve!` removes: the pre-folded route on a physical rhs
+        # still converges happily on the wrong system
+        uold = zeros(ComplexF64, n)
+        rold = solve_linearized!(uold, stack, bphys)
+        @test rold.converged
+        @test norm(uold - xd) / norm(xd) > 1e2
     end
 end
 
@@ -294,7 +311,7 @@ end
 
     stack = SolverStack(op, fac)
     u = zeros(ComplexF64, n)
-    got = solve!(u, stack, b)
+    got = solve_linearized!(u, stack, b)
     @test got.x == ref.x                       # BITWISE
     @test got.iterations == ref.iterations
     @test got.residual == ref.residual
@@ -321,7 +338,7 @@ end
     # a MONITORED solve is bitwise an unmonitored one
     mon = ResidualMonitor()
     u2 = zeros(ComplexF64, n)
-    got2 = solve!(u2, stack, b; monitor = mon)
+    got2 = solve_linearized!(u2, stack, b; monitor = mon)
     @test got2.x == ref.x
     @test got2.history == ref.history
     @test got2.iterations == ref.iterations
@@ -330,7 +347,7 @@ end
 
     # warm start: x0 = the converged answer costs zero iterations
     u3 = zeros(ComplexF64, n)
-    got3 = solve!(u3, stack, b; x0 = ref.x)
+    got3 = solve_linearized!(u3, stack, b; x0 = ref.x)
     @test got3.iterations == 0
     @test got3.converged
 end
@@ -349,7 +366,7 @@ end
         st = SolverStack(op, fac; preconditioner = factory,
                          options = SolverStackOptions(; maxiter = 2000, restart = 2000))
         u = zeros(ComplexF64, n)
-        r = solve!(u, st, b)
+        r = solve_linearized!(u, st, b)
         @test r.converged
         @test r.iterations <= gate
         @test norm(u - direct_solve(op, b)) / norm(direct_solve(op, b)) < SK_DIRECT_TOL
@@ -362,7 +379,8 @@ end
     # THIS model and RHS are printed so the log carries them (the gate is the ORDERING and
     # the calibrated bounds above, never a hand-fitted triple)
     println("  [gate (c)] 5-block iteration counts: multigrid=", counts[:mg],
-            " schwarz-only=", counts[:sw], " unpreconditioned=", counts[:id])
+            " schwarz-only=", counts[:sw], " unpreconditioned=", counts[:id],
+            "  (Schwarz-only is RHS-dependent: 17-18 across the seeds measured)")
     @test counts[:sw] >= 2 * counts[:mg]             # multigrid at least halves the count
     @test counts[:id] >= 5 * counts[:sw]             # and preconditioning is not optional
 
@@ -370,7 +388,7 @@ end
     st = SolverStack(op, fac; preconditioner = no_preconditioner,
                      options = SolverStackOptions(; maxiter = 2000, restart = 2000))
     u = zeros(ComplexF64, n)
-    r = solve!(u, st, b)
+    r = solve_linearized!(u, st, b)
     r0 = gmres(op, b; abstol = 1e-12, reltol = 0, maxiter = 2000, restart = 2000,
                Minv! = nothing)
     @test r.x == r0.x
@@ -384,7 +402,7 @@ end
     st2 = SolverStack(op, fac; preconditioner = my_factory,
                       options = SolverStackOptions(; maxiter = 2000, restart = 2000))
     u2 = zeros(ComplexF64, n)
-    r2 = solve!(u2, st2, b)
+    r2 = solve_linearized!(u2, st2, b)
     @test r2.converged
     @test counts[:mg] < r2.iterations < counts[:id]
 end
@@ -400,7 +418,7 @@ end
     mon = ResidualMonitor()
     @test isempty(mon)
     u = zeros(ComplexF64, n)
-    r = solve!(u, stack, b; monitor = mon, true_residual_probe = true)
+    r = solve_linearized!(u, stack, b; monitor = mon, true_residual_probe = true)
     @test length(mon) == 1
     rec = mon[1]
     @test rec isa SolveRecord{Float64}
@@ -445,11 +463,11 @@ end
     @test rec.preconditioned_residual[end] < rec.preconditioned_residual[1]
     # without the probe the exact vectors stay empty (it costs O(k²) applies)
     mon2 = ResidualMonitor()
-    solve!(zeros(ComplexF64, n), stack, b; monitor = mon2)
+    solve_linearized!(zeros(ComplexF64, n), stack, b; monitor = mon2)
     @test isempty(mon2[1].true_residual)
     @test isempty(mon2[1].preconditioned_residual)
     # the cumulative-iteration axis of the figure's top panel
-    solve!(zeros(ComplexF64, n), stack, b; monitor = mon)
+    solve_linearized!(zeros(ComplexF64, n), stack, b; monitor = mon)
     @test length(mon) == 2
     xs = cumulative_iterations(mon)
     @test length(xs) == 3
@@ -552,7 +570,7 @@ end
     # the monitor's per-iteration byte counter sees the same constant
     _, b, _ = sk_manufactured(op, 0xd1d1)
     mon = ResidualMonitor()
-    solve!(zeros(T, n), stack, b; monitor = mon)
+    solve_linearized!(zeros(T, n), stack, b; monitor = mon)
     pb = mon[1].preconditioner_bytes
     @test length(pb) == mon[1].iterations
     @test all(>(0), pb)
@@ -602,7 +620,7 @@ end
         push!(coarse_ndofs, stack.hierarchy.levels[end].mesh.ndofs)
         push!(nlev, length(stack.hierarchy.levels))
         _, b, _ = sk_manufactured(op, 0x4000 + step)
-        r = solve!(zeros(T, op.mesh.ndofs), stack, b; monitor = mon)
+        r = solve_linearized!(zeros(T, op.mesh.ndofs), stack, b; monitor = mon)
         @test r.converged
         @test all(isfinite, r.x)
     end
@@ -655,7 +673,7 @@ end
             rebuild!(st2, op2)
         end
         _, b2, _ = sk_manufactured(op2, 0x5000 + step)
-        r2 = solve!(zeros(T, op2.mesh.ndofs), st2, b2; monitor = mon2)
+        r2 = solve_linearized!(zeros(T, op2.mesh.ndofs), st2, b2; monitor = mon2)
         @test r2.converged
         @test r2.iterations < SK_FRONT_ITER_GATE
     end
@@ -686,8 +704,243 @@ end
     @test st3.build_stats[1] + st3.build_stats[2] == nsub
     @test st3.bottom_cache.builds == 2             # … including the bottom LU
     @test all(l -> l.smoother.epoch == 1, st3.hierarchy.levels)
-    r3 = solve!(zeros(T, op2.mesh.ndofs), st3, sk_manufactured(op2, 0x6000)[2])
+    r3 = solve_linearized!(zeros(T, op2.mesh.ndofs), st3, sk_manufactured(op2, 0x6000)[2])
     @test r3.converged
+end
+
+# ---- a SECOND coefficient set, for the stale-factory / stale-cache falsifiers -------------
+# same mesh, same structure, a genuinely different matrix
+sk_beta2(x, y) = (-3.0 + 0.1im) * (1 + 0.1x)
+sk_factory2(T) = mesh -> MeshOperator(T, mesh, (sk_A11, sk_A22), sk_beta2, (sk_zero2, sk_zero2);
+                                      C = SK_C, bcs = sk_nzbcs(mesh, T))
+# a LARGE coefficient change, for the stale-cache falsifier: calibrated in
+# evidence/solver-stack-core/calibrate_repair.log, where a Schwarz cache warmed on β = 1+0.5i
+# and reused on this operator costs 77 iterations against 7 (patch-solve difference 0.95).
+sk_beta3(x, y) = (40.0 + 0.5im) * (1 + 0.1x)
+sk_factory3(T) = mesh -> MeshOperator(T, mesh, (sk_A11, sk_A22), sk_beta3, (sk_zero2, sk_zero2);
+                                      C = SK_C, bcs = sk_nzbcs(mesh, T))
+
+# ------------------------------- (H1) rebuild! replaces the OPERATOR FACTORY --------------
+@testset "gate (H1): rebuild! rediscretizes the coarse levels from the NEW factory" begin
+    T = ComplexF64
+    mesh = sk_five_mesh(Float64, 1)
+    fac1 = sk_factory(T)
+    fac2 = sk_factory2(T)
+    op1 = fac1(mesh)
+    stack = SolverStack(op1, fac1)
+    @test stack.build_op === fac1
+    @test length(stack.hierarchy.levels) >= 3
+
+    # THE BUG THIS GATES: a coefficient change on a FIXED mesh. The finest operator is the new
+    # one, but every coarser level is rediscretized by the stack's factory — so a stale factory
+    # preconditions a different operator than GMRES applies, and the residual never says so.
+    op2 = fac2(mesh)
+    A2_lv2_new = build_matrix(fac2(stack.hierarchy.levels[2].mesh))
+    A2_lv2_old = build_matrix(fac1(stack.hierarchy.levels[2].mesh))
+    @test norm(A2_lv2_new - A2_lv2_old, Inf) > 1.0        # the two factories really differ
+
+    rebuild!(stack, op2; epoch = stack.epoch + 1, build_op = fac2)
+    @test stack.build_op === fac2
+    @test stack.precondition_build_op === fac2            # the undamped route follows build_op
+    @test build_matrix(stack.hierarchy.levels[2].op) ≈ A2_lv2_new
+    @test norm(build_matrix(stack.hierarchy.levels[2].op) - A2_lv2_old, Inf) > 1.0
+    @test build_matrix(stack.hierarchy.levels[1].op) ≈ build_matrix(op2)
+    _, b2, _ = sk_manufactured(op2, 0x1111)
+    r = solve_linearized!(zeros(T, mesh.ndofs), stack, b2)
+    @test r.converged
+    @test norm(r.x - direct_solve(op2, b2)) / norm(direct_solve(op2, b2)) < SK_DIRECT_TOL
+
+    # invalidate! forwards the factory too (the documented coefficient-change path)
+    st2 = SolverStack(fac1(mesh), fac1)
+    st2.op = fac2(mesh)
+    invalidate!(st2; build_op = fac2)
+    @test st2.epoch == 1
+    @test st2.build_op === fac2
+    @test build_matrix(st2.hierarchy.levels[2].op) ≈ A2_lv2_new
+
+    # THE BOTTOM ALARM IS REACHABLE THROUGH THE STACK: a new factory at an UNCHANGED epoch is
+    # exactly the case the bottom cache asserts on (f273eb7). Before this gate it could never
+    # fire from here, because the coarsest level was still built by the stale factory.
+    st3 = SolverStack(fac1(mesh), fac1)
+    @test_throws ArgumentError rebuild!(st3, fac2(mesh); build_op = fac2)
+    # ... and rebuild! is FAILURE-ATOMIC: the stack is untouched by the throw
+    @test st3.build_op === fac1
+    @test st3.op !== nothing
+    @test build_matrix(st3.hierarchy.levels[2].op) ≈ A2_lv2_old
+    @test st3.epoch == 0
+    r3 = solve_linearized!(zeros(T, mesh.ndofs), st3, sk_manufactured(st3.op, 0x2222)[2])
+    @test r3.converged                                    # still a working stack
+end
+
+# ------------------------------- (M2) the Schwarz cache trusts the epoch ------------------
+@testset "gate (M2): stale Schwarz factors at a constant epoch cost iterations" begin
+    T = ComplexF64
+    mesh = sk_five_mesh(Float64, 1)
+    fac1 = sk_factory(T)
+    fac3 = sk_factory3(T)
+    op3 = fac3(mesh)
+    _, b3, _ = sk_manufactured(op3, 0x3333)
+    n = mesh.ndofs
+
+    # the ASYMMETRY is documented, not fixed: only the bottom cache carries a fingerprint
+    d = lowercase(string(@doc SolverStack))
+    @test occursin("smoke alarm", d)
+    @test occursin("trusts the epoch", d)
+
+    # a cache warmed on the OLD coefficients, then reused at the SAME epoch on the new ones
+    stale = SubdomainCache()
+    SolverStack(fac1(mesh), fac1; subdomain_cache = stale)          # warm it on fac1
+    warmed = stale.builds
+    st_stale = SolverStack(op3, fac3; subdomain_cache = stale)      # same epoch 0: all hits
+    @test stale.builds == warmed                                    # ZERO new factorizations …
+    @test stale.hits > 0                                            # … every patch reused
+    st_fresh = SolverStack(op3, fac3; subdomain_cache = SubdomainCache())
+
+    # THE STALENESS IS PROVABLE INDEPENDENTLY OF THE COUNT: the cached patch factor solves a
+    # different system from the one this operator's patch matrix defines.
+    sm_s = st_stale.hierarchy.levels[1].smoother
+    sm_f = st_fresh.hierarchy.levels[1].smoother
+    z = ones(T, size(subdomain_matrix(sm_f, 1), 1))
+    @test norm(sm_s.fact[1] \ z - sm_f.fact[1] \ z) / norm(sm_f.fact[1] \ z) > 0.5
+
+    r_stale = solve_linearized!(zeros(T, n), st_stale, b3)
+    r_fresh = solve_linearized!(zeros(T, n), st_fresh, b3)
+    println("  [gate (M2)] stale-Schwarz iterations=", r_stale.iterations,
+            " vs honest=", r_fresh.iterations)
+    # right preconditioning keeps the ANSWER right in both cases — the symptom is the count
+    xd = direct_solve(op3, b3)
+    @test r_stale.converged && r_fresh.converged
+    @test norm(r_stale.x - xd) / norm(xd) < SK_DIRECT_TOL
+    @test norm(r_fresh.x - xd) / norm(xd) < SK_DIRECT_TOL
+    @test r_stale.iterations >= SK_STALE_ITERS               # measured 77 against 7
+    @test r_fresh.iterations <= SK_MG_ITERS
+    # the epoch bump is the repair, and it restores the honest count exactly
+    invalidate!(st_stale; build_op = fac3)
+    r_bumped = solve_linearized!(zeros(T, n), st_stale, b3)
+    @test r_bumped.iterations == r_fresh.iterations
+
+    # HONEST CAVEAT, gated so it cannot rot: the iteration count is NOT a reliable detector.
+    # A SMALL coefficient change leaves the count untouched (measured 11 vs 11 for
+    # β = -3+0.1i) while the patch factors are already stale — which is exactly why the epoch,
+    # and not a symptom, is the safeguard.
+    fac2 = sk_factory2(T)
+    op2 = fac2(mesh)
+    _, b2, _ = sk_manufactured(op2, 0x3334)
+    stale2 = SubdomainCache()
+    SolverStack(fac1(mesh), fac1; subdomain_cache = stale2)
+    st_s2 = SolverStack(op2, fac2; subdomain_cache = stale2)
+    st_f2 = SolverStack(op2, fac2; subdomain_cache = SubdomainCache())
+    sm_s2 = st_s2.hierarchy.levels[1].smoother
+    sm_f2 = st_f2.hierarchy.levels[1].smoother
+    z2 = ones(T, size(subdomain_matrix(sm_f2, 1), 1))
+    @test norm(sm_s2.fact[1] \ z2 - sm_f2.fact[1] \ z2) / norm(sm_f2.fact[1] \ z2) > 0.05
+    r_s2 = solve_linearized!(zeros(T, n), st_s2, b2)
+    r_f2 = solve_linearized!(zeros(T, n), st_f2, b2)
+    println("  [gate (M2)] small-change stale=", r_s2.iterations, " honest=", r_f2.iterations,
+            " (the count does NOT detect staleness)")
+    @test r_s2.iterations == r_f2.iterations
+    @test norm(r_s2.x - direct_solve(op2, b2)) / norm(direct_solve(op2, b2)) < SK_DIRECT_TOL
+end
+
+# ------------------------------- (M3) build_time belongs to ONE record --------------------
+@testset "gate (M3): build_time is this rebuild's cost, zero on later solves" begin
+    T = ComplexF64
+    mesh = sk_five_mesh(Float64, 1)
+    fac = sk_factory(T)
+    op = fac(mesh)
+    stack = SolverStack(op, fac)          # warm-up build (carries JIT)
+    stack = SolverStack(op, fac)          # the timed one
+    _, b, _ = sk_manufactured(op, 0x4444)
+    mon = ResidualMonitor()
+    solve_linearized!(zeros(T, mesh.ndofs), stack, b; monitor = mon)
+    solve_linearized!(zeros(T, mesh.ndofs), stack, b; monitor = mon)
+    solve_linearized!(zeros(T, mesh.ndofs), stack, b; monitor = mon)
+    @test length(mon) == 3
+    @test mon[1].build_time > 0
+    @test mon[2].build_time == 0.0        # NOT copied forward any more
+    @test mon[3].build_time == 0.0
+    @test mon[1].subdomain_builds > 0
+    @test mon[2].subdomain_builds == 0 && mon[2].subdomain_hits == 0
+    @test mon[2].bottom_builds == 0 && mon[2].bottom_hits == 0
+    # the split adds up and is attributed
+    @test mon[1].build_time_hierarchy > 0
+    @test mon[1].build_time_bottom > 0
+    @test mon[1].build_time_hierarchy + mon[1].build_time_bottom <= mon[1].build_time * 1.001
+    @test mon[2].build_time_hierarchy == 0.0 && mon[2].build_time_bottom == 0.0
+    # a rebuild re-arms exactly one record
+    rebuild!(stack, fac(mesh))
+    solve_linearized!(zeros(T, mesh.ndofs), stack, b; monitor = mon)
+    solve_linearized!(zeros(T, mesh.ndofs), stack, b; monitor = mon)
+    @test mon[4].build_time > 0
+    @test mon[5].build_time == 0.0
+    # summing the column over a sweep is the sweep's build cost, with no double counting
+    @test sum(r -> r.build_time, mon.records) == mon[1].build_time + mon[4].build_time
+end
+
+# ------------------------------- (M1) hp-AMR and the coarse-level order -------------------
+@testset "gate (M1): coarse_orders pins the bottom grid under hp-AMR" begin
+    T = ComplexF64
+    fac = sk_factory(T)
+    # spectre coarsens h ONLY and allocates every level from the same initial_extents
+    # (Multigrid/Hierarchy.cpp:21-30, ElementsAllocator.hpp:101-102/142-148); under p-AMR the
+    # coarse levels are frozen (Amr/Actions/AdjustDomain.hpp:206-212,
+    # SendDataToChildren.hpp:53-55). Our MIN rule (ported from the misleading comment at
+    # spectre Multigrid.hpp:51-52) instead raises the coarsest order on every hp step.
+    function hp_sweep(coarse_orders, steps)
+        mesh = sk_five_mesh(Float64, 1)
+        opts = SolverStackOptions(; coarse_orders = coarse_orders)
+        op = fac(mesh)
+        st = SolverStack(op, fac; options = opts)
+        its = Int[]; cords = Vector{NTuple{2,Int}}[]
+        for step in 1:steps
+            if step > 1
+                mesh = hp_refine(mesh, sk_corner_flags(mesh))
+                op = fac(mesh)
+                rebuild!(st, op)
+            end
+            push!(cords, unique(st.hierarchy.levels[end].mesh.orders))
+            _, b, _ = sk_manufactured(op, 0x7000 + step)
+            push!(its, solve_linearized!(zeros(T, op.mesh.ndofs), st, b).iterations)
+        end
+        return st, its, cords
+    end
+    steps = 6
+    st_min, its_min, cords_min = hp_sweep(nothing, steps)
+    st_fix, its_fix, cords_fix = hp_sweep(4, steps)
+    println("  [gate (M1)] hp sweep, MIN rule: bottom builds=", st_min.bottom_cache.builds,
+            " entries=", length(st_min.bottom_cache.entries), " coarsest orders=", cords_min,
+            " its=", its_min)
+    println("  [gate (M1)] hp sweep, coarse_orders=4: bottom builds=",
+            st_fix.bottom_cache.builds, " entries=", length(st_fix.bottom_cache.entries),
+            " coarsest orders=", cords_fix, " its=", its_fix)
+    # the MIN rule: the coarsest order RISES with p-AMR, so main.tex:674 fails here
+    @test st_min.bottom_cache.builds == steps
+    @test length(unique(cords_min)) > 1
+    # the spectre-faithful rule: the bottom grid really does remain the same (main.tex:674)
+    @test st_fix.bottom_cache.builds == 1
+    @test st_fix.bottom_cache.hits == steps - 1
+    @test length(st_fix.bottom_cache.entries) == 1
+    @test all(==(cords_fix[1]), cords_fix)
+    @test all(o -> o == (4, 4), cords_fix[1])
+    # and every coarser level keeps order N, not just the coarsest
+    for l in st_fix.hierarchy.levels[2:end]
+        @test all(o -> o == (4, 4), l.mesh.orders)
+    end
+    # THE TRADE-OFF, measured, not assumed. Pinning buys main.tex:674 (one cached bottom LU)
+    # and pays in iterations once the fine order runs away from the pinned coarse one: this
+    # sweep p-refines EVERY element on every step, so by step 6 the fine grid is order 10
+    # against a coarse space pinned at 4 and the count grows 8 -> 17, while the MIN rule keeps
+    # 8 -> 10 by rebuilding the bottom LU six times. Neither is free; the CRP's own hp-AMR
+    # (8 iterations over its whole domain) sits between these two extremes, so row 42/43 must
+    # choose per run and this gate pins BOTH curves rather than declaring a winner.
+    @test maximum(its_fix) <= SK_HP_ITER_GATE            # measured 17
+    @test maximum(its_min) <= SK_ITER_GATE               # measured 10
+    @test its_fix[1] == its_min[1]                       # step 1 has no p gap yet
+    @test maximum(its_fix) > maximum(its_min)            # pinning costs iterations here
+    @test all(r -> r > 0, its_fix)
+    # the option is validated and reaches the hierarchy
+    @test_throws ArgumentError SolverStackOptions(; coarse_orders = 0)
+    @test SolverStackOptions().coarse_orders === nothing
 end
 
 # ---- the row-18 resonance model, transcribed VERBATIM from test_schwarz_shift.jl --------
@@ -765,7 +1018,7 @@ end
                           (:multigrid, multigrid_preconditioner))
         st = SolverStack(op, fac; options = opts, precondition_build_op = pbo,
                          preconditioner = pfac)
-        results[(tag, pname)] = solve!(zeros(ComplexF64, n), st, b)
+        results[(tag, pname)] = solve_linearized!(zeros(ComplexF64, n), st, b)
     end
     # the sealed contrast: unshifted exhausts the budget, the policy shift converges
     @test !results[(:unshifted, :schwarz)].converged
@@ -787,8 +1040,8 @@ end
     st_2s = SolverStack(op, fac; precondition_build_op = m -> skr_top(m, kres; s = 2s),
                         options = SolverStackOptions(; abstol = 0.0, reltol = 1e-12,
                                                      maxiter = 300, restart = 300))
-    u1 = zeros(ComplexF64, n); r1 = solve!(u1, st_s, b)
-    u2 = zeros(ComplexF64, n); r2 = solve!(u2, st_2s, b)
+    u1 = zeros(ComplexF64, n); r1 = solve_linearized!(u1, st_s, b)
+    u2 = zeros(ComplexF64, n); r2 = solve_linearized!(u2, st_2s, b)
     @test r1.converged && r2.converged
     @test norm(u1 - u2) / norm(u1) < 1e-9
     @test norm(u1 - uex) / norm(uex) < 1e-9
@@ -818,7 +1071,7 @@ end
         @test linearized_rhs(op, bphys) ≈ b
         u = zeros(T, n)
         mon = ResidualMonitor(BigFloat)
-        r = solve!(u, stack, b; monitor = mon)
+        r = solve_linearized!(u, stack, b; monitor = mon)
         @test r.converged
         @test r.iterations <= SK_BIG_ITERS
         @test r.residual <= opts.abstol
@@ -841,18 +1094,28 @@ end
     zs = zeros(T, n); vcycle!(zs, mg, b; threaded = false)
     zt = zeros(T, n); vcycle!(zt, mg, b; threaded = true)
     @test zs == zt
+    u = zeros(T, n)
+    r = solve_linearized!(u, stack, b)
+    @test r.converged
     if Threads.nthreads() < 2
         @test_skip "threaded solve == serial needs -t2"
     else
-        @test Threads.nthreads() > 1
+        # a REAL parity check: the whole solve, not just the V-cycle. A stack whose smoothers
+        # run threaded (this run) must reproduce the serial answer bitwise, which is what the
+        # sealed bitwise-threaded apply!/smooth! buy the composition.
+        us = zeros(T, n)
+        rs = solve_linearized!(us, stack, b)
+        @test us == u
+        @test rs.x == r.x
+        @test rs.history == r.history
+        @test rs.iterations == r.iterations
+        zt2 = zeros(T, n); vcycle!(zt2, mg, b; threaded = true)
+        @test zt2 == zs
     end
-    u = zeros(T, n)
-    r = solve!(u, stack, b)
-    @test r.converged
     # a second stack on a private pair of caches reproduces the run bitwise
     st2 = SolverStack(op, fac)
     u2 = zeros(T, n)
-    r2 = solve!(u2, st2, b)
+    r2 = solve_linearized!(u2, st2, b)
     @test r2.x == r.x
     @test r2.history == r.history
 end
@@ -865,7 +1128,8 @@ end
     n = mesh.ndofs
     _, b, _ = sk_manufactured(op, 0x9999)
     stack = SolverStack(op, fac)
-    @test_throws ArgumentError solve!(zeros(ComplexF64, n - 1), stack, b)
+    @test_throws ArgumentError solve_linearized!(zeros(ComplexF64, n - 1), stack, b)
+    @test_throws ArgumentError solve_linearized!(zeros(ComplexF64, n), stack, b[1:end-1])
     @test_throws ArgumentError solve!(zeros(ComplexF64, n), stack, b[1:end-1])
     # a rebuild with a different scalar type is refused loudly
     opreal = MeshOperator(Float64, mesh, (sk_A11, sk_A22), (x, y) -> 1.0,
@@ -874,14 +1138,14 @@ end
     @test_throws ArgumentError rebuild!(stack, opreal)
     # maxiter = 0 returns the initial state honestly rather than looping
     st0 = SolverStack(op, fac; options = SolverStackOptions(; maxiter = 0, restart = 1))
-    r0 = solve!(zeros(ComplexF64, n), st0, b)
+    r0 = solve_linearized!(zeros(ComplexF64, n), st0, b)
     @test !r0.converged
     @test r0.iterations == 0
     # use_bottom_solver = false is the yaml's UseBottomSolver: False twin (smooth instead)
     stnb = SolverStack(op, fac; options = SolverStackOptions(; use_bottom_solver = false))
     @test stnb.preconditioner.bottom === nothing
     @test stnb.bottom_cache.builds == 0
-    rnb = solve!(zeros(ComplexF64, n), stnb, b)
+    rnb = solve_linearized!(zeros(ComplexF64, n), stnb, b)
     @test rnb.converged
     # initial_coarse_levels caps the hierarchy (yaml:188 + 1)
     stcap = SolverStack(op, fac; options = SolverStackOptions(; initial_coarse_levels = 1))
@@ -889,7 +1153,7 @@ end
     # shrink is exposed and forwarded
     stsh = SolverStack(op, fac; options = SolverStackOptions(; shrink = 0.5))
     @test length(stsh.hierarchy.levels) <= length(stack.hierarchy.levels)
-    rsh = solve!(zeros(ComplexF64, n), stsh, b)
+    rsh = solve_linearized!(zeros(ComplexF64, n), stsh, b)
     @test rsh.converged
     @test rsh.iterations <= SK_ITER_GATE
 end

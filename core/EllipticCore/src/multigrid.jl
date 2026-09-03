@@ -125,7 +125,7 @@ AMR class (`anc/ScalarSelfForce.yaml:145` `Isotropy: Anisotropic`) it produced n
 non-tiling ancestors — 244 of 300 census meshes failed, and an 18-element hand
 counterexample threw "invalid face coverage".
 """
-function coarsen_mesh(mesh::Mesh2D{RT}) where {RT}
+function coarsen_mesh(mesh::Mesh2D{RT}; coarse_orders = nothing) where {RT}
     isempty(mesh.elements) && return nothing
     merged = _mg_merge_targets(mesh)
     cand = ElementId[]
@@ -158,7 +158,9 @@ function coarsen_mesh(mesh::Mesh2D{RT}) where {RT}
     for (e, k) in enumerate(parent)
         o = mesh.orders[e]
         prev = get(ords, ids[k], (typemax(Int), typemax(Int)))
-        ords[ids[k]] = (min(prev[1], o[1]), min(prev[2], o[2]))
+        ords[ids[k]] = coarse_orders === nothing ?
+                       (min(prev[1], o[1]), min(prev[2], o[2])) :
+                       (Int(coarse_orders), Int(coarse_orders))
     end
     cmesh = Mesh2D(mesh.blocks, ids, ords; connections = mesh.connections)
     return cmesh, parent
@@ -326,6 +328,36 @@ rebuilds:
 The `epoch` stays CALLER-managed for every form: bump it whenever coefficients, hooks,
 boundary conditions or the penalty change — the cache cannot see them.
 
+`coarse_orders` is the COARSE-LEVEL POLYNOMIAL POLICY. `nothing` (the default, and the only
+behaviour before it existed) p-coarsens by the MIN rule: a merged coarse element takes the
+smallest order among its children. `coarse_orders = N` instead pins EVERY coarser level at
+order `N` in both dimensions, independent of what p-AMR has done to the fine grid.
+
+WHICH ONE MATCHES THE PAPER (measured against spectre's source, not its comments). SpECTRE's
+multigrid coarsening is h-ONLY: `Multigrid/Hierarchy.cpp:21-30` decrements `SegmentId`
+refinement levels and touches no `Mesh` or extents at all (there is no `extents` reference in
+`Hierarchy.hpp`/`.cpp`), and every level of the hierarchy is allocated from the SAME `const
+initial_extents` (`Multigrid/ElementsAllocator.hpp:101-102`, used unmodified at `:178`/`:189`,
+with only the refinement levels mutated at `:142-148`). Under p-AMR the coarse levels are frozen
+rather than re-p-refined: `Amr/Actions/AdjustDomain.hpp:206-212` creates a NEW element at
+`grid_index + 1` for the refined p and returns before the mesh mutation at `:242-247`, and
+`Amr/Actions/SendDataToChildren.hpp:53-55` states outright that "we don't run AMR projectors on
+the parent element". The resulting p-mismatch between a level and its parent is first class —
+the transfers project at runtime (`Multigrid/Actions/RestrictFields.hpp:131-134`,
+`Multigrid/ElementActions.hpp:491-494`). So `coarse_orders = N` is the spectre-faithful setting,
+and it is what makes main.tex:674 ("the bottom grid remains the same even when AMR adds finer
+levels", main.tex:712-716) TRUE under an `hp_refine` sweep: with the MIN rule the coarsest
+level's order rises with every p step, its matrix changes, and the cached bottom LU is rebuilt
+each time (measured: 6 builds over 6 hp steps, one cache entry each) instead of once.
+
+ERRATUM IN THE REFERENCE COMMENT (this rule was ported from it): spectre's own
+`Multigrid.hpp:51-52` says "we only p-coarsen the grid in the sense that we choose the smaller
+of the two polynomial degrees when combining elements". No such p-coarsening happens anywhere in
+the multigrid path — the only mesh-combining routine, `Amr/Projectors/Mesh.cpp:55-64`, takes the
+MAXIMUM, and it is unreachable here because h-coarsening is hard-errored whenever coarse grids
+are kept (`AdjustDomain.hpp:176-186`). The MIN rule is kept as the DEFAULT only for
+bit-compatibility with everything already gated on it.
+
 `shrink ∈ (0, 1]` is the LEVEL policy: a coarsening step that fails to shrink the problem
 to `shrink · ndofs` is not worth a smoother, so further steps are taken and their transfer
 matrices COMPOSED (`P = P₁·P₂`, `R = R₂·R₁`) before the level is materialized. The default
@@ -351,6 +383,7 @@ function MultigridHierarchy(op::MeshOperator{S,RT}, build_op;
                             maxlevels::Union{Nothing,Integer} = nothing,
                             overlap::Integer = 2, shift::Real = 0,
                             epoch::Integer = 0, shrink::Real = 1,
+                            coarse_orders = nothing,
                             caches = nothing) where {S,RT}
     maxlevels === nothing || maxlevels >= 1 ||
         throw(ArgumentError("MultigridHierarchy: maxlevels must be ≥ 1, got $maxlevels"))
@@ -361,7 +394,7 @@ function MultigridHierarchy(op::MeshOperator{S,RT}, build_op;
     cur = op
     while true
         co = (maxlevels !== nothing && length(built) + 1 >= Int(maxlevels)) ? nothing :
-             _mg_coarsen_level(RT, mesh, shrink)
+             _mg_coarsen_level(RT, mesh, shrink, coarse_orders)
         sm = SchwarzSmoother(cur; overlap = overlap, shift = shift, epoch = epoch,
                              cache = _mg_cache(caches, length(built) + 1))
         if co === nothing
@@ -393,13 +426,13 @@ end
 # factor `shrink`, with the per-dimension transfer matrices COMPOSED across the skipped
 # steps (P = P₁·P₂, R = R₂·R₁, so R∘P = R₂(R₁P₁)P₂ = I still). `shrink = 1` (the default)
 # never skips: every coarsening step is a level.
-function _mg_coarsen_level(::Type{RT}, mesh::Mesh2D, shrink::Real) where {RT}
-    co = coarsen_mesh(mesh)
+function _mg_coarsen_level(::Type{RT}, mesh::Mesh2D, shrink::Real, coarse_orders) where {RT}
+    co = coarsen_mesh(mesh; coarse_orders = coarse_orders)
     co === nothing && return nothing
     cur, par = co
     P, R = _mg_transfer_matrices(RT, mesh, cur, par)
     while cur.ndofs > shrink * mesh.ndofs
-        co2 = coarsen_mesh(cur)
+        co2 = coarsen_mesh(cur; coarse_orders = coarse_orders)
         co2 === nothing && break
         nxt, par2 = co2
         Pn, Rn = _mg_transfer_matrices(RT, cur, nxt, par2)
@@ -716,7 +749,7 @@ the smoother contributes nothing per call; what remains is entirely the per-call
 of the sealed matrix-free [`apply!`](@ref), which a V-cycle calls five times per non-bottom
 level (one residual plus one per smoothing pass). MEASURED on the 4-level calibration
 model: 19 869 600 B per apply before the workspaces, of which `smooth!`'s own scratch was
-835 584 B (4.2 %) and `apply!` 96 %; preallocating `apply!` needs `matrixfree.jl` and is a
+781 584 B (3.93 %) and `apply!` 96 %; preallocating `apply!` needs `matrixfree.jl` and is a
 separate node. Because those buffers are preallocated here, one `MultigridV` is NOT safe to
 apply from two threads at once (build one per thread if you need that); the V-cycle itself
 is serial and its result is bitwise independent of the thread count (file header).
