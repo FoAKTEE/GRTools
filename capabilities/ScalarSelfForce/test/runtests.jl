@@ -43,4 +43,5 @@ using ScalarSelfForce
     include("test_bc_glue.jl")   # dg-boundary-conditions (W8-D)
     include("test_jump_conditions.jl")   # dg-jump-conditions (W9-A)
     include("test_assemble.jl")   # fig-matrix commit 1: operator assembly (W9-C)
+    include("test_driver.jl")   # solver-stack-ssf (W10-A)
 end

@@ -295,4 +295,23 @@ include("Solve/assemble.jl")                 # fig-matrix (the row-42 assembly c
 export assemble_operator, operator_builder, coarsest_operator
 export linearized_rhs
 
+include("Solve/driver.jl")                   # solver-stack-ssf (the row-42 JOIN)
+# THE FIRST REAL m-MODE SOLVE: solve_mode(orbit, config, m) builds the block domain, the
+# mesh-bound worldtube bundle, the operator and the SolverStack (GMRES o multigrid V-cycle o
+# 2 additive-Schwarz passes o cached bottom LU) over operator_builder's per-level factory,
+# assembles the PHYSICAL right-hand side and solves - returning a ModeSolution holding
+# (dom, mesh, wt, op, stack, b, u, monitor, record, result) with u = Psi^R inside the
+# worldtube / Psi outside. solver_options is the field-by-field SolverStackOptions twin of
+# the sealed RunConfig (the yaml solver block) with the two multigrid LEVEL-POLICY knobs
+# (coarse_levels, coarse_orders) exposed for the AMR driver. mode_fixed_source is the VOLUME
+# source: the SWITCHED evaluator inside the tube, exactly zero outside, massive M.S form -
+# the worldtube MORTAR data stay on the direct bundle (the one normative statement of that
+# rule lives in its docstring). Read-out: mode_residual (the DG residual against the FULL
+# table), reconstruct_full_field (Psi everywhere, Psi^R + Psi^P inside) and field_at
+# (Lagrange interpolation on the containing element, one-sided via `element`).
+# rebuild_for_mesh! is the ONE-STEP per-level rebuild an hp-AMR sweep calls; THE LOOP,
+# its criterion and its stopping rule are node amr-driver (row 43). NO extraction, NO figure.
+export solver_options, ModeSolution, solve_mode, solve_mode!, rebuild_for_mesh!
+export mode_fixed_source, mode_residual, reconstruct_full_field, field_at
+
 end # module

@@ -145,6 +145,36 @@ formulation and consumes the physics-free hp-DG solver stack from
   `linearized_rhs(op, wt)` folds the worldtube fixed source with the operator's
   own fixed-data lift, ``b = M\cdot S - A(0)``, extending EllipticCore's
   general `linearized_rhs(op, b_phys)` method.
+
+  Single-mode solver-stack driver: `solve_mode(orbit, config, m)` is the whole
+  m-mode solve — block domain, mesh-bound worldtube bundle, operator,
+  `SolverStack` (complex GMRES ∘ one multigrid V-cycle ∘ two additive-Schwarz
+  passes per level ∘ a cached direct bottom solve) over `operator_builder`'s
+  per-level factory, the physical right-hand side, and the solve — returning a
+  `ModeSolution` whose `u` is ``\Psi^{\mathcal R}_m`` inside the worldtube and
+  ``\Psi_m`` outside. `solver_options(config)` is the field-by-field
+  `SolverStackOptions` twin of the sealed `RunConfig` (the yaml solver block,
+  lines 178–205), exposing the two multigrid level-policy knobs `coarse_levels`
+  and `coarse_orders` that an AMR sweep must choose; the complex shift it passes
+  is `helmholtz_shift(m, Ω; slicing = :vtu)`, exactly zero under the paper's
+  null slicing. `mode_fixed_source` builds the VOLUME source through the generic
+  `worldtube_massive_source` seam with the **switched** evaluator
+  `effective_source_m_switched` inside the tube and exactly zero outside, while
+  the worldtube **mortar** data stay on the direct bundle — the one normative
+  statement of that rule is its docstring. Read-out: `mode_residual` (the DG
+  residual against the FULL operator table), `reconstruct_full_field`
+  (``\Psi_m`` everywhere, ``\Psi^{\mathcal R}_m + \Psi^{\mathcal P}_m``
+  inside) and `field_at` (tensor-product Lagrange interpolation on the element
+  containing a chart point, with an `element` keyword for a one-sided trace).
+  `rebuild_for_mesh!` is the one-step per-level rebuild an hp-AMR sweep calls —
+  worldtube bundle, operator, factory hand-over and right-hand side, with no
+  epoch bump because a pure mesh change is already in both cache keys.
+  Measured at the paper's own configuration (``a = 0.5``, ``r_0 = 10M``,
+  ``m = 2``, ``L = 0``, ``P = 4``): converged to the yaml's absolute residual
+  ``10^{-12}`` in **1** preconditioned GMRES iteration at a true residual of
+  ``1.2\times10^{-15}`` — the paper's own first-AMR-level behaviour, since
+  `InitialCoarseLevels: L = 0` makes the V-cycle a direct bottom solve; with a
+  genuine two-level hierarchy on the same mesh, 10 iterations.
 - **Extraction** — Heffernan m-mode regularization parameters of the radial
   self-force for circular equatorial Kerr orbits (arXiv:1211.6446), in the
   folded ``m \ge 0`` ×2 real-part convention:
@@ -165,9 +195,8 @@ formulation and consumes the physics-free hp-DG solver stack from
     mode sum.
 
 Planned, each landing written test-first once it is grounded: the rest of
-`Solve` (single-mode driver, hp-AMR loop, process-parallel m fan-out), and the
-rest of `Extraction` (``F_r^m`` extraction from a solved mode, and the mode sum
-itself).
+`Solve` (hp-AMR loop, process-parallel m fan-out), and the rest of `Extraction`
+(``F_r^m`` extraction from a solved mode, and the mode sum itself).
 
 ## Conventions (locked package-wide)
 
