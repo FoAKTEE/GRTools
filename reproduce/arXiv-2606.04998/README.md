@@ -35,6 +35,7 @@ decide script-vs-structure, iterate (`.claude/skills/vlm-figure-repro/SKILL.md`)
 
 | # | figure / check | driver | golden | tier | status | VLM verdict | notes |
 |---|---|---|---|---|---|---|---|
+| 1 | `fig:domain` — the DG computational domain: `\|Ψ_m\|` height- and colour-mapped over the (r, z²) element grid, `\|Ψ^ℛ_m\|` in the worldtube | `fig_domain.jl` | `expected/fig_domain.json` | heavy | **solid** | **match** | A single 3D panel plus an inset: |Ψ_m| height- **and** colour-mapped over the (r, z²) DG element grid with white element edges and the Legendre-Gauss collocation grid, |Ψ^ℛ_m| inside the red-framed worldtube, the v/t/u slicing arc with H = ∓1, and the six-step hp-AMR cascade at x_p magnified bottom-right. Seven AMR levels, 20 → 57 elements and 320 → 3538 dofs, GMRES 1, 8, 9, 8, 9, 9, 9. Structure reproduced: the two |Ψ_m| lobes of the published render — the tan ridge in the polar row over the worldtube's radial span and the sharper wedge just outside the tube in r at the equator — agree in count and position, as do the flat navy near-horizon band, the low navy tube patch and the teal wavezone plateau. `--check` 52/52 at rtol 1e-10 with max|Δ| = 0, `-t1` ≡ `-t4`. ~500 s at -t4, of which the sweep is 223.5 s — **heavy**. |
 | 2 | `fig:matrix` — DG operator sparsity at the coarsest grid level + element numbering | `fig_matrix.jl` | `expected/fig_matrix.json` | heavy | **solid** | **match** | Two panels: the B/W spy of the 320×320 coarsest-level matrix over a light-gray element-block checkerboard, and the domain sketch numbering the 20 elements that index its rows and columns. Structure reproduced exactly: 20 diagonal blocks + 33 symmetric off-diagonal block pairs, of which the 8 pairs across the four 2:1 interfaces (2↔3, 2↔4, 7↔9, 8↔9, 12↔13, 12↔14, 17↔19, 18↔19 in the paper's numbering) are fully dense 16×16 and the other 25 carry 64 entries. Adjacency graph-isomorphic to the domain topology in BOTH directions (0 matrix-only, 0 topology-only pairs). Reference block-occupancy extracted from `matrix.pdf` at 600 dpi and compared block-by-block: identical. 398.8 s at -t4 — **heavy**, although the numerics are ~10 s: the cost is the first-call specialization of the ComplexF64 `MeshOperator` (104 s) and of the first Plots/GR render. |
 
 ### What "the coarsest grid level" is
@@ -80,9 +81,91 @@ For the comparison with the published figure this matters in one way only: the r
 112-entry tensor pattern as every other diagonal block — which is consistent with the 9536
 structural entries of our own count, and is what `compare_blocks.py` measures block by block.
 
+## Fig. 1 — six h-steps, the drawn radial coordinate, and what Plots cannot do
+
+### Why `iterations = 6`
+
+main.tex:558, about this figure specifically: *"The result of this h refinement strategy after
+six refinement steps is shown in \cref{fig:domain}, with the region around the puncture magnified
+in the inset."* A *refinement step* is one `amr_step!` — spectre's `Amr.Iterations` counts
+**solves**, and its own trigger (`EveryNIterations {N: 1, Offset: 1}`, yaml:157-160) skips
+refinement on the initial guess, so `n` solves are separated by `n − 1` refinements — hence
+`solve_mode_amr(...; iterations = 6)`: seven levels, 0…6, not the yaml's production
+`Amr.Iterations: 8`. The published inset confirms it twice over: its cascade shows six
+2:1 steps into the puncture corner, and its coarse elements carry a 9-cell collocation grid, i.e.
+`N = P + 6 = 10`.
+
+### The abscissa is the paper's own visualisation coordinate
+
+A domain running to `R = 10⁴ M` cannot be drawn against linear `r`. The paper's run observes
+`RadiallyCompressedCoordinates: {InnerRadius: *t_to_u_transition, OuterRadius: *outer_radius,
+Compression: *outer_shell_distribution}` (yaml:222-225), and spectre implements it
+(`src/Domain/RadiallyCompressedCoordinates.cpp:27-52` with `src/Domain/CoordinateMaps/Interval.cpp:120-129`)
+as the inverse of an `Interval` map from `[r_in, r_in·log₁₀R]` onto `[r_in, R]` — at the
+production point
+
+    r_c(r) = 97.779 − 1790.6/r   on  [24.4, 10⁴] → [24.4, 97.6],     r_c(r) = r   below r_in.
+
+That is this figure's horizontal coordinate, taken from `cfg.observers.rcc_*` rather than
+hard-coded. **Framing:** the published render itself stops at the u-block element boundary
+`r = 48.68 M`; measured on `ssf_domain.pdf` the published worldtube patch sits at 4.5–21.5 % of
+the drawn ribbon, which the compressed coordinate predicts as 5.6–21.9 % if the ribbon is cut
+there (against 3.5–13.5 % for the full `r_c ∈ [1.87, 97.6]`). The driver frames the same way
+(`R_FRAME = 52`) — the outermost wavezone element runs off the right edge exactly as it does in
+the paper. Nothing is removed from the solve or from the golden.
+
+### What is plotted
+
+`sol.u` everywhere, which by the row-42 `ModeSolution` contract is `Ψ^ℛ_m` inside the worldtube
+and `Ψ_m` outside it — verbatim what the caption asks for. `reconstruct_full_field` (`Ψ_m`
+everywhere, log-divergent at `x_p`) is computed only for the gates and is never drawn.
+
+### Rendering — an honest list of Plots.jl-vs-ParaView differences
+
+The reference is a ParaView render annotated in Keynote. Plots.jl/GR has no 3D-surface primitive
+that carries a per-quad colour, a hard field discontinuity at the worldtube boundary and white
+element edges at once, so the driver does its own axonometric perspective projection and paints
+depth-sorted quadrilaterals into one `:shape` series (`fill_z` carrying a (value, shade)
+categorical palette). Consequences, none structural:
+
+* element edges and collocation-grid lines are drawn after all quads, so a line on a far element
+  is not hidden by a nearer fold (sub-pixel on this surface);
+* lighting is one Lambert term over an ambient floor — the reference's ParaView shading is what
+  makes its high-|Ψ| slopes read dark brown rather than tan;
+* the camera, the 2:1:0.78 scene box, the colour anchors (sampled from the reference render) and
+  every annotation offset are style constants, listed together at the top of the figure section
+  of the driver.
+
+### Gates
+
+1. **The refinement/order map**, asserted level by level against the sealed AMR metadata rule:
+   the criterion flags exactly the two elements containing `x_p` (the `z²` chart puts it on the
+   domain boundary), they sit at h-level `L+1+k` in both dimensions with the order **held** at
+   `(P, P) = (4, 4)`, every other element descends from exactly one level-`k−1` element and
+   carries that ancestor's order **+1**, and every level is 2:1 balanced.
+2. **The field**: finite and non-zero at all 130 probes including the whole horizon column
+   and the poles; `puncture_chart_position` equal to `(r₀, 0)`; and `|Ψ^ℛ_m| < |Ψ_m|` at every
+   inner worldtube-boundary probe (worst ratio 0.0469) with the regularized field 17×
+   flatter across the tube than the retarded field.
+3. **Determinism**: `--check` after `--regen` at `rtol = 1e-10`, `-t1` and `-t4` identical.
+4. **VLM** against `ssf_domain.pdf`: **match**. All four structures the manual demands (warped coloured surface with white DG lines, flat far zone, detached red-framed patch, AMR inset) and 9/9 checklist items; the lobe count and placement agree. Five style differences are recorded in `evidence/fig-domain/vlm_verdict.md` — proportions (the published ParaView camera is not recoverable from the PDF), ParaView-vs-Lambert lighting, the added `H = ±1` labels, the drawn cliff face at the tube boundary, and the inset window.
+
+### The order map is anchored to the fixed `hp_refine`
+
+EllipticCore closes the caller's AMR flags under the 2:1 rule (`balanced_flags`) *before* the
+p half, so an element the balancer splits keeps its polynomial order in the split dimension —
+spectre `Domain/Amr/UpdateAmrDecision.cpp:82-87` with
+`ParallelAlgorithms/Amr/Projectors/Mesh.cpp:30-34`. This golden was generated after that fix
+(`6df9f51`) and GATE 1b asserts the closed rule directly: measured, the two balance-split
+children of block 1 at level 1 carry `(5, 4)`, not `(5, 5)`. `element_id_sha256`, the drawn
+element boundaries and the inset cascade are independent of the closure (the h-refined element
+**set** is the same either way); `element_order_x/y`, `level_ndofs`, `level_map_sha256`,
+`level_gmres_iterations` and the sampled field values are not, and would move against a tree
+without it.
+
 ## Not yet reproduced
 
-Figures 1 (`ssf_domain`), 3 (`precond`), 4 (`ssf_convergence`), 5 (`ssf_modes`),
-6 (`linsolv`) and 7 (`ssf_error_budget`) are later nodes of the elliptic-ssf DAG; they need
+Figures 3 (`precond`), 4 (`ssf_convergence`), 5 (`ssf_modes`), 6 (`linsolv`) and
+7 (`ssf_error_budget`) are later nodes of the elliptic-ssf DAG; they need
 the solver stack, the AMR driver and the mode-sum extraction. Nothing about them is claimed
 here.
