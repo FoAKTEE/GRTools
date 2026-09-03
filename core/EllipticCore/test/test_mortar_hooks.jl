@@ -380,8 +380,21 @@ end
     # exact lengths are accepted
     @test pmh_op(mesh, Dict(coarse => [h, h]); bcs = bcs) isa MeshOperator
     @test pmh_op(mesh, Dict(fine => [h]); bcs = bcs) isa MeshOperator
-    # a hook on a DOMAIN-boundary face is still refused (sealed contract)
-    @test_throws ArgumentError pmh_op(mesh, Dict((mesh.elements[1], 1, 1) => [h]); bcs = bcs)
+    # a hook on a DOMAIN-boundary face is refused, and the message points at `bcs`
+    eb = @test_throws ArgumentError pmh_op(mesh, Dict((mesh.elements[1], 1, 1) => [h]);
+                                           bcs = bcs)
+    @test occursin("bcs", eb.value.msg) && occursin("DOMAIN-BOUNDARY", eb.value.msg)
+    # a malformed key is an ArgumentError, not a BoundsError from indexing mesh.faces
+    for bad in ((mesh.elements[1], 3, 2), (mesh.elements[1], 1, 0), (mesh.elements[1], 0, 1))
+        e3 = @test_throws ArgumentError pmh_op(mesh, Dict(bad => h); bcs = bcs)
+        @test occursin("dim", e3.value.msg)
+    end
+    e4 = @test_throws ArgumentError pmh_op(mesh,
+             Dict((ElementId(999, SegmentId(0, 0), SegmentId(0, 0)), 1, 2) => h); bcs = bcs)
+    @test occursin("not an element of this mesh", e4.value.msg)
+    # a TUPLE of hooks is NOT the per-mortar spelling (documented): it is refused, not
+    # silently taken as a single hook
+    @test_throws ArgumentError pmh_op(mesh, Dict(coarse => (h, h)); bcs = bcs)
 end
 
 @testset "BigFloat inheritance through the per-mortar seam" begin

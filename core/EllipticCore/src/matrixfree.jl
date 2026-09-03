@@ -398,13 +398,17 @@ exterior from `bcs[(el, d, sidx)]::GhostBoundary` (every boundary face REQUIRED,
 else allowed).
 
 `hooks[(el, d, sidx)]` post-processes the received data of one INTERIOR face. Its value is
-EITHER a single [`BoundaryDataHook`](@ref), applied to every mortar of that face, OR a
-collection of hooks — one per mortar in the receiver's mortar order (see
+EITHER a single [`BoundaryDataHook`](@ref), applied to every mortar of that face, OR an
+`AbstractVector` of hooks — one per mortar in the receiver's mortar order (see
 [`mortar_points`](@ref) / [`MeshInterface`](@ref)), which is how spectre keys
 `ModifyBoundaryData` by `mortar_id` and how the CRP's 2:1 worldtube faces carry different
 jump data on their two halves. A single hook is REPLICATED over the mortars, so the two
 spellings are bitwise identical when the data are uniform; a collection whose length is not
-the face's mortar count is an `ArgumentError` naming the face. Default: [`NoHook`](@ref).
+the face's mortar count is an `ArgumentError` naming the face; so is a hook key that is not
+an interior face of `mesh`. (A `Tuple` of hooks is NOT accepted — pass a vector.) The table is
+expanded once at construction into one small `Vector{BoundaryDataHook}` per face, so the
+widening is neutral in ARITHMETIC but not in allocation: a mesh of `n` elements holds `4n`
+such vectors, one of them empty for every boundary face. Default: [`NoHook`](@ref).
 
 Applications: [`apply!`](@ref) (LINEARIZED — the matrix; also available as the callable
 `op(y, u)` for [`gmres`](@ref)), [`apply_full!`](@ref) (affine), [`operator_on_zero`](@ref)
@@ -462,8 +466,16 @@ function MeshOperator(::Type{T}, mesh::Mesh2D, A::Tuple{Any,Any}, β, γ::Tuple{
     end
     for k in keys(hooks)
         el, d, sidx = k
-        haskey(mesh.index, el) && mesh.faces[mesh.index[el]][d][sidx] !== nothing ||
-            throw(ArgumentError("MeshOperator: hook key $k is not an interior face"))
+        (d == 1 || d == 2) && (sidx == 1 || sidx == 2) || throw(ArgumentError(
+            "MeshOperator: hook key $k has dim $d / sidx $sidx — dim must be 1 or 2 and " *
+            "sidx 1 (side −1) or 2 (side +1)"))
+        haskey(mesh.index, el) || throw(ArgumentError(
+            "MeshOperator: hook key $k names $el, which is not an element of this mesh"))
+        mesh.faces[mesh.index[el]][d][sidx] === nothing && throw(ArgumentError(
+            "MeshOperator: hook key $k is a DOMAIN-BOUNDARY face — hooks post-process " *
+            "RECEIVED interface data and a boundary face receives none; external " *
+            "conditions belong in the `bcs` table (a GhostBoundary per boundary_faces " *
+            "entry)"))
     end
 
     ems = [element_matrices(T, _element_block(mesh, e), mesh.elements[e], mesh.orders[e])
@@ -484,18 +496,16 @@ function MeshOperator(::Type{T}, mesh::Mesh2D, A::Tuple{Any,Any}, β, γ::Tuple{
         iface = mesh.faces[e][d][2]
         iface === nothing && continue
         el = mesh.elements[e]
-        blk = _element_block(mesh, e)
-        tmap = blockmap(blk, 3 - d)
-        _, hi_d = logical_interval(RT, el.segments[d])
-        xf = RT(map_forward(blockmap(blk, d), hi_d))
+        # ONE implementation of the mortar placement: the PUBLIC accessor. The operator and
+        # every caller building per-mortar data therefore evaluate at the same points by
+        # construction, not by parallel arithmetic (gate (a5) of test_mortar_hooks.jl is the
+        # regression that pins the two together).
+        xf, xts = mortar_points(mesh, (el, d, 2))
         fm_int = face_matrices(ems[e], d, +1)
         for k in 1:length(iface.nbs)
             nb = iface.nbs[k]
             fm_ext = face_matrices(ems[nb], d, -1)
-            Nm = max(size(fm_int.I, 2), size(fm_ext.I, 2))
-            lo, hi = logical_interval(RT, iface.span[k])
-            ξ = refelement(RT, Nm).nodes
-            xt = [map_forward(tmap, (lo * (1 - x) + hi * (1 + x)) / 2) for x in ξ]
+            xt = xts[k]
             Am = d == 1 ? [A[1](xf, tt) for tt in xt] : [A[2](tt, xf) for tt in xt]
             m_hi = Mortar(fm_int, fm_ext, iface.msize[k], Am; C = C)
             m_lo = Mortar(fm_ext, fm_int, iface.nbmsize[k], Am; C = C)
