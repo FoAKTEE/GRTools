@@ -35,6 +35,7 @@ using ScalarSelfForce
     include("test_first_order_flux_form.jl")   # first-order-flux-form (W6-E)
     include("test_equatorial_symmetry_z2.jl")   # equatorial-symmetry-z2 (W6-F)
     include("test_bayliss_turkel.jl")   # bayliss-turkel-bc (W7-D)
+    include("test_effective_source_direct.jl")   # effective-source-direct (W7-C)
     include("test_regularization.jl")   # heffernan-regularization (W7-E)
     include("test_domain_blocks.jl")   # domain-blocks-map (W7-D)
 end

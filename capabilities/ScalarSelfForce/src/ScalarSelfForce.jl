@@ -110,6 +110,16 @@ include("Puncture/derivatives.jl")           # puncture-derivatives
 # t/φ̄ factors on the same API.
 export mode_integral_Rn_drho2, puncture_dphi_m, puncture_dpsi_m
 
+include("Puncture/second_derivatives.jl")    # effective-source-direct (additive puncture layer)
+# Analytic SECOND derivatives of the m-mode puncture (main.tex:481-490), the effective
+# source's single puncture call: mode_integral_Rn_d2rho2 = the twice-applied power reduction
+# ∂²J_n/∂(ϱ²)² = (n/2)((n−2)/2)J_{n−4} (extends mode_integral_Rn to n = −11), and
+# puncture_d2phi_m = the FUSED bundle (I_m, ∂I_m/∂Δr, ∂I_m/∂Δθ, ∂²I_m/∂Δr², ∂²I_m/∂Δθ²) over
+# ONE J ladder. No MIXED second derivative exists: the first-order flux form is diagonal in
+# (r, z) — the same five slots the C oracle records as NaN. The c_j ladder identity
+# ∂c_j/∂ϱ² = −(j+1)c_{j+1} keeps `_puncture_cs` the only home of the binomial algebra.
+export mode_integral_Rn_d2rho2, puncture_d2phi_m
+
 include("Domain/config.jl")                  # runtime-config-fixture
 # Typed twin of the CRP production input anc/ScalarSelfForce.yaml (baked + sha256-pinned at
 # test/fixtures/runtime_config/): crp_paper_config(; spin, orbital_radius, m_mode, …) = the
@@ -192,5 +202,17 @@ include("Domain/blocks.jl")                  # domain-blocks-map
 export BlockDomain, block_domain, block_lattice_bounds, block_lattice_index, block_region
 export worldtube_blocks, boundary_face_classes, boundary_class
 export block_coefficients, domain_coefficients
+
+include("EffectiveSource/direct.jl")         # effective-source-direct
+# The DIRECT pointwise m-mode effective source (main.tex:414-460 + 481-490):
+# puncture_psi_chart = the CONVENTION TRANSFORMATION CHAIN — the chart-complete Ψ^P_m and its
+# (r, z) first/second derivatives, including the FIELD-POINT horizon-regular rotation
+# e^{−im(φ_p + χ(r))} that a constant `varphi_p` cannot carry (χ′ = a/Δ, spectre
+# CircularOrbit.cpp:322-341); effective_source_m = S^eff_m = −△_mΨ^P_m over the SEALED
+# t-region (H = 0) flux-form coefficients — the DG fixed source of △_mΨ^ℛ_m = S^eff_m;
+# effective_source_bundle additionally exposes the worldtube's (Ψ^P, ∂Ψ^P) data and the
+# near-worldline roundoff-loss DIAGNOSTIC (term_scale, cancellation ≈ the λ^{-2} amplification
+# of main.tex:488-490) that node `effective-source-series` will switch on — data, not a switch.
+export puncture_psi_chart, effective_source_m, effective_source_bundle
 
 end # module

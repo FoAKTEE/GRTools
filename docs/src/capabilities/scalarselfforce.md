@@ -16,8 +16,22 @@ formulation and consumes the physics-free hp-DG solver stack from
   ``\gamma^i_m``) → equatorial-symmetry ``z^2`` variant → Bayliss–Turkel
   outer radiation boundary condition.
 - **Puncture** — 4th-order Detweiler–Whiting ``\Phi^P`` (``A_{ijk}`` tensor
-  basis), m-mode integrals over `BigSpecial.legendre_P3`, analytic
-  derivatives.
+  basis), m-mode integrals over `BigSpecial.legendre_P3`, and analytic
+  derivatives of the mode function: first (`mode_integral_Rn_drho2`,
+  `puncture_dphi_m`, `puncture_dpsi_m`) and second
+  (`mode_integral_Rn_d2rho2`, `puncture_d2phi_m` — the fused
+  ``(I_m, \partial I_m, \partial^2 I_m)`` bundle over one ``J_n`` ladder; the
+  flux form is diagonal in ``(r, z)``, so no mixed second derivative exists).
+- **EffectiveSource** — the direct pointwise m-mode effective source
+  ``S^{\rm eff}_m = -\triangle_m \Psi^{\mathcal P}_m`` (`effective_source_m`),
+  i.e. the fixed source of ``\triangle_m \Psi^{\mathcal R}_m = S^{\rm eff}_m``;
+  `puncture_psi_chart`, the chart-complete ``\Psi^{\mathcal P}_m`` bundle
+  carrying the whole m-mode convention transformation chain (the field-point
+  rotation ``e^{-im\chi(r)}``, the ``\sin^{|m|}\theta/r`` factoring and the
+  ``\Sigma/(r^2+a^2)`` projection scale); and `effective_source_bundle`, which
+  adds the worldtube's
+  ``(\Psi^{\mathcal P}, \partial\Psi^{\mathcal P})`` data plus the
+  near-worldline roundoff-loss diagnostic (`term_scale`, `cancellation`).
 - **Domain** — `RunConfig` runtime configuration (`crp_paper_config`,
   `CRP_PAPER_MMODES`) and the EllipticCore `Mesh2D` block lattice:
   `block_domain(orbit, config)` instantiates the `BlockDomain` — 5 radial × 2
@@ -51,7 +65,8 @@ formulation and consumes the physics-free hp-DG solver stack from
     mode sum.
 
 Planned, each landing written test-first once it is grounded:
-`EffectiveSource` (``S^{\rm eff}_m`` direct + near-worldline series switch),
+`EffectiveSource/series.jl` (the near-worldline power series that takes over
+where the direct assembly's cancellation exceeds the caller's budget),
 `Worldtube` (``\Psi^P`` mortar jump data, fixed-source assembly), `Solve`
 (single-mode driver, hp-AMR loop, process-parallel m fan-out), and the rest of
 `Extraction` (``F_r^m`` extraction from a solved mode, and the mode sum itself).
