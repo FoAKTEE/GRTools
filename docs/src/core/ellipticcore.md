@@ -33,18 +33,30 @@ The solver stack, bottom to top:
   `solve!` arrives with the solver-stack node.)
 - **Geometric multigrid** — [`MultigridHierarchy`](@ref) h-coarsens a
   [`Mesh2D`](@ref) down to the irreducible block structure, one
-  [`coarsen_mesh`](@ref) step at a time (per-dimension level capping: tiling,
-  2:1 balance and cross-block compatibility are preserved, and polynomial
-  orders p-coarsen by the minimum rule), rediscretizing the caller's
-  coefficient closures on every level through an operator factory and giving
-  each level its own additive-Schwarz smoother with a private LU cache. The
-  transfers are the sealed mortar projections: [`mg_prolong!`](@ref) is the
-  nodal Lagrange interpolation onto the children, [`mg_restrict!`](@ref) is
-  either the Galerkin restriction `Pᵀ` for the **massive** residual (the
-  V-cycle's transfer, exact for any block map) or the mass-conservative nodal
-  L2 restriction for fields, and [`mg_transfer_check`](@ref) reports the three
-  transfer diagnostics (prolongation exactness, `R∘P = I`, mass-weighted
-  adjointness — all ≤ 1.6e-15 at Float64, ≤ 1.1e-76 at BigFloat(256)).
+  [`coarsen_mesh`](@ref) step at a time: each step merges every **complete
+  sibling group** by one refinement level (largest dimension mask first, each
+  group consumed as a whole) and restores the two-to-one balance with the
+  sealed anisotropic [`balance_two_to_one`](@ref), so the rule is valid on the
+  anisotropically h-refined meshes the CRP's AMR policy produces (a 300-mesh
+  census over AMR-reachable anisotropic meshes builds 300/300 valid, balanced,
+  nested, exactly-tiling hierarchies) and reduces to spectre's uniform
+  decrement on a uniform mesh (64 → 16 → 4 → 1). Polynomial orders p-coarsen by
+  the minimum rule. Every level rediscretizes the caller's coefficient closures
+  through an operator factory and carries its own additive-Schwarz smoother;
+  `caches` shares the subdomain LU factorizations across hierarchy rebuilds and
+  AMR steps (rebuilding on identical meshes costs zero new factorizations), and
+  `shrink` trades levels for coarse-space quality by composing the transfers of
+  steps that do not shrink the problem enough.
+  The transfers are the sealed mortar projections:
+  [`mg_prolong!`](@ref) is the nodal Lagrange interpolation onto the children;
+  [`mg_restrict_residual!`](@ref) is the Galerkin restriction `Pᵀ` of the
+  **massive** residual (the V-cycle's transfer, exact for any block map);
+  [`mg_restrict_field!`](@ref) is the mass-conservative nodal L2 restriction for
+  fields; and [`mg_transfer_check`](@ref) reports the three transfer
+  diagnostics — prolongation exactness, `R∘P = I`, and adjointness in the
+  **logical (dyadic-measure) Gauss mass** (the physical-L2 form of that identity
+  is affine-only, and its O(1) failure on the 1/r compactified block is pinned
+  by the test suite) — all ≤ 1.6e-15 at Float64 and ≤ 1.1e-76 at BigFloat(256).
   [`MultigridV`](@ref) is the V-cycle preconditioner itself — pre-smoothing on,
   no post-smoothing at the bottom, one V-cycle per application, two Schwarz
   passes per level (the CRP yaml configuration) — and is directly the `Minv!`
@@ -52,8 +64,9 @@ The solver stack, bottom to top:
   iterate. Its coarsest-level `bottom` seam defaults to
   [`dense_bottom_solver`](@ref) (one `lu` of `build_matrix`, factored once);
   the cached sparse UMFPACK factorization lands with the bottom-solver node.
-  Measured contraction 0.171 at 3, 4 and 5 levels (level-independent), and 7
-  GMRES iterations where the Schwarz smoother alone needs 18-32.
+  Measured contraction 0.171 at 3, 4 and 5 levels (level-independent) and on
+  the graded puncture cascade, and 7 GMRES iterations where the Schwarz
+  smoother alone needs 18-32.
 - **AMR** — mesh transformations for the CRP hp-AMR strategy, with
   caller-supplied refinement criteria: [`h_split`](@ref) halves the flagged
   elements along their flagged dimensions, [`balance_two_to_one`](@ref)

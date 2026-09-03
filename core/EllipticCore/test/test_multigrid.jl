@@ -26,12 +26,19 @@
 # Oracle gates (constants calibrated PRE-RED in evidence/multigrid-hierarchy/
 # calibrate_multigrid{,2,3}.jl + calibration.log — THROWAWAY prototypes composing the
 # sealed W5/W6 APIs, NOT the implementation):
-#   (1) COARSENING: the spectre `LinearSolver::multigrid::coarsen` semantics (Hierarchy.hpp)
-#       generalized to non-uniform meshes by CAPPING the per-dimension refinement level at
-#       (max level − 1). Uniform k = 2 two-block mesh → 3 levels with 32/8/2 elements, the
-#       coarsest being ONE element per block (the irreducible block structure). Every level
-#       stays 2:1 balanced and tiles (Mesh2D construction is itself the tiling oracle);
-#       the per-dimension parent level gap is always 0 or 1; orders p-coarsen by the MIN
+#   (1) COARSENING (REPAIRED — the shipped per-dimension level CAP was falsified on the
+#       CRP's own AMR class): one step coarsens every COMPLETE SIBLING GROUP by one level,
+#       largest dimension mask first and each group consumed as a whole (letting an element
+#       pick its own mask independently overlaps targets: with A, B, C present and D
+#       refined, A picks {1} → A|B while C picks {2} → A|C), then the 2:1 balance is
+#       restored with the sealed anisotropic `balance_two_to_one`. Gates: the validator's
+#       18-element anisotropic counterexample builds a full hierarchy [18, 9, 5, 3, 2, 1]
+#       (the cap rule threw "invalid face coverage"); a 300-mesh census over AMR-reachable
+#       ANISOTROPIC meshes (base level 2, 3 rounds of h_refine with per-dimension flags —
+#       anc/ScalarSelfForce.yaml:145 Isotropy: Anisotropic, Iterations 8) builds 300/300
+#       valid, balanced, nested, exactly-tiling hierarchies where the cap rule managed
+#       56/300 (and 4/150 with a block seam); uniform meshes shrink geometrically,
+#       64 → 16 → 4 → 1 (spectre Hierarchy.cpp:20-46 parity); orders p-coarsen by the MIN
 #       rule (spectre Multigrid.hpp "we choose the smaller of the two polynomial degrees").
 #   (2) TRANSFER TRIO (`mg_transfer_check`), on the affine, the 2:1+p, and the CURVED mesh:
 #       prolongation EXACT on the coarse element's polynomial space (calibrated 8.0e-16 …
@@ -101,7 +108,12 @@ const MG_TRIO_TOL_BIG = 1e-70      # calibrated ≤ 1.1e-76 (BigFloat 256)
 const MG_RHO_GATE = 0.2            # calibrated 0.1715 / 0.1718 / 0.1719 at 3 / 4 / 5 levels
 const MG_RHO_SPREAD = 0.01         # calibrated spread 4.0e-4 across the three level counts
 const MG_RHO_TINY = 0.25           # 5-element mixed mesh, calibrated 0.1971
-const MG_RHO_CURVED = 0.40         # compactified 1/r block, calibrated 0.3049
+const MG_RHO_CURVED = 0.40         # compactified 1/r block, calibrated 0.3044
+const MG_RHO_NC = 0.25             # 2:1+p two-block mesh, calibrated 0.1983 (repair)
+const MG_RHO_CURVED_NC = 0.45      # curved 1/r WITH a 2:1 interface and a p-jump: 0.3707
+const MG_RHO_ANISO = 0.2           # anisotropically h-refined mesh, calibrated 0.1679
+const MG_CENSUS_N = 300            # anisotropic AMR census size (repair round 1: 300/300)
+const MG_COST_RATIO = 1.8          # sum(ndofs)/ndofs_fine, graded mesh at shrink = 0.5: 1.72
 const MG_RHO_SIGN = 0.2            # sign falsifier: calibrated 0.3354 (must EXCEED the gate)
 const MG_RHO_NONMASSIVE = 0.5      # Galerkin falsifier: calibrated 0.6756 (must EXCEED)
 const MG_GMRES_GATE = 12           # calibrated 7 iterations at 3 AND 4 levels
@@ -228,7 +240,7 @@ function mg_ref_vcycle!(x, hier, b, ℓ, passes, bottomfac; massive = true)
     r = b .- y
     nc = hier.levels[ℓ+1].mesh.ndofs
     bc = zeros(eltype(x), nc)
-    mg_restrict!(bc, hier, ℓ, r; massive = massive)
+    massive ? mg_restrict_residual!(bc, hier, ℓ, r) : mg_restrict_field!(bc, hier, ℓ, r)
     xc = zeros(eltype(x), nc)
     mg_ref_vcycle!(xc, hier, bc, ℓ + 1, passes, bottomfac; massive = massive)
     mg_prolong!(y, hier, ℓ, xc)
@@ -261,6 +273,150 @@ function mg_massdiag(T, mesh)
         out[mg_erange(mesh, e)] .= diag(element_matrices(T, blk, el, mesh.orders[e]).M)
     end
     return out
+end
+
+
+# ---- repair-node helpers (H1/H2/H3/M3-M5) ----------------------------------------------
+# the validator's 18-element ANISOTROPIC counterexample: four x-columns with x-levels
+# 3/3/2/1 and y-levels 1/2/3/2 — two_to_one_balanced, a valid Mesh2D, and fatal to the
+# shipped per-dimension level cap (it produced nested, non-tiling ancestors).
+function mg_counterexample()
+    blk = Block(21, LinearMap1D(0.0, 1.0), LinearMap1D(0.0, 1.0))
+    els = ElementId[]
+    for (sx, ly) in ((SegmentId(3, 0), 1), (SegmentId(3, 1), 2),
+                     (SegmentId(2, 1), 3), (SegmentId(1, 1), 2)), j in 0:(2^ly - 1)
+        push!(els, ElementId(21, sx, SegmentId(ly, j)))
+    end
+    return Mesh2D(blk, els, (4, 4))
+end
+
+mutable struct MGCRNG
+    s::UInt64
+end
+mg_c01!(r::MGCRNG) = (r.s = 0x5851f42d4c957f2d * r.s + 0x14057b7ef767814f;
+                      (r.s >> 33) / 2.0^31)
+
+# an AMR-REACHABLE anisotropic mesh: uniform base level, then `rounds` of h_refine with
+# per-dimension NTuple{2,Bool} flags (anc/ScalarSelfForce.yaml:145 Isotropy: Anisotropic)
+function mg_aniso_mesh(seed, rounds; base = 2, nblocks = 1)
+    r = MGCRNG(UInt64(seed) * 0x9e3779b97f4a7c15 + 1)
+    blks = [Block(b, LinearMap1D(Float64(b - 1), Float64(b)), LinearMap1D(0.0, 1.0))
+            for b in 1:nblocks]
+    conns = nblocks == 2 ? [BlockConnection(1, 1, 2)] : BlockConnection[]
+    els = [ElementId(b, SegmentId(base, ix), SegmentId(base, iy))
+           for b in 1:nblocks for iy in 0:(2^base-1) for ix in 0:(2^base-1)]
+    mesh = Mesh2D(blks, els, (4, 4); connections = conns)
+    for _ in 1:rounds
+        flags = Dict{ElementId,NTuple{2,Bool}}()
+        for el in mesh.elements
+            a = mg_c01!(r) < 0.25
+            b = mg_c01!(r) < 0.25
+            (a || b) && (flags[el] = (a, b))
+        end
+        isempty(flags) || (mesh = h_refine(mesh, flags))
+    end
+    return mesh
+end
+
+# the CRP puncture cascade: uniform base, then `rounds` of isotropic corner refinement
+function mg_graded_mesh(base, rounds)
+    blk = Block(23, LinearMap1D(0.0, 1.0), LinearMap1D(0.0, 1.0))
+    els = [ElementId(23, SegmentId(base, ix), SegmentId(base, iy))
+           for iy in 0:(2^base-1) for ix in 0:(2^base-1)]
+    mesh = Mesh2D(blk, els, (4, 4))
+    for _ in 1:rounds
+        corner = [el for el in mesh.elements
+                  if el.segments[1].index == 2^el.segments[1].level - 1 &&
+                     el.segments[2].index == 2^el.segments[2].level - 1]
+        mesh = h_refine(mesh, Set(corner))
+    end
+    return mesh
+end
+
+# a curved (1/r compactified) block carrying BOTH a 2:1 interface and a p-jump
+function mg_curved_nonconf()
+    blk = Block(9, InverseRadialMap1D(2.0, 20.0), LinearMap1D(0.0, 1.0))
+    els = [ElementId(9, SegmentId(2, ix), SegmentId(2, iy)) for iy in 0:3 for ix in 0:3]
+    m1 = h_refine(Mesh2D(blk, els, (4, 4)),
+                  Set([ElementId(9, SegmentId(2, 1), SegmentId(2, 1))]))
+    ords = Dict(el => (el.segments[1].index == 2^el.segments[1].level - 1 ? (5, 5) : (4, 4))
+                for el in m1.elements)
+    return Mesh2D(m1.blocks, m1.elements, ords; connections = m1.connections)
+end
+
+# one full coarsening chain, validated at every level: valid Mesh2D, 2:1 balanced, every
+# fine element NESTED in its parent (gap 0 or 1 per dimension) and every coarse element
+# EXACTLY tiled by its fine descendants. Returns (element counts, sum(ndofs)/ndofs_fine).
+function mg_chain_report(mesh)
+    nels = [length(mesh.elements)]
+    ndofs = [mesh.ndofs]
+    cur = mesh
+    while true
+        co = coarsen_mesh(cur)
+        co === nothing && break
+        cm, parent = co
+        two_to_one_balanced(cm.elements) || error("unbalanced coarse level")
+        area(el) = ldexp(1.0, -el.segments[1].level - el.segments[2].level)
+        acc = zeros(Float64, length(cm.elements))
+        for (e, el) in enumerate(cur.elements)
+            c = cm.elements[parent[e]]
+            c.block == el.block || error("parent in another block")
+            for d in 1:2
+                Δ = el.segments[d].level - c.segments[d].level
+                (0 <= Δ <= 1 && (el.segments[d].index >> Δ) == c.segments[d].index) ||
+                    error("not nested: $el -> $c")
+            end
+            acc[parent[e]] += area(el)
+        end
+        for k in eachindex(cm.elements)
+            abs(acc[k] - area(cm.elements[k])) < 1e-12 || error("coarse element $k not tiled")
+        end
+        cur = cm
+        push!(nels, length(cm.elements))
+        push!(ndofs, cm.ndofs)
+        length(nels) > 40 && error("coarsening did not terminate")
+    end
+    return nels, sum(ndofs) / ndofs[1]
+end
+
+# nonzero fixed Dirichlet data on every boundary face (the operator-on-zero gate)
+function mg_nzbcs(mesh, T)
+    bcs = Dict{Any,Any}()
+    for (el, d, sidx) in boundary_faces(mesh)
+        nf = mesh.orders[mesh.index[el]][3-d]
+        bcs[(el, d, sidx)] = DirichletGhost([T(0.3 + 0.2im) * (1 + 0.1k) for k in 1:nf])
+    end
+    return bcs
+end
+mg_nzfactory(T, β) =
+    mesh -> MeshOperator(T, mesh, (mg_A11, mg_A22), (x, y) -> β, (mg_zero2, mg_zero2);
+                         C = MG_C, bcs = mg_nzbcs(mesh, T))
+
+# a smooth (coarse-grid-mode) starting error: exp(2πi(x+y)) at the element nodes
+function mg_lowfreq_start(mesh)
+    u = zeros(ComplexF64, mesh.ndofs)
+    for e in eachindex(mesh.elements)
+        el = mesh.elements[e]
+        blk = mesh.blocks[mesh.blockindex[el.block]]
+        em = element_matrices(ComplexF64, blk, el, mesh.orders[e])
+        nx, ny = mesh.orders[e]
+        rgn = mg_erange(mesh, e)
+        for j in 1:ny, i in 1:nx
+            u[rgn[EllipticCore.tensor_lin(i, j, nx)]] = cis(2pi * (em.x[1][i] + em.x[2][j]))
+        end
+    end
+    return u
+end
+
+function mg_contraction_from(mg, u0; niter = 8)
+    x = copy(u0)
+    b = zeros(ComplexF64, length(u0))
+    ns = Float64[norm(x)]
+    for _ in 1:niter
+        vcycle!(x, mg, b)
+        push!(ns, norm(x))
+    end
+    return ns[end] / ns[end-1]
 end
 
 @testset "multigrid hierarchy (multigrid-hierarchy)" begin
@@ -309,8 +465,10 @@ end
             push!(lev, c[1])
             @test two_to_one_balanced(c[1].elements)
         end
-        @test length(lev) == 4
-        @test length(lev[end].elements) == 2
+        # 6 levels, not the 4 of the shipped cap rule: the repaired step merges EVERY
+        # complete sibling group (35 -> 10 in one step, where the cap rule managed 35 -> 32).
+        @test length(lev) == 6
+        @test [length(l.elements) for l in lev] == [35, 10, 6, 4, 3, 2]
 
         # the hierarchy wraps exactly this: level counts and per-level element counts
         for (k, want) in ((2, [32, 8, 2]), (3, [128, 32, 8, 2]))
@@ -353,7 +511,7 @@ end
             uf = zeros(ComplexF64, nf)
             mg_prolong!(uf, hier, ℓ, uc)
             back = zeros(ComplexF64, nc)
-            mg_restrict!(back, hier, ℓ, uf; massive = false)
+            mg_restrict_field!(back, hier, ℓ, uf)
             @test maximum(abs.(back .- uc)) < MG_TRIO_TOL
         end
     end
@@ -391,7 +549,7 @@ end
                 v = mg_cvec!(rng, fm.ndofs)
                 u = mg_cvec!(rng, cm.ndofs)
                 Rv = zeros(ComplexF64, cm.ndofs)
-                mg_restrict!(Rv, hier, ℓ, v; massive = false)
+                mg_restrict_field!(Rv, hier, ℓ, v)
                 Pu = zeros(ComplexF64, fm.ndofs)
                 mg_prolong!(Pu, hier, ℓ, u)
                 lhs = dot(u, Mc .* Rv)
@@ -399,9 +557,9 @@ end
                 adj = max(adj, abs(lhs - rhs) / abs(rhs))
                 # massive restriction == M_c ∘ R ∘ M_f⁻¹
                 rm = zeros(ComplexF64, cm.ndofs)
-                mg_restrict!(rm, hier, ℓ, v; massive = true)
+                mg_restrict_residual!(rm, hier, ℓ, v)
                 rl = zeros(ComplexF64, cm.ndofs)
-                mg_restrict!(rl, hier, ℓ, v ./ Mf; massive = false)
+                mg_restrict_field!(rl, hier, ℓ, v ./ Mf)
                 mid = max(mid, maximum(abs.(rm .- Mc .* rl)) / maximum(abs.(rm)))
             end
             return adj, mid
@@ -446,8 +604,11 @@ end
     @testset "V-cycle on nonconforming (2:1 h and p) and curved meshes" begin
         mk = mg_factory(ComplexF64, MG_BETA_DEF)
         m1 = mg_nonconf_mesh(Float64)
+        # 0.1983 measured (repair round 2): the repaired coarsening merges every complete
+        # sibling group, so the coarse space here is genuinely coarser than the cap rule's
+        # 35 -> 32 near-copy (which measured 0.1671). Still a contraction, gate MG_RHO_NC.
         @test mg_contraction(MultigridV(MultigridHierarchy(mk(m1), mk)), m1.ndofs)[end] <
-              MG_RHO_GATE
+              MG_RHO_NC
         m2 = mg_mixed_mesh(Float64)
         @test mg_contraction(MultigridV(MultigridHierarchy(mk(m2), mk)), m2.ndofs)[end] <
               MG_RHO_TINY
@@ -610,6 +771,168 @@ end
         end
     end
 
+
+    # ------------------------------------- (H1) anisotropic coarsening: the repair ------
+    @testset "anisotropic h-coarsening: counterexample, census, geometric shrink" begin
+        # (a) the validator's 18-element counterexample — fatal to the shipped cap rule
+        m = mg_counterexample()
+        @test two_to_one_balanced(m.elements)
+        nels, _ = mg_chain_report(m)
+        @test nels == [18, 9, 5, 3, 2, 1]
+        # (b) census over AMR-reachable ANISOTROPIC meshes (the CRP's Isotropy: Anisotropic
+        #     policy class, anc/ScalarSelfForce.yaml:145): every level of every hierarchy
+        #     must be a valid, balanced, nested, exactly-tiling Mesh2D. The shipped cap rule
+        #     failed 244/300 of these (104 balance violations, 140 face-coverage errors).
+        ok = 0
+        for seed in 1:MG_CENSUS_N
+            try
+                mg_chain_report(mg_aniso_mesh(seed, 3))
+                ok += 1
+            catch
+            end
+        end
+        @test ok == MG_CENSUS_N
+        ok2 = 0
+        for seed in 501:560
+            try
+                mg_chain_report(mg_aniso_mesh(seed, 3; nblocks = 2))
+                ok2 += 1
+            catch
+            end
+        end
+        @test ok2 == 60                                   # cross-block seams included
+        # (c) uniform meshes shrink geometrically (spectre Hierarchy.cpp:20-46 parity)
+        blk = Block(31, LinearMap1D(0.0, 1.0), LinearMap1D(0.0, 1.0))
+        u8 = Mesh2D(blk, [ElementId(31, SegmentId(3, ix), SegmentId(3, iy))
+                          for iy in 0:7 for ix in 0:7], (4, 4))
+        nels8, ratio8 = mg_chain_report(u8)
+        @test nels8 == [64, 16, 4, 1]
+        @test ratio8 < 1.34                               # calibrated 1.328
+        # (d) the graded puncture cascade and an anisotropic mesh both build cleanly
+        @test mg_chain_report(mg_graded_mesh(3, 3))[1][1] == 73
+        @test length(mg_chain_report(mg_aniso_mesh(7, 3))[1]) > 1
+    end
+
+    @testset "contraction on graded, anisotropic and curved-nonconforming meshes" begin
+        mk = mg_factory(ComplexF64, MG_BETA_DEF)
+        for (mesh, gate) in ((mg_graded_mesh(2, 3), MG_RHO_GATE),      # calibrated 0.1712
+                             (mg_graded_mesh(3, 3), MG_RHO_GATE),      # calibrated 0.1714
+                             (mg_aniso_mesh(7, 3), MG_RHO_ANISO),      # calibrated 0.1679
+                             (mg_curved_nonconf(), MG_RHO_CURVED_NC))  # calibrated 0.3707
+            hier = MultigridHierarchy(mk(mesh), mk)
+            @test mg_contraction(MultigridV(hier), mesh.ndofs)[end] < gate
+        end
+        # the curved + 2:1 + p hierarchy also satisfies the transfer trio
+        hc = MultigridHierarchy(mk(mg_curved_nonconf()), mk)
+        chk = mg_transfer_check(hc)
+        @test chk.prolong_exact < MG_TRIO_TOL
+        @test chk.restrict_identity < MG_TRIO_TOL
+        @test chk.adjointness < MG_TRIO_TOL
+    end
+
+    # ------------------------------------------------- (M3) the level-shrink policy ----
+    @testset "shrink policy: fewer levels at unchanged contraction on graded meshes" begin
+        mk = mg_factory(ComplexF64, MG_BETA_DEF)
+        mesh = mg_graded_mesh(2, 3)
+        hfull = MultigridHierarchy(mk(mesh), mk)                       # default shrink = 1
+        hskip = MultigridHierarchy(mk(mesh), mk; shrink = 0.5)
+        @test length(hskip.levels) < length(hfull.levels)              # 5 vs 10
+        cost(h) = sum(l.mesh.ndofs for l in h.levels) / h.levels[1].mesh.ndofs
+        @test cost(hfull) > MG_COST_RATIO                              # calibrated 2.840
+        @test cost(hskip) <= MG_COST_RATIO                             # calibrated 1.720
+        @test mg_contraction(MultigridV(hskip), mesh.ndofs)[end] < MG_RHO_GATE  # 0.1712
+        # composed transfers stay exact across the skipped step
+        chk = mg_transfer_check(hskip)
+        @test chk.prolong_exact < MG_TRIO_TOL
+        @test chk.restrict_identity < MG_TRIO_TOL
+        @test chk.adjointness < MG_TRIO_TOL
+        @test_throws ArgumentError MultigridHierarchy(mk(mesh), mk; shrink = 0.0)
+    end
+
+    # ---------------------------- (H2) nonzero fixed Dirichlet data / operator-on-zero --
+    @testset "nonzero fixed boundary data: the operator-on-zero contract" begin
+        mesh = mg_uniform_mesh(Float64, 2, 4)
+        mk = mg_nzfactory(ComplexF64, MG_BETA_DEF)
+        op = mk(mesh)
+        hier = MultigridHierarchy(op, mk)
+        mg = MultigridV(hier)
+        # the gate is not vacuous: fixed data are present on the fine AND the coarse levels
+        @test norm(operator_on_zero(op)) > 1.0
+        @test norm(operator_on_zero(hier.levels[2].op)) > 1.0
+        rng = MGRNG(0x5150)
+        f = mg_cvec!(rng, mesh.ndofs)
+        blin = f .- operator_on_zero(op)                  # the LINEARIZED right-hand side
+        r = gmres(op, blin; abstol = 0.0, reltol = 1e-12, maxiter = 200, Minv! = mg)
+        @test r.converged
+        @test norm(r.x - direct_solve(op, blin)) / norm(direct_solve(op, blin)) < 1e-10
+        # the V-cycle is a LINEAR map: the coarse levels solve for a CORRECTION with a zero
+        # guess and a restricted-residual source, so no fixed data may leak in. A regression
+        # that fed the unadjusted b (or used apply_full!) to any level fails here.
+        z1 = zeros(ComplexF64, mesh.ndofs)
+        z2 = zeros(ComplexF64, mesh.ndofs)
+        mg(z1, f)
+        mg(z2, 2 .* f)
+        @test norm(z2 .- 2 .* z1) / norm(2 .* z1) < 1e-13   # calibrated 0.0 (bitwise)
+    end
+
+    # ------------------------------------------------------ (H3) cross-AMR cache reuse --
+    @testset "shared subdomain caches across rebuilds and AMR steps" begin
+        mesh = mg_uniform_mesh(Float64, 3, 4)
+        mk = mg_factory(ComplexF64, MG_BETA_DEF)
+        cache = SubdomainCache()
+        h1 = MultigridHierarchy(mk(mesh), mk; caches = cache)
+        nsub = sum(length(l.smoother.subdomains) for l in h1.levels)
+        @test cache.builds == nsub == 170
+        @test cache.hits == 0
+        h2 = MultigridHierarchy(mk(mesh), mk; caches = cache)   # identical meshes
+        @test cache.builds == nsub                              # ZERO new factorizations
+        @test cache.hits == nsub                                # every subdomain reused
+        # after refining the FINEST level only, the untouched coarser levels still hit
+        b0, h0 = cache.builds, cache.hits
+        mref = h_refine(mesh, el -> true)
+        h3 = MultigridHierarchy(mk(mref), mk; caches = cache)
+        @test length(h3.levels) == length(h1.levels) + 1
+        @test cache.builds - b0 == 512                          # only the new finest level
+        @test cache.hits - h0 == nsub                           # all 170 coarser subdomains
+        # per-level caches remain the default
+        hdef = MultigridHierarchy(mk(mesh), mk)
+        @test all(l.smoother.cache !== cache for l in hdef.levels)
+    end
+
+    # ------------------------------------- (M4) rediscretization, not a Galerkin product -
+    @testset "coarse operators are rediscretized, not P'AP" begin
+        mesh = mg_uniform_mesh(Float64, 2, 4)
+        mk = mg_factory(ComplexF64, MG_BETA_DEF)
+        op = mk(mesh)
+        hier = MultigridHierarchy(op, mk)
+        Ac = build_matrix(hier.levels[2].op)
+        @test Ac == build_matrix(mk(hier.levels[2].mesh))     # the factory's own operator
+        nc = hier.levels[2].mesh.ndofs
+        P = zeros(ComplexF64, mesh.ndofs, nc)
+        ec = zeros(ComplexF64, nc)
+        col = zeros(ComplexF64, mesh.ndofs)
+        for j in 1:nc
+            fill!(ec, 0)
+            ec[j] = 1
+            mg_prolong!(col, hier, 1, ec)
+            P[:, j] = col
+        end
+        G = transpose(P) * build_matrix(op) * P
+        @test opnorm(Ac - G, Inf) / opnorm(Ac, Inf) > 0.1     # calibrated 1.3497
+    end
+
+    # --------------------------------------------- (M5) contraction over several starts --
+    @testset "contraction over independent and low-frequency starts" begin
+        mk = mg_factory(ComplexF64, MG_BETA_DEF)
+        for mesh in (mg_uniform_mesh(Float64, 3, 4), mg_graded_mesh(3, 3))
+            mg = MultigridV(MultigridHierarchy(mk(mesh), mk))
+            worst = maximum(mg_contraction(mg, mesh.ndofs; seed = s)[end]
+                            for s in (0xabc, 0x1234, 0xfeed, 0x77))
+            worst = max(worst, mg_contraction_from(mg, mg_lowfreq_start(mesh)))
+            @test worst < MG_RHO_GATE                          # calibrated 0.1720 / 0.1727
+        end
+    end
+
     # -------------------------------------- (10) thread parity + argument validation ----
     @testset "thread parity, argument validation, docstrings" begin
         mk = mg_factory(ComplexF64, MG_BETA_DEF)
@@ -631,7 +954,8 @@ end
         # every export carries a docstring (Docs.Binding: @doc does not evaluate a loop
         # variable, so the binding is looked up explicitly)
         for nm in (:MultigridHierarchy, :MultigridV, :coarsen_mesh, :mg_prolong!,
-                   :mg_restrict!, :mg_transfer_check, :dense_bottom_solver, :vcycle!)
+                   :mg_restrict_residual!, :mg_restrict_field!, :mg_transfer_check,
+                   :dense_bottom_solver, :vcycle!)
             doc = string(Base.Docs.doc(Base.Docs.Binding(EllipticCore, nm)))
             @test !occursin("No documentation found", doc)
         end

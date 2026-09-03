@@ -45,7 +45,7 @@
 # Massive: True), so a residual vector r represents the linear FUNCTIONAL v ↦ vᵀr. Its
 # coarse-level image is therefore v_c ↦ (P v_c)ᵀ r, i.e.
 #
-#     b_coarse = Pᵀ · r_fine          (`mg_restrict!(...; massive = true)`)
+#     b_coarse = Pᵀ · r_fine          (`mg_restrict_residual!`)
 #
 # — spectre's `operand_is_massive` branch, which is literally `blaze::trans(prolongation)`
 # (Projection.cpp:107-118), and the restriction the V-cycle uses. It is EXACT for any
@@ -83,62 +83,138 @@
 # bitwise independent of the thread count (calibrated: identical iterate hash at -t1 and
 # -t4). BigFloat is never threaded (owner directive), inherited through those defaults.
 
-export MultigridHierarchy, MultigridV, coarsen_mesh, mg_prolong!, mg_restrict!,
-       mg_transfer_check, dense_bottom_solver, vcycle!
+export MultigridHierarchy, MultigridV, coarsen_mesh, mg_prolong!,
+       mg_restrict_residual!, mg_restrict_field!, mg_transfer_check,
+       dense_bottom_solver, vcycle!
 
 # ---- h-coarsening ---------------------------------------------------------------------
 
 """
     coarsen_mesh(mesh::Mesh2D) -> (coarse::Mesh2D, parent::Vector{Int})  |  nothing
 
-One geometric h-coarsening step (spectre `LinearSolver::multigrid::coarsen`): cap every
-element's per-dimension refinement level at `maxlevel - 1` and merge each element into its
-ancestor at that cap. Returns the coarse [`Mesh2D`](@ref) — same blocks, same
-[`BlockConnection`](@ref)s, orders p-coarsened by the MIN rule over the merged children —
-together with `parent[e]`, the coarse-element index each fine element `e` merged into, or
-`nothing` when `mesh` is already fully coarsened (one element per block: the irreducible
-block structure of CRP main.tex:672).
+One geometric h-coarsening step: merge every COMPLETE SIBLING GROUP by one refinement
+level and restore the two-to-one balance with the sealed [`balance_two_to_one`](@ref).
+Returns the coarse [`Mesh2D`](@ref) — same blocks, same [`BlockConnection`](@ref)s, orders
+p-coarsened by the MIN rule over the merged children (spectre `Multigrid.hpp`: "we choose
+the smaller of the two polynomial degrees when combining elements") — together with
+`parent[e]`, the coarse-element index each fine element `e` belongs to, or `nothing` when
+no further progress is possible (one element per block: the irreducible block structure of
+CRP main.tex:672).
 
-The capping rule is monotone in the refinement level, so the coarse element set tiles the
-same domain, keeps the within-block 2:1 balance and the cross-block transverse
-compatibility, and leaves every fine element at most ONE level below its parent (file
-header). On a uniform mesh it reproduces spectre's uniform decrement.
+A group is the 2, 2 or 4 elements that share an address except for the last index bit of
+the coarsened dimension(s), at IDENTICAL levels. Groups are tried largest-mask first (both
+dimensions, then dimension 1, then dimension 2) and are CONSUMED as a whole: letting each
+element pick its own mask independently produces OVERLAPPING targets (with A, B, C present
+and D refined, A picks {1} → A∪B while C picks {2} → A∪C). Elements with no complete group
+are carried over unchanged, so a coarse element is always an ancestor-or-equal of the fine
+elements it covers, at a per-dimension level gap of 0 or 1 — exactly the `MORTAR_FULL` /
+`MORTAR_LOWER` / `MORTAR_UPPER` cases the mortar transfers implement.
+
+Merging enlarges elements, so previously non-adjacent elements can become face-adjacent
+with a level gap of 2; the sealed ANISOTROPIC [`balance_two_to_one`](@ref) repairs that by
+splitting only the offending dimension of the offending element. Because the fine mesh is
+itself a balanced refinement of the merged set, the repair never splits past the fine
+level, and every coarse element stays an ancestor-or-equal of fine elements (gated: a
+300-mesh census over AMR-reachable anisotropic meshes builds 300/300 valid, balanced,
+nested, exactly-tiling hierarchies). A step that cannot make progress returns `nothing`.
+
+On a uniform mesh this reproduces spectre's uniform decrement exactly (64 → 16 → 4 → 1,
+`Hierarchy.cpp:20-46`). The earlier per-dimension level CAP is NOT equivalent: it is
+monotone only for pairs that are already face-adjacent, and on the CRP's own anisotropic
+AMR class (`anc/ScalarSelfForce.yaml:145` `Isotropy: Anisotropic`) it produced nested,
+non-tiling ancestors — 244 of 300 census meshes failed, and an 18-element hand
+counterexample threw "invalid face coverage".
 """
 function coarsen_mesh(mesh::Mesh2D{RT}) where {RT}
     isempty(mesh.elements) && return nothing
-    maxlev = (maximum(el.segments[1].level for el in mesh.elements),
-              maximum(el.segments[2].level for el in mesh.elements))
-    (maxlev[1] == 0 && maxlev[2] == 0) && return nothing
-    cap = (max(0, maxlev[1] - 1), max(0, maxlev[2] - 1))
-    cindex = Dict{ElementId,Int}()
-    celems = ElementId[]
+    merged = _mg_merge_targets(mesh)
+    cand = ElementId[]
+    seen = Set{ElementId}()
+    for el in mesh.elements
+        t = merged[el]
+        if !(t in seen)
+            push!(seen, t)
+            push!(cand, t)
+        end
+    end
+    ids = balance_two_to_one(cand; connections = mesh.connections)
+    length(ids) == length(mesh.elements) && Set(ids) == Set(mesh.elements) && return nothing
+    lookup = Dict{ElementId,Int}(id => k for (k, id) in enumerate(ids))
     parent = Vector{Int}(undef, length(mesh.elements))
     for (e, el) in enumerate(mesh.elements)
-        t = ElementId(el.block, _mg_ancestor(el.segments[1], cap[1]),
-                      _mg_ancestor(el.segments[2], cap[2]))
-        k = get(cindex, t, 0)
-        if k == 0
-            push!(celems, t)
-            k = length(celems)
-            cindex[t] = k
+        anc = _amr_ancestor(lookup, el)
+        anc === nothing &&
+            throw(ArgumentError("coarsen_mesh: fine element $el has no ancestor in the " *
+                                "coarsened set — this is a bug in the coarsening rule"))
+        for d in 1:2
+            Δ = el.segments[d].level - anc.segments[d].level
+            Δ <= 1 ||
+                throw(ArgumentError("coarsen_mesh: level gap $Δ between $el and $anc " *
+                                    "(the transfers require 0 or 1)"))
         end
-        parent[e] = k
+        parent[e] = lookup[anc]
     end
     ords = Dict{ElementId,NTuple{2,Int}}()
     for (e, k) in enumerate(parent)
         o = mesh.orders[e]
-        prev = get(ords, celems[k], (typemax(Int), typemax(Int)))
-        ords[celems[k]] = (min(prev[1], o[1]), min(prev[2], o[2]))
+        prev = get(ords, ids[k], (typemax(Int), typemax(Int)))
+        ords[ids[k]] = (min(prev[1], o[1]), min(prev[2], o[2]))
     end
-    cmesh = Mesh2D(mesh.blocks, celems, ords; connections = mesh.connections)
+    cmesh = Mesh2D(mesh.blocks, ids, ords; connections = mesh.connections)
     return cmesh, parent
 end
 
-# the ancestor of segment `s` at level `cap` (identity when already at or above the cap)
-_mg_ancestor(s::SegmentId, cap::Int) =
-    s.level <= cap ? s : SegmentId(cap, s.index >> (s.level - cap))
+_mg_up(s::SegmentId) = SegmentId(s.level - 1, s.index >> 1)
 
-# per fine element, per dimension: (prolongation coarse→fine, L2 restriction fine→coarse)
+# the members of `el`'s sibling group under `mask` (identical levels, low bits varied)
+function _mg_group(el::ElementId, mask::NTuple{2,Bool})
+    s1, s2 = el.segments
+    b1 = mask[1] ? (s1.index >> 1) << 1 : s1.index
+    b2 = mask[2] ? (s2.index >> 1) << 1 : s2.index
+    out = ElementId[]
+    for j in (mask[2] ? (0:1) : (0:0)), i in (mask[1] ? (0:1) : (0:0))
+        push!(out, ElementId(el.block, SegmentId(s1.level, b1 + i),
+                             SegmentId(s2.level, b2 + j)))
+    end
+    return out
+end
+
+_mg_group_parent(el::ElementId, mask::NTuple{2,Bool}) =
+    ElementId(el.block, mask[1] ? _mg_up(el.segments[1]) : el.segments[1],
+              mask[2] ? _mg_up(el.segments[2]) : el.segments[2])
+
+# fine element => its merge target. Groups are consumed as a whole, and the identity is
+# assigned only AFTER every merge has been tried, so an element is never consumed as a
+# singleton while it is still needed to complete another element's group.
+function _mg_merge_targets(mesh::Mesh2D)
+    present = Set(mesh.elements)
+    consumed = Set{ElementId}()
+    target = Dict{ElementId,ElementId}()
+    for el in mesh.elements
+        el in consumed && continue
+        s1, s2 = el.segments
+        for mask in ((true, true), (true, false), (false, true))
+            (mask[1] && s1.level == 0) && continue
+            (mask[2] && s2.level == 0) && continue
+            grp = _mg_group(el, mask)
+            all(g -> (g in present) && !(g in consumed), grp) || continue
+            p = _mg_group_parent(el, mask)
+            for g in grp
+                push!(consumed, g)
+                target[g] = p
+            end
+            break
+        end
+    end
+    for el in mesh.elements                       # identity for whatever did not merge
+        haskey(target, el) || (target[el] = el)
+    end
+    return target
+end
+
+# ---- per-step transfer matrices --------------------------------------------------------
+
+# per fine element, per dimension: (prolongation coarse→fine, nodal L2 restriction fine→coarse)
 function _mg_transfer_matrices(::Type{RT}, mesh::Mesh2D, cmesh::Mesh2D,
                                parent::Vector{Int}) where {RT}
     n = length(mesh.elements)
@@ -160,7 +236,7 @@ function _mg_transfer_matrices(::Type{RT}, mesh::Mesh2D, cmesh::Mesh2D,
     return P, R
 end
 
-# which half of the parent the child covers (the coarsening rule guarantees a gap of 0 or 1)
+# which half of the parent the child covers (one coarsening STEP gives a gap of 0 or 1)
 function _mg_msize(sf::SegmentId, sc::SegmentId)
     Δ = sf.level - sc.level
     Δ == 0 && return MORTAR_FULL
@@ -168,10 +244,15 @@ function _mg_msize(sf::SegmentId, sc::SegmentId)
     return isodd(sf.index) ? MORTAR_UPPER : MORTAR_LOWER
 end
 
-# the child's logical sub-interval inside the parent's [-1, 1] (diagnostics only)
+# the child's logical sub-interval inside the parent's [-1, 1], for any level gap (a
+# hierarchy LEVEL may compose several coarsening steps — see the `shrink` policy);
+# diagnostics only ([`mg_transfer_check`](@ref)).
 function _mg_child_interval(::Type{RT}, sf::SegmentId, sc::SegmentId) where {RT}
-    sf.level == sc.level && return (-one(RT), one(RT))
-    return isodd(sf.index) ? (zero(RT), one(RT)) : (-one(RT), zero(RT))
+    Δ = sf.level - sc.level
+    Δ == 0 && return (-one(RT), one(RT))
+    w = ldexp(one(RT), 1 - Δ)                     # width 2/2^Δ, exact
+    lo = -one(RT) + (sf.index - (sc.index << Δ)) * w
+    return (lo, lo + w)
 end
 
 # ---- hierarchy -------------------------------------------------------------------------
@@ -190,7 +271,9 @@ One level of a [`MultigridHierarchy`](@ref). Public fields:
 - `parent::Vector{Int}` — `parent[e]` is the index in the NEXT (coarser) level's mesh of
   the element fine element `e` merges into; empty on the coarsest level.
 - `P`, `R` — per fine element, the per-dimension prolongation / L2-restriction matrices
-  ([`mg_prolong!`](@ref), [`mg_restrict!`](@ref)); empty on the coarsest level.
+  ([`mg_prolong!`](@ref), [`mg_restrict_residual!`](@ref),
+  [`mg_restrict_field!`](@ref)); empty on the coarsest level. A level may compose several
+  coarsening steps — see the `shrink` policy of [`MultigridHierarchy`](@ref).
 """
 struct MultigridLevel{OP,SM,RT<:AbstractFloat}
     mesh::Mesh2D{RT}
@@ -208,8 +291,13 @@ end
 The geometric h-coarsening multigrid hierarchy of `op` (CRP main.tex:672): level 1 is
 `op` on its own mesh, and each further level is [`coarsen_mesh`](@ref) applied to the one
 above, down to the irreducible block structure (one element per block) or to `maxlevels`
-levels (`≥ 1`; the yaml `InitialCoarseLevels` twin). `hier.levels` is the vector of
-[`MultigridLevel`](@ref)s, finest first.
+levels. `hier.levels` is the vector of [`MultigridLevel`](@ref)s, finest first.
+
+`maxlevels` counts the TOTAL number of levels (`≥ 1`, the finest included). The yaml
+`LinearSolver.Multigrid.InitialCoarseLevels: L` counts the COARSER levels only (spectre
+`Multigrid/Tags.hpp:30-37`, `ElementsAllocator.hpp:128-136`: `num_levels = min(…, value + 1)`;
+`ScalarSelfForce` stores it verbatim as `MultigridConfig.initial_coarse_levels`), so the
+yaml twin is `maxlevels = L + 1`.
 
 `build_op(mesh::Mesh2D) -> MeshOperator` is the caller's operator FACTORY: it must
 rediscretize the same problem on the mesh it is handed — the same coefficient closures,
@@ -219,15 +307,41 @@ cannot be reused verbatim across levels). Physics stays entirely caller-side; th
 never inspects the coefficients.
 
 Every level gets a [`SchwarzSmoother`](@ref) with the given `overlap`, subdomain `shift`
-and coefficient `epoch`, and its OWN [`SubdomainCache`](@ref) — exactly one LU per
-subdomain, built here and reused by every V-cycle (main.tex:676 "the matrix inverses can
-remain cached across AMR iterations"). The `epoch` discipline is the caller's, as for the
+and coefficient `epoch` — exactly one LU per subdomain, built here and reused by every
+V-cycle. `caches` chooses where those factorizations live and is what makes main.tex:676
+("the matrix inverses can remain cached across AMR iterations") true ACROSS hierarchy
+rebuilds:
+
+- `nothing` (default) — a fresh [`SubdomainCache`](@ref) per level: nothing survives a rebuild.
+- a single `SubdomainCache` — shared by every level and reusable across AMR steps. This is
+  the recommended form: the cache key is `(element id, subdomain shape, epoch, shift)`, so
+  entries from different levels and different AMR iterations can never collide, and a level
+  whose neighbourhood is unchanged is all hits. Measured on the 4-level model: rebuilding on
+  identical meshes costs 0 new factorizations and 170 hits; after refining the FINEST level
+  only, 512 new factorizations are built and all 170 coarser subdomains are reused.
+- a `Vector{SubdomainCache}` — one cache per level, extended in place as levels are built
+  (note that adding an AMR level shifts the level indices, so entries then miss rather than
+  collide; a single shared cache is preferred).
+
+The `epoch` stays CALLER-managed for every form: bump it whenever coefficients, hooks,
+boundary conditions or the penalty change — the cache cannot see them.
+
+`shrink ∈ (0, 1]` is the LEVEL policy: a coarsening step that fails to shrink the problem
+to `shrink · ndofs` is not worth a smoother, so further steps are taken and their transfer
+matrices COMPOSED (`P = P₁·P₂`, `R = R₂·R₁`) before the level is materialized. The default
+`1` never skips (one coarsening step = one level). Measured tradeoff on the graded puncture
+cascade (uniform base + corner refinement rounds): `shrink = 1` gives 10 levels and a total
+cost `Σ ndofs / ndofs_fine` of 2.84 at contraction 0.1712; `shrink = 0.5` gives 5 levels and
+1.72 at the same 0.1712. On uniform meshes the two agree exactly. On randomly ANISOTROPIC
+meshes skipping costs convergence (0.168 → 0.222 and 0.242 → 0.387), which is why the
+conservative `1` is the default. The `epoch` discipline is the caller's, as for the
 smoother itself: bump it whenever coefficients, hooks, boundary conditions or the penalty
 change. `shift` is the SUBDOMAIN complex shift of [`helmholtz_shift`](@ref)'s literal seam;
 the yaml's multigrid-level `ComplexShift` is a documented no-op (adopted decision 8).
 
 Consumed by [`MultigridV`](@ref) (the V-cycle preconditioner), [`mg_prolong!`](@ref),
-[`mg_restrict!`](@ref) and [`mg_transfer_check`](@ref).
+[`mg_restrict_residual!`](@ref), [`mg_restrict_field!`](@ref) and
+[`mg_transfer_check`](@ref).
 """
 struct MultigridHierarchy{L}
     levels::Vector{L}
@@ -236,31 +350,65 @@ end
 function MultigridHierarchy(op::MeshOperator{S,RT}, build_op;
                             maxlevels::Union{Nothing,Integer} = nothing,
                             overlap::Integer = 2, shift::Real = 0,
-                            epoch::Integer = 0) where {S,RT}
+                            epoch::Integer = 0, shrink::Real = 1,
+                            caches = nothing) where {S,RT}
     maxlevels === nothing || maxlevels >= 1 ||
         throw(ArgumentError("MultigridHierarchy: maxlevels must be ≥ 1, got $maxlevels"))
+    0 < shrink <= 1 ||
+        throw(ArgumentError("MultigridHierarchy: shrink must be in (0, 1], got $shrink"))
     built = Any[]
     mesh = op.mesh
     cur = op
     while true
-        co = coarsen_mesh(mesh)
-        islast = co === nothing ||
-                 (maxlevels !== nothing && length(built) + 1 >= Int(maxlevels))
+        co = (maxlevels !== nothing && length(built) + 1 >= Int(maxlevels)) ? nothing :
+             _mg_coarsen_level(RT, mesh, shrink)
         sm = SchwarzSmoother(cur; overlap = overlap, shift = shift, epoch = epoch,
-                             cache = SubdomainCache())
-        if islast
+                             cache = _mg_cache(caches, length(built) + 1))
+        if co === nothing
             push!(built, MultigridLevel(mesh, cur, sm, Int[],
                                         NTuple{2,Matrix{RT}}[], NTuple{2,Matrix{RT}}[]))
             break
         end
-        cmesh, parent = co
-        P, R = _mg_transfer_matrices(RT, mesh, cmesh, parent)
+        cmesh, parent, P, R = co
         push!(built, MultigridLevel(mesh, cur, sm, parent, P, R))
         mesh = cmesh
         cur = build_op(cmesh)::MeshOperator
     end
     levels = identity.(built)                 # narrow to the concrete level type
     return MultigridHierarchy{eltype(levels)}(levels)
+end
+
+# the cache for level ℓ: a fresh one per level (default), one shared cache, or the ℓ-th
+# entry of a caller-owned vector (extended in place as levels are built)
+_mg_cache(::Nothing, ::Int) = SubdomainCache()
+_mg_cache(c::SubdomainCache, ::Int) = c
+function _mg_cache(c::AbstractVector, ℓ::Int)
+    while length(c) < ℓ
+        push!(c, SubdomainCache())
+    end
+    return c[ℓ]::SubdomainCache
+end
+
+# ONE HIERARCHY LEVEL = as many coarsening STEPS as it takes to shrink the problem by the
+# factor `shrink`, with the per-dimension transfer matrices COMPOSED across the skipped
+# steps (P = P₁·P₂, R = R₂·R₁, so R∘P = R₂(R₁P₁)P₂ = I still). `shrink = 1` (the default)
+# never skips: every coarsening step is a level.
+function _mg_coarsen_level(::Type{RT}, mesh::Mesh2D, shrink::Real) where {RT}
+    co = coarsen_mesh(mesh)
+    co === nothing && return nothing
+    cur, par = co
+    P, R = _mg_transfer_matrices(RT, mesh, cur, par)
+    while cur.ndofs > shrink * mesh.ndofs
+        co2 = coarsen_mesh(cur)
+        co2 === nothing && break
+        nxt, par2 = co2
+        Pn, Rn = _mg_transfer_matrices(RT, cur, nxt, par2)
+        P = [(P[e][1] * Pn[par[e]][1], P[e][2] * Pn[par[e]][2]) for e in eachindex(P)]
+        R = [(Rn[par[e]][1] * R[e][1], Rn[par[e]][2] * R[e][2]) for e in eachindex(R)]
+        par = [par2[par[e]] for e in eachindex(par)]
+        cur = nxt
+    end
+    return cur, par, P, R
 end
 
 # ---- transfers -------------------------------------------------------------------------
@@ -308,36 +456,55 @@ function mg_prolong!(uf::AbstractVector, hier::MultigridHierarchy, ℓ::Integer,
 end
 
 """
-    mg_restrict!(v_c, hier::MultigridHierarchy, ℓ, v_f; massive = true) -> v_c
+    mg_restrict_residual!(b_c, hier::MultigridHierarchy, ℓ, r_f) -> b_c
 
-Restrict the level-`ℓ` vector `v_f` onto the coarse level `ℓ+1`, OVERWRITING `v_c` and
-accumulating over the children of each coarse element (spectre
-`Spectral::projection_matrix_child_to_parent`, whose `operand_is_massive` flag this
-keyword mirrors):
+Restrict the level-`ℓ` MASSIVE residual `r_f` onto the coarse level `ℓ+1`, OVERWRITING
+`b_c` and accumulating over the children of each coarse element: the GALERKIN transfer
+`b_c = Pᵀ r_f`, applied per element as `B_c += P₁ᵀ·R_f·P₂`.
 
-- `massive = true` (default, the V-cycle's residual transfer) — the GALERKIN restriction
-  `V_c += P₁ᵀ·V_f·P₂`, i.e. `Pᵀ v_f`. This package's operator is the MASSIVE Gauss
-  formulation, so a residual represents the functional `v ↦ vᵀ v_f` and its coarse image
-  is `v_c ↦ (P v_c)ᵀ v_f`. EXACT for any block map, and the only restriction on the
-  V-cycle path.
-- `massive = false` — the mass-conservative NODAL L2 restriction `V_c += R₁·V_f·R₂ᵀ`
-  (the sealed [`projection_restrict`](@ref)), the transfer for FIELDS: `R∘P = I` and
-  `⟨R v, u⟩_c = ⟨v, P u⟩_f` in the mass-weighted inner product ([`mg_transfer_check`](@ref)).
-
-Applying the NODAL restriction to a MASSIVE residual double-counts the mass matrix and
-degrades the V-cycle contraction from 0.171 to 0.676 (calibrated falsifier).
+This is the V-cycle's residual transfer and the ONLY restriction on its path. This
+package's operator is the MASSIVE Gauss formulation (`dg_operator.jl`, `R(Ψ) = M·S`), so a
+residual vector represents the linear FUNCTIONAL `v ↦ vᵀr_f`; its image on the coarse space
+is `v_c ↦ (P v_c)ᵀ r_f`, i.e. exactly `Pᵀ r_f`. That is spectre's `operand_is_massive`
+branch of `Spectral::projection_matrix_child_to_parent` (`Projection.cpp:107-118`, literally
+the transpose of the prolongation), and it is EXACT for any block map — no mass matrix
+enters. Restricting a massive residual with the NODAL [`mg_restrict_field!`](@ref) instead
+double-counts the mass and degrades the V-cycle contraction from 0.171 to 0.676 (gated
+falsifier).
 """
-function mg_restrict!(vc::AbstractVector, hier::MultigridHierarchy, ℓ::Integer,
-                      vf::AbstractVector; massive::Bool = true)
+mg_restrict_residual!(vc::AbstractVector, hier::MultigridHierarchy, ℓ::Integer,
+                      vf::AbstractVector) = _mg_restrict_impl!(vc, hier, ℓ, vf, true)
+
+"""
+    mg_restrict_field!(v_c, hier::MultigridHierarchy, ℓ, v_f) -> v_c
+
+Restrict the level-`ℓ` NODAL FIELD `v_f` onto the coarse level `ℓ+1`, OVERWRITING `v_c`
+and accumulating over the children of each coarse element: the mass-conservative L2
+projection `V_c += R₁·V_f·R₂ᵀ` built from the sealed [`projection_restrict`](@ref)
+(spectre's `projection_matrix_child_to_parent` with `operand_is_massive = false`).
+
+This is the transfer for FIELDS, not for residuals: it satisfies `R∘P = I` and the
+adjointness `⟨R v, u⟩_c = ⟨v, P u⟩_f` in the LOGICAL (dyadic-measure) Gauss mass
+`2^{-level}·w` — which is the physical L2 mass of an AFFINE block up to its constant
+Jacobian and, unlike the physical mass, makes the identity exact for CURVED maps too (the
+physical-mass form fails at O(1) on the CRP `eq:compaction` 1/r block: 1.08 relative,
+pinned by the test suite). Both properties are reported by [`mg_transfer_check`](@ref).
+Use [`mg_restrict_residual!`](@ref) for the massive residual of a V-cycle.
+"""
+mg_restrict_field!(vc::AbstractVector, hier::MultigridHierarchy, ℓ::Integer,
+                   vf::AbstractVector) = _mg_restrict_impl!(vc, hier, ℓ, vf, false)
+
+function _mg_restrict_impl!(vc::AbstractVector, hier::MultigridHierarchy, ℓ::Integer,
+                            vf::AbstractVector, massive::Bool)
     lev = hier.levels[ℓ]
     isempty(lev.parent) &&
-        throw(ArgumentError("mg_restrict!: level $ℓ is the coarsest — nothing to restrict to"))
+        throw(ArgumentError("mg_restrict: level $ℓ is the coarsest — nothing to restrict to"))
     cm = hier.levels[ℓ+1].mesh
     length(vf) == lev.mesh.ndofs ||
-        throw(ArgumentError("mg_restrict!: v_f has length $(length(vf)), level $ℓ has " *
+        throw(ArgumentError("mg_restrict: v_f has length $(length(vf)), level $ℓ has " *
                             "$(lev.mesh.ndofs) dofs"))
     length(vc) == cm.ndofs ||
-        throw(ArgumentError("mg_restrict!: v_c has length $(length(vc)), level $(ℓ+1) has " *
+        throw(ArgumentError("mg_restrict: v_c has length $(length(vc)), level $(ℓ+1) has " *
                             "$(cm.ndofs) dofs"))
     T = eltype(vc)
     fill!(vc, zero(T))
@@ -444,7 +611,7 @@ function mg_transfer_check(hier::MultigridHierarchy)
         ucr = [_mg_rand!(rng, RT) for _ in 1:cm.ndofs]
         mg_prolong!(uf, hier, ℓ, ucr)
         back = zeros(RT, cm.ndofs)
-        mg_restrict!(back, hier, ℓ, uf; massive = false)
+        mg_restrict_field!(back, hier, ℓ, uf)
         ri = max(ri, maximum(abs.(back .- ucr)))
         # (c) adjointness in the logical (dyadic-measure) mass
         Wf = _mg_logical_mass(RT, fm)
@@ -452,7 +619,7 @@ function mg_transfer_check(hier::MultigridHierarchy)
         v = [_mg_rand!(rng, RT) for _ in 1:fm.ndofs]
         u = [_mg_rand!(rng, RT) for _ in 1:cm.ndofs]
         Rv = zeros(RT, cm.ndofs)
-        mg_restrict!(Rv, hier, ℓ, v; massive = false)
+        mg_restrict_field!(Rv, hier, ℓ, v)
         Pu = zeros(RT, fm.ndofs)
         mg_prolong!(Pu, hier, ℓ, u)
         rhs = dot(Pu, Wf .* v)
@@ -537,7 +704,15 @@ right-preconditioned GMRES stays valid. Measured: 7 GMRES iterations at both 3 a
 levels, against 18 and 32 for the Schwarz smoother alone.
 
 LINEARIZED-only, inherited from [`smooth!`](@ref): the source `b` must already carry the
-[`operator_on_zero`](@ref) correction of any fixed boundary data. The per-level work
+[`operator_on_zero`](@ref) correction of any fixed boundary data — the coarse levels solve
+for a CORRECTION (zero initial guess, restricted-residual source), so the V-cycle is a
+strictly LINEAR map and no fixed data may enter it (gated: `M(2v) == 2M(v)` bitwise on an
+operator whose fine AND coarse levels carry nonzero Dirichlet data).
+
+An apply allocates a CONSTANT number of bytes after warm-up but not zero: `MultigridV`
+preallocates its own per-level buffers here, and 100 % of the remaining allocation is the
+per-call workspace of the sealed [`smooth!`](@ref)/[`apply!`](@ref). Preallocating those is
+the solver-stack node's scope. The per-level work
 buffers are preallocated here, so one `MultigridV` is NOT safe to apply from two threads
 at once (build one per thread if you need that); the V-cycle itself is serial and its
 result is bitwise independent of the thread count (file header).
@@ -587,7 +762,7 @@ stationary multigrid iteration, whose asymptotic error-contraction factor is 0.1
 calibration model, independent of the number of levels.
 
 One V-cycle descends the hierarchy — pre-smooth with `mg.passes` Schwarz passes, restrict
-the residual with the Galerkin transfer `Pᵀ` ([`mg_restrict!`](@ref)), recurse from a zero
+the residual with the Galerkin transfer `Pᵀ` ([`mg_restrict_residual!`](@ref)), recurse from a zero
 coarse guess — solves the coarsest level with the `bottom` seam, then ascends, adding the
 prolongated correction ([`mg_prolong!`](@ref)) and post-smoothing on every non-bottom
 level. `threaded` is forwarded to the sealed [`apply!`](@ref)/[`smooth!`](@ref) and
@@ -645,7 +820,7 @@ function _mg_vcycle!(mg::MultigridV{H,B,T}, ℓ::Int, threaded::Bool) where {H,B
     r = mg.r[ℓ]
     apply!(r, lev.op, x; threaded = threaded)
     @. r = b - r
-    mg_restrict!(mg.b[ℓ+1], mg.hier, ℓ, r; massive = true)
+    mg_restrict_residual!(mg.b[ℓ+1], mg.hier, ℓ, r)
     fill!(mg.x[ℓ+1], zero(T))
     _mg_vcycle!(mg, ℓ + 1, threaded)
     mg_prolong!(r, mg.hier, ℓ, mg.x[ℓ+1])
