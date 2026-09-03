@@ -279,4 +279,20 @@ include("Solve/jump_glue.jl")                # dg-jump-conditions
 # LEVEL mesh (multigrid/AMR); the mesh-bound worldtube data must be rebuilt by the caller.
 export vtu_junction_faces, vtu_junction_hook, jump_hooks
 
+include("Solve/assemble.jl")                 # fig-matrix (the row-42 assembly contract)
+# The ONE composition of the sealed CRP pieces into the production DG operator:
+# assemble_operator(T, dom, wt, orbit, config, m; mesh) = MeshOperator over
+# domain_coefficients + jump_hooks + boundary_conditions + config.dg.penalty_parameter,
+# BITWISE equal to the hand-written spelling and callable on ANY mesh of the block lattice.
+# operator_builder is the MultigridHierarchy `build_op` factory over a caller-supplied
+# per-level WorldtubeData factory (rebuilding that bundle stays worldtube_data's job), and
+# coarsest_operator walks coarsen_mesh to the multigrid COARSEST level — by default the yaml
+# twin of InitialCoarseLevels: L (L + 1 levels in total), which at the production L = 0 is the
+# initial 20-element / 320-dof lattice arXiv:2606.04998 Fig. 2 plots (main.tex:622-626).
+# linearized_rhs folds the worldtube fixed source with the operator's own fixed-data lift,
+# b = worldtube_massive_source(wt) − operator_on_zero(op), extending EllipticCore's general
+# method. NO solve, NO multigrid cycle, NO AMR — rows 42/43 own those.
+export assemble_operator, operator_builder, coarsest_operator
+export linearized_rhs
+
 end # module

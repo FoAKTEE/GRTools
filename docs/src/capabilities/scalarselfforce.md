@@ -85,7 +85,8 @@ formulation and consumes the physics-free hp-DG solver stack from
   `:equator`, `:pole` — the classification the ghost table of `Solve` shares
   with the lattice, so the two cannot drift), and the `block_coefficients` /
   `domain_coefficients` bundles the solver hands to `MeshOperator`.
-- **Solve** — the two glue tables a `MeshOperator` over the block domain needs.
+- **Solve** — the two glue tables a `MeshOperator` over the block domain needs,
+  and the assembly that composes them.
   Boundary conditions (the `bcs` table):
   `boundary_conditions(dom, orbit, config; mesh = dom.mesh)` returns the
   `MeshOperator` `bcs` table of the block domain, covering exactly
@@ -123,6 +124,27 @@ formulation and consumes the physics-free hp-DG solver stack from
   ``[5.2, 14.8]`` and the transitions sit at 2.8 and 24.4 — and is built
   generically anyway). Callable per level mesh like `boundary_conditions`; the
   mesh-bound `WorldtubeData` must be rebuilt by the caller for that mesh.
+
+  Assembly: `assemble_operator(T, dom, wt, orbit, config, m; mesh = dom.mesh)`
+  is the whole CRP operator in one call — `MeshOperator` over
+  `domain_coefficients`, `jump_hooks`, `boundary_conditions` and
+  `config.dg.penalty_parameter` — written once and gated BITWISE
+  (`build_matrix`, `operator_on_zero`, `apply!`) against the hand-composed
+  spelling, so the figure drivers, the single-mode driver and the AMR driver
+  cannot drift apart. `operator_builder(T, dom, orbit, config, m; worldtube)`
+  is the `MultigridHierarchy` `build_op` factory over a caller-supplied
+  per-level `WorldtubeData` factory (rebuilding that mesh-bound bundle stays
+  `worldtube_data`'s own `mesh` keyword — it is not duplicated here), and
+  `coarsest_operator(...; worldtube, maxlevels = config.multigrid.initial_coarse_levels + 1)`
+  walks `coarsen_mesh` to the multigrid COARSEST level and re-assembles there.
+  That default is the yaml twin of `InitialCoarseLevels: L` (which counts only
+  the coarser levels), so at the production ``L = 0`` the coarsest level IS the
+  initial 20-element / 320-dof lattice that Fig. 2 of arXiv:2606.04998 plots;
+  `maxlevels = nothing` coarsens instead to the irreducible block structure
+  (10 elements / 160 dofs on the 5×2 lattice, 15 / 240 on the 5×3).
+  `linearized_rhs(op, wt)` folds the worldtube fixed source with the operator's
+  own fixed-data lift, ``b = M\cdot S - A(0)``, extending EllipticCore's
+  general `linearized_rhs(op, b_phys)` method.
 - **Extraction** — Heffernan m-mode regularization parameters of the radial
   self-force for circular equatorial Kerr orbits (arXiv:1211.6446), in the
   folded ``m \ge 0`` ×2 real-part convention:

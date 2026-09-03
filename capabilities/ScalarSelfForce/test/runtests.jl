@@ -42,4 +42,5 @@ using ScalarSelfForce
     include("test_worldtube.jl")   # worldtube-formulation (W8-C)
     include("test_bc_glue.jl")   # dg-boundary-conditions (W8-D)
     include("test_jump_conditions.jl")   # dg-jump-conditions (W9-A)
+    include("test_assemble.jl")   # fig-matrix commit 1: operator assembly (W9-C)
 end
