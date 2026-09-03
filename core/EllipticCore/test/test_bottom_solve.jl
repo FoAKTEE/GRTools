@@ -31,13 +31,28 @@
 #       coarsest grid is the irreducible block structure and never changes): calibrated
 #       `builds == 1`, `hits == 7`, with the coarsest element set / orders / ndofs
 #       invariant across all 8 rebuilds. Across V-cycles the count never moves.
-#       FALSIFIERS — each of these MUST rebuild: an `epoch` bump; a coefficient change
-#       (β, or 𝔄¹¹ perturbed by 1e-12) at the SAME epoch; a penalty-`C` change; one
-#       boundary face switched Dirichlet → Neumann; an order change (`p_refine`) or any
-#       other change of the coarsest mesh (`maxlevels` truncation); and a Float64
-#       operator on the SAME mesh as a ComplexF64 one (no cross-type collision). The
-#       sharp form of the coefficient falsifier is numerical: after the change the
-#       solver must return the NEW matrix's solution, residual < 1e-12.
+#       The key is STRUCTURAL and `epoch` is AUTHORITATIVE (the SubdomainCache rule, one
+#       epoch for both caches), so the falsifiers split in two:
+#         * STRUCTURAL changes rebuild cleanly — an `epoch` bump, a penalty-`C` change,
+#           an order change (`p_refine`), any other coarsest mesh (`maxlevels`
+#           truncation), and a Float64 operator on the SAME mesh as a ComplexF64 one.
+#         * CONTRACT VIOLATIONS (same key, different operator) THROW an `ArgumentError`
+#           naming the epoch rule — a coefficient change (β, or 𝔄¹¹ perturbed by 1e-12)
+#           or a boundary-CONDITION change at an unchanged epoch — and leave the counters
+#           and entries untouched. After the bump the solver returns the NEW matrix's
+#           solution, residual < 1e-12.
+#       Two boundary cases pin what the stored fingerprint `hash(A·v)` means:
+#         * POSITIVE — inhomogeneous Dirichlet DATA (0 → 0.7) changes `operator_on_zero`
+#           (norm 60.0) but the LINEARIZED matrix is bitwise identical, so the entry must
+#           be REUSED (hit, no throw).
+#         * LIMITATION (the codex construction, calibrated in calibrate_bottom4.jl) — a
+#           legitimate linear-homogeneous hook built from the probe's own face traces
+#           (q1, q2) adds q2·ψ_int[1] − q1·ψ_int[2] to the received data: bitwise 0 on the
+#           probe (IEEE multiplication commutes), so A·v and the fingerprint do not move
+#           while A changes by 1.02 relative. The test asserts that the fingerprint does
+#           NOT detect it and that the reused factorization then solves the WRONG system
+#           (relative residual 1.83) — the honest reason `epoch` is the contract and the
+#           fingerprint is only an assertion.
 #   (3) EQUIVALENCE — the sparse route equals the sealed `dense_bottom_solver` to
 #       ≤ 1e-13 (calibrated 1.36e-15) on the same coarsest system; the V-cycle
 #       contraction is identical to 1e-12; and GMRES ∘ MultigridV with the sparse bottom
@@ -62,7 +77,12 @@
 #       SparseArrays facts: `lu` of a `BigFloat` sparse matrix THROWS (ArgumentError,
 #       "matrix type … not supported"), and `lu` of a `Float32`/`ComplexF32` sparse
 #       matrix SILENTLY PROMOTES to `UmfpackLU{Float64}` / `UmfpackLU{ComplexF64}` —
-#       so the dispatch is on the exact pair, never on `AbstractFloat`.
+#       so the dispatch is on the exact pair, never on `AbstractFloat`. The routing
+#       DECISION is pinned as behaviour too (`_bs_factor` on the four types).
+#   (7) THE HIERARCHY-AWARE CONSTRUCTOR `sparse_bottom_solver(hier; cache, epoch)` is the
+#       recommended entry point: it selects `hier.levels[end].op`, shares the cache with
+#       the raw-operator form (same entry, a hit), honours the same epoch contract, and
+#       refuses a finest-level right-hand side at call time.
 #
 # Helpers are deliberately UNtyped so this file loads before the implementation exists
 # (each @testset then errors individually in the red run without aborting siblings).
@@ -130,6 +150,27 @@ function bs_crp_coarse_mesh(RT, nb = 10)
     conns = [BlockConnection(b, 1, b + 1) for b in 1:(nb-1)]
     els = [ElementId(b, SegmentId(0, 0), SegmentId(0, 0)) for b in 1:nb]
     return Mesh2D(blks, els, (4, 4); connections = conns)
+end
+
+# the irreducible block structure of a TWO-block domain: one 4x4 element per block —
+# a coarsest grid, and the smallest mesh carrying an interior (cross-block) face to hook
+function bs_two_block_coarse(RT)
+    blks, conns = bs_twoblocks(RT)
+    els = [ElementId(1, SegmentId(0, 0), SegmentId(0, 0)),
+           ElementId(2, SegmentId(0, 0), SegmentId(0, 0))]
+    return Mesh2D(blks, els, (4, 4); connections = conns)
+end
+
+# that operator with caller-supplied interior hooks and a uniform Dirichlet DATA value
+# (`g = 0` is the linearized-only model every other testset uses)
+function bs_hooked_op(T, mesh; hooks = Dict{Any,Any}(), g = 0.0)
+    bcs = Dict{Any,Any}()
+    for (el, d, sidx) in boundary_faces(mesh)
+        nf = mesh.orders[mesh.index[el]][3-d]
+        bcs[(el, d, sidx)] = DirichletGhost(fill(T(g), nf))
+    end
+    return MeshOperator(T, mesh, (bs_A11, bs_A22), (x, y) -> BS_BETA,
+                        (bs_zero2, bs_zero2); C = BS_C, hooks = hooks, bcs = bcs)
 end
 
 # the graded "refine the finest level only" flag set: the deepest elements in the
@@ -266,6 +307,15 @@ bs_signature(op) = (copy(op.mesh.elements), copy(op.mesh.orders), op.mesh.ndofs)
         for T in (BigFloat, Complex{BigFloat}, Float32, ComplexF32)
             @test lu(T[4 1; 1 4]) isa LU{T}
         end
+        # …and the routing decision itself is pinned as BEHAVIOR, not as prose: the exact
+        # pair goes to UMFPACK, everything else (here the 32-bit complex) to the dense LU
+        # in its OWN scalar type — never to a silently promoted UmfpackLU{ComplexF64}
+        @test EllipticCore._bs_factor(sparse(ComplexF64[4 1; 1 4])) isa
+              SparseArrays.UMFPACK.UmfpackLU{ComplexF64}
+        @test EllipticCore._bs_factor(sparse(Float64[4 1; 1 4])) isa
+              SparseArrays.UMFPACK.UmfpackLU{Float64}
+        @test EllipticCore._bs_factor(sparse(ComplexF32[4 1; 1 4])) isa LU{ComplexF32}
+        @test EllipticCore._bs_factor(sparse(BigFloat[4 1; 1 4])) isa LU{BigFloat}
     end
 
     @testset "gate 2: ONE LU across a mock 8-step AMR run (finest level only)" begin
@@ -311,7 +361,7 @@ bs_signature(op) = (copy(op.mesh.elements), copy(op.mesh.orders), op.mesh.ndofs)
         @test cache.hits == 0
     end
 
-    @testset "gate 2 falsifiers: every change of the coarse matrix rebuilds" begin
+    @testset "gate 2: structural changes rebuild, contract violations THROW" begin
         T = ComplexF64
         mesh = bs_uniform_mesh(Float64, 2, 4)
         fac = bs_factory(T, BS_BETA)
@@ -325,52 +375,143 @@ bs_signature(op) = (copy(op.mesh.elements), copy(op.mesh.orders), op.mesh.ndofs)
         @test (cache.builds, cache.hits) == (1, 1)
         sparse_bottom_solver(fac(cmesh); cache = cache)
         @test (cache.builds, cache.hits) == (1, 2)
-        # (a) explicit epoch bump
+        # --- STRUCTURAL changes: a different key, so a clean rebuild and no error -------
+        # (a) explicit epoch bump — the authoritative invalidator
         sparse_bottom_solver(cop; cache = cache, epoch = 1)
         @test (cache.builds, cache.hits) == (2, 2)
-        # (b) coefficient change at the SAME epoch — and the SHARP numerical falsifier
-        op2 = bs_factory(T, -3.0 + 0.1im)(cmesh)
-        bot2 = sparse_bottom_solver(op2; cache = cache)
-        @test (cache.builds, cache.hits) == (3, 2)
-        A2 = build_matrix(op2)
-        b = bs_vec!(BSRNG(0x66), T, cmesh.ndofs)
-        z = zeros(T, cmesh.ndofs)
-        bot2(z, b)
-        @test bs_relres(A2, z, b) < BS_RES_TOL           # NOT the stale β = 1 + i/2 solve
-        # (c) a 1e-12 perturbation of a coefficient is still a different matrix
-        sparse_bottom_solver(bs_factory(T, BS_BETA; A11 = (x, y) -> 1.0 + 1e-12)(cmesh);
-                             cache = cache)
-        @test (cache.builds, cache.hits) == (4, 2)
-        # (d) penalty change
+        # (b) penalty C — part of the key
         sparse_bottom_solver(bs_factory(T, BS_BETA; C = 2.0)(cmesh); cache = cache)
+        @test (cache.builds, cache.hits) == (3, 2)
+        # (c) an order change (p_refine) moves the coarsest grid
+        _, pcop = bs_coarse(T, p_refine(mesh))
+        sparse_bottom_solver(pcop; cache = cache)
+        @test (cache.builds, cache.hits) == (4, 2)
+        # (d) a truncated hierarchy has a DIFFERENT (finer) coarsest mesh
+        h2 = MultigridHierarchy(fac(mesh), fac; maxlevels = 2)
+        @test h2.levels[end].mesh.ndofs != cmesh.ndofs
+        sparse_bottom_solver(h2.levels[end].op; cache = cache)
         @test (cache.builds, cache.hits) == (5, 2)
-        # (e) one boundary face Dirichlet -> Neumann
+        # (e) a Float64 operator on the SAME mesh must not collide with the complex one
+        sparse_bottom_solver(bs_factory(Float64, 1.0)(cmesh); cache = cache)
+        @test (cache.builds, cache.hits) == (6, 2)
+        @test length(cache.entries) == 6
+        # --- CONTRACT VIOLATIONS: same key, different operator => LOUD, never silent ----
+        # (f) a coefficient change at an unchanged epoch
+        op2 = bs_factory(T, -3.0 + 0.1im)(cmesh)
+        e1 = try
+            sparse_bottom_solver(op2; cache = cache)
+            nothing
+        catch e
+            e
+        end
+        @test e1 isa ArgumentError
+        @test occursin("epoch", sprint(showerror, e1))
+        @test (cache.builds, cache.hits) == (6, 2)      # a throw touches no counter …
+        @test length(cache.entries) == 6                # … and evicts nothing
+        # (g) a 1e-12 perturbation of a coefficient is caught just as loudly
+        @test_throws ArgumentError sparse_bottom_solver(
+            bs_factory(T, BS_BETA; A11 = (x, y) -> 1.0 + 1e-12)(cmesh); cache = cache)
+        # (h) one boundary face Dirichlet -> Neumann (a boundary-CONDITION change)
         bcs2 = bs_zerobcs(cmesh, T)
         k1 = first(sort(collect(keys(bcs2)); by = string))
         nf = cmesh.orders[cmesh.index[k1[1]]][3-k1[2]]
         bcs2[k1] = NeumannGhost(zeros(T, nf))
-        sparse_bottom_solver(MeshOperator(T, cmesh, (bs_A11, bs_A22), (x, y) -> BS_BETA,
-                                          (bs_zero2, bs_zero2); C = BS_C, bcs = bcs2);
-                             cache = cache)
-        @test (cache.builds, cache.hits) == (6, 2)
-        # (f) an order change (p_refine) moves the coarsest grid
-        _, pcop = bs_coarse(T, p_refine(mesh))
-        sparse_bottom_solver(pcop; cache = cache)
+        @test_throws ArgumentError sparse_bottom_solver(
+            MeshOperator(T, cmesh, (bs_A11, bs_A22), (x, y) -> BS_BETA,
+                         (bs_zero2, bs_zero2); C = BS_C, bcs = bcs2); cache = cache)
+        # the remedy the message names: bump the epoch, get a rebuild and the NEW solution
+        bot2 = sparse_bottom_solver(op2; cache = cache, epoch = 7)
         @test (cache.builds, cache.hits) == (7, 2)
-        # (g) a truncated hierarchy has a DIFFERENT (finer) coarsest mesh
-        h2 = MultigridHierarchy(fac(mesh), fac; maxlevels = 2)
-        @test h2.levels[end].mesh.ndofs != cmesh.ndofs
-        sparse_bottom_solver(h2.levels[end].op; cache = cache)
-        @test (cache.builds, cache.hits) == (8, 2)
-        # (h) a Float64 operator on the SAME mesh must not collide with the complex one
-        sparse_bottom_solver(bs_factory(Float64, 1.0)(cmesh); cache = cache)
-        @test (cache.builds, cache.hits) == (9, 2)
-        @test length(cache.entries) == 9
+        A2 = build_matrix(op2)
+        b = bs_vec!(BSRNG(0x66), T, cmesh.ndofs)
+        z = zeros(T, cmesh.ndofs)
+        bot2(z, b)
+        @test bs_relres(A2, z, b) < BS_RES_TOL          # NOT the stale β = 1 + i/2 solve
         # a cache is caller-owned: a fresh one shares nothing
         c2 = BottomSolverCache()
         sparse_bottom_solver(cop; cache = c2)
         @test (c2.builds, c2.hits) == (1, 0)
-        @test (cache.builds, cache.hits) == (9, 2)
+        @test (cache.builds, cache.hits) == (7, 2)
+    end
+
+    @testset "gate 2: fixed boundary DATA is not a matrix change (the cache must HIT)" begin
+        T = ComplexF64
+        mesh = bs_two_block_coarse(Float64)
+        plain = bs_hooked_op(T, mesh)
+        op_g = bs_hooked_op(T, mesh; g = 0.7)
+        @test norm(operator_on_zero(plain)) == 0        # the gate is not vacuous …
+        @test norm(operator_on_zero(op_g)) > 1          # … the fixed data really moved
+        @test build_matrix(op_g) == build_matrix(plain) # but the MATRIX is bitwise equal
+        cache = BottomSolverCache()
+        sparse_bottom_solver(plain; cache = cache)
+        sparse_bottom_solver(op_g; cache = cache)       # a HIT, and NO throw
+        @test (cache.builds, cache.hits) == (1, 1)
+    end
+
+    @testset "gate 2: the fingerprint is an assertion, not a proof (limitation)" begin
+        # The codex construction: a legitimate LINEAR-HOMOGENEOUS hook built from the
+        # probe's OWN face traces (q1, q2) adds q2·ψ_int[1] − q1·ψ_int[2] to the received
+        # data. On the probe that is bitwise 0 (IEEE multiplication commutes), so A·v — and
+        # therefore the fingerprint — does not move, while A changes at O(1). This test
+        # PINS the limitation rather than claiming it away: `epoch` is the contract.
+        T = ComplexF64
+        mesh = bs_two_block_coarse(Float64)
+        n = mesh.ndofs
+        plain = bs_hooked_op(T, mesh)
+        A_plain = build_matrix(plain)
+        face = (mesh.elements[1], 1, 2)                 # the cross-block interior face
+        rec = NTuple{2,T}[]
+        op_rec = bs_hooked_op(T, mesh; hooks = Dict{Any,Any}(face =>
+            LinearizedHook((int, ext) -> (push!(rec, (int.psi[1], int.psi[2])); ext))))
+        @test build_matrix(op_rec) == A_plain           # the recorder IS the identity
+        empty!(rec)                                     # …but it recorded n column probes
+        EllipticCore._bs_probe(op_rec)                  # run the cache's OWN probe
+        @test length(rec) == 1
+        q1, q2 = rec[1]
+        hooked = bs_hooked_op(T, mesh; hooks = Dict{Any,Any}(face =>
+            LinearizedHook((int, ext) ->
+                FaceState(ext.psi .+ (q2 * int.psi[1] - q1 * int.psi[2]), ext.nflux))))
+        A_hooked = build_matrix(hooked)
+        @test A_hooked != A_plain                                        # A DID change …
+        @test maximum(abs, A_hooked - A_plain) / maximum(abs, A_plain) > 1.0
+        @test EllipticCore._bs_probe(hooked) == EllipticCore._bs_probe(plain)   # … unseen
+        cache = BottomSolverCache()
+        sparse_bottom_solver(plain; cache = cache)
+        bot = sparse_bottom_solver(hooked; cache = cache)  # NO throw: the probe is blind
+        @test (cache.builds, cache.hits) == (1, 1)
+        # the honest consequence, pinned: the reused factorization is the WRONG one
+        b = bs_vec!(BSRNG(0xdd), T, n)
+        z = zeros(T, n)
+        bot(z, b)
+        @test bs_relres(A_hooked, z, b) > 1.0
+        @test bs_relres(A_plain, z, b) < BS_RES_TOL     # it solves the CACHED system
+        # and the contract's own remedy is exact
+        zc = zeros(T, n)
+        sparse_bottom_solver(hooked; cache = cache, epoch = 3)(zc, b)
+        @test (cache.builds, cache.hits) == (2, 1)
+        @test bs_relres(A_hooked, zc, b) < BS_RES_TOL
+    end
+
+    @testset "M1: the hierarchy-aware constructor is the recommended entry point" begin
+        T = ComplexF64
+        hier, cop = bs_coarse(T, bs_uniform_mesh(Float64, 2, 4))
+        cache = BottomSolverCache()
+        bot = sparse_bottom_solver(hier; cache = cache)     # selects levels[end].op
+        @test (cache.builds, cache.hits) == (1, 0)
+        sparse_bottom_solver(cop; cache = cache)            # the raw-op form: same entry
+        @test (cache.builds, cache.hits) == (1, 1)
+        n = cop.mesh.ndofs
+        b = bs_vec!(BSRNG(0xee), T, n)
+        z = zeros(T, n)
+        @test bot(z, b) === z
+        @test bs_relres(build_matrix(cop), z, b) < BS_RES_TOL
+        # it is the COARSEST system: the finest length is refused at call time
+        nf = hier.levels[1].mesh.ndofs
+        @test nf != n
+        @test_throws ArgumentError bot(zeros(T, nf), zeros(T, nf))
+        # and it honours the same epoch contract
+        sparse_bottom_solver(hier; cache = cache, epoch = 2)
+        @test (cache.builds, cache.hits) == (2, 1)
     end
 
     @testset "gate 3: equivalence with the sealed dense_bottom_solver" begin
