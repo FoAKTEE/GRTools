@@ -32,16 +32,46 @@
 #   * the carry-over of one dyadic descendant is the parent's Lagrange polynomial evaluated
 #     at the child's Gauss nodes: with the child's node ξ and the descendant's dyadic
 #     address (Δ levels below the ancestor, sub-index j), the parent-frame point is
-#     (ξ + c)/2^Δ with the ODD integer c = 2j + 1 − 2^Δ (c = 0 for Δ = 0). This form is
-#     exact in binary FP: the scaling is an `ldexp`, and at Δ = 1 it reduces BITWISE to the
-#     sealed mortar half-interval prolongation `projection_prolong(T, N, N, MORTAR_LOWER/
-#     UPPER)` (gated) — the same interpolation semantics, not a second implementation.
+#     (ξ + c)/2^Δ with the ODD integer c = 2j + 1 − 2^Δ (c = 0 for Δ = 0). The SCALING is
+#     exact (an `ldexp` by a power of two); the point itself carries at most ONE rounding,
+#     from the integer shift `ξ + c` (none at Δ = 0, where c = 0). At Δ = 1 the form reduces
+#     BITWISE to the sealed mortar half-interval prolongation
+#     `projection_prolong(T, N, N, MORTAR_LOWER/UPPER)` (gated) — the same interpolation
+#     semantics, not a second implementation.
 #   * consequently the transfer is EXACT (round-off) on every polynomial the source element
 #     represents (degree ≤ N_source − 1), and on smooth data the error is the source
 #     element's Gauss interpolation error, ≤ H^N 2^N N!/(2N)! max|f^(N)| per dimension.
 #   * geometry type and precision are inherited: a `Mesh2D{BigFloat}` carries a BigFloat
 #     transfer at the ambient `setprecision`; a ComplexF64 solution over Float64 geometry
 #     stays ComplexF64.
+#
+# 2:1 CLOSURE POLICY (decided from the CRP's own solver input, not by taste). The paper's
+# ancillary spectre input file `anc/ScalarSelfForce.yaml:145` sets `Amr: Policies: Isotropy:
+# Anisotropic`, and spectre defines that enum as "each dimension can be refined
+# independently" (ParallelAlgorithms/Amr/Policies/Isotropy.hpp:24) — the policy is applied in
+# `amr::enforce_policies` (EnforcePolicies.cpp:24-26), where the ONLY thing `Isotropic` does
+# is equalize the per-dimension flags to their maximum. This module is therefore ANISOTROPIC
+# by construction: `_amr_ask!` marks ONLY the offending dimension, and an element is quartered
+# only when it genuinely violates the balance in both dimensions.
+#
+# Whether the requested dimensions are applied together or one at a time is a SEPARATE
+# question, and the reference implementation settles it: `amr::update_amr_decision`
+# (Domain/Amr/UpdateAmrDecision.cpp) raises per-dimension flags to a FIXPOINT over the
+# PRE-SPLIT neighbour decisions, after which the domain is adjusted once — so an element whose
+# decision ends up Split in both dimensions is quartered in a single step. The sweep loop
+# below is that algorithm. A one-split-at-a-time closure over the same violation predicate is
+# equally `Mesh2D`-legal and yields FEWER elements (measured 0-16.7 % fewer, worst 1.167×, on
+# the off-centre two-block cascade of test_amr.jl gate (b2): step 4 raw 19 → 28 batched vs 24
+# minimal), because splitting one dimension first can shrink an offender out of the second
+# dimension's overlap. That saving is NOT taken here: it would deviate from the solver the
+# CRP actually ran. The inflation is gated against a structurally independent minimal-closure
+# oracle in test_amr.jl gate (b3).
+#
+# COST (measured, single thread, uniform meshes): `balance_two_to_one` 0.010 / 0.106 / 1.615 s
+# and `h_refine` 0.37 / 0.85 / 11.1 s at n = 1024 / 4096 / 16384 elements — O(n²) from the
+# pairwise adjacency scan (and `Mesh2D`'s own O(n²) face topology inside `h_refine`). The CRP
+# runs a few hundred elements per m-mode (main.tex:552-560, 8 AMR iterations), so this is
+# irrelevant at the paper's sizes; a driver pushing past ~10⁴ elements wants a spatial index.
 #
 # CALLER-MANAGED CACHE INVALIDATION (binding, for the `amr-driver` node): every AMR step
 # produces a NEW `Mesh2D`, so every object built ON a mesh is stale — the `MeshOperator`,
@@ -70,6 +100,13 @@ _amr_dims(x) = throw(ArgumentError("AMR flags must be a Bool or an NTuple{2,Bool
 _amr_flag(flags::AbstractDict, id::ElementId) = _amr_dims(get(flags, id, false))
 _amr_flag(flags::AbstractSet, id::ElementId) = _amr_dims(id in flags)
 _amr_flag(flags::AbstractVector{ElementId}, id::ElementId) = _amr_dims(id in flags)
+# a Bool MASK aligned with `mesh.elements` is a plausible mistake and would otherwise die with
+# an opaque MethodError on `flags(id)`; name the accepted forms instead.
+_amr_flag(::AbstractVector{Bool}, ::ElementId) =
+    throw(ArgumentError("AMR flags: a Vector{Bool} mask is not accepted — element order is " *
+                        "not part of the criterion contract. Pass a callable predicate " *
+                        "`f(::ElementId)`, an AbstractDict `ElementId => flag`, or an " *
+                        "AbstractSet/AbstractVector of flagged `ElementId`s"))
 _amr_flag(flags, id::ElementId) = _amr_dims(flags(id))
 
 # children of one element along the flagged dimensions, appended to `out` in the canonical
@@ -115,6 +152,13 @@ each yielding either a `Bool` (halve in BOTH dimensions — the CRP strategy) or
 Order is deterministic and locality-preserving: each element is replaced in place by its
 children with the dimension-1 index fastest, so the global nodal layout of the refined mesh
 follows the layout of the source mesh.
+
+STALE IDS ARE A SILENT NO-OP. A container form is consulted by element identity, and every
+refinement step REPLACES the ids it splits, so a `Set`/`Dict`/`Vector` built against an
+earlier mesh simply matches nothing and the step becomes an expensive identity. A driver must
+re-evaluate its criterion against the CURRENT `mesh.elements` on every step and never cache a
+flag container across steps (a callable predicate is immune, which is why it is the
+recommended form).
 """
 function h_split(ids::AbstractVector{ElementId}, flags)
     out = ElementId[]
@@ -160,6 +204,16 @@ vector, gated). It terminates because a split never raises an element above the 
 the neighbour that forced it, so the maximum level is invariant; `maxsweeps` is a defensive
 cap (measured: ≤ 3 sweeps over 150 random multi-block layouts) and an exceeded cap is an
 `ErrorException`, never a silent unbalanced return.
+
+ANISOTROPIC, BATCHED, AND NOT MINIMAL — the CRP's own policy, see the module header for the
+sources. Only the OFFENDING dimension of a violating pair is marked (`Isotropy: Anisotropic`,
+`anc/ScalarSelfForce.yaml:145`), so an element is quartered only when it genuinely violates in
+both dimensions; and the dimensions marked in one sweep are applied TOGETHER, which is what
+spectre's `amr::update_amr_decision` fixpoint over pre-split neighbour decisions plus a single
+domain adjustment does. A one-split-at-a-time closure over the same violation predicate is
+equally valid and gives 0-16.7 % fewer elements (gated against an independent oracle in
+test_amr.jl gate (b3)); it is deliberately NOT used, because it is not the algorithm the
+paper's solver ran.
 
 Element order is preserved: offenders are replaced in place by their children.
 """
@@ -282,7 +336,7 @@ end
 # ---- p refinement ---------------------------------------------------------------------------
 
 """
-    p_refine(mesh::Mesh2D, flags; increment = 1) -> Mesh2D
+    p_refine(mesh::Mesh2D; hold = Set{ElementId}(), increment = 1) -> Mesh2D
 
 One CRP p-refinement step (main.tex:558-560) as a PURE mesh transformation: "increase the
 polynomial order in all elements *that do not contain the puncture* by one in both
@@ -290,11 +344,14 @@ dimensions in each refinement step", starting from the CRP's initial `4 × 4` gr
 element set is UNCHANGED; only the per-element orders move, so after `k` steps with a fixed
 flag set the un-flagged elements carry `N = 4 + k` and the flagged ones still `N = 4`.
 
-`flags` marks the elements whose order is HELD — the same criterion that
-[`h_refine`](@ref) splits (the CRP puncture elements are h-refined *instead of* p-refined),
-so one flag set drives both halves of the step and [`hp_refine`](@ref) takes exactly that
-one set. The accepted flag forms are the ones documented on [`h_split`](@ref); a
-per-dimension `NTuple{2,Bool}` holds only the flagged dimension's order.
+`hold` names the elements whose order is HELD — the same criterion that
+[`h_refine`](@ref) SPLITS (the CRP puncture elements are h-refined *instead of* p-refined),
+so one criterion drives both halves of the step and [`hp_refine`](@ref) takes exactly that
+one set. It is a KEYWORD, and named for what it does, precisely because the polarity is the
+opposite of `h_refine`'s positional `flags` ("split these"): `p_refine(mesh; hold = puncture)`
+cannot be misread the way `p_refine(mesh, puncture)` could. The accepted forms are the ones
+documented on [`h_split`](@ref); a per-dimension `NTuple{2,Bool}` holds only the flagged
+dimension's order, and the default holds nothing (a uniform p step).
 
 The result is built through the public [`Mesh2D`](@ref) constructor, so p-nonconforming
 interfaces are validated there and handled by the mortar layer of [`MeshOperator`](@ref);
@@ -303,12 +360,12 @@ every polynomial the source element represents) and rebuild every operator, bump
 caller-managed Schwarz cache epoch (module header) — a p step changes every un-flagged
 element's subdomain matrix.
 """
-function p_refine(mesh::Mesh2D, flags; increment::Integer = 1)
+function p_refine(mesh::Mesh2D; hold = Set{ElementId}(), increment::Integer = 1)
     increment >= 0 ||
         throw(ArgumentError("p_refine: increment must be ≥ 0, got $increment"))
     ords = Dict{ElementId,NTuple{2,Int}}()
     for (e, id) in enumerate(mesh.elements)
-        ords[id] = _amr_praise(mesh.orders[e], _amr_flag(flags, id), Int(increment))
+        ords[id] = _amr_praise(mesh.orders[e], _amr_flag(hold, id), Int(increment))
     end
     return Mesh2D(mesh.blocks, mesh.elements, ords; connections = mesh.connections)
 end
@@ -326,20 +383,14 @@ other element keeps its extent and gains `increment` orders ([`p_refine`](@ref))
 two-to-one balance is restored by splitting the offenders — whose children inherit their
 parent's already-incremented order.
 
-Exactly the composition `h_refine(p_refine(mesh, flags; increment), flags)` (gated), and
-equally the other order once the flags are lifted along ancestry — the two halves of the
-step act on disjoint element sets, so they commute. This is the step the `amr-driver` node
-iterates; the criterion behind `flags` stays the caller's.
+LITERALLY the composition `h_refine(p_refine(mesh; hold = flags, increment), flags)` — one
+criterion, used as "hold the order" by the p half and "split" by the h half. It is also equal
+to the other order once the flags are lifted along ancestry (gated): the two halves act on
+disjoint element sets, so they commute. This is the step the `amr-driver` node iterates; the
+criterion behind `flags` stays the caller's.
 """
 function hp_refine(mesh::Mesh2D, flags; increment::Integer = 1)
-    increment >= 0 ||
-        throw(ArgumentError("hp_refine: increment must be ≥ 0, got $increment"))
-    ord0 = Dict{ElementId,NTuple{2,Int}}()
-    for (e, id) in enumerate(mesh.elements)
-        ord0[id] = _amr_praise(mesh.orders[e], _amr_flag(flags, id), Int(increment))
-    end
-    ids = balance_two_to_one(h_split(mesh.elements, flags); connections = mesh.connections)
-    return Mesh2D(mesh.blocks, ids, _amr_inherit(ord0, ids); connections = mesh.connections)
+    return h_refine(p_refine(mesh; hold = flags, increment = increment), flags)
 end
 
 # ---- solution carry-over ------------------------------------------------------------------------
@@ -348,7 +399,8 @@ end
 # sits Δ levels below it at sub-index j: the ancestor's Lagrange basis evaluated at the
 # descendant's Gauss nodes expressed in the ancestor's reference frame,
 #   ξ_ancestor = (ξ_child + c) / 2^Δ,   c = 2j + 1 − 2^Δ   (c = 0 when Δ = 0).
-# `ldexp` makes the scaling exact; at Δ = 1 this is BITWISE the sealed mortar prolongation.
+# `ldexp` makes the SCALING exact (a power of two); the point carries at most one rounding
+# from `ξ + c` (none at Δ = 0). At Δ = 1 this is BITWISE the sealed mortar prolongation.
 function _amr_xfer1d(::Type{RT}, Nold::Int, Nnew::Int, Δ::Int, j::Int,
                      cache::Dict{NTuple{4,Int},Matrix{RT}}) where {RT<:AbstractFloat}
     return get!(cache, (Nold, Nnew, Δ, j)) do
@@ -408,6 +460,14 @@ function transfer_solution(source::Mesh2D, target::Mesh2D, u::AbstractVector)
         eo = source.index[anc]
         No = source.orders[eo]
         Nn = target.orders[e]
+        all(Nn .>= No) ||
+            throw(ArgumentError("transfer_solution: target element $id has order $Nn " *
+                                "below its source element's $No — an order DECREASE " *
+                                "discards the modes above the target degree, so nodal " *
+                                "interpolation is NOT the L2 projection of the source " *
+                                "field (deviation is O(1) on data that uses the dropped " *
+                                "modes). p-coarsening needs `projection_restrict`, not " *
+                                "this function"))
         P1, P2 = ntuple(2) do d
             so = anc.segments[d]
             sn = id.segments[d]

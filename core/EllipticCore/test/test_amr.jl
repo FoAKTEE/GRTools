@@ -26,7 +26,17 @@
 #       with 12 elements per level 2..k-1 and 16 at level k), and a six-step OFF-CENTRE cascade
 #       on a two-block layout reproduces a NAIVE independent re-implementation of split +
 #       balance (Float64 interval arithmetic, O(n^2) fixpoint) at every step — that cascade
-#       fires the balancer on every step, including ACROSS the block connection.
+#       fires the balancer on 5 of the 6 steps, including ACROSS the block connection. That
+#       oracle is an independent TRANSCRIPTION of the shipped algorithm (same batched sweep),
+#       so it catches transcription but not design errors.
+#   (b3) a STRUCTURALLY different oracle — exact Rational interval arithmetic, ONE split per
+#       iteration, RANDOMIZED visitation order — reaches the MINIMAL fixpoint of the same
+#       violation predicate. The shipped result is balanced by that predicate, a minimal
+#       closure finds nothing left to do in it, and its element-count inflation over the
+#       minimal fixpoint stays in [1, 1.20] (measured 1.000-1.167). The batched application
+#       is spectre's (amr::update_amr_decision fixpoint over pre-split decisions + one domain
+#       adjustment) under the CRP's `Isotropy: Anisotropic` policy — see the
+#       balance_two_to_one docstring and the src/amr.jl module header.
 #   (c) exhaustive random gate: 150 random block layouts x 4 rounds of random per-dimension
 #       flag sets — after enforcement `two_to_one_balanced` holds, the cross-block transverse
 #       balance holds, the balancer is IDEMPOTENT (a second call returns the identical vector),
@@ -52,8 +62,10 @@
 #   (h) metadata: after k = 1..8 p steps with a FIXED flag set, N = 4 + k in every non-flagged
 #       element and N = 4 in every flagged one (main.tex:558-560); per-dimension flags hold only
 #       the flagged dimension; `increment` is honoured.
-#   (i) p transfer is exact on polynomials of the SOURCE element degree (<= 1e-13) and is the
-#       identity when the order does not change (bitwise).
+#   (i) p transfer is exact on polynomials of the SOURCE element degree (<= 1e-13), is the
+#       identity when the order does not change (bitwise), and REFUSES an order decrease
+#       (pure, per-dimension, and mixed with h refinement) — nodal interpolation onto fewer
+#       points is not the L2 projection.
 #   (j) the combined h+p step `hp_refine` == p_refine-then-h_refine bookkeeping: flagged
 #       elements h-split and keep N = 4, everything else keeps its element and gains one order;
 #       balance-induced children inherit their parent's (already incremented) order.
@@ -145,6 +157,73 @@ function amr_naive_balance(ids, conns)
         end
         cur = nxt
     end
+end
+
+# ---- STRUCTURALLY INDEPENDENT balance oracle (gate (b3)) ---------------------------------
+# `amr_naive_balance` above is an independent TRANSCRIPTION of the shipped algorithm — same
+# batched sweep, same per-element request dict — so it catches transcription errors but not
+# design errors: three co-designed copies agreeing is not independence. The oracle below is
+# deliberately unlike BOTH: exact `Rational` interval arithmetic instead of dyadic integer
+# shifts or Float64 endpoints, ONE split per iteration instead of a batched sweep, and a
+# RANDOMIZED visitation order instead of a fixed scan. It therefore reaches a different (and
+# minimal) fixpoint of the SAME violation predicate, which is exactly what gate (b3) needs:
+# an independent check that the shipped result is balanced, that a minimal closure finds
+# nothing left to do in it, and that its extra elements stay inside the documented
+# batched-closure inflation.
+amrq_ivl(sg) = (sg.index // (1 << sg.level), (sg.index + 1) // (1 << sg.level))
+amrq_touch(a, b) = (x = amrq_ivl(a); y = amrq_ivl(b); x[2] == y[1] || y[2] == x[1])
+amrq_ovl(a, b) = (x = amrq_ivl(a); y = amrq_ivl(b); max(x[1], y[1]) < min(x[2], y[2]))
+amrq_adj(a, b) =
+    a.block == b.block &&
+    ((amrq_touch(a.segments[1], b.segments[1]) && amrq_ovl(a.segments[2], b.segments[2])) ||
+     (amrq_touch(a.segments[2], b.segments[2]) && amrq_ovl(a.segments[1], b.segments[1])))
+
+# the FIRST violating (element index, dimension) in the given visitation order, or nothing
+function amrq_violation(cur, conns, order)
+    for i in order, j in order
+        i == j && continue
+        a, b = cur[i], cur[j]
+        amrq_adj(a, b) || continue
+        for d in 1:2
+            amr_lv(a, d) - amr_lv(b, d) <= -2 && return (i, d)
+        end
+    end
+    for c in conns
+        d = c.dim; t = 3 - d
+        for i in order, j in order
+            a, b = cur[i], cur[j]
+            (a.block == c.block && b.block == c.neighbor) || continue
+            a.segments[d].index == (1 << a.segments[d].level) - 1 || continue
+            b.segments[d].index == 0 || continue
+            amrq_ovl(a.segments[t], b.segments[t]) || continue
+            amr_lv(a, t) - amr_lv(b, t) <= -2 && return (i, t)
+        end
+    end
+    return nothing
+end
+amrq_balanced(ids, conns) = amrq_violation(ids, conns, eachindex(ids)) === nothing
+
+# MINIMAL closure: split ONE offending element in ONE dimension per iteration, visiting in a
+# randomized order, until the predicate is satisfied
+function amrq_minimal(ids, conns, rng)
+    cur = collect(ids)
+    for _ in 1:10_000
+        order = collect(eachindex(cur))
+        for k in length(order):-1:2                       # Fisher-Yates on the shared LCG
+            j = amr_pick!(rng, k)
+            order[k], order[j] = order[j], order[k]
+        end
+        v = amrq_violation(cur, conns, order)
+        v === nothing && return cur
+        i, d = v
+        nxt = ElementId[]
+        for (k, id) in enumerate(cur)
+            k == i ? append!(nxt, amr_split1(id, d == 1 ? (true, false) : (false, true))) :
+                     push!(nxt, id)
+        end
+        cur = nxt
+    end
+    error("amrq_minimal: no fixpoint in 10000 single splits")
 end
 
 # cross-block transverse 2:1, checked independently
@@ -337,20 +416,16 @@ end
         exp_ids = amr_expected_cascade(21, k)
         @test length(mesh.elements) == expected_counts[k]
         @test Set(mesh.elements) == Set(exp_ids)
-        # the LEVEL MAP (refinement level per ElementId) matches element by element
-        got = Dict(id => (amr_lv(id, 1), amr_lv(id, 2)) for id in mesh.elements)
-        want = Dict(id => (amr_lv(id, 1), amr_lv(id, 2)) for id in exp_ids)
-        @test got == want
-        @test all(v -> v[1] == v[2], values(got))                   # isotropic cascade
-        # per-level histogram: 12 at each level 2..k-1, 16 at level k (k >= 2)
-        if k >= 2
-            hist = Dict{Int,Int}()
-            for id in mesh.elements
-                hist[amr_lv(id, 1)] = get(hist, amr_lv(id, 1), 0) + 1
-            end
-            @test hist[k] == 16
-            @test all(hist[l] == 12 for l in 2:k-1)
+        # the LEVEL MAP as a per-level HISTOGRAM (the level of an id is a pure function of
+        # the id, so comparing level dicts of equal id sets would be a tautology): 4 at
+        # level 1 for k = 1, else 12 at each level 2..k-1 and 16 at level k
+        hist = Dict{Int,Int}()
+        for id in mesh.elements
+            hist[amr_lv(id, 1)] = get(hist, amr_lv(id, 1), 0) + 1
         end
+        @test hist == (k == 1 ? Dict(1 => 4) :
+                       merge(Dict(l => 12 for l in 2:k-1), Dict(k => 16)))
+        @test all(amr_lv(id, 1) == amr_lv(id, 2) for id in mesh.elements)   # isotropic
         @test two_to_one_balanced(mesh.elements)
         @test isapprox(sum(amr_area, mesh.elements), 1.0; atol = 1e-14)   # exact tiling
         @test all(o -> o == (4, 4), mesh.orders)                          # h keeps the order
@@ -383,6 +458,60 @@ end
     # balanced); the balancer fires on each of the remaining five steps
     @test balance_fired == 5
     @test crossblock_splits > 0         # ... including ACROSS the block connection
+end
+
+# ---- (b3) the shipped closure against a STRUCTURALLY different (minimal) oracle ------------
+@testset "(b3) shipped 2:1 closure vs an independent minimal-closure oracle" begin
+    rng = AMRRNG(0x63105ec1)
+    blocks = amr_blocks2(); conns = amr_conns2()
+    punct(id) = id.block == 1 && amr_contains(id, 0.87, 0.31)
+    ratios = Float64[]
+    cur = amr_roots2()
+    for k in 1:6
+        raw = h_split(cur, punct)
+        shipped = balance_two_to_one(raw; connections = conns)
+        minimal = amrq_minimal(raw, conns, rng)
+        # (a) the shipped result satisfies the INDEPENDENT predicate, and a minimal closure
+        #     applied to it finds nothing to do (idempotent w.r.t. that oracle)
+        @test amrq_balanced(shipped, conns)
+        @test Set(amrq_minimal(shipped, conns, rng)) == Set(shipped)
+        # the oracle really is a different fixpoint, and a valid one
+        @test amrq_balanced(minimal, conns)
+        @test two_to_one_balanced(minimal)
+        # (b) the batched closure's inflation stays inside the documented bound
+        push!(ratios, length(shipped) / length(minimal))
+        cur = shipped
+    end
+    # measured over this cascade: 1.000, 1.125, 1.143, 1.167, 1.167, 1.109 (worst 1.1667).
+    # The batched application is spectre's (amr::update_amr_decision fixpoint over pre-split
+    # decisions + a single domain adjustment); the minimal closure is legal but is not the
+    # algorithm the CRP ran — see the balance_two_to_one docstring.
+    @test all(r -> 1.0 <= r <= 1.20, ratios)
+    @test maximum(ratios) > 1.10          # the two closures really do differ (not vacuous)
+    println("AMR closure inflation (shipped/minimal) over the 6-step cascade: ",
+            join((round(r; digits = 4) for r in ratios), ", "))
+
+    # the same on random layouts: shipped is always balanced by the independent predicate
+    bad = String[]
+    for trial in 1:12
+        nb = amr_pick!(rng, 3)
+        bl = [Block(k, LinearMap1D(Float64(k - 1), Float64(k)), LinearMap1D(0.0, 1.0))
+              for k in 1:nb]
+        cn = [BlockConnection(k, 1, k + 1) for k in 1:nb-1]
+        ids = [ElementId(k, SegmentId(0, 0), SegmentId(0, 0)) for k in 1:nb]
+        for round in 1:3
+            fl = Dict{ElementId,NTuple{2,Bool}}()
+            for id in ids
+                amr_u01!(rng) < 0.4 && (fl[id] = (amr_u01!(rng) < 0.8, amr_u01!(rng) < 0.8))
+            end
+            got = balance_two_to_one(h_split(ids, fl); connections = cn)
+            amrq_balanced(got, cn) || push!(bad, "trial $trial round $round")
+            Set(amrq_minimal(got, cn, rng)) == Set(got) ||
+                push!(bad, "trial $trial round $round (not minimal-idempotent)")
+            ids = got
+        end
+    end
+    @test isempty(bad)
 end
 
 # ---- (c) exhaustive random gate: balance, idempotence, tiling, constructibility -------------
@@ -655,7 +784,7 @@ end
     @test length(flagged) == 4                            # the four centre elements
     cur = mesh
     for k in 1:8
-        cur = p_refine(cur, flagged)
+        cur = p_refine(cur; hold = flagged)
         @test cur.elements == mesh.elements               # p never touches the element set
         for (e, id) in enumerate(cur.elements)
             @test cur.orders[e] == (id in flagged ? (4, 4) : (4 + k, 4 + k))
@@ -664,22 +793,27 @@ end
         @test two_to_one_balanced(cur.elements)
     end
     # flag forms agree, and an all-flagged step is the identity
-    @test p_refine(mesh, flagged).orders ==
-          p_refine(mesh, Dict(id => true for id in flagged)).orders ==
-          p_refine(mesh, id -> id in flagged).orders ==
-          p_refine(mesh, collect(flagged)).orders
-    @test p_refine(mesh, id -> true).orders == mesh.orders
+    @test p_refine(mesh; hold = flagged).orders ==
+          p_refine(mesh; hold = Dict(id => true for id in flagged)).orders ==
+          p_refine(mesh; hold = id -> id in flagged).orders ==
+          p_refine(mesh; hold = collect(flagged)).orders
+    @test p_refine(mesh; hold = id -> true).orders == mesh.orders
+    # the default holds nothing: a uniform p step
+    @test p_refine(mesh).orders == p_refine(mesh; hold = Set{ElementId}()).orders
+    # a Bool MASK is refused by name, not by an opaque MethodError
+    @test_throws ArgumentError p_refine(mesh; hold = [true for _ in mesh.elements])
+    @test_throws ArgumentError h_refine(mesh, [true for _ in mesh.elements])
     # per-dimension hold: only the flagged dimension keeps its order
     one = first(ids)
-    m1 = p_refine(mesh, Dict(one => (true, false)))
+    m1 = p_refine(mesh; hold = Dict(one => (true, false)))
     @test m1.orders[m1.index[one]] == (4, 5)
-    m2 = p_refine(mesh, Dict(one => (false, true)))
+    m2 = p_refine(mesh; hold = Dict(one => (false, true)))
     @test m2.orders[m2.index[one]] == (5, 4)
     # `increment` is honoured
-    m3 = p_refine(mesh, flagged; increment = 3)
+    m3 = p_refine(mesh; hold = flagged, increment = 3)
     @test all(m3.orders[m3.index[id]] == (id in flagged ? (4, 4) : (7, 7)) for id in ids)
-    @test p_refine(mesh, flagged; increment = 0).orders == mesh.orders
-    @test_throws ArgumentError p_refine(mesh, flagged; increment = -1)
+    @test p_refine(mesh; hold = flagged, increment = 0).orders == mesh.orders
+    @test_throws ArgumentError p_refine(mesh; hold = flagged, increment = -1)
 end
 
 # ---- (i) p transfer ------------------------------------------------------------------------------
@@ -692,7 +826,7 @@ end
         poly(x, y) = sum((0.7^k) * x^k for k in 0:N-1) * sum(((-0.4)^k) * y^k for k in 0:N-1)
         u = amr_sample(mesh, blk, poly)
         for flagrule in (Set{ElementId}(), Set([ids[1], ids[4]]))
-            new = p_refine(mesh, flagrule; increment = inc)
+            new = p_refine(mesh; hold = flagrule, increment = inc)
             v = transfer_solution(mesh, new, u)
             @test length(v) == new.ndofs
             worst = max(worst, maximum(abs.(v .- amr_sample(new, blk, poly))))
@@ -703,9 +837,24 @@ end
     mesh = Mesh2D(blk, ids, (5, 5))
     rng = AMRRNG(0xbeef77)
     u = amr_cvec!(rng, mesh.ndofs)
-    same = p_refine(mesh, id -> true)
+    same = p_refine(mesh; hold = id -> true)
     @test same.elements == mesh.elements && same.orders == mesh.orders
     @test transfer_solution(mesh, same, u) == u
+    # an order DECREASE is REFUSED. Nodal interpolation onto fewer points discards the modes
+    # above the target degree, so it is NOT the L2 projection of the source field — returning
+    # it silently would hand a driver a lossy "carry-over". multigrid.jl's coarsen_mesh
+    # p-coarsens by the minimum rule, so node 43 can reach this.
+    m6 = Mesh2D(blk, ids, (6, 6))
+    u6 = amr_sample(m6, blk, (x, y) -> x^5 + y^5)
+    @test_throws ArgumentError transfer_solution(m6, Mesh2D(blk, ids, (3, 3)), u6)
+    @test_throws ArgumentError transfer_solution(m6, Mesh2D(blk, ids, (6, 5)), u6)
+    # ... including a MIXED step that h-refines while p-coarsening
+    @test_throws ArgumentError transfer_solution(
+        m6, Mesh2D(blk, h_split(ids, id -> true), (3, 3)), u6)
+    # an order INCREASE (and an equal order) is fine
+    @test length(transfer_solution(m6, Mesh2D(blk, ids, (7, 7)), u6)) == 4 * 49
+    @test transfer_solution(m6, m6, u6) == u6
+
     # combined h + p in ONE transfer (Delta level AND order change) stays exact
     mesh4 = Mesh2D(blk, ids, (4, 4))
     p4(x, y) = sum((0.5^k) * x^k for k in 0:3) * sum(((-0.3)^k) * y^k for k in 0:3)
@@ -730,13 +879,14 @@ end
             o = prev.orders[prev.index[anc]]
             @test new.orders[e] == (punct(anc) ? o : (o[1] + 1, o[2] + 1))
         end
-        # ... which is exactly p-then-h
-        ph = h_refine(p_refine(prev, punct), punct)
+        # ... which is p-then-h BY CONSTRUCTION (hp_refine is literally that composition);
+        # kept as a regression pin on the composition order
+        ph = h_refine(p_refine(prev; hold = punct), punct)
         @test ph.elements == new.elements && ph.orders == new.orders
         # ... and h-then-p with the flags lifted along ancestry (the two halves commute)
         hstep = h_refine(prev, punct)
         lifted = Set(filter(id -> punct(amr_ancestor_of(prev.elements, id)), hstep.elements))
-        hp2 = p_refine(hstep, lifted)
+        hp2 = p_refine(hstep; hold = lifted)
         @test hp2.elements == new.elements && hp2.orders == new.orders
         # the CRP invariant: N = 4 in every puncture element, N > 4 away from it
         @test all(new.orders[e][1] == 4 && new.orders[e][2] == 4
@@ -755,7 +905,7 @@ end
     ids = [ElementId(21, SegmentId(1, i), SegmentId(1, j)) for j in 0:1 for i in 0:1]
     mesh = Mesh2D(blk, ids, (4, 4))
     # a p-NONCONFORMING mesh (orders 4 | 5 across interior faces)
-    pm = p_refine(mesh, Set([ids[1], ids[4]]))
+    pm = p_refine(mesh; hold = Set([ids[1], ids[4]]))
     @test Set(pm.orders) == Set([(4, 4), (5, 5)])
     op = MeshOperator(ComplexF64, pm, (amr_A11, amr_A22), amr_beta, (amr_zero2, amr_zero2);
                       C = AMR_C, bcs = amr_zerobcs(pm))
@@ -768,7 +918,7 @@ end
 
     # a uniform p step reduces the manufactured-Poisson L2 error (calibrated ratio 0.0713)
     e4 = amr_poisson_l2(mesh, blk)
-    e5 = amr_poisson_l2(p_refine(mesh, Set{ElementId}()), blk)
+    e5 = amr_poisson_l2(p_refine(mesh), blk)
     @test e5 < 0.15 * e4
 
     # an hp step on a two-block layout: mesh valid, operator builds and applies

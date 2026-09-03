@@ -60,13 +60,26 @@ The solver stack, bottom to top:
   restores the two-to-one balance by splitting the offending elements (within
   a block and transversally across a `BlockConnection`),
   [`h_refine`](@ref) composes both into one pure `Mesh2D` → `Mesh2D` step,
-  [`p_refine`](@ref) raises the polynomial order of every element *except* the
-  flagged ones (whose order is held — the CRP h-refines the puncture elements
-  instead of p-refining them, so one flag set drives both halves),
-  [`hp_refine`](@ref) is the full AMR step from that one criterion, and
+  [`p_refine`](@ref)`(mesh; hold = …)` raises the polynomial order of every
+  element *except* those named by `hold`, whose order is held — the CRP
+  h-refines the puncture elements instead of p-refining them, so one criterion
+  drives both halves of a step; `hold` is a keyword, and named for what it
+  does, because its polarity is the opposite of `h_refine`'s "split these".
+  [`hp_refine`](@ref) is the full AMR step from that one criterion — literally
+  `h_refine(p_refine(mesh; hold = flags), flags)` — and
   [`transfer_solution`](@ref) carries the previous level's nodal solution over
   by Lagrange interpolation (exact on every polynomial the source element
-  represents, across an h step, a p step, or the two combined).
+  represents, across an h step, a p step, or the two combined; an order
+  *decrease* is refused, since nodal interpolation onto fewer points is not the
+  L2 projection).
+
+  The 2:1 closure follows the CRP's own solver input
+  (`anc/ScalarSelfForce.yaml:145`, `Isotropy: Anisotropic`): only the offending
+  dimension of a violating pair is split, and the dimensions marked in one sweep
+  are applied together, matching spectre's `amr::update_amr_decision` fixpoint
+  over pre-split decisions followed by a single domain adjustment. That is not
+  the *minimal* closure — a one-split-at-a-time alternative yields up to 16.7 %
+  fewer elements — but it is the algorithm the paper ran.
 
 ## Conventions
 
