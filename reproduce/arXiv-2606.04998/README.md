@@ -40,7 +40,7 @@ alone, VLM-compare against the reference PDF, decide script-vs-structure, iterat
 |---|---|---|---|---|---|---|---|
 | 1 | `fig:domain` — the DG computational domain: `\|Ψ_m\|` height- and colour-mapped over the (r, z²) element grid, `\|Ψ^ℛ_m\|` in the worldtube | `fig_domain.jl` | `expected/fig_domain.json` | heavy | **solid** | **match** | A single 3D panel plus an inset: |Ψ_m| height- **and** colour-mapped over the (r, z²) DG element grid with white element edges and the Legendre-Gauss collocation grid, |Ψ^ℛ_m| inside the red-framed worldtube, the v/t/u slicing arc with H = ∓1, and the six-step hp-AMR cascade at x_p magnified bottom-right. Seven AMR levels, 20 → 60 elements and 320 → 3762 dofs, GMRES 1, 7, 6, 5, 5, 4, 4 (the counts and the level map moved with the all-dimension 2:1 closure and the coarse-mesh chain; see the note below). Structure reproduced: the two |Ψ_m| lobes of the published render — the tan ridge in the polar row over the worldtube's radial span and the sharper wedge just outside the tube in r at the equator — agree in count and position, as do the flat navy near-horizon band, the low navy tube patch and the teal wavezone plateau. `--check` 52/52 at rtol 1e-10 with max|Δ| = 0, `-t1` ≡ `-t4`. ~500 s at -t4, of which the sweep is 223.5 s — **heavy**. |
 | 2 | `fig:matrix` — DG operator sparsity at the coarsest grid level + element numbering | `fig_matrix.jl` | `expected/fig_matrix.json` | heavy | **solid** | **match** | Two panels: the B/W spy of the 320×320 coarsest-level matrix over a light-gray element-block checkerboard, and the domain sketch numbering the 20 elements that index its rows and columns. Structure reproduced exactly: 20 diagonal blocks + 33 symmetric off-diagonal block pairs, of which the 8 pairs across the four 2:1 interfaces (2↔3, 2↔4, 7↔9, 8↔9, 12↔13, 12↔14, 17↔19, 18↔19 in the paper's numbering) are fully dense 16×16 and the other 25 carry 64 entries. Adjacency graph-isomorphic to the domain topology in BOTH directions (0 matrix-only, 0 topology-only pairs). Reference block-occupancy extracted from `matrix.pdf` at 600 dpi and compared block-by-block: identical. 398.8 s at -t4 — **heavy**, although the numerics are ~10 s: the cost is the first-call specialization of the ComplexF64 `MeshOperator` (104 s) and of the first Plots/GR render. |
-| 4 | `fig:convergence` — the DG convergence of every `F_r^m` up to m = 20 over the hp-AMR sequence, + the cumulative walltime | `fig_convergence.jl` | `expected/fig_convergence.json` | heavy | **preliminary** | **partial** | Two panels for all 21 modes at a = 0.5 M, r₀ = 10 M: `\|F_r^m − F^m_{r,ref}\|` against `sqrt(N_points)` with each mode's own highest-resolution level as its reference, and the cumulative walltime below. Presentation reproduces item by item (2 panels 3:1 sharing x, 21 grayscale lines at the published ramp `m/23` with no markers, log y over ~8 decades, the framed upper-right `m=0`/`m=20` legend, the dashed "Solver tolerance" line with its inside label, "1 s"/"10 s" ticks, light-gray grid, CM serif) and every mode converges exponentially. Two STRUCTURAL deviations, both escalated: the published abscissa is the **full-z 5×3 lattice** (480 → 6300 grid points; its first two values are spectre's own `ScalarCircularOrbit.yaml` regression rows, which set `ImposeEquatorialSymmetry: False`) while ours is the production equatorial-symmetry lattice (320 → 3538), and the published grids **depend on m** while ours cannot, which the shipped criteria (`RefineAtPuncture` ∘ `IncreaseResolution`) cannot produce. See the Fig. 4 section for the evidence and the `TruncationError` hypothesis. |
+| 4 | `fig:convergence` — the DG convergence of every `F_r^m` up to m = 20 over the hp-AMR sequence, + the cumulative walltime | `fig_convergence.jl` | `expected/fig_convergence.json` | heavy | **preliminary** | **match** | Two panels for all 21 modes at a = 0.5 M, r₀ = 10 M: `\|F_r^m − F^m_{r,ref}\|` against `sqrt(N_points)` with each mode's own highest-resolution level as its reference, and the cumulative walltime below. Presentation reproduces item by item (2 panels 3:1 sharing x, 21 grayscale lines at the published ramp `m/23` with no markers, log y over ~8 decades, the framed upper-right `m=0`/`m=20` legend, the dashed "Solver tolerance" line with its inside label, "1 s"/"10 s" ticks, light-gray grid, CM serif) and every mode converges exponentially. The **abscissa reproduces exactly**: the driver runs two lattices from one pool and plots the published one — full-z, `ImposeEquatorialSymmetry: False`, as spectre's own `ScalarCircularOrbit.yaml` regression sets it and NOT as the shipped `anc/ScalarSelfForce.yaml:36` does — whose grid-point sequence `480, 975, 1604, 2427, 3468, 4751, 6300` equals the published vertices level for level (GATE 5, all seven). The half-domain lattice (`true`, 320 → 3762) is kept as a registered and gated secondary series, never drawn. Against the published envelope: rates [−0.1395, −0.1020] (published [−0.1421, −0.1043]), R² ∈ [0.9143, 0.9932] median 0.9781 with 10/21 ≥ 0.98 (published 0.7996 … 0.9929, median 0.9833, 9/21), 6.02 … 8.38 decades dropped (published 6.06 … 8.12), last plotted error 5.6e-14 … 7.6e-13 (published 8.9e-14 … 7.9e-13). One STRUCTURAL deviation remains, escalated: the published grids **depend on m** (975 for m ≤ 4 against 970 for m ≥ 5) while ours are gated m-independent, which the shipped criteria (`RefineAtPuncture` ∘ `IncreaseResolution`) cannot produce — now a 0.5 % effect rather than the 50–78 % lattice mismatch it was hiding behind. See the Fig. 4 section for the evidence and the `TruncationError` hypothesis. `--check` 86/86; 760 s at -t4 on a 5-worker pool — **heavy**. |
 | 6 | `fig:linsolv` — GMRES residual staircase over AMR grids + walltime per iteration | `fig_linsolv.jl` | `expected/fig_linsolv.json` | heavy | **solid** | **partial** | Two panels for the m = 2 mode at a = 0.5 M, r0 = 10 M on the **full-z** lattice (the published one; the yaml says otherwise — see below). Eight AMR grids, 30 → 119 elements, 480 → 8139 dofs. The grid sequence reproduces the paper's own convergence-figure abscissa — 480, 975, 1604, 2427, 3468, 4751, 6300 — **exactly, all seven, zero deviation**. Iterations `1, 7, 6, 5, 4, 3, 3, 3` (32 cumulative) against the published `1, 7, 6, 5, 4, 3, 3, 2` (31), **seven of eight grids exact**; ‖b‖₀ 1.39146 against 1.39401 (−0.18 %); per-iteration reduction 28.3, 44.5, 51.3, 82.6, 260.4, 192.2, 234.3 against 26.0, 42.7, 48.0, 82.3, 244.6, 191.9, 567.0. All eight gates pass. Remaining holes: the last grid takes 3 iterations against 2, and the walltime panel's amplitude (eager vs lazy build). |
 | 5 | `fig:modes` — 21 stacked `log₁₀\|Ψ_m\|` planes over the (r, z²) domain, at three spins | `fig_modes.jl` | `expected/fig_modes.json` | heavy | **preliminary** | **match** (3 of 3 panels) | Three 3D panels — `a = −0.998` and `a = 0` at their ISCOs (8.9944, 6 M) and `a = +0.998` at the **published** `r₀ = 2 M` — each carrying 21 semi-transparent wireframe planes of `log₁₀\|Ψ_m\|` over (r, z²), `Ψ^ℛ_m` inside the worldtube and `Ψ_m` outside, clipped at `r = 2 r₀`, m = 0…4 in the paper's categorical colours and m ≥ 5 in the published `m/23` grey ramp. NOT a mode-sum curve: the caption plots the FIELD. All three match item by item, including the tick sets (5/10/15, 2…12, 1.5…4.0), the two m = 0 dives per panel and the grey curtain's cliff at `r₀ + w_r`. The horizon order hold is chosen by a MEASURED rule — sweep with the package default, read `horizon_axis_profile(...).layer_ratio` for every mode, re-sweep held only if the maximum over m exceeds 1.05 — which leaves panels 1-2 on the default (0.1105, 0.3108) and holds panel 3 (3.889 → **0.5776**); GATE 7 gates the plotted value and the panel states both numbers and the setting. **preliminary** for one measured reason, flagged on the figure: at `a = 0.998, r₀ = 2` GMRES stagnates at m = 19 and 20 (final residual 9.3e-6 against the 1e-12 tolerance), so those two planes are drawn dashed and named, `pK_converged` carries the verdict per mode, and panel 3's decay claim breaks only at 19 → 20. 66 elements and 4814 dofs (4604 held) at the 8th grid from 320 at level 0. Four sweeps (three panels + panel 3's held re-sweep) through ONE `mode_pool` of 5 single-threaded workers: 1286 s — **heavy**. |
 
@@ -418,31 +418,36 @@ published envelope and a floor on the total drop:
 
 | gate | instrument | landed | measured (21 modes) |
 |---|---|---|---|
-| 1 | least-squares fit of `log10(err)` on `sqrt(N_points)`, 7 points | rate < 0 **and** R² ≥ 0.80 (= the published minimum, rounded down) | rate ∈ [−0.1372, −0.0807] (published [−0.1421, −0.1043]); R² ∈ [0.8212, 0.9954], median 0.9716, 5/21 ≥ 0.98 |
-| 2 | `log10(err_first/err_last)` | ≥ 2.0 decades (calibration prototype's worst was 2.65) | [2.65, 5.82] (published [6.06, 8.12]) |
-| 3 | `ndofs` per level, all 21 modes | identical | true |
-| 4 | `SolveRecord.converged` on every level of every mode | all true | true |
-| 5 | tracked PNG | ≤ 200 KB | see the golden |
+| 1a (plotted) | least-squares fit of `log10(err)` on `sqrt(N_points)`, 7 points | rate < 0 **and** R² ≥ 0.80 (= the published minimum, rounded down) | rate ∈ [−0.1395, −0.1020] (published [−0.1421, −0.1043]); R² ∈ [0.9143, 0.9932], median 0.9781, 10/21 ≥ 0.98 |
+| 1b (both) | the same fit's rate | rate < 0 on every mode of BOTH lattices | true (secondary rates ∈ [−0.1165, −0.0915]) |
+| 2 (both) | `log10(err_first/err_last)` | ≥ 2.0 decades (calibration prototype's worst was 2.65) | plotted [6.02, 8.38] (published [6.06, 8.12]); secondary [4.04, 5.60] |
+| 3 (both) | `ndofs` per level, all 21 modes | identical | true |
+| 4 (both) | `SolveRecord.converged` on every level of every mode | all true | true |
+| 5 (plotted) | `ndofs` per level against the published vertices | equal at all **seven** plotted levels, not just the first | true — 480, 975, 1604, 2427, 3468, 4751, 6300 |
+| 6 | tracked PNG | ≤ 200 KB | 155 219 B |
 
-Two planned numbers are NOT met and are landed as measured envelopes rather than dropped:
-**R² > 0.98 for all 21** (the paper's own figure reaches it for 9 of 21; ours for 5 of 21 —
-both fail it, and for the same structural reason: when a coarse level's value happens to land
-near the reference, its "error" is anomalously small and breaks the straight line), and the
-**floor ≤ 1e-11** (our last plotted error is 4.3e-12 … 3.0e-10 across the 21 modes; the
-published one is 8.9e-14 … 7.9e-13, reached on grids of 6300 points against our 3538).
+Of the two planned numbers, one is now MET and the other is falsified by the paper's own
+figure. **The floor ≤ 1e-11** is met on the published lattice: our last plotted error is
+**5.6e-14 … 7.6e-13** across the 21 modes, against the published 8.9e-14 … 7.9e-13 — the same
+order, on the same 6300-point grids. (On the half-domain lattice, which stops at 3762 points,
+it is 1.8e-11 … 5.6e-11, and that gap is the floor ratio GATE 1a is scoped around.)
+**R² > 0.98 for all 21** is not met and cannot be: the paper's own figure reaches it for 9 of
+21 and ours for 10 of 21, and both fail it for the same structural reason — when a coarse
+level's value happens to land near the reference, its "error" is anomalously small and breaks
+the straight line. It is landed as the published envelope instead.
 
 ### The two-step contraction envelope is reported, not gated
 
 The row-44 contract states the convergence of `F_r^m` as a two-level envelope — each difference
-at most half the one two levels back. That is a statement about the **pre-floor** regime. At 8
-AMR levels the high-m sequences are already on their resolution floor from level ~5
-(`|F_r^20| = 2.1e-9` against a floor of 1.7e-10), where the differences are floor noise:
-measured, 3 of the 105 two-step ratios exceed one half — at m = 10 (0.521), m = 14 (1.057) and
-m = 19 (7.687) — and the last two exceed **one**. So the two envelopes have DIFFERENT scopes
-here, and the row states both: the row-44 **half**-envelope holds for **m ≤ 9** (m = 10 is the
-first mode to break it, at 0.5213), and the weaker **unit** contraction — each difference merely
-smaller than the one two levels back — holds for **m ≤ 13** (m = 14 is the first to break it, at
-1.0566). Gating either would be gating noise beyond those scopes, so
+at most half the one two levels back. That is a statement about the **pre-floor** regime, and
+at 8 AMR levels the high-m sequences are already on their resolution floor
+(`|F_r^20| = 2.1e-9` against a floor of 1.7e-13), where the differences are floor noise.
+Measured on the plotted lattice, **1 of the 105** two-step ratios exceeds one half — m = 10, at
+**0.7029** — and **none exceeds one**, so the row-44 half-envelope holds for every mode except
+m = 10 and the weaker unit contraction holds for all 21. The coarser half domain, whose floor is
+49…839× higher, breaks the half-envelope on 7 of 21 modes and reaches 3.09: the same envelope
+measured on a sequence that is mostly floor, which is exactly why it is measured and not gated.
+Gating either would be gating noise, so
 `two_step_ratio_max_per_mode`, `n_two_step_ratios_above_half` and
 `modes_with_two_step_above_half` are registered in the golden and neither is asserted.
 
@@ -451,7 +456,10 @@ smaller than the one two levels back — holds for **m ≤ 13** (m = 14 is the f
 The bottom panel is the paper's own cumulative walltime per mode. Published (Apple M2 Pro,
 read off the PDF): 0.154 … 0.476 s at the first grid, 4.19 … 5.93 s at the last — "a few
 seconds per m-mode" (main.tex:688). Ours, on a shared 256-core Linux box with one BLAS thread
-per process, is roughly twice that at the last plotted grid, on meshes that are 1.78× SMALLER.
+per process and five worker processes competing for it, is 0.50 … 1.39 s at the first grid and
+23.4 … 28.7 s at the last — roughly 5× the published figure's, now on grids of exactly the same
+size rather than smaller ones, and it swings by 30 % with the machine's load, which is why every
+`reported_*` timing row carries a deliberately loose tolerance and none of them is gated.
 The driver holds ONE `mode_pool` for the whole figure and runs a throwaway warm-up sweep first,
 because a fresh worker charges its entire compilation to its first mode's level 0 — without it
 the bottom panel measures the compiler. The warm-up is itself the JIT payment and dominates the
