@@ -1216,56 +1216,51 @@ bitwise identical to [`solve_modes_serial`](@ref) only at the SAME `blas_threads
 Julia thread count (between BLAS thread counts the diagnostics move by ~4e-12 relative —
 roundoff, but not bitwise).
 
-# COST — THREE REGIMES, AND ONLY ONE OF THEM IS A WIN
+# COST — THREE REGIMES, AND WHY A POOL IS WORTH REUSING
 
-MEASURED on this tree for the paper's whole `m = 0…20` sweep at `a = 0.5`, `r₀ = 10M` through
-8 AMR levels (`evidence/mmode-parallel-driver/artefact_21modes_v2.json`; ONE run on a 256-core
-SHARED host, so treat the wall times as PRELIMINARY):
+MEASURED on the current tree for the paper's whole `m = 0…20` sweep at `a = 0.5`, `r₀ = 10M`
+through 9 grids (`evidence/mmode-parallel-driver/artefact_21modes_v3.json`; ONE run on a
+256-core SHARED host, so treat the wall times as PRELIMINARY):
 
-| regime | wall | against the serial oracle |
+| regime | wall |
+|---|---|
+| COLD — a fresh 21-worker pool, half domain | 818.2 s (16.6 s pool start + 801.5 s) |
+| SERIAL — one process, half domain | 864.7 s |
+| **REUSED POOL** — the FULL-z sweep on those same workers | **282.6 s**, for meshes ~1.7× larger |
+
+A fresh worker pays the whole solver stack's JIT before its first solve, so 21 of them pay it 21
+times over and the COLD fan-out only just matches a single warm process (1.06× here; an earlier
+tree measured 0.75×, an outright loss). The win is REUSE: hold ONE [`ModePool`](@ref) across
+every `(a, r₀)` point of a figure and pass it as `pool`. The full-z sweep above is the
+demonstration — a LARGER problem than the cold one, on an already-warm pool, in a third of the
+time.
+
+# THE GMRES COUNT DOES NOT GROW WITH m — SETTLED AT THE PAPER'S OWN DEPTH
+
+An earlier pass of this node reported that the count at the finest AMR grid GREW with `m`
+(9…20 over `m = 0…20`). That was measured before the all-dimension 2:1 closure, which moved the
+iteration counts and not only the meshes, and it was WITHDRAWN. It is now settled by a re-run of
+the whole 21-mode sweep at the paper's own 9 grids
+(`evidence/mmode-parallel-driver/artefact_21modes_v3.json`), and the answer is that **it does
+not grow**:
+
+| | `m = 0…20`, iterations at the finest grid | max over EVERY level and mode |
 |---|---|---|
-| COLD — a fresh 21-worker pool for this sweep | 747.3 s (19.2 s pool start + 728.1 s) | **0.75× — a NET LOSS** |
-| SERIAL — one process, all 21 modes | 562.6 s (mode 0 alone 129.9 s) | 1 |
-| SERIAL, WARM — modes 1…20 only | 342.1 s | — |
-| **REUSED POOL** — a second sweep on the same workers | **66.5 s** | **5.15×** warm, 8.46× cold |
+| production HALF domain | 3 3 3 3 3 3 2 2 2 2 2 2 3 3 4 3 3 3 3 4 4 | **7** |
+| FULL-z lattice | 2 2 2 2 2 2 2 2 2 3 2 2 2 2 3 3 2 3 3 3 3 | **7** |
 
-A fresh worker pays the whole solver stack's JIT before its first solve, so 21 of them pay it
-21 times over and the COLD fan-out loses to a single warm process. The win is REUSE: hold ONE
-[`ModePool`](@ref) across every `(a, r₀)` point of a figure and pass it as `pool`. Even reused
-it is 5.15×, NOT 21×: the warm per-mode cost is 15.7–19.0 s in one process against 49.3–65.2 s
-when 21 processes run at once, so the sweep is memory-bandwidth- and residual-compilation-bound
-long before it is core-bound. An earlier `~18×` figure was INFERRED from warm single-process
-timings and is superseded by this measurement. The per-mode cost is m-INDEPENDENT to 1.21×.
+**main.tex:720's "less than 10 iterations per AMR level" therefore HOLDS for EVERY mode of the
+sweep, on both lattices** — not merely for the paper's one exemplary mode. `m = 2` runs
+`[1, 7, 6, 5, 5, 4, 4, 4, 3]` per level and `m = 20` runs `[1, 5, 4, 5, 6, 4, 5, 5, 4]`: the
+count falls with refinement depth at every `m`, which is the behaviour the paper describes.
+The dof cascade is 320, 632, 1014, 1506, 2120, 2868, 3762, 4814, 6036 (72 elements) on the half
+domain and 480 … 10292 (131 elements) on the full-z lattice. All 21 modes converged on both.
 
-# THE GMRES COUNT AND m — A CLAIM THE 2:1 CLOSURE MOVED
-
-READ THIS BEFORE QUOTING AN ITERATION COUNT FROM THIS NODE. The 21-mode artefact
-(`evidence/mmode-parallel-driver/artefact_21modes_v2.json`) was taken BEFORE the all-dimension
-2:1 closure (GRTools 13ea24c). That closure splits more elements, and it moves the ITERATION
-counts as well as the meshes — so the artefact's dof cascade AND its per-m iteration table are
-SUPERSEDED, and only the properties that compare two runs of the SAME tree (bitwise
-parallel == serial, collection order, process isolation, the budget arithmetic, the lifecycle)
-survive it untouched.
-
-PRE-CLOSURE, at the paper's 9 grids, the count at the finest level GREW with `m`: 9, 9, 9, 9,
-11, 11, 10, 10, 11, 11, 12, 13, 14, 14, 16, 17, 19, 20, 20, 20, 20 for `m = 0…20`.
-
-POST-CLOSURE, MEASURED at reduced depth (5 grids, `probe_mgrowth_postclosure.jl`, on the
-cascade 320, 632, 1014, 1506, 2120): `m = 0, 2, 5, 10, 15, 20` give **5, 5, 4, 5, 4, 6**
-iterations at the finest level — NO growth with `m` at this depth, and every mode comfortably
-inside main.tex:720's "less than 10 iterations per AMR level". For `m = 2` the per-level
-sequence moved `[1, 8, 9, 9, 9]` → `[1, 7, 6, 5, 5]`; for `m = 20`, `[1, 5, 7, 11, 14]` →
-`[1, 5, 4, 5, 6]`.
-
-**THE GROWTH CLAIM IS THEREFORE NOT ESTABLISHED ON THE CURRENT TREE.** Do not rely on it.
-Settling it at the paper's 9 grids needs a fresh 21-mode artefact, which this node has not run.
-
-WHAT DOES NOT CHANGE is the CONFIGURATION fact underneath it: the shipped vtu config sets
-`ComplexShift: 0` (yaml:194,203; main.tex:680), so the preconditioner is m-AGNOSTIC while the
-operator's Helmholtz term scales as `(mΩ)²`. Each result's [`ModeStamp`](@ref) carries the
-shift it used, which is what makes any such claim auditable instead of remembered. The
-shift-on experiment quoted by this node (13 → 92 iterations at `m = 10`, 16 → 215 at `m = 20`
-at `s = (mΩ)²`) was itself measured pre-closure and is not re-derived here.
+The CONFIGURATION fact that the earlier growth was attributed to still holds and is still
+recorded per mode: the shipped vtu config sets `ComplexShift: 0` (yaml:194,203; main.tex:680),
+so the preconditioner is m-agnostic while the operator's Helmholtz term scales as `(mΩ)²`. It
+simply does not cost iterations at this configuration and depth. Each result's
+[`ModeStamp`](@ref) carries the shift it used.
 
 # FAILURES, DEATHS AND DEADLINES
 
@@ -1281,8 +1276,8 @@ worker starts, refused if it repeats a keyword the driver owns, and recorded in 
 [`ModeStamp`](@ref) so an archived sweep says which keywords produced it. MEASURED at
 `a = 0.5`, `r₀ = 10M`, `m = 2`: the first refinement step alone gives 632 dofs by default
 against 614 with `horizon_hold = true`, so the keyword is visible in the returned mesh
-(re-measured on the all-dimension 2:1 closure, GRTools 13ea24c; it was 593 against 575 before
-that commit, and `test_parallel.jl` was re-pinned at 93fcc41).
+(measured on the all-dimension 2:1 closure, GRTools 13ea24c; it was 593 against 575 before that
+commit, and `test_parallel.jl` was re-pinned at 93fcc41).
 
 `timeout_s` bounds the whole sweep. Without it a hung mode hangs the sweep forever, because
 `remotecall_fetch` has no deadline; with it, the outstanding modes are cancelled the only way a

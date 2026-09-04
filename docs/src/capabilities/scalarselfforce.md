@@ -540,51 +540,45 @@ formulation and consumes the physics-free hp-DG solver stack from
   The fan-out is **JIT-bound, not solve-bound**, and its cost has three
   regimes — only the third is a win. Measured for the paper's
   full ``m = 0\ldots20`` sweep at ``a = 0.5``, ``r_0 = 10M`` through 8 AMR
-  levels (single run, 256-core shared host, **[PRELIMINARY]**) — and, like the
-  iteration table below, taken BEFORE the multigrid-hierarchy adoption and the
-  all-dimension 2:1 closure, so the absolute wall times are those of a tree that
-  no longer exists and only the RATIOS between the three regimes are claimed:
+  levels (single run, 256-core shared host, **[PRELIMINARY]**), re-measured on
+  the 2:1-closed meshes:
 
-  | regime | wall | vs. serial |
-  |---|---|---|
-  | cold: a fresh 21-worker pool per sweep | 747 s (19 s pool start + 728 s) | **0.75``\times`` — a net loss** |
-  | serial, one process, all 21 modes | 563 s (mode 0 alone 130 s) | 1 |
-  | serial, warm (modes 1--20 only) | 342 s | — |
-  | **reused pool**, a second sweep on the same workers | **66 s** | **5.2``\times``** vs. warm serial, 8.5``\times`` vs. cold serial |
+  | regime | wall |
+  |---|---|
+  | cold: a fresh 21-worker pool, half domain | 818 s (17 s pool start + 802 s) |
+  | serial, one process, half domain | 865 s |
+  | **reused pool**: the full-``z`` sweep on those same workers | **283 s**, for meshes ~1.7``\times`` larger |
 
   A fresh worker pays its whole JIT before its first solve, so 21 of them pay
-  it 21 times in parallel and the cold fan-out loses to one warm process. The
-  win comes from *reuse*: hold one `mode_pool` across every ``(a, r_0)`` point
-  of a figure. Even reused it is 5.2``\times``, not 21``\times`` — the warm
-  per-mode cost is 15.7--19.0 s in one process against 49--65 s when 21
-  processes run at once, so the fan-out is bandwidth- and residual-JIT-bound
-  well before it is core-bound. (An earlier estimate of ``\sim 18\times`` was
-  *inferred* from warm single-process timings and is superseded by this
-  measurement.) The per-mode cost is m-independent to **1.21``\times``** over
-  the whole sweep.
+  it 21 times in parallel and the cold fan-out only just matches one warm
+  process (1.06``\times`` here; an earlier tree measured 0.75``\times``, an
+  outright loss). The win comes from *reuse*: hold one `mode_pool` across every
+  ``(a, r_0)`` point of a figure. The full-``z`` sweep above is the
+  demonstration — a *larger* problem than the cold one, on an already-warm
+  pool, in a third of the time.
 
-  **The artefact predates the 2:1 closure, and its iteration table is
-  superseded.** It was taken before the all-dimension closure (GRTools
-  13ea24c), which splits more elements and moves the GMRES counts as well as
-  the meshes. Its dof cascade and its per-``m`` iteration table are therefore
-  no longer current; what survives untouched is everything that compares two
-  runs of the *same* tree — bitwise ``parallel == serial``, collection order,
-  process isolation, the budget arithmetic and the lifecycle. Pre-closure, at
-  9 grids, the count at the finest level grew with ``m``: 9, 9, 9, 9, 11, 11,
-  10, 10, 11, 11, 12, 13, 14, 14, 16, 17, 19, 20, 20, 20, 20. Re-measured
-  post-closure at reduced depth (5 grids, cascade 320, 632, 1014, 1506, 2120),
-  ``m = 0, 2, 5, 10, 15, 20`` give **5, 5, 4, 5, 4, 6** — no growth with ``m``
-  at this depth, and every mode comfortably inside main.tex:720's "less than
-  10 iterations per AMR level" (for ``m = 2`` the per-level sequence moved
-  ``[1, 8, 9, 9, 9]`` to ``[1, 7, 6, 5, 5]``; for ``m = 20``,
-  ``[1, 5, 7, 11, 14]`` to ``[1, 5, 4, 5, 6]``). **The growth claim is not
-  established on the current tree and should not be relied on**; settling it at
-  the paper's 9 grids needs a fresh 21-mode artefact, which has not been run.
-  What does not change is the configuration fact underneath it: the shipped vtu
-  config sets `ComplexShift: 0` (yaml:194,203; main.tex:680), so the
-  preconditioner is ``m``-agnostic while the operator's Helmholtz term scales
-  as ``(m\Omega)^2``, and every mode's shift is recorded in its `ModeStamp`, so
-  such a claim stays auditable rather than remembered.
+  **The GMRES count does not grow with ``m``** — settled at the paper's own
+  depth by re-running the whole 21-mode sweep at 9 grids on the 2:1-closed
+  meshes. At the finest grid, ``m = 0\ldots20`` need 3, 3, 3, 3, 3, 3, 2, 2, 2,
+  2, 2, 2, 3, 3, 4, 3, 3, 3, 3, 4, 4 iterations on the production half domain
+  and 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 3, 3, 2, 3, 3, 3, 3 on the
+  full-``z`` lattice; the maximum over **every** level and mode is **7** on
+  both. So main.tex:720's "less than 10 iterations per AMR level" holds for
+  every mode of the sweep, not merely for the paper's one exemplary mode, and
+  the count falls with refinement depth at every ``m`` (``m = 2`` runs
+  ``[1, 7, 6, 5, 5, 4, 4, 4, 3]``, ``m = 20`` runs
+  ``[1, 5, 4, 5, 6, 4, 5, 5, 4]``). An earlier pass of this node reported the
+  count *growing* with ``m``; that was measured before the all-dimension 2:1
+  closure, which moved the counts as well as the meshes, and it is retracted.
+  The cascade is 320, 632, 1014, 1506, 2120, 2868, 3762, 4814, 6036 dofs
+  (72 elements) on the half domain and 480 … 10292 (131 elements) on the
+  full-``z`` lattice; all 21 modes converge on both, and the horizon-axis layer
+  ratio stays at 0.17 or below across the sweep. The configuration fact the old
+  claim was attributed to still holds and is still recorded per mode: the
+  shipped vtu config sets `ComplexShift: 0` (yaml:194,203; main.tex:680), so the
+  preconditioner is ``m``-agnostic while the operator's Helmholtz term scales as
+  ``(m\Omega)^2`` — it simply does not cost iterations at this configuration.
+
   `solve_kwargs` is forwarded verbatim to `solve_mode_amr`, so a caller can
   reach a keyword the driver does not name — `horizon_hold = true`, the
   high-spin cure, above all. It is validated on the master against
