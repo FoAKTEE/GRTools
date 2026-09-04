@@ -90,6 +90,7 @@ non-`solid` registry row, or a `FIXTURES.toml` status.
 * The **heavy tier is not run by CI** (2026-08-20: 20 of 52 registered results; the live split is
   `grep -c 'tier = "heavy"' reproduce/MANIFEST.toml`); a heavy-only regression can survive a green
   build until the next manual sweep.
-* **arXiv:2606.04998** has ONE driver so far (`fig_matrix`, the DG operator sparsity at the
-  coarsest grid level). The remaining six figures need the rest of the `EllipticCore`
-  solver stack and the `ScalarSelfForce` AMR / extraction nodes, which are still being built.
+* **arXiv:2606.04998** has THREE drivers so far — `fig_matrix` (the DG operator sparsity at the
+  coarsest grid level), `fig_domain` (Fig. 1, the DG computational domain over the hp-AMR mesh)
+  and `fig_linsolv` (Fig. 6, the GMRES staircase). The remaining four figures need the
+  `ScalarSelfForce` mode-sum / error-budget nodes, which are still being built.
