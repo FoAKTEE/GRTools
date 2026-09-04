@@ -371,20 +371,37 @@ end
 # ================================== one AMR level =========================================
 
 """
-    amr_step!(sol::ModeSolution; flags = amr_flags(sol), options = nothing, increment = 1)
+    amr_step!(sol::ModeSolution; flags = amr_flags(sol), options = nothing, increment = 1,
+              horizon_hold = false)
         -> (sol, record)
 
 ONE hp-AMR level, in place: refine `sol`'s mesh by `flags`, carry the solution over as the
 warm start, rebuild everything mesh-bound, and solve. Literally the four sealed calls, in the
 order their contracts require:
 
-    mesh = hp_refine(sol.mesh, flags; increment)      # rows 22/23: h at the flags, p elsewhere
+    closed = balanced_flags(sol.mesh, flags)          # rows 22/23
+    mesh = h_refine(p_refine(sol.mesh; hold, increment), closed)   # h at the flags, p elsewhere
     u    = transfer_solution(sol.mesh, mesh, sol.u)   # exact on every polynomial of the source
     rebuild_for_mesh!(sol, mesh; u = u, options)      # row 42: worldtube, operator, factory, b
     solve_mode!(sol; x0 = sol.u)                      # warm-started, one record on the monitor
 
 and nothing more: no criterion (that is [`amr_flags`](@ref)), no iteration count and no
 stopping rule (that is [`solve_mode_amr`](@ref)).
+
+`horizon_hold` adds [`horizon_order_hold`](@ref)`(sol.dom, sol.mesh)` to the `hold` half — the
+elements that touch `r = r₊` keep their polynomial order, while the flagged (puncture) elements
+are split exactly as before. It is the CURE for the spurious horizon–axis layer of GLOBAL_DAG
+row 58 (`horizon_order_hold` carries the mechanism, the indicial roots and the measured table):
+raising the order of the element that touches the horizon is what lets the bounded, non-analytic
+`(r−r₊)^{iν}` branch into the trial space, and nothing else rejects it.
+
+**It defaults to `false`, and `false` is the composition `hp_refine(sol.mesh, flags; increment)`
+BITWISE** — every sealed AMR number (the dof and element sequences of rows 43/50/52, the
+`fig:linsolv` staircase, the reproduction goldens) is untouched by this node. Turning it on is a
+mesh change: it removes the horizon layer's elements from p-refinement, so those sequences move
+(MEASURED at `a = 0.5`, `r₀ = 10M`, `m = 2` over the paper's eight grids: see the node's
+evidence). Flipping the default is therefore a wave-level decision with the owning nodes'
+goldens regenerated, not a silent one — but every near-extremal m-mode plane needs it.
 
 ELEMENT IDS CHANGE AT EVERY STEP, so `flags` must be recomputed against `sol.mesh` before each
 call and never cached across steps (the sealed row-22/23 contract). `options` replaces the
@@ -395,12 +412,33 @@ policy depends on it, so [`solve_mode_amr`](@ref) passes
 [`SolveRecord`](@ref) (also `sol.record`, and appended to `sol.monitor`).
 """
 function amr_step!(sol::ModeSolution; flags = amr_flags(sol),
-                   options = nothing, increment::Integer = 1)
-    mesh = hp_refine(sol.mesh, flags; increment = increment)
+                   options = nothing, increment::Integer = 1,
+                   horizon_hold::Bool = false)
+    closed = balanced_flags(sol.mesh, flags)
+    hold = horizon_hold ? _amrd_hold_union(closed, horizon_order_hold(sol.dom, sol.mesh)) :
+                          closed
+    mesh = h_refine(p_refine(sol.mesh; hold = hold, increment = increment), closed)
     u = transfer_solution(sol.mesh, mesh, sol.u)
     rebuild_for_mesh!(sol, mesh; u = u, options = _amrd_step_options(options, mesh))
     solve_mode!(sol; x0 = sol.u)
     return sol, sol.record
+end
+
+# per-dimension UNION of two hold tables: a dimension is held if EITHER table holds it (the
+# split dimensions of `balanced_flags`, which must keep their order — spectre
+# UpdateAmrDecision.cpp:82-87 — and the horizon layer of `horizon_order_hold`). Written out
+# rather than `merge`d because `merge` would let one table's `false` erase the other's `true`.
+function _amrd_hold_union(a::AbstractDict{ElementId,NTuple{2,Bool}},
+                          b::AbstractDict{ElementId,NTuple{2,Bool}})
+    out = Dict{ElementId,NTuple{2,Bool}}()
+    for (id, d) in a
+        e = get(b, id, (false, false))
+        out[id] = (d[1] || e[1], d[2] || e[2])
+    end
+    for (id, e) in b
+        haskey(out, id) || (out[id] = e)
+    end
+    return out
 end
 
 # ================================== the sweep record ======================================
@@ -493,7 +531,7 @@ end
                    iterations = config.amr.iterations, T = ComplexF64,
                    dom = block_domain(orbit, config), phi_p = 0,
                    criterion = amr_flags, level_options = amr_level_options,
-                   hierarchy = :history,
+                   hierarchy = :history, horizon_hold = false,
                    monitor = ResidualMonitor(real(T))) -> AmrHistory
 
 THE hp-AMR SWEEP of arXiv:2606.04998 for one m-mode: solve on the initial lattice, then run
@@ -612,6 +650,7 @@ function solve_mode_amr(orbit::CircularOrbit, config::RunConfig{RT},
                         criterion = amr_flags,
                         level_options = amr_level_options,
                         hierarchy::Symbol = :history,
+                        horizon_hold::Bool = false,
                         monitor::ResidualMonitor = ResidualMonitor(real(T))) where {RT}
     iterations >= 0 || throw(ArgumentError(
         "solve_mode_amr: iterations must be ≥ 0, got $iterations"))
@@ -643,7 +682,7 @@ function solve_mode_amr(orbit::CircularOrbit, config::RunConfig{RT},
         t = time()
         # the mesh this level leaves behind BECOMES the next-coarser multigrid grid
         hierarchy === :history && pushfirst!(chain, sol.mesh)
-        amr_step!(sol; flags = flags,
+        amr_step!(sol; flags = flags, horizon_hold = horizon_hold,
                   options = mh -> _amrd_options(level_options, config, k + 1, mh))
         wall = time() - t
     end

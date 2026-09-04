@@ -49,4 +49,5 @@ using ScalarSelfForce
     include("test_parallel.jl")   # mmode-parallel-driver (ESSF-W12-B)
     include("test_selfforce_levels.jl")   # fig-convergence: the level route (ESSF-W13-B)
     include("test_modesum.jl")   # mode-sum-total-force (ESSF-W13-A)
+    include("test_horizon_axis.jl")   # fix-horizon-axis-layer (ESSF-W14-A)
 end

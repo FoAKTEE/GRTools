@@ -323,6 +323,20 @@ include("Solve/driver.jl")                   # solver-stack-ssf (the row-42 JOIN
 export solver_options, ModeSolution, solve_mode, solve_mode!, rebuild_for_mesh!
 export mode_fixed_source, mode_residual, reconstruct_full_field, field_at
 
+include("Solve/horizon_axis.jl")             # fix-horizon-axis-layer (row 58)
+# THE HORIZON/AXIS REGULARITY INSTRUMENT and the one refinement rule it forced.
+# horizon_branch_index(orbit, m) is the exponent nu of the SECOND radial branch at the horizon,
+# Psi_m ~ (r - r_+)^{i nu} with nu = 2m|Omega - Omega_H|(r_+^2+a^2)/(r_+-r_-): bounded, hence
+# NOT excluded by the horizon face (where every DG boundary term carries A^rr(r_+) = 0), only
+# by the polynomial trial space. horizon_axis_profile(sol) MEASURES the consequence -- |Psi_m|
+# along the innermost radial collocation line, its axis:equator ratio, its (1-z^2) exponent and
+# the near-horizon layer amplitude relative to the rest of the plane; the mode variable carries
+# sin^|m|theta factored out, so the healthy signature is a BOUNDED, O(1) profile, never a decay
+# like (1-z^2)^{m/2}. horizon_order_hold is the refinement rule that keeps the selection alive:
+# the elements touching r = r_+ keep their polynomial order under hp-AMR (amr_step!'s
+# horizon_hold; the default false IS the pre-row-58 sweep, bitwise).
+export horizon_branch_index, horizon_axis_profile, horizon_order_hold
+
 include("Solve/amr.jl")                      # amr-driver (the row-43 production loop)
 # THE hp-AMR SWEEP: solve_mode_amr(orbit, config, m) runs the paper's Amr.Iterations levels of
 # "h-refine the elements containing the puncture, p-refine everywhere else" over ONE

@@ -510,6 +510,39 @@ formulation and consumes the physics-free hp-DG solver stack from
 Planned, each landing written test-first once it is grounded: the rest of
 `Extraction` (the mode sum itself).
 
+- **Solve — the horizon/axis regularity instrument** (`horizon_branch_index`,
+  `horizon_axis_profile`, `horizon_order_hold`, `src/Solve/horizon_axis.jl`) —
+  the two degenerate boundaries of the CRP domain, the horizon ``r = r_+`` where
+  ``\mathfrak{A}^{rr} = \Delta/(r^2+a^2)`` vanishes and the polar axis
+  ``z^2 = 1`` where ``\mathfrak{A}^{z^2} = 4z^2(1-z^2)/(r^2+a^2)`` does, carry no
+  boundary data at all: every DG boundary term there is multiplied by
+  ``n_i\mathfrak{A}^{ij}`` and is identically zero (main.tex:614-615), so the
+  paper's regularity conditions are enforced by the trial space alone —
+  "they expand fields in a polynomial series that inherently selects regular
+  solutions" (main.tex:399-401). `horizon_branch_index(orbit, m)` is the
+  exponent of the branch that selection has to reject,
+  ``\Psi_m \sim (r-r_+)^{i\nu}`` with
+  ``\nu = 2m|\Omega - \Omega_H|(r_+^2+a^2)/(r_+-r_-)``: purely imaginary under
+  the ``vtu`` boost ``H = -1``, hence unit modulus, bounded, and NOT the
+  retarded solution. `horizon_axis_profile(sol)` measures the consequence on
+  the innermost radial collocation line — the axis:equator ratio, the fitted
+  ``(1-z^2)`` exponent and the near-horizon layer amplitude relative to the rest
+  of the plane. Because the ansatz factors ``\sin^{|m|}\theta`` OUT of the
+  field, the healthy signature is a **bounded, O(1)** profile with exponent
+  ``\approx 0``; a plane that falls like ``(1-z^2)^{m/2}`` would be the mode of
+  ``\Phi``, not of ``\Psi_m``. `horizon_order_hold` is the refinement rule the
+  measurement forced: the element layer touching ``r_+`` keeps its polynomial
+  order under hp-AMR (`amr_step!`'s `horizon_hold`). That keyword **defaults to
+  `false`**, which is the earlier composition bitwise, so no sealed AMR number
+  moves until a caller opts in; `horizon_hold = true` is the cure, and it is
+  what every near-extremal m-mode plane needs. Measured at ``a = 0.998``,
+  ``r_0 = r_\mathrm{ISCO}``, ``m = 17``
+  (``\nu = 27.5``) on a uniform mesh, the axis:equator ratio and the layer
+  amplitude relative to the rest of the plane go 9.5/1.0, 3.9e1/1.0, 2.8e3/1.6,
+  1.9e4/1.2e2, 1.5e5/45 at ``P = 4, 6, 8, 10, 12`` without the hold and
+  9.5/1.0, 8.4/1.0, 7.7/1.0, 7.4/1.0, 5.5/1.0 with it, while the maximum over
+  the rest of the plane is unchanged to every printed digit.
+
 ## Conventions (locked package-wide)
 
 - Geometric units ``G = c = 1``, background mass ``M = 1``; Kerr spin
