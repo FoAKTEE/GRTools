@@ -109,13 +109,6 @@ gr()
 _hms(s) = (h = floor(Int, s / 3600); m = floor(Int, (s - 3600h) / 60);
            @sprintf("%d:%02d:%02d", h, m, floor(Int, s - 3600h - 60m)))
 
-"Decade ticks spanning `vs`, one label every `step` decades, anchored on exponent `anchor`."
-function _decade_ticks(vs, step, anchor)
-    lo = floor(Int, log10(minimum(vs)))
-    hi = ceil(Int, log10(maximum(vs)))
-    return [10.0^e for e in (lo - 1):(hi + 1) if mod(e - anchor, step) == 0]
-end
-
 """
     draw(xs, residual, iteration_time, build_time, abstol, walltime) -> path
 
@@ -139,7 +132,8 @@ function draw(xs, residual, iteration_time, build_time, abstol, walltime)
 
     # top — the residual staircase; ticks every 3 decades anchored on 10⁻¹ (manual §6)
     top = plot(; common..., ylims = (minimum(rall) / 10^0.8, maximum(rall) * 10^0.7),
-               yticks = _decade_ticks(rall, 3, -1), ylabel = "Absolute residual",
+               yticks = decade_ticks(minimum(rall), maximum(rall); step = 3, anchor = -1,
+                                     inside = false), ylabel = "Absolute residual",
                xformatter = _ -> "", legend = :topright, legendfontsize = 9,
                bottom_margin = -4Plots.mm,
                foreground_color_legend = RGB(0.55, 0.55, 0.55), background_color_legend = :white)
@@ -154,7 +148,7 @@ function draw(xs, residual, iteration_time, build_time, abstol, walltime)
 
     # bottom — walltime per iteration; each level's first point carries its `build_time`
     bot = plot(; common..., ylims = (minimum(tall) / 10^0.25, maximum(tall) * 10^0.25),
-               yticks = _decade_ticks(tall, 1, 0), ylabel = "Walltime per iteration [s]",
+               yticks = decade_ticks(minimum(tall), maximum(tall); inside = false), ylabel = "Walltime per iteration [s]",
                xlabel = "Cumulative linear solver iteration", legend = false,
                title = "Walltime:  " * _hms(walltime), titlelocation = :right, titlefontsize = 10)
     for k in 1:nlev

@@ -161,19 +161,6 @@ gr()
 mode_gray(m, mmax) = (g = m / (mmax + 3); RGB(g, g, g))
 
 """
-    _decade_ticks(lo, hi, step, anchor)
-
-Decade ticks INSIDE `[lo, hi]`, one every `step` decades anchored on exponent `anchor`. The
-clamp is load-bearing: GR draws an out-of-range tick pinned to the axis end, which on a shared-x
-two-panel stack shows up as a stray label between the panels.
-"""
-function _decade_ticks(lo, hi, step, anchor)
-    e0 = ceil(Int, log10(lo))
-    e1 = floor(Int, log10(hi))
-    return [10.0^e for e in e0:e1 if mod(e - anchor, step) == 0]
-end
-
-"""
     draw(ms, xs, errs, walls, tol, out_png; publish) -> saved
 
 Fig. 4: `xs[i]` is the shared abscissa `sqrt(N_points)` of mode `ms[i]`, `errs[i]` its absolute
@@ -195,7 +182,7 @@ function draw(ms, xs, errs, walls, tol, out_png; publish::Bool)
 
     ylo = min(minimum(eall), tol) / 10^0.55
     yhi = maximum(eall) * 10^0.55
-    top = plot(; common..., ylims = (ylo, yhi), yticks = _decade_ticks(ylo, yhi, 1, 0),
+    top = plot(; common..., ylims = (ylo, yhi), yticks = decade_ticks(ylo, yhi),
                ylabel = "Absolute error \$|F_r^m - F_{r,\\mathrm{ref}}^m|\$",
                xformatter = _ -> "", legend = :topright, legendfontsize = 9,
                bottom_margin = -4Plots.mm,
@@ -209,7 +196,7 @@ function draw(ms, xs, errs, walls, tol, out_png; publish::Bool)
               text("Solver tolerance", 9, :left, :top, "Computer Modern"))
 
     wlo, whi = minimum(wall) / 10^0.28, maximum(wall) * 10^0.28
-    wticks = _decade_ticks(wlo, whi, 1, 0)
+    wticks = decade_ticks(wlo, whi)
     bot = plot(; common..., ylims = (wlo, whi),
                yticks = (wticks, [(@sprintf("%g s", t)) for t in wticks]),
                ylabel = "Cumulative\nwalltime",

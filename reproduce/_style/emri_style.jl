@@ -61,3 +61,27 @@ function save_figure!(plt, png::AbstractString; max_bytes::Integer = 200 * 1024,
     return (path = png, bytes = nb, pdf_path = pdf_path, pdf_bytes = pdf_bytes,
             ok = ok, message = msg)
 end
+
+# ── log-axis decade ticks: one definition for every driver ───────────────────────────────────
+"""
+    decade_ticks(lo, hi; step = 1, anchor = 0, inside = true) -> Vector{Float64}
+
+Powers of ten to label a log axis spanning `[lo, hi]`: one tick every `step` decades, the
+sequence anchored so that exponent `anchor` is always on it (`step = 3, anchor = -1` gives
+1e-1, 1e-4, 1e-7, … whatever the data range).
+
+`inside = true` (the default) keeps only ticks that lie INSIDE `[lo, hi]`. That clamp is
+load-bearing: GR draws an out-of-range tick pinned to the axis end, which on a shared-x panel
+stack shows up as a stray label row between the panels. `inside = false` instead widens to the
+enclosing decades and then one decade further on each side — the right choice when the caller
+sets its own `ylims` wider than the data and wants the ticks to reach them.
+
+Hoisted here from two drivers that had grown the same function twice
+(`arXiv-2606.04998/fig_linsolv.jl`, `arXiv-2606.04998/fig_convergence.jl`); both call sites are
+bitwise unchanged.
+"""
+function decade_ticks(lo, hi; step::Integer = 1, anchor::Integer = 0, inside::Bool = true)
+    e0, e1 = inside ? (ceil(Int, log10(lo)), floor(Int, log10(hi))) :
+                      (floor(Int, log10(lo)) - 1, ceil(Int, log10(hi)) + 1)
+    return [10.0^e for e in e0:e1 if mod(e - anchor, step) == 0]
+end

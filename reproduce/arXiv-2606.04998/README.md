@@ -394,10 +394,13 @@ at most half the one two levels back. That is a statement about the **pre-floor*
 AMR levels the high-m sequences are already on their resolution floor from level ~5
 (`|F_r^20| = 2.1e-9` against a floor of 1.7e-10), where the differences are floor noise:
 measured, 3 of the 105 two-step ratios exceed one half — at m = 10 (0.521), m = 14 (1.057) and
-m = 19 (7.687) — and the last two exceed **one**. Gating that would be
-gating noise, so `two_step_ratio_max_per_mode`, `n_two_step_ratios_above_half` and
-`modes_with_two_step_above_half` are registered in the golden and the envelope's scope is
-narrowed to m ≤ 13 in the row.
+m = 19 (7.687) — and the last two exceed **one**. So the two envelopes have DIFFERENT scopes
+here, and the row states both: the row-44 **half**-envelope holds for **m ≤ 9** (m = 10 is the
+first mode to break it, at 0.5213), and the weaker **unit** contraction — each difference merely
+smaller than the one two levels back — holds for **m ≤ 13** (m = 14 is the first to break it, at
+1.0566). Gating either would be gating noise beyond those scopes, so
+`two_step_ratio_max_per_mode`, `n_two_step_ratios_above_half` and
+`modes_with_two_step_above_half` are registered in the golden and neither is asserted.
 
 ### Walltime is reported, never gated
 
