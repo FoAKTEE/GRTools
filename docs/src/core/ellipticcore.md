@@ -68,12 +68,16 @@ The solver stack, bottom to top:
   history — consecutive levels one AMR step apart (one puncture split and one
   polynomial increment) and the coarsest the invariant initial lattice, which is
   what keeps the bottom `LU` factorized once. On the paper's own exemplar the
-  supplied chain takes the GMRES counts from `1, 8, 9, 9, 9, 9, 9, 9` to
-  `1, 7, 7, 6, 5, 5, 5, 4`, i.e. from flat to the published falling staircase,
-  and with the reference's own `MaxOverlap: Auto` rule on top to
-  `1, 7, 6, 5, 5, 4, 4, 4` (published `1, 7, 6, 5, 4, 3, 3, 2`); the control
-  that fixes the reading is that giving the DERIVED hierarchy four times the
-  depth changes nothing at all. Every invariant a chain must satisfy — an
+  supplied chain, with the reference's own `MaxOverlap: Auto` rule on top,
+  takes the GMRES counts from `1, 8, 9, 9, 9, 9, 9, 9` to
+  `1, 7, 6, 5, 5, 4, 4, 4` — from flat to the published falling staircase
+  (published `1, 7, 6, 5, 4, 3, 3, 2`); the control that fixes the reading is
+  that giving the DERIVED hierarchy four times the depth changes nothing at
+  all. On the lattice the paper's own figures were produced on
+  (`equatorial_symmetry = false`), and with the 2:1 closure bound in every
+  dimension, the AMR **grid sequence** is then reproduced exactly, level by
+  level: 480, 975, 1604, 2427, 3468, 4751, 6300 points against the published
+  480, 975, 1604, 2427, 3468, 4751, 6300. Every invariant a chain must satisfy — an
   ancestor-or-equal at a per-dimension level gap of 0 or 1, an onto (exactly
   tiling) map, no repeated or identical level, a coarse order never above the
   fine one, and a factory that really rediscretizes on the mesh it is handed —

@@ -324,7 +324,10 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
     # most expensive object in this file — 20 → 57 elements, 320 → 3558 dofs, 7 solves).
     da_pcfg = da_cfg()
     da_porb = da_orb(da_pcfg)
-    da_hist = solve_mode_amr(da_porb, da_pcfg, 2; iterations = 6)
+    # the DEFAULTS are written out: if either ever flips, this sweep fails loudly instead
+    # of quietly comparing a configuration against itself in the A/B below
+    da_hist = solve_mode_amr(da_porb, da_pcfg, 2; iterations = 6,
+                             hierarchy = :history, overlap = :auto)
 
     @testset "(b,c,d,e) the a = 0.5, m = 2 hp-AMR sweep" begin
         cfg, orb, hist = da_pcfg, da_porb, da_hist
@@ -621,7 +624,12 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
     @testset "hierarchy = :history against :derived" begin
         cfg, orb = da_pcfg, da_porb
         hh = da_hist                                          # the default sweep, :history
-        hd = solve_mode_amr(orb, cfg, 2; iterations = 6, hierarchy = :derived)
+        hd = solve_mode_amr(orb, cfg, 2; iterations = 6, hierarchy = :derived,
+                            overlap = :auto)                  # derived, PER-GRID overlap
+        # `overlap` is a SEPARATE axis from `hierarchy`: `:initial` is the pre-adoption policy,
+        # the config's initial P on every grid rather than each grid's own extents.
+        hl = solve_mode_amr(orb, cfg, 2; iterations = 6, hierarchy = :derived,
+                            overlap = :initial)
         ith = [l.record.iterations for l in hh.levels]
         itd = [l.record.iterations for l in hd.levels]
         println("  [hierarchy] :history ", ith, " total ", sum(ith),
@@ -642,6 +650,13 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
         @test [length(l.record.level_ndofs) for l in hd.levels] == [1, 3, 3, 4, 4, 4, 4]
         @test all(l -> l.record.level_ndofs[end] == 160, hd.levels[2:end])
         @test sum(l.record.bottom_builds for l in hd.levels) == 2
+        # THE LEGACY OVERLAP POLICY, asserted structurally rather than by a pinned sequence:
+        # every grid's Schwarz overlap is the config's INITIAL P, where `:auto` follows the
+        # grid's own largest order — and the two therefore differ from the first refinement on.
+        @test all(l -> resolve_max_overlap(cfg, l.mesh) >= 4, hl.levels)
+        @test [l.mesh.ndofs for l in hl.levels] == [l.mesh.ndofs for l in hd.levels]
+        @test [l.record.iterations for l in hl.levels] != [l.record.iterations for l in hd.levels]
+        @test_throws ArgumentError solve_mode_amr(orb, cfg, 2; iterations = 0, overlap = :nope)
         # and an unmappable request is refused rather than silently defaulted
         @test_throws ArgumentError solve_mode_amr(orb, cfg, 2; iterations = 0,
                                                   hierarchy = :nope)
@@ -788,11 +803,57 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
         @test isapprox(norm(j[lo]), norm(j[hi]); rtol = 1e-12)
 
         # ‖b‖₀ — the level-0 GMRES residual, the quantity that separates the two domains.
-        # MEASURED 1.391463 here against 1.744438 on the production half domain, where the
-        # published fig:linsolv level-0 residual is 1.375. The band is 2 % of the published
-        # value: this is a reproduction gate, not a fit.
+        # MEASURED 1.391463 here against 1.744438 on the production half domain. The published
+        # fig:linsolv level-0 residual is 1.39401 by exact extraction of the figure's own vector
+        # paths; an earlier reading of 1.375 was a digitization error, about 1.35 % low across
+        # the whole published series. The band is 1 % of that value — a reproduction gate, not
+        # a fit: the measured deviation is 0.18 %.
         nb = norm(EllipticCore.linearized_rhs(op, b))
         @test isapprox(nb, 1.391463; rtol = 1e-5)
-        @test abs(nb - 1.375) / 1.375 < 0.02
+        @test abs(nb - 1.39401) / 1.39401 < 0.01
+    end
+
+    # ---- the level-policy protocol takes BOTH arities, and the preconditioner is a seam ------
+    @testset "level_options arity and the preconditioner seam" begin
+        cfg, orb = da_pcfg, da_porb
+        # a caller's own TWO-argument callable still works — it simply never sees the mesh, so
+        # its overlap is the config's initial P, which is the legacy policy by construction
+        seen = Ref(0)
+        two(c, k) = (seen[] += 1; amr_level_options(c, k))
+        h2 = solve_mode_amr(orb, cfg, 2; iterations = 2, hierarchy = :derived, level_options = two)
+        @test seen[] == 3                                     # level 0 plus two steps
+        @test length(h2.levels) == 3
+        # ... and a THREE-argument one is handed this level's own mesh
+        meshes = Any[]
+        three(c, k, mh) = (mh === nothing || push!(meshes, mh); amr_level_options(c, k, mh))
+        h3 = solve_mode_amr(orb, cfg, 2; iterations = 2, hierarchy = :derived,
+                            level_options = three)
+        @test [m.ndofs for m in meshes] == [l.mesh.ndofs for l in h3.levels]
+        # `solve_mode`'s preconditioner seam: the shipped factories are interchangeable there
+        opts = amr_level_options(cfg, 0, block_domain(orb, cfg).mesh)
+        smg = solve_mode(orb, cfg, 2; options = opts)
+        ssw = solve_mode(orb, cfg, 2; options = opts,
+                         preconditioner = schwarz_only_preconditioner)
+        @test smg.record.converged && ssw.record.converged
+        @test ssw.record.iterations >= smg.record.iterations   # the V-cycle is never worse
+        @test norm(smg.u - ssw.u) <= 1e-7 * norm(smg.u)        # the same linear system
+    end
+
+    # ---- `InitialCoarseLevels > 0` really seeds the history chain ---------------------------
+    # The production run is L = 0, which seeds NOTHING, so the seeding branch of
+    # `_amrd_seed_chain!` is never exercised by any other test in this file.
+    @testset "InitialCoarseLevels seeds the history chain" begin
+        orb = da_porb
+        cfgL = crp_paper_config(; spin = 0.5, orbital_radius = 10.0, m_mode = 2,
+                                inner_radius = orb.rp, P = 4, L = 1)
+        h = solve_mode_amr(orb, cfgL, 2; iterations = 1)
+        # L = 1 allocates ONE grid coarser than the initial lattice before AMR starts, so every
+        # level's hierarchy is one deeper than the AMR step count
+        @test [length(l.record.level_ndofs) for l in h.levels] == [2, 3]
+        @test h.levels[1].record.level_ndofs[end] < h.levels[1].mesh.ndofs
+        # ... and that seeded coarsest grid is the SAME one at every level (it never moves)
+        @test h.levels[end].record.level_ndofs[end] == h.levels[1].record.level_ndofs[end]
+        # the production L = 0 seeds none, which is why its level 0 IS the direct bottom solve
+        @test [length(l.record.level_ndofs) for l in da_hist.levels] == 1:7
     end
 end

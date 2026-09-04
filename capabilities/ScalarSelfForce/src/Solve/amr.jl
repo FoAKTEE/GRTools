@@ -332,7 +332,7 @@ end
 
 # the level-policy protocol accepts BOTH arities, so a caller's own two-argument callable keeps
 # working while the shipped one is handed this level's mesh
-_amrd_options(f, config::RunConfig, step::Integer, mesh::Mesh2D) =
+_amrd_options(f, config::RunConfig, step::Integer, mesh::Union{Nothing,Mesh2D}) =
     (applicable(f, config, step, mesh) ? f(config, step, mesh) :
      f(config, step))::SolverStackOptions
 
@@ -603,7 +603,11 @@ then literally true, ONE factorization for the whole sweep. This driver keeps th
 hands it to [`multigrid_chain_preconditioner`](@ref), with a per-grid overlap so the frozen
 coarse levels keep their subdomain factorizations too (main.tex:676).
 
-`hierarchy = :derived` keeps the h-coarsening of the current mesh reachable for the A/B.
+`hierarchy = :derived` keeps the h-coarsening of the current mesh reachable for the A/B — it
+is "the derived hierarchy WITH the per-grid overlap", not the pre-adoption stack, because
+`overlap` is a SEPARATE axis. `overlap = :initial` is the pre-adoption policy (the config's
+initial `P` on every grid), so `hierarchy = :derived, overlap = :initial` reproduces the
+pre-adoption sweep exactly and is gated against it.
 MEASURED at the paper's own exemplar (`a = 0.5`, `r₀ = 10 M`, `m = 2`), eight levels:
 
 | hierarchy | iterations | total | reduction per iteration | bottom LU |
@@ -675,6 +679,7 @@ function solve_mode_amr(orbit::CircularOrbit, config::RunConfig{RT},
                         criterion = amr_flags,
                         level_options = amr_level_options,
                         hierarchy::Symbol = :history,
+                        overlap::Symbol = :auto,
                         horizon_hold::Bool = false,
                         monitor::ResidualMonitor = ResidualMonitor(real(T))) where {RT}
     iterations >= 0 || throw(ArgumentError(
@@ -683,6 +688,16 @@ function solve_mode_amr(orbit::CircularOrbit, config::RunConfig{RT},
         "solve_mode_amr: hierarchy must be :history (the reference's own — every AMR step " *
         "adds a finer grid and the old ones are kept) or :derived (h-coarsen the current " *
         "mesh), got $(repr(hierarchy))"))
+    overlap in (:auto, :initial) || throw(ArgumentError(
+        "solve_mode_amr: overlap must be :auto (the reference's `MaxOverlap: Auto`, resolved " *
+        "from each grid's own extents) or :initial (the pre-adoption policy — the config's " *
+        "initial P on every grid), got $(repr(overlap))"))
+    # THE OVERLAP IS DECIDED ONCE, here. Both consumers read this one pair: the level policy
+    # (through the third argument of `level_options`, where `nothing` means "the config's
+    # initial P") and the chain factory's per-level policy.
+    _ov = overlap === :initial ? (_ -> resolve_max_overlap(config)) :
+                                 (mh -> resolve_max_overlap(config, mh))
+    _ov_arg(mh) = overlap === :initial ? nothing : mh
     xp = puncture_chart_position(dom, orbit)
     chain = Mesh2D{RT}[]
     precond = multigrid_preconditioner
@@ -691,12 +706,11 @@ function solve_mode_amr(orbit::CircularOrbit, config::RunConfig{RT},
         # PER-LEVEL overlap: the reference resolves `MaxOverlap: Auto` from each grid's own
         # extents and freezes the coarse grids, so a coarse level keeps the overlap it had when
         # it was the finest and its Schwarz factorizations stay cache HITS (main.tex:676).
-        precond = multigrid_chain_preconditioner(
-            chain; overlap = mh -> resolve_max_overlap(config, mh))
+        precond = multigrid_chain_preconditioner(chain; overlap = _ov)
     end
     t = time()
     sol = solve_mode(orbit, config, m; T = T, dom = dom, phi_p = phi_p,
-                     options = _amrd_options(level_options, config, 0, dom.mesh),
+                     options = _amrd_options(level_options, config, 0, _ov_arg(dom.mesh)),
                      preconditioner = precond, monitor = monitor)
     wall = time() - t
     levels = AmrLevel{T,RT}[]
@@ -708,7 +722,7 @@ function solve_mode_amr(orbit::CircularOrbit, config::RunConfig{RT},
         # the mesh this level leaves behind BECOMES the next-coarser multigrid grid
         hierarchy === :history && pushfirst!(chain, sol.mesh)
         amr_step!(sol; flags = flags, horizon_hold = horizon_hold,
-                  options = mh -> _amrd_options(level_options, config, k + 1, mh))
+                  options = mh -> _amrd_options(level_options, config, k + 1, _ov_arg(mh)))
         wall = time() - t
     end
     return AmrHistory{T,RT}(orbit, config, Int(m), xp, levels, sol)

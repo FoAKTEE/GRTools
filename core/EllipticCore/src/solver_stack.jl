@@ -621,23 +621,10 @@ maximum order leaves the frozen coarse levels bit-identical — the same subdoma
     pushfirst!(chain, sol.mesh)                                  # leaving this mesh behind
     rebuild!(stack, build_op(finer_mesh))                        # the hierarchy grew by one
 
-# WHY: THE REFERENCE'S HIERARCHY IS ITS AMR HISTORY
-
-arXiv:2606.04998 does not run the derived hierarchy under AMR. Its executable keeps the coarse
-grids (`Elliptic/Executables/SelfForce/Scalar/SolveScalarSelfForce.hpp:173`,
-`amr::keep_coarse_grids = true`), every AMR step creates a NEW FINEST GRID at `grid_index + 1`
-(`ParallelAlgorithms/Amr/Actions/AdjustDomain.hpp:157-163` for a split element, `:203-212` for
-every element that is only p-refined) and the parent stays alive as a coarser grid
-(`Amr/Actions/SendDataToChildren.hpp:43-70`), while the V-cycle walks exactly those grids
-(`Multigrid/ElementActions.hpp:96-135`, `Multigrid.hpp:56-58`). So the hierarchy has one level
-per AMR step, consecutive levels differ by ONE step, and the coarsest is the invariant initial
-lattice — which is what makes main.tex:674's single cached bottom LU true.
-
-MEASURED on the `gate (M4)` hp sweep of this package's own five-block model, six steps, the two
-factories differing in nothing else: derived (coarse_orders pinned) `8, 9, 10, 11, 12, 14` with
-the count GROWING as the fine order runs away from the coarse space, against
-`1, 8, 9, 9, 9, 9` from the chain, bounded from the first refinement on. On the CRP's own
-exemplar the same substitution takes `1, 8, 9, 9, 9, 9, 9, 9` to `1, 7, 7, 6, 5, 5, 5, 4`.
+WHY THE FORM EXISTS, and what supplying an AMR history measures: see
+`docs/src/core/ellipticcore.md`. The reference keeps its coarse grids, so its
+multigrid levels ARE its AMR history; the measured before/after is recorded there
+and in the node's evidence.
 """
 multigrid_chain_preconditioner(meshes::AbstractVector; overlap = nothing) =
     function (stack::SolverStack)
