@@ -1,4 +1,5 @@
-# untracked artefacts written beside the golden by fig_domain.jl / fig_linsolv.jl:
+# untracked artefacts written beside the golden by fig_domain.jl / fig_linsolv.jl / fig_modes.jl:
 # the vector copies (--regen / --plot-only only) and the surface cache --plot-only redraws from.
 *.pdf
 fig_domain_surface.jls
+fig_modes_surface.jls

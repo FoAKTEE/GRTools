@@ -214,9 +214,10 @@ Apple M2 Pro.
   ticks 20, 40, 60, 80.
 - Top panel: y = "Absolute error |F_r^m − F_{r,ref}^m|", **log scale**
   10⁻¹² … 10⁻⁵ (every decade labeled). **21 solid lines, no markers**, in a
-  grayscale ramp: black for m=0 → very light gray for m=20 (e.g.
-  `plt.cm.gray(np.linspace(0, 0.8, 21))` or grays via
-  `cmap='Greys_r'`-style mapping). Legend upper-right, framed, with only
+  grayscale ramp: black for m=0 → very light gray for m=20. MEASURED from
+  the published figure's own line colours: the ramp is `plt.cm.gray(m/23)`
+  (not the `linspace(0, 0.8, 21)` first read off it by eye).
+  Legend upper-right, framed, with only
   the two extreme entries: "m=0" (black), "m=20" (light gray).
   **Black dashed horizontal line at 1e-11** with inside-axes text label
   "Solver tolerance" just below it at the left.
@@ -233,7 +234,7 @@ Apple M2 Pro.
 ```python
 fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(5, 6.5),
                                gridspec_kw={'height_ratios': [3, 1]})
-colors = plt.cm.gray(np.linspace(0.0, 0.75, 21))   # m=0 black ... m=20 light
+colors = plt.cm.gray(np.arange(21) / 23)   # MEASURED ramp: gray level = m/23
 # ax1: semilogy error vs sqrt(Npoints); ax1.axhline(1e-11, ls='--', c='k')
 # ax1.text(..., 'Solver tolerance'); legend with only m=0 and m=20 proxies
 # ax2: semilogy cumulative walltime; custom yticks [1,10] -> ['1 s','10 s']
