@@ -542,6 +542,17 @@ formulation and consumes the physics-free hp-DG solver stack from
   ``m = 10`` and 16 → 215 at ``m = 20`` — which is the round-1 `helmholtz_shift`
   calibration falsifier again. Every mode's shift is recorded in its
   `ModeStamp`, so the claim is auditable rather than remembered.
+  `solve_kwargs` is forwarded verbatim to `solve_mode_amr`, so a caller can
+  reach a keyword the driver does not name — `horizon_hold = true`, the
+  high-spin cure, above all. It is validated on the master against
+  `solve_mode_amr`'s own method table before a single worker starts, and it is
+  recorded in every `ModeStamp`, so an archived sweep says which keywords
+  produced it (measured at ``a = 0.5``, ``r_0 = 10M``, ``m = 2``: the first
+  refinement step alone gives 593 dofs by default against 575 held). Each
+  `ModeResult` also carries `converged`, the roll-up of the per-level
+  `record.converged`: a stagnated GMRES still returns a number, and a caller
+  that plots it without looking has published a wrong one.
+
   A mode that throws is reported by id in `set.failures`, warned with its
   remote backtrace, and never swallowed; the other modes still return. So is a
   worker that **dies** — `pmap`'s `on_error` does not catch a

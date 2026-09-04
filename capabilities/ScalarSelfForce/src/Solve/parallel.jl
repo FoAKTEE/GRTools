@@ -378,6 +378,11 @@ a bitwise comparison of two answers to two different questions proves nothing.
     vtu config sets `ComplexShift: 0.0`.
   - `outer_bc_m::Int`, `outer_bc_order::Int` — the outer radial condition's own mode number and
     order; `outer_bc_m = -1` records the `m = 0` yaml branch, which HAS no outer condition.
+  - `solve_kwargs::String` — the extra [`solve_mode_amr`](@ref) keywords this mode was solved
+    with, canonically rendered (keys sorted) — `""` when the sweep used the driver's own
+    arguments and nothing else. A sweep run with `horizon_hold = true` (the row-58 cure) and
+    one run without it are DIFFERENT problems, and this is where an archived artefact says
+    which one it holds instead of leaving a reader to guess.
 
 WHY THE SHIFT IS RECORDED PER MODE. The preconditioner this sweep runs is m-AGNOSTIC — shift
 zero — while the operator's Helmholtz term scales as `(mΩ)²`. That is the paper's own
@@ -396,19 +401,30 @@ struct ModeStamp{RT<:AbstractFloat}
     helmholtz_shift_policy::RT
     outer_bc_m::Int
     outer_bc_order::Int
+    solve_kwargs::String
+end
+
+# Canonical rendering of a pass-through: keys SORTED, so two callers that wrote the same
+# keywords in a different order produce the same stamp and compare equal.
+function _pf_render_kwargs(nt::NamedTuple)
+    isempty(nt) && return ""
+    ks = sort(collect(keys(nt)))
+    return string(NamedTuple{Tuple(ks)}(Tuple(getfield(nt, k) for k in ks)))
 end
 
 Base.:(==)(a::ModeStamp, b::ModeStamp) =
     all(getfield(a, f) == getfield(b, f) for f in fieldnames(ModeStamp))
 
 """
-    mode_stamp(orbit::CircularOrbit, config::RunConfig, m::Integer) -> ModeStamp
+    mode_stamp(orbit::CircularOrbit, config::RunConfig, m::Integer; solve_kwargs = (;))
+        -> ModeStamp
 
 The [`ModeStamp`](@ref) of mode `m` under `config`, computed from [`mode_config`](@ref) — the
 same function the worker runs, so the master can check a returned stamp against what it would
 itself have used.
 """
-function mode_stamp(orbit::CircularOrbit, config::RunConfig{RT}, m::Integer) where {RT}
+function mode_stamp(orbit::CircularOrbit, config::RunConfig{RT}, m::Integer;
+                    solve_kwargs::NamedTuple = (;)) where {RT}
     cfg = mode_config(config, m)
     bc = cfg.domain.outer_radial_bc
     return ModeStamp{RT}(Int(m), RT(orbit.a), RT(orbit.r0),
@@ -416,7 +432,8 @@ function mode_stamp(orbit::CircularOrbit, config::RunConfig{RT}, m::Integer) whe
                          RT(cfg.multigrid.complex_shift),
                          RT(helmholtz_shift(Int(m), orbit.Omega; slicing = :vtu)),
                          bc === nothing ? -1 : Int(bc.m_mode_number),
-                         bc === nothing ? -1 : Int(bc.order))
+                         bc === nothing ? -1 : Int(bc.order),
+                         _pf_render_kwargs(solve_kwargs))
 end
 
 # ==================================== the run record =======================================
@@ -438,6 +455,11 @@ boundary, and everything rows 44/50/51/53 read.
   - `blas_threads::Int`, `julia_threads::Int` — what the producing process actually had. These
     are not decoration: a run is bitwise reproducible only against another run with the SAME
     two numbers (MEASURED: the diagnostics move by ~4e-12 relative between BLAS thread counts).
+  - `converged::Bool` — whether EVERY AMR level's linear solve met its tolerance. It is the
+    roll-up of `levels[i].record.converged`, which stays available level by level. A stagnated
+    GMRES still returns a `ModeResult` — it is a number, just not a converged one — and a
+    caller that plots it without looking has published a wrong value, so the flag travels
+    beside the answer rather than inside it.
   - `stamp::ModeStamp{RT}` — the m-dependent knobs the producing process used, so `parallel ==
     serial` can be asserted on the QUESTION as well as on the answer (see [`ModeStamp`](@ref)).
 
@@ -457,13 +479,14 @@ struct ModeResult{T<:Number,RT<:AbstractFloat}
     ospid::Int
     blas_threads::Int
     julia_threads::Int
+    converged::Bool
     stamp::ModeStamp{RT}
 end
 
 ModeResult(h::AmrHistory{T,RT}, wall_time::Real, stamp::ModeStamp{RT}) where {T,RT} =
     ModeResult{T,RT}(h.m, h.x_p, h.levels, h.solution.u, Float64(wall_time),
                      Distributed.myid(), getpid(), BLAS.get_num_threads(), Threads.nthreads(),
-                     stamp)
+                     all(l -> l.record.converged, h.levels), stamp)
 
 """
     ModeFailure
@@ -505,6 +528,8 @@ sized it, the guard decisions, and the load-monitor samples that are this node's
   - `max_load::Float64` — the largest `cpu_fraction` over every sample of the run. It is
     RECORDED, NOT ENFORCED: the guard governs the launch decision, and nothing here can stop
     another user of a shared box afterwards. A crossing is `@warn`ed when the run ends;
+  - `solve_kwargs::NamedTuple` — the extra [`solve_mode_amr`](@ref) keywords forwarded to
+    every mode of this sweep (`(;)` by default);
   - `timeout_s::Union{Nothing,Float64}`, `timed_out::Bool` — the deadline, if any, and whether
     it fired (in which case the workers were REMOVED to cancel the outstanding modes);
   - `startup_time::Float64` — seconds spent starting the pool (spawn + `using
@@ -528,6 +553,7 @@ struct ModeRunRecord
     guard_before::LoadSample
     guard_after::LoadSample
     max_load::Float64
+    solve_kwargs::NamedTuple
     timeout_s::Union{Nothing,Float64}
     timed_out::Bool
     startup_time::Float64
@@ -577,10 +603,13 @@ function Base.show(io::IO, ::MIME"text/plain", s::ModeSet)
     println(io, "    m  levels   ndofs  iters   wall[s]  worker      Re Ψ^R(x_p)     ∂_r Ψ^R(x_p)")
     for x in s.results
         l = x.levels[end]
-        @printf(io, "  %3d  %6d  %6d  %5d  %8.2f  %6d  %+13.6e  %+13.6e\n",
+        @printf(io, "  %3d  %6d  %6d  %5d  %8.2f  %6d  %+13.6e  %+13.6e%s\n",
                 x.m, length(x.levels), l.mesh.ndofs, l.record.iterations, x.wall_time,
-                x.ospid, real(l.psi), real(l.dpsi_r))
+                x.ospid, real(l.psi), real(l.dpsi_r),
+                x.converged ? "" : "   NOT CONVERGED")
     end
+    isempty(r.solve_kwargs) ||
+        println(io, "  solve_kwargs: ", _pf_render_kwargs(r.solve_kwargs))
     for f in s.failures
         println(io, "  FAILED m = ", f.m, " on worker ", f.worker, ": ",
                 first(f.message, 200))
@@ -830,6 +859,42 @@ end
 
 # =================================== the mode solve ========================================
 
+# ============================ the solve_mode_amr pass-through ==============================
+
+"""The keywords the driver itself owns and passes explicitly. A caller that repeated one of
+these in `solve_kwargs` would produce a duplicate-keyword call inside the worker, so they are
+refused on the master instead."""
+const PARALLEL_DRIVER_KWARGS = (:iterations, :T, :criterion, :level_options)
+
+# every keyword `solve_mode_amr` actually accepts, read off its own method table so this can
+# never drift from the sealed signature
+function _pf_amr_kwargs()
+    ks = Set{Symbol}()
+    for mth in methods(solve_mode_amr), k in Base.kwarg_decl(mth)
+        endswith(String(k), "...") || push!(ks, k)
+    end
+    return ks
+end
+
+# The caller-side gate. It runs BEFORE the load guard and before a single worker is started:
+# a bad keyword that only surfaced inside the pool would cost a pool start and come back as
+# `nworkers` identical remote MethodErrors with no useful attribution.
+function _pf_check_solve_kwargs(nt::NamedTuple)
+    isempty(nt) && return nothing
+    owned = [k for k in keys(nt) if k in PARALLEL_DRIVER_KWARGS]
+    isempty(owned) || throw(ArgumentError(
+        "solve_modes_*: solve_kwargs may not carry $(join(owned, ", ")) — the driver passes " *
+        "$(join(PARALLEL_DRIVER_KWARGS, ", ")) itself, and repeating one would be a duplicate " *
+        "keyword inside the worker. Pass it as the driver's own argument instead."))
+    allowed = _pf_amr_kwargs()
+    bad = [k for k in keys(nt) if !(k in allowed)]
+    isempty(bad) || throw(ArgumentError(
+        "solve_modes_*: solve_kwargs carries $(join(bad, ", ")), which solve_mode_amr does " *
+        "not accept. It accepts: $(join(sort(collect(allowed)), ", ")). " *
+        "(Checked on the master, before any worker process is started.)"))
+    return nothing
+end
+
 # THE function every worker runs. Top-level (not a closure) so it serializes by name, and the
 # ONE place the BLAS pin is applied — the environment is best effort, this is authoritative.
 # The pin goes through `NumericsCore.with_blas_threads`, the package-wide lease of
@@ -838,13 +903,15 @@ end
 # monitor's sampling task, a caller that threads over sweeps) and can restore the wrong value.
 function _pf_solve(orbit::CircularOrbit, config::RunConfig, m::Integer;
                    iterations::Integer, T::Type, criterion, level_options,
-                   blas_threads::Integer)
+                   blas_threads::Integer, solve_kwargs::NamedTuple = (;))
     return with_blas_threads(blas_threads) do
         cfg = mode_config(config, m)
         t = time()
         h = solve_mode_amr(orbit, cfg, m; iterations = iterations, T = T,
-                           criterion = criterion, level_options = level_options)
-        return ModeResult(h, time() - t, mode_stamp(orbit, config, m))
+                           criterion = criterion, level_options = level_options,
+                           solve_kwargs...)
+        return ModeResult(h, time() - t,
+                          mode_stamp(orbit, config, m; solve_kwargs = solve_kwargs))
     end
 end
 
@@ -1048,10 +1115,12 @@ function solve_modes_serial(orbit::CircularOrbit, config::RunConfig{RT},
                             level_options = amr_level_options,
                             blas_threads::Integer = 1,
                             load_guard::Real = PARALLEL_LOAD_GUARD,
+                            solve_kwargs::NamedTuple = (;),
                             log = nothing,
                             sample_interval::Real = 5.0) where {RT}
     blas_threads >= 1 || throw(ArgumentError(
         "solve_modes_serial: blas_threads must be ≥ 1, got $blas_threads"))
+    _pf_check_solve_kwargs(solve_kwargs)
     mlist = _pf_modes(ms)
     what = "solve_modes_serial(1 process)"
     t0 = time()
@@ -1071,7 +1140,8 @@ function solve_modes_serial(orbit::CircularOrbit, config::RunConfig{RT},
                     push!(results, _pf_solve(orbit, config, m; iterations = iterations, T = T,
                                              criterion = criterion,
                                              level_options = level_options,
-                                             blas_threads = blas_threads))
+                                             blas_threads = blas_threads,
+                                             solve_kwargs = solve_kwargs))
                 catch e
                     @warn "$what: mode m = $m FAILED; the other modes still run" exception = (e, catch_backtrace())
                     push!(failures, ModeFailure(m, _pf_msg(e), Distributed.myid()))
@@ -1084,7 +1154,7 @@ function solve_modes_serial(orbit::CircularOrbit, config::RunConfig{RT},
     rec = ModeRunRecord(false, 1, Threads.nthreads(), Int(blas_threads), cpw,
                         PARALLEL_CPU_BUDGET, 1, false, false, Float64(load_guard), share,
                         share, before, after, _pf_max_load(mon, load_guard, what),
-                        nothing, false, 0.0, time() - t0, mon.samples)
+                        solve_kwargs, nothing, false, 0.0, time() - t0, mon.samples)
     return ModeSet{T,RT}(orbit, config, mlist, results, failures, rec)
 end
 
@@ -1187,6 +1257,14 @@ backtrace, recorded in `set.failures`, printed by `show`, and every OTHER mode s
 The same is true of a worker that DIES — the failure carries the dead worker's id and the
 corpse is pruned from the pool rather than handed out again.
 
+`solve_kwargs` is forwarded VERBATIM to [`solve_mode_amr`](@ref) — it is how a caller reaches
+a keyword the driver does not name, `horizon_hold = true` (the row-58 high-spin cure) above
+all. It is validated on the MASTER against `solve_mode_amr`'s own method table before a single
+worker starts, refused if it repeats a keyword the driver owns, and recorded in every
+[`ModeStamp`](@ref) so an archived sweep says which keywords produced it. MEASURED at
+`a = 0.5`, `r₀ = 10M`, `m = 2`: the first refinement step alone gives 593 dofs by default
+against 575 with `horizon_hold = true`, so the keyword is visible in the returned mesh.
+
 `timeout_s` bounds the whole sweep. Without it a hung mode hangs the sweep forever, because
 `remotecall_fetch` has no deadline; with it, the outstanding modes are cancelled the only way a
 remote call can be cancelled — by REMOVING their workers — each is reported by id, and
@@ -1209,6 +1287,7 @@ function solve_modes_parallel(orbit::CircularOrbit, config::RunConfig{RT},
                               blas_threads::Integer = 1,
                               budget::Integer = PARALLEL_CPU_BUDGET,
                               load_guard::Real = PARALLEL_LOAD_GUARD,
+                              solve_kwargs::NamedTuple = (;),
                               timeout_s = nothing,
                               log = nothing,
                               sample_interval::Real = 5.0,
@@ -1218,6 +1297,7 @@ function solve_modes_parallel(orbit::CircularOrbit, config::RunConfig{RT},
         "solve_modes_parallel: blas_threads must be ≥ 1, got $blas_threads"))
     timeout_s === nothing || timeout_s > 0 || throw(ArgumentError(
         "solve_modes_parallel: timeout_s must be positive or `nothing`, got $timeout_s"))
+    _pf_check_solve_kwargs(solve_kwargs)      # on the MASTER, before any worker is started
     mlist = _pf_modes(ms)
     own = pool === nothing
     if own
@@ -1275,7 +1355,8 @@ function solve_modes_parallel(orbit::CircularOrbit, config::RunConfig{RT},
                                          iterations = iterations, T = T,
                                          criterion = criterion,
                                          level_options = level_options,
-                                         blas_threads = blas_threads)
+                                         blas_threads = blas_threads,
+                                         solve_kwargs = solve_kwargs)
         end
         _pf_prune!(thepool, what)          # a death shrinks the pool; never hand a corpse out
         _pf_collect!(results, failures, mlist, raw, what)
@@ -1288,7 +1369,7 @@ function solve_modes_parallel(orbit::CircularOrbit, config::RunConfig{RT},
     rec = ModeRunRecord(true, p.nworkers, p.threads_per_worker, Int(blas_threads),
                         p.cpus_per_worker, p.budget, p.requested, p.clamped, own,
                         Float64(load_guard), share, guard_share, before, after,
-                        _pf_max_load(mon, load_guard, what),
+                        _pf_max_load(mon, load_guard, what), solve_kwargs,
                         timeout_s === nothing ? nothing : Float64(timeout_s), timed_out,
                         startup, time() - t0, mon.samples)
     return ModeSet{T,RT}(orbit, config, mlist, results, failures, rec)

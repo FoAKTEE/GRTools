@@ -357,6 +357,8 @@ try
     # would have computed for that mode (review finding 17).
     @test all(r.stamp == ScalarSelfForce.mode_stamp(orb, cfg, r.m) for r in set.results)
     @test all(r.stamp.subdomain_complex_shift == 0 for r in set.results)
+    @test all(r.stamp.solve_kwargs == "" for r in set.results)   # no pass-through by default
+    @test all(r.converged for r in set.results)                  # per-mode convergence travels
 
     # (c) the budget is ENFORCED, and the over-request was clamped and logged
     @test set.run.nworkers == 4
@@ -518,6 +520,101 @@ end
     @test [f.m for f in sset.failures] == [1]
     @test occursin("injected failure", sset.failures[1].message)
     @test [r.m for r in sset.results] == [0, 2]
+end
+
+# ================== (7b) solve_kwargs: the pass-through to solve_mode_amr ==================
+# WHY IT EXISTS. `_pf_solve` used to fix the keyword set it forwards, so a caller could not
+# reach ANY other `solve_mode_amr` keyword through the pool — `horizon_hold = true` (the row-58
+# cure) among them, which a figure driver needs for its high-spin panel. `solve_kwargs` is
+# forwarded VERBATIM and recorded in the `ModeStamp`, so an artefact says which keywords ran
+# instead of leaving a reader to guess.
+#
+# THE GATE IS THE MESH. A keyword that reached the worker must CHANGE something the master can
+# see. MEASURED in-process at a = 0.5, r0 = 10M, m = 2 (probe archived with the evidence):
+# `horizon_hold` holds the order of the inner radial column, so the very first refinement step
+# already produces a smaller grid — 593 dofs by default against 575 held, then 950/910 and
+# 1411/1345. The one-step pair is the cheapest possible falsifier and is what is gated here.
+@testset "(7b) solve_kwargs reaches the worker, is recorded, and is validated first" begin
+    cfg = pa_cfg(; m = 2)
+    orb = pa_orb(cfg)
+
+    # (a) THE DEFAULT IS UNCHANGED. No keywords means an empty record and the same mesh the
+    # rest of this file measures — the pass-through must not perturb the production sweep.
+    plain = solve_modes_parallel(orb, cfg, [2]; iterations = 1, pool = pa_pool)
+    @test isempty(plain.failures)
+    @test plain.results[1].stamp.solve_kwargs == ""
+    @test plain.results[1].levels[end].mesh.ndofs == 593
+    @test plain.results[1].stamp == ScalarSelfForce.mode_stamp(orb, cfg, 2)
+
+    # (b) THE KEYWORD REACHES THE WORKER AND CHANGES THE MESH.
+    held = solve_modes_parallel(orb, cfg, [2]; iterations = 1, pool = pa_pool,
+                                solve_kwargs = (; horizon_hold = true))
+    @test isempty(held.failures)
+    @test held.results[1].levels[end].mesh.ndofs == 575        # != 593: it really ran
+    @test held.results[1].levels[end].mesh.ndofs != plain.results[1].levels[end].mesh.ndofs
+    @test held.results[1].stamp.solve_kwargs == "(horizon_hold = true,)"
+    @test held.results[1].stamp != plain.results[1].stamp      # the QUESTION differs, and says so
+    @test held.run.solve_kwargs == (; horizon_hold = true)
+
+    # … the in-process oracle takes the same keyword and agrees BITWISE with the fan-out, so
+    # the pass-through is on the same footing as every other argument of this driver.
+    held_ser = solve_modes_serial(orb, cfg, [2]; iterations = 1,
+                                  solve_kwargs = (; horizon_hold = true))
+    @test isempty(held_ser.failures)
+    @test pa_bitwise(held.results[1], held_ser.results[1])
+    @test held.results[1].stamp == held_ser.results[1].stamp
+    @test held_ser.results[1].levels[end].mesh.ndofs == 575
+
+    # (c) AN UNKNOWN KEYWORD THROWS ON THE CALLER SIDE, BEFORE ANY WORKER STARTS. A bad
+    # keyword that only surfaced inside a worker would cost a pool start and come back as 21
+    # identical remote MethodErrors.
+    n0 = Distributed.nprocs()
+    err = try
+        solve_modes_parallel(orb, cfg, [2]; iterations = 0,
+                             solve_kwargs = (; not_a_solve_mode_amr_keyword = 1))
+        nothing
+    catch e
+        e
+    end
+    @test err isa ArgumentError
+    msg = sprint(showerror, err)
+    @test occursin("not_a_solve_mode_amr_keyword", msg)
+    @test occursin("horizon_hold", msg)                 # the message LISTS what is accepted
+    @test Distributed.nprocs() == n0                    # …and no pool was started on the way
+    # the serial driver validates identically (same helper, same message)
+    @test_throws ArgumentError solve_modes_serial(orb, cfg, [2]; iterations = 0,
+                                                  solve_kwargs = (; nope = 1))
+    # a keyword the DRIVER itself owns cannot be smuggled in twice
+    for k in (:iterations, :T, :criterion, :level_options)
+        e2 = try
+            solve_modes_parallel(orb, cfg, [2]; iterations = 0, pool = pa_pool,
+                                 solve_kwargs = NamedTuple{(k,)}((1,)))
+            nothing
+        catch e
+            e
+        end
+        @test e2 isa ArgumentError
+        @test occursin(string(k), sprint(showerror, e2))
+    end
+    # the validator is pure, so it is gated directly too (hermetic, no processes involved)
+    @test ScalarSelfForce._pf_check_solve_kwargs((;)) === nothing
+    @test ScalarSelfForce._pf_check_solve_kwargs((; horizon_hold = true, phi_p = 0.0)) === nothing
+    @test_throws ArgumentError ScalarSelfForce._pf_check_solve_kwargs((; hierarchy = :history,
+                                                                        bogus = 2))
+    @test :horizon_hold in ScalarSelfForce._pf_amr_kwargs()
+    @test :dom in ScalarSelfForce._pf_amr_kwargs()
+    @test !(:bogus in ScalarSelfForce._pf_amr_kwargs())
+
+    # (d) CONVERGENCE TRAVELS PER MODE. A figure driver that plots a stagnated mode without
+    # noticing has published a wrong number; `converged` is the per-mode roll-up of the
+    # per-level `record.converged`, which stays available level by level.
+    @test plain.results[1].converged isa Bool
+    @test plain.results[1].converged ==
+          all(l.record.converged for l in plain.results[1].levels)
+    @test plain.results[1].converged                    # this configuration does converge
+    @test held.results[1].converged
+    @test held_ser.results[1].converged
+    @test all(r.converged for r in plain.results)
 end
 
 # ===================== (8) a worker that DIES mid-solve ====================================
