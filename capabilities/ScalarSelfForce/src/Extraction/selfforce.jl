@@ -108,8 +108,8 @@ last term is the DEPHASING DERIVATIVE. Dropping it is an `O(a)` error. It is the
 adds by hand at `ObserveSelfForce.cpp:70-72`, with the sign fixed by the `+im φ̄` of the
 ansatz — the conjugate of the `−i a m/Δ` the sealed puncture applies to `Ψ^𝒫_m`
 ([`puncture_psi_chart`](@ref), `CircularOrbit.cpp:337-339`). With `φ_p = 0` this is exactly
-spectre's `extract_self_force`, whose complex result is [`Fr_complex`](@ref
-`mode_self_force`).
+spectre's `extract_self_force`, whose complex result is this function's `Fr_complex` field
+(see FIELDS OF THE RESULT below).
 
 RADIAL CHART: `x1` is the horizon-penetrating Boyer–Lindquist `r`, so `∂_{x1} ≡ ∂_r` and
 spectre's `/= alpha` at `ObserveSelfForce.cpp:61-65` — the `α = Δ/(r²+a²)` that converts
@@ -149,13 +149,13 @@ averaging the ingredients and applying the formula once is the same reduction as
 forces, and it is what this file does (gated equal to the mean-of-forces in the node tests).
 `element = e` selects one element's one-sided trace instead — the diagnostic form.
 
-The `AmrHistory` method reads the SEALED per-level `AmrLevel` diagnostics, which record ONE
-one trace per containing element plus their mean, so its default `reduction = :trace` is a
-single-element trace at EVERY level and the per-level sequence is homogeneous, while
-`reduction = :mean` is spectre's reduction and is now available at
-the final level, where `hist.solution` exists; it throws elsewhere rather than silently mixing
-EVERY level — neither needs a `ModeSolution`. Do not mix reductions inside one convergence
-sequence; `AmrLevel.trace_spread` bounds the difference, for `dpsi_w` as well as `psi`/`dpsi_r`.
+The `AmrHistory` method reads the SEALED per-level `AmrLevel` diagnostics, which record one
+trace per containing element AND their mean, so BOTH reductions are available at EVERY level —
+neither needs a `ModeSolution`. The default is `reduction = :mean`, spectre's reduction, the
+same default the live `mode_self_force(sol::ModeSolution)` has; `reduction = :trace` gives a
+single-element one-sided trace and takes an `element`. Do not mix the two inside one
+convergence sequence. `AmrLevel.trace_spread` bounds the difference, for `dpsi_w` as well as
+`psi` / `dpsi_r`.
 
 # FIELDS OF THE RESULT
 
@@ -295,7 +295,7 @@ function _sf_check_mode(config::RunConfig, m::Integer)
 end
 
 """
-    mode_self_force(orbit, config, m, level::AmrLevel, x_p; reduction = :trace, phi_p = 0)
+    mode_self_force(orbit, config, m, level::AmrLevel, x_p; reduction = :mean, phi_p = 0)
 
 `F^m_α` from ONE hp-AMR level's sealed diagnostics, addressed WITHOUT a live
 [`ModeSolution`](@ref) — the form the process fan-out's payload supports.
