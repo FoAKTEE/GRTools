@@ -16,7 +16,7 @@
 #      significant", caption `:642-644`), baked STRING-EQUAL to the tex in
 #      `test/fixtures/wb_reference.jl` and re-diffed against the mirror by
 #      `test_wb_fixtures.jl`. Five spins: `a = 0, ±0.5, ±0.9` — the CRP's own comparison
-#      (`main.tex:703`, `fig:ssf_error_budget`). NOTHING in this package feeds that table.
+#      (`main.tex:712`, `fig:ssf_error_budget`). NOTHING in this package feeds that table.
 #   2. EXACT ARITHMETIC IDENTITIES on synthetic sequences: a power law summed in closed form
 #      against `ζ(s, a)`'s own defining telescoping identity and against the exact
 #      `π^{2k}`-values; the Heffernan shape summed against its sealed closed-form tail; the
@@ -36,7 +36,7 @@
 # re-solves one mode per spin LIVE and requires the recording to match, so a drift of the
 # per-mode pipeline cannot hide behind the recording.
 #
-# PAPER ANCHORS: CRP `arXiv:2606.04998 main.tex:701-703` (extract per mode, sum over m),
+# PAPER ANCHORS: CRP `arXiv:2606.04998 main.tex:712` (extract per mode, sum over m),
 # `:722-723` (the `F_{r[4]}` acceleration), `:726-731` (the error budget and the "constant
 # offset" of the truncation model); [H14] `arXiv:1211.6446 KerrRegularization.tex:1675-1680`
 # (the m-dependence at orders 4 and 6), `:1795-1797` (`F_{r[6]}` is a numerical fit, never a
@@ -72,6 +72,13 @@ const MS_SLOPE_REG_BAND  = 0.5      # (d) band on the regularized one (next-orde
 const MS_SLOPE_WINDOW    = 6        # (d) trailing modes admitted to a slope fit
 const MS_SLOPE_SIGMA_MAX = 0.1      # (d) propagated uncertainty required of the SHARP fit
 const MS_SLOPE_HEADROOM  = 3.0      # (d) |value| / resolution error required of a fit point
+const MS_WB_FT_RTOL      = 6.0e-8   # (h) THE SECOND EXTERNAL GATE: F_t vs WB Table II.
+                                    #     Calibrated as 3x the measured worst deviation
+                                    #     (1.87e-8 at a = +0.9), which is itself set by the
+                                    #     AMR resolution of the modes and not by truncation:
+                                    #     the dissipative sum converges GEOMETRICALLY
+                                    #     (last-mode ratio ~ 0.19) and its truncation
+                                    #     estimator is ~1e-9 relative.
 const MS_LIVE_RTOL       = 1.0e-6   # (e) live re-solve vs the recorded per-mode table: 30x
                                     #     tighter than that mode's OWN resolution error and
                                     #     25x looser than the ~4e-8 a change of solver
@@ -87,6 +94,7 @@ const MS_TAB = Module(:MSModeSumTable)
 Base.include(MS_TAB, joinpath(@__DIR__, "fixtures", "modesum_wb_r10.jl"))
 
 ms_wb_Fr(a) = MS_WB.wb_cell(MS_WB.WB_FR, a, MS_TAB.MSWB_R0).value
+ms_wb_Ft(a) = MS_WB.wb_cell(MS_WB.WB_FT, a, MS_TAB.MSWB_R0).value
 
 ms_cfg(; spin, r0 = MS_TAB.MSWB_R0, m = 0, L = 0, P = 4) =
     crp_paper_config(; spin = spin, orbital_radius = r0, m_mode = m,
@@ -172,16 +180,18 @@ end
     @test n.value == 0 && n.uncertainty == abs(terms[end]) && n.fit === nothing
 end
 
-@testset "(a4) THE ACCELERATION IDENTITY of main.tex:723" begin
+@testset "(a4) THE ACCELERATION IDENTITY of main.tex:722" begin
     orb = CircularOrbit(-0.5, 10.0)
     mmax = 20
     frs = [1.0e-4 * cos(0.7m) / (1 + m)^3 for m in 0:mmax]     # arbitrary per-mode numbers
     r = total_self_force(orb, frs; tail = :none)
     # form 1 (what this node computes): Σ_m [F_r^m − F^m_{r[4]}], the m = 0 term halved
     @test isapprox(r.partial, sum(r.terms); rtol = MS_IDENTITY_RTOL)
-    # form 2 (main.tex:723 as written): Σ_m F_r^m + the analytic parameter tail
-    @test isapprox(r.partial, sum(frs) + mmode_reg_tail_Fr(4, orb, mmax + 1);
-                   rtol = MS_IDENTITY_RTOL)
+    # form 2 (main.tex:722 as written): Σ_m F_r^m + the analytic parameter tail
+    form2 = sum(frs) + mmode_reg_tail_Fr(4, orb, mmax + 1)
+    @printf("mode-sum (a4) observed identity residual: %.3e relative (gate %.1e)\n",
+            abs(r.partial - form2) / abs(r.partial), MS_IDENTITY_RTOL)
+    @test isapprox(r.partial, form2; rtol = MS_IDENTITY_RTOL)
     # the m = 0 halving lives in ONE place and is applied exactly once
     @test r.reg_terms[1] == mmode_reg_Fr(4, orb, 0) / 2
     @test all(r.reg_terms[k] == mmode_reg_Fr(4, orb, k - 1) for k in 2:length(r.reg_terms))
@@ -216,6 +226,17 @@ end
     @test isapprox(f.slope, -6.0; rtol = MS_FIT_RTOL)
     @test f.slope_sigma < 1.0e-7                     # 1e-16 errors on 1e-4…6e-9 values
     @test_throws ArgumentError mode_decay_fit(ms, vals; errors = 10 .* vals)  # nothing passes
+    # THE RESOLUTION MEASURE FALLS BACK, AND SAYS SO, when the PENULTIMATE level admits no
+    # tail fit of its own. `Δ_m = 0.26 T_m` leaves the highest level at headroom 3.85 (it
+    # fits) and the penultimate one at 0.74/0.26 = 2.85 (it does not), so exactly the
+    # asymmetric case the guard exists for.
+    rts = [mmode_reg_term_Fr(4, orb, m) for m in 0:8]
+    dgd = 0.26 .* (frs .- rts)
+    degenerate = total_self_force(orb, frs; resolution_deltas = dgd)
+    @test !degenerate.resolution_includes_tail
+    @test isnan(degenerate.resolution_error_tail)
+    @test isapprox(degenerate.resolution_error, abs(sum(dgd)); rtol = 1.0e-14)
+    @test isapprox(degenerate.resolution_error_bound, sum(abs, dgd); rtol = 1.0e-14)
     # BigFloat in, BigFloat out, at the ambient precision
     borb = CircularOrbit(big"0.0", big"10.0")
     bfrs = [big(1) / 10^5 / (1 + m)^4 for m in 0:20]
@@ -233,6 +254,8 @@ const MS_TOTALS = Dict(a => total_self_force(CircularOrbit(a, MS_TAB.MSWB_R0),
                                              MS_TAB.MSWB_FR[a];
                                              ms = MS_TAB.MSWB_MMODES,
                                              resolution_deltas = MS_TAB.MSWB_DELTA[a],
+                                             Ft_modes = MS_TAB.MSWB_FT[a],
+                                             Ft_resolution_deltas = MS_TAB.MSWB_FT_DELTA[a],
                                              reduction = MS_TAB.MSWB_REDUCTION,
                                              levels = MS_TAB.MSWB_LEVELS)
                        for a in MS_TAB.MSWB_SPINS)
@@ -245,18 +268,47 @@ const MS_TOTALS = Dict(a => total_self_force(CircularOrbit(a, MS_TAB.MSWB_R0),
         dev = abs(r.Fr - ref) / abs(ref)
         worst = max(worst, dev)
         @printf("mode-sum (b) observed a = %+.1f : ours %+.8e  WB %+.8e  rel %.3e  \
-                 tail %+.3e (%.2e rel, sigma %.1e)  trunc %.3e  resol %.3e (bound %.3e)\n",
+                 tail %+.3e (%.2e rel, sigma %.1e, A %.3e +- %.1e)  trunc %.3e  \
+                 resol %.3e (of which tail %.3e ; bound %.3e)\n",
                 a, r.Fr, ref, dev, r.tail.value, abs(r.tail.value / r.Fr),
-                r.tail.uncertainty, r.truncation_error, r.resolution_error,
+                r.tail.uncertainty, r.tail.amplitude, r.tail.amplitude_sigma,
+                r.truncation_error, r.resolution_error, r.resolution_error_tail,
                 r.resolution_error_bound)
         @test dev <= MS_WB_RTOL
         @test sign(r.Fr) == sign(ref)                     # the prograde sign flip, per spin
         # THE ERROR BUDGET CLOSES: what is left over after the accelerated sum and its tail is
-        # covered by the three budgeted terms of main.tex:726-731 (numerical resolution,
+        # covered by the three budgeted terms of main.tex:722-724 (numerical resolution,
         # finite-m truncation, and the tail model's own uncertainty).
         budget = r.resolution_error_bound + r.truncation_error + r.tail.uncertainty
         @test abs(r.Fr - ref) <= MS_BUDGET_SLACK * budget
         @test r.resolution_error <= r.resolution_error_bound
+        # THE RESOLUTION MEASURE IS THE DIFFERENCE OF TWO COMPLETE TOTALS, not of two partial
+        # sums: the penultimate level's F_r^m are `Fr_modes − Δ_m` and its tail is re-fitted on
+        # its own terms. Recomputed here from the fixture through the same public API.
+        @test r.resolution_includes_tail
+        prev = total_self_force(CircularOrbit(a, MS_TAB.MSWB_R0),
+                                MS_TAB.MSWB_FR[a] .- MS_TAB.MSWB_DELTA[a];
+                                ms = MS_TAB.MSWB_MMODES,
+                                resolution_deltas = MS_TAB.MSWB_DELTA[a])
+        @test isapprox(r.resolution_error, abs(r.Fr - prev.Fr); rtol = 1.0e-12)
+        @test isapprox(r.resolution_error_tail, abs(r.tail.value - prev.tail.value);
+                       rtol = 1.0e-12)
+        # ... and it is NOT the partial-sum proxy: the tail moves too
+        @test r.resolution_error_tail > 0
+        @test !isapprox(r.resolution_error, abs(sum(MS_TAB.MSWB_DELTA[a])); rtol = 1.0e-6)
+        # the resolution errors are propagated into the tail amplitude, not merely used to
+        # admit modes
+        @test isfinite(r.tail.amplitude_sigma) && r.tail.amplitude_sigma > 0
+        @test r.tail.uncertainty >=
+              abs(r.tail.value) * r.tail.amplitude_sigma / abs(r.tail.amplitude)
+        # WHAT LIMITS THE TOTAL: the deviation from WB measured in units of the coherent
+        # resolution error. ~1 means a still-converging AMR sequence is the limit, not the
+        # m-truncation (which is 3-4x smaller here).
+        @printf("mode-sum (b) observed a = %+.1f : |F_r - WB| / resolution_error = %.2f ; \
+                 / truncation_error = %.2f\n", a, abs(r.Fr - ref) / r.resolution_error,
+                abs(r.Fr - ref) / r.truncation_error)
+        @test abs(r.Fr - ref) <= 3 * r.resolution_error
+        @test r.truncation_error < r.resolution_error
     end
     @printf("mode-sum (b) observed WORST relative deviation over the five spins: %.3e \
              (gate %.1e)\n", worst, MS_WB_RTOL)
@@ -283,7 +335,7 @@ end
         # tolerance, which here would be a statement about Float64 and not about the tail.
         @test abs(abs(with.Fr - without.Fr) - abs(with.tail.value)) <=
               8 * eps(abs(with.partial))
-        # THE MODEL CLAIM of main.tex:731: the omit-the-last-mode estimator UNDERSTATES the
+        # THE MODEL CLAIM of main.tex:724: the omit-the-last-mode estimator UNDERSTATES the
         # remainder by ~ m_max/(p-1), which is why the paper's truncation error "models the
         # true error up to a constant offset"
         @test abs(with.tail.value) > with.truncation_error
@@ -296,6 +348,51 @@ end
     @printf("mode-sum (b2) observed: the tail improves the WB deviation at %d of %d spins\n",
             improved, length(MS_TAB.MSWB_SPINS))
     @test improved == length(MS_TAB.MSWB_SPINS)
+end
+
+# =========== (h) THE SECOND EXTERNAL GATE: the DISSIPATIVE component, unregularized =========
+# F_t needs NO regularization — its mode sum converges geometrically — so this compares the
+# SAME pipeline (solve, extraction, mode sum) against a DIFFERENT printed Warburton-Barack
+# table with none of the Heffernan machinery in the way. A disagreement here would localize to
+# the solve or the extraction; a disagreement in F_r alone localizes to the regularization and
+# the tail. WB print F_t to NINE significant figures (Table II, `Warburton.tex:580`), against
+# six or seven for F_r.
+
+@testset "(h) F_t against Warburton-Barack Table II at r0 = 10M" begin
+    worst = 0.0
+    for a in MS_TAB.MSWB_SPINS
+        r = MS_TOTALS[a]
+        ref = ms_wb_Ft(a)
+        dev = abs(r.Ft - ref) / abs(ref)
+        worst = max(worst, dev)
+        # the GEOMETRIC ratio, measured where the modes are RESOLVED (m = 5 → 10). The last
+        # modes are not: |F_t^m| has fallen to ~1e-14 by m = 20, its own round-off/resolution
+        # floor, where the successive ratio is noise (measured 0.32 … 1.45) — which is also
+        # why no tail is needed rather than evidence against the decay.
+        gratio = (abs(r.Ft_modes[11]) / abs(r.Ft_modes[6]))^(1 / 5)
+        ratio = abs(r.Ft_modes[end]) / abs(r.Ft_modes[end - 1])
+        @printf("mode-sum (h) observed a = %+.1f : ours %+.10e  WB %+.10e  rel %.3e  \
+                 trunc %.2e (geometric ratio m 5->10 %.3f ; last-mode ratio %.3f, at the \
+                 floor)  resol %.2e (F_r's %.2e)  F_phi %+.6e\n",
+                a, r.Ft, ref, dev, r.Ft_truncation_error, gratio, ratio,
+                r.Ft_resolution_error, r.resolution_error, r.Fphi)
+        @test dev <= MS_WB_FT_RTOL
+        @test sign(r.Ft) == sign(ref)
+        # Eq. (3.10)'s m = 0 branch has no phase, so F_t^0 is a BITWISE zero
+        @test r.Ft_modes[1] == 0
+        # the circular-orbit identity F_t + Omega F_phi = 0 (Warburton.tex:134)
+        @test isapprox(r.Fphi, -r.Ft / r.orbit.Omega; rtol = 1.0e-15)
+        # GEOMETRIC convergence: no regularization and no tail are needed at m_max = 20
+        @test gratio < 0.5
+        @test abs(r.Ft_modes[end]) < 1.0e-6 * abs(r.Ft_modes[6])   # ... and it has arrived
+        @test r.Ft_truncation_error <= 1.0e-8 * abs(r.Ft)
+        # and the dissipative resolution error is far below the conservative one, which is why
+        # F_r's budget is the one that binds
+        @test r.Ft_resolution_error < r.resolution_error / 10
+    end
+    @printf("mode-sum (h) observed WORST F_t relative deviation over the five spins: %.3e \
+             (gate %.1e)\n", worst, MS_WB_FT_RTOL)
+    @test worst <= MS_WB_FT_RTOL
 end
 
 @testset "(c) convergence of the total with m_max, and what the tail buys" begin
@@ -421,7 +518,12 @@ end
                    rtol = MS_ROUTE_RTOL)
     # coherent vs incoherent resolution error
     @test rh.resolution_error <= rh.resolution_error_bound
-    @test isapprox(rh.resolution_error_bound, sum(rh.resolution_errors); rtol = 1.0e-14)
+    @test isapprox(rh.resolution_error_bound,
+                   sum(rh.resolution_errors) + rh.resolution_error_tail; rtol = 1.0e-14)
+    @test rh.resolution_includes_tail
+    # the dissipative companion travels through both solved routes too
+    @test isapprox(rh.Ft, rs.Ft; rtol = MS_ROUTE_RTOL)
+    @test rh.Ft_modes[1] == 0 && isapprox(rh.Fphi, -rh.Ft / orb.Omega; rtol = 1.0e-15)
     # falsifiers on the solved routes
     @test_throws ArgumentError total_self_force(AmrHistory[])
     @test_throws ArgumentError total_self_force(orb, base; m_max = 0, parallel = false,

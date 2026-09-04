@@ -24,7 +24,7 @@
 #        doubly-infinite parameter sum vanishes (`F^0/2 + Σ_{m≥1}F^m = 0`, gated in
 #        `test_regularization.jl`), summing the REGULARIZED per-mode terms already contains it:
 #            Σ_{m≤M} [F_r^m − F^m_{r[4]}]  ==  Σ_{m≤M} F_r^m + mmode_reg_tail_Fr(4, orbit, M+1).
-#        This IS the acceleration of CRP `main.tex:723`. It is not optional and not a model —
+#        This IS the acceleration of CRP `main.tex:722`. It is not optional and not a model —
 #        it is an identity, gated to round-off in `test_modesum.jl` (a).
 #
 #   (T2) THE REMAINDER OF THE ACCELERATED SUM, `Σ_{m>M} [F_r^m − F^m_{r[4]}]`. With a
@@ -37,15 +37,15 @@
 #        `mmode_reg_factor_tail(6, ·)`. That is `method = :heffernan`. `method = :fit` frees
 #        the exponent too and sums `C m^{-p}` by the Hurwitz zeta. `method = :none` sets the
 #        remainder to zero and reports the CRP's own truncation estimate `|T_{m_max}|`
-#        (`main.tex:730`) as its uncertainty.
+#        (`main.tex:722`) as its uncertainty.
 #
 #        Note the size relation this makes explicit: for `T_m ≈ C m^{-p}`,
 #        `Σ_{m>M} T_m ≈ C M^{1-p}/(p-1) = |T_M| · M/(p-1)`, so the paper's
 #        omit-the-last-mode estimator is smaller than the true remainder by ≈ `M/(p−1)`
-#        (≈ 4 at `M = 20`, `p = 6`) — the "constant offset" of `main.tex:731`.
+#        (≈ 4 at `M = 20`, `p = 6`) — the "constant offset" of `main.tex:724`.
 #
 # SOURCES (read-only mirrors):
-#   * CRP arXiv:2606.04998 `main.tex:701-703` (extract `F_r^m` per mode, sum over m),
+#   * CRP arXiv:2606.04998 `main.tex:712` (extract `F_r^m` per mode, sum over m),
 #     `:722-723` (the `F_{r[4]}` acceleration), `:726-731` (the error budget: resolution,
 #     truncation, true error).
 #   * A. Heffernan, A. Ottewill, B. Wardell, arXiv:1211.6446 `KerrRegularization.tex:1675-1680`
@@ -212,8 +212,9 @@ this file's header — with everything needed to judge it.
 | `exponent` | the decay exponent used: `6` exactly for `:heffernan`, the fitted `p` for `:fit` |
 | `exponent_sigma` | the propagated uncertainty of the FITTED exponent (`NaN` for `:heffernan`) |
 | `amplitude` | the fitted amplitude: `F_{r[6]}` for `:heffernan`, `C` in `C m^{-p}` for `:fit` |
+| `amplitude_sigma` | its uncertainty: the per-mode SHAPE MISMATCH and the per-mode RESOLUTION errors, propagated separately and added in quadrature |
 | `fit` | the [`ModeDecayFit`](@ref) of the regularized sequence, `nothing` for `:none` |
-| `truncation_error` | `|T_{m_max}|`, the CRP's own omit-the-last-mode estimator (`main.tex:730`) |
+| `truncation_error` | `|T_{m_max}|`, the CRP's own omit-the-last-mode estimator (`main.tex:722`) |
 | `m_start` | the first mode the tail covers, `m_max + 1` |
 
 See [`mode_sum_tail`](@ref).
@@ -226,6 +227,7 @@ struct ModeSumTail{T<:AbstractFloat}
     exponent::T
     exponent_sigma::T
     amplitude::T
+    amplitude_sigma::T
     fit::Union{Nothing,ModeDecayFit{T}}
     truncation_error::T
     m_start::Int
@@ -261,7 +263,7 @@ FORM — no numerical sum is ever run to a cut-off.
   the fitted modes. Weaker prior, and it is the CONTROL on `:heffernan`: the two agreeing is
   evidence that the `m^{-6}` model is the right one.
 * `:none`. `value = 0`; the sum stops where it stops. `uncertainty` is then the CRP's own
-  truncation estimator `|T_{m_max}|` (`main.tex:730`), which for a `C m^{-p}` tail is smaller
+  truncation estimator `|T_{m_max}|` (`main.tex:722`), which for a `C m^{-p}` tail is smaller
   than the true remainder by a factor `≈ m_max/(p−1)`.
 
 # THE WINDOW, THE HEADROOM AND THE UNCERTAINTY
@@ -270,9 +272,11 @@ FORM — no numerical sum is ever run to a cut-off.
 resolution errors) enforce the headroom rule of [`mode_decay_fit`](@ref) — a mode that has sunk
 into its own resolution floor never enters. `uncertainty` is the quadrature sum of
 
-  * STATISTICAL: `|value| ·` the relative spread of the per-mode amplitudes over the window
-    (their maximum deviation from the mean), which also absorbs the resolution errors that
-    passed the headroom rule; and
+  * STATISTICAL: `|value| · amplitude_sigma/|amplitude|`, where `amplitude_sigma` combines the
+    per-mode SHAPE MISMATCH (the spread of the per-mode amplitudes about their mean) with the
+    per-mode RESOLUTION errors PROPAGATED through the same mean, `√(Σ (err_k/shape_k)²)/n`.
+    The headroom rule only decides which modes may enter; it does not propagate anything, so
+    the propagation is done explicitly here; and
   * MODEL: `|value − alt_value|`, the disagreement between the two independent models.
 
 Both models are always computed, so `alt_value` is populated whenever the window admits a fit.
@@ -302,7 +306,7 @@ function mode_sum_tail(orbit::CircularOrbit, ms, terms::AbstractVector;
 
     if method === :none
         return ModeSumTail{T}(zero(T), trunc_err, :none, T(NaN), T(NaN), T(NaN), T(NaN),
-                              nothing, trunc_err, mstart)
+                              T(NaN), nothing, trunc_err, mstart)
     end
 
     # --- the free fit (also the control on the Heffernan shape) ----------------------------
@@ -319,16 +323,35 @@ function mode_sum_tail(orbit::CircularOrbit, ms, terms::AbstractVector;
     shape = T[mmode_reg_factor(T, next, m) for m in fit.ms]
     amps = T[T(terms[findfirst(==(m), mv)]) / s for (m, s) in zip(fit.ms, shape)]
     A = sum(amps) / length(amps)
+    # TWO INDEPENDENT contributions to the amplitude's uncertainty, kept separate and then
+    # added in quadrature:
+    #   SHAPE MISMATCH — how far the per-mode amplitudes spread around their mean, i.e. how
+    #     badly a single order-(order+2) parameter describes the window (it also carries the
+    #     next unsubtracted order); and
+    #   RESOLUTION — the per-mode numerical-resolution errors, PROPAGATED THROUGH THE SAME
+    #     MEAN: `σ_A = √(Σ (err_k/shape_k)²)/n` for uncorrelated per-mode errors. Gating mode
+    #     ADMISSION on the headroom rule does NOT propagate them, so this is done here.
     spread = maximum(abs.(amps .- A))
+    sig_res = zero(T)
+    if errors !== nothing
+        idx = [findfirst(==(m), mv) for m in fit.ms]
+        sig_res = sqrt(sum((T(abs(errors[i])) / abs(sh))^2 for (i, sh) in zip(idx, shape))) /
+                  length(shape)
+    end
+    amp_sigma = sqrt(spread^2 + sig_res^2)
     v_heff = A * mmode_reg_factor_tail(T, next, mstart)
 
     value, alt, expo, esig, amp = method === :heffernan ?
         (v_heff, v_fit, T(next), T(NaN), A) :
         (v_fit, v_heff, p, T(fit.slope_sigma), T(fit.amplitude))
-    stat = iszero(A) ? zero(T) : abs(value) * spread / abs(A)
+    # the amplitude uncertainty is RELATIVE to the fitted amplitude, so it transfers to either
+    # model's tail value unchanged (both are linear in their amplitude)
+    stat = iszero(A) ? zero(T) : abs(value) * amp_sigma / abs(A)
     model = isfinite(alt) ? abs(value - alt) : zero(T)
+    sigma_amp = method === :heffernan ? amp_sigma :
+                (iszero(A) ? T(NaN) : abs(T(fit.amplitude)) * amp_sigma / abs(A))
     return ModeSumTail{T}(value, sqrt(stat^2 + model^2), method, alt, expo, esig, amp,
-                          fit, trunc_err, mstart)
+                          sigma_amp, fit, trunc_err, mstart)
 end
 
 # ============================== the total force ===========================================
@@ -337,7 +360,7 @@ end
     TotalSelfForce{T}
 
 The total radial scalar self-force and the whole budget behind it — the product of ESSF node
-`mode-sum-total-force` and the input of `fig:ssf_error_budget` (CRP `main.tex:726-731`).
+`mode-sum-total-force` and the input of `fig:ssf_error_budget` (CRP `main.tex:722-724`).
 
 | field | what it is |
 |---|---|
@@ -350,12 +373,29 @@ The total radial scalar self-force and the whole budget behind it — the produc
 | `partial` | `Σ terms` — the accelerated sum truncated at `m_max` |
 | `tail` | the [`ModeSumTail`](@ref) remainder estimate |
 | `Fr` | `partial + tail.value` — **THE NUMBER** |
-| `truncation_error` | `|terms[end]|`, the CRP's omit-the-last-mode estimator (`main.tex:730`) |
-| `resolution_errors` | per-mode resolution errors (empty when the input carried none) |
-| `resolution_error` | `|Σ_m Δ_m|` — the CRP's own definition (`main.tex:722`) applied to the TOTAL: the difference between the total at the highest and at the second-highest AMR level |
-| `resolution_error_bound` | `Σ_m |Δ_m|` — the incoherent bound, always ≥ `resolution_error` |
+| `truncation_error` | `|terms[end]|`, the CRP's omit-the-last-mode estimator (`main.tex:722`) |
+| `resolution_errors` | per-mode resolution errors `|Δ_m|` (empty when the input carried none) |
+| `resolution_error` | the CRP's own definition (`main.tex:722`) applied to the COMPLETE TOTAL: `|F_r(L) − F_r(L−1)|`, i.e. the signed sum of the per-mode differences PLUS the change of the fitted tail, since the tail is re-fitted on the penultimate level's own terms |
+| `resolution_error_tail` | `|tail(L) − tail(L−1)|` — how much of that is the tail model moving |
+| `resolution_error_bound` | `Σ_m |Δ_m| + resolution_error_tail` — the incoherent bound, always ≥ `resolution_error` |
+| `resolution_includes_tail` | `false` only when the penultimate level admits no tail fit (then `resolution_error` degrades to the partial-sum proxy `|Σ_m Δ_m|` and says so) |
 | `reduction` | which per-element reduction produced the modes (`:trace`, `:mean`, `:direct`) |
 | `levels` | how many AMR levels each mode had (`0` when unknown) |
+
+THE DISSIPATIVE COMPANION, filled when the caller supplies `Ft_modes` (both solved routes do):
+
+| field | what it is |
+|---|---|
+| `Ft_modes` | the raw `F_t^m` (empty when not supplied) |
+| `Ft` | `Σ_m F_t^m` — NO regularization and NO tail: the dissipative mode sum converges GEOMETRICALLY (measured ratio ≈ 0.19 at `a = 0`, `r₀ = 10M`), so truncation at `m_max = 20` is far below round-off |
+| `Fphi` | `−Ft/Ω`, from the circular-orbit identity `F_t + Ω F_φ = 0` (`Warburton.tex:134`) |
+| `Ft_truncation_error` | `|Ft_modes[end]|`, the same omit-the-largest-`m` estimator |
+| `Ft_resolution_errors` / `Ft_resolution_error` | per mode, and the coherent `|Σ_m Δ_m^t|` |
+
+`Ft` is a SECOND, INDEPENDENT external gate on the same pipeline: Warburton–Barack print
+`(M²/q²)F_t` to nine significant figures (Table II, `Warburton.tex:580`) and the sum needs none
+of the Heffernan machinery, so a disagreement there localizes to the extraction/solve while a
+disagreement in `Fr` alone localizes to the regularization and the tail.
 
 `Fr` is the normalized `(M²/q²)F_r` of the Warburton–Barack tables directly (`q = M = 1`
 package-wide); there is no sign map and no unit conversion anywhere downstream.
@@ -373,9 +413,17 @@ struct TotalSelfForce{T<:AbstractFloat}
     truncation_error::T
     resolution_errors::Vector{T}
     resolution_error::T
+    resolution_error_tail::T
     resolution_error_bound::T
+    resolution_includes_tail::Bool
     reduction::Symbol
     levels::Int
+    Ft_modes::Vector{T}
+    Ft::T
+    Fphi::T
+    Ft_truncation_error::T
+    Ft_resolution_errors::Vector{T}
+    Ft_resolution_error::T
 end
 
 function Base.show(io::IO, ::MIME"text/plain", r::TotalSelfForce)
@@ -385,8 +433,12 @@ function Base.show(io::IO, ::MIME"text/plain", r::TotalSelfForce)
     println(io, "  Σ_{m≤m_max} terms = ", r.partial)
     println(io, "  tail (", r.tail.method, ")   = ", r.tail.value, " ± ", r.tail.uncertainty)
     println(io, "  truncation error  = ", r.truncation_error)
+    isempty(r.Ft_modes) || println(io, "  (M²/q²)F_t        = ", r.Ft,
+                                   "   F_φ = ", r.Fphi)
     print(io,   "  resolution error  = ", r.resolution_error,
-          " (bound ", r.resolution_error_bound, ", reduction :", r.reduction, ")")
+          r.resolution_includes_tail ? " (tail part " : " (PARTIAL-SUM PROXY, tail part ",
+          r.resolution_error_tail, ", bound ", r.resolution_error_bound,
+          ", reduction :", r.reduction, ")")
 end
 
 Base.show(io::IO, r::TotalSelfForce) =
@@ -394,14 +446,14 @@ Base.show(io::IO, r::TotalSelfForce) =
 
 """
     total_self_force(orbit, Fr_modes::AbstractVector{<:Real}; ms = 0:length(Fr_modes)-1,
-                     order = 4, tail = :heffernan, errors = nothing, window = 6,
+                     order = 4, tail = :heffernan, resolution_deltas = nothing, window = 6,
                      headroom = 3, reduction = :direct, levels = 0) -> TotalSelfForce
     total_self_force(set::ModeSet; ...)                              # row 47's fan-out
     total_self_force(hists::AbstractVector{<:AmrHistory}; ...)       # row 43, one per mode
     total_self_force(orbit, config::RunConfig; m_max = 20, pool = nothing,
                      parallel = true, ...)                           # solve, then sum
 
-`F_r`, the total radial scalar self-force, as the CRP computes it (`main.tex:701-703`,
+`F_r`, the total radial scalar self-force, as the CRP computes it (`main.tex:712`,
 `:722-723`):
 
     F_r  =  Σ_{m=0}^{m_max} [ F_r^m − F^m_{r[order]} ]  +  tail
@@ -412,9 +464,14 @@ vanishes (see this file's header, tail (T1)) — and both are computed and gated
 
 The `tail` keyword selects the model for the REMAINDER of the accelerated sum,
 `Σ_{m>m_max}[F_r^m − F^m_{r[order]}]` (tail (T2)); see [`mode_sum_tail`](@ref) for `:heffernan`
-(default), `:fit` and `:none`. `errors` are the per-mode resolution errors: they set the
-headroom rule for the tail fit and produce the total's own `resolution_error`. The
-`ModeSet` / `AmrHistory` methods supply them automatically.
+(default), `:fit` and `:none`.
+
+`resolution_deltas[k]` is the SIGNED difference `F_r^{m_k}(L) − F_r^{m_k}(L−1)` between the two
+highest AMR levels (the `ModeSet` / `AmrHistory` methods supply it automatically). The sign
+matters: its MAGNITUDE gates mode admission in the tail fit and propagates into the tail
+amplitude, while the SIGNED values reconstruct the penultimate level's terms — and therefore
+the penultimate level's own tail — so that `resolution_error` is the difference of two COMPLETE
+totals rather than of two partial sums.
 
 # UNITS AND CONVENTIONS
 
@@ -433,12 +490,14 @@ silently shorter sum. Extra keywords (`iterations`, `timeout_s`, `log`, …) go 
 
 The per-mode reduction available from a `ModeSet` is the one-sided `:trace` of the sealed
 per-level diagnostics: a `ModeResult` deliberately does not ship a live `ModeSolution`, so the
-spectre-parity `:mean` is not reachable from the fan-out. The two differ by the DG trace
-spread, orders below the resolution floor; `reduction` records which one the numbers are.
+spectre-parity `:mean` is not reachable from the fan-out. `reduction` records which one the
+returned numbers are; how far apart the two reductions sit is a measurement of one mesh
+sequence and lives in `docs/src/capabilities/scalarselfforce.md`, not here.
 """
 function total_self_force(orbit::CircularOrbit, Fr_modes::AbstractVector;
                           ms = 0:(length(Fr_modes) - 1), order::Integer = 4,
                           tail::Symbol = :heffernan, resolution_deltas = nothing,
+                          Ft_modes = nothing, Ft_resolution_deltas = nothing,
                           window::Integer = 6, headroom::Real = 3,
                           reduction::Symbol = :direct, levels::Integer = 0)
     mv = collect(Int, ms)
@@ -464,13 +523,57 @@ function total_self_force(orbit::CircularOrbit, Fr_modes::AbstractVector;
     dl = resolution_deltas === nothing ? T[] : T[T(d) for d in resolution_deltas]
     t = mode_sum_tail(orb, mv, tm; method = tail, order = order, window = window,
                       errors = isempty(dl) ? nothing : abs.(dl), headroom = headroom)
-    # The CRP's resolution measure applied to the TOTAL (main.tex:722): the difference between
-    # the total at the highest and at the second-highest AMR level = the SIGNED sum of the
-    # per-mode differences. `resolution_error_bound` is the incoherent Σ|Δ_m|.
-    res = isempty(dl) ? T(NaN) : abs(sum(dl))
-    bnd = isempty(dl) ? T(NaN) : sum(abs, dl)
+    # ---- the CRP's resolution measure applied to the COMPLETE total (main.tex:722) --------
+    # "the difference between the highest and second-highest AMR level" is a statement about
+    # THE NUMBER, and the number is `partial + tail`. The penultimate level's per-mode values
+    # are `Fr_modes − Δ_m` (that is what the signed deltas ARE), so its terms, its own tail fit
+    # and its own total are all reconstructible here without a further solve — and they must
+    # be, because the tail is FITTED on the terms and therefore moves with them. Reporting
+    # `|Σ Δ_m|` alone would be a partial-sum proxy.
+    #
+    # CORRELATION ASSUMPTION, stated rather than hidden: `resolution_error` is the COHERENT
+    # difference — the per-mode errors are treated as one correlated realisation of the same
+    # discretization, which is what they are (one mesh sequence), so they are allowed to
+    # cancel. `resolution_error_bound` makes the opposite, worst-case assumption (every mode's
+    # error aligned) and adds magnitudes. The truth is bracketed by the two; the CRP's own
+    # definition is the coherent one.
+    res, res_tail, bnd, with_tail = T(NaN), T(NaN), T(NaN), false
+    if !isempty(dl)
+        prev_fr = fr .- dl
+        prev_tm = T[regularized_mode_force(orb, mv[k], prev_fr[k]; order = order)
+                    for k in eachindex(mv)]
+        prev_partial = sum(prev_tm)
+        prev_tail = try
+            mode_sum_tail(orb, mv, prev_tm; method = tail, order = order, window = window,
+                          errors = abs.(dl), headroom = headroom).value
+        catch err
+            err isa ArgumentError || rethrow()
+            nothing                       # the penultimate level admits no fit of its own
+        end
+        if prev_tail === nothing
+            res, res_tail, bnd = abs(sum(dl)), T(NaN), sum(abs, dl)
+        else
+            res_tail = abs(t.value - prev_tail)
+            res = abs((partial + t.value) - (prev_partial + prev_tail))
+            bnd = sum(abs, dl) + res_tail
+            with_tail = true
+        end
+    end
+    # ---- the dissipative companion: a mode sum with NO regularization and NO tail ---------
+    ft = Ft_modes === nothing ? T[] : T[T(x) for x in Ft_modes]
+    isempty(ft) || length(ft) == length(mv) || throw(ArgumentError(
+        "total_self_force: got $(length(ft)) F_t modes and $(length(mv)) modes"))
+    ftd = Ft_resolution_deltas === nothing ? T[] : T[T(x) for x in Ft_resolution_deltas]
+    isempty(ftd) || length(ftd) == length(mv) || throw(ArgumentError(
+        "total_self_force: got $(length(ftd)) F_t deltas and $(length(mv)) modes"))
+    Ft = isempty(ft) ? T(NaN) : sum(ft)
+    Fphi = isempty(ft) ? T(NaN) : -Ft / T(orb.Omega)
+    Ft_tr = isempty(ft) ? T(NaN) : abs(ft[end])
+    Ft_res = isempty(ftd) ? T(NaN) : abs(sum(ftd))
     return TotalSelfForce{T}(orb, mv, Int(order), fr, rt, tm, partial, t, partial + t.value,
-                             abs(tm[end]), abs.(dl), res, bnd, reduction, Int(levels))
+                             abs(tm[end]), abs.(dl), res, res_tail, bnd, with_tail,
+                             reduction, Int(levels),
+                             ft, Ft, Fphi, Ft_tr, abs.(ftd), Ft_res)
 end
 
 # ------------------------------------------------------- from solved sweeps ---------------
@@ -485,9 +588,11 @@ function _ms_mode_value(orbit::CircularOrbit, config::RunConfig, m::Integer, lev
     length(levels) >= 2 || throw(ArgumentError(
         "total_self_force: mode $m has $(length(levels)) AMR level(s); the resolution " *
         "error IS the difference between the highest and second-highest (main.tex:722)"))
-    v = [f.Fr for f in mode_self_force_history(orbit, config, m, levels; x_p = x_p,
-                                               phi_p = phi_p)]
-    return v[end], v[end] - v[end - 1]
+    h = mode_self_force_history(orbit, config, m, levels; x_p = x_p, phi_p = phi_p)
+    vr = [f.Fr for f in h]
+    vt = [f.Ft for f in h]
+    return (Fr = vr[end], dFr = vr[end] - vr[end - 1],
+            Ft = vt[end], dFt = vt[end] - vt[end - 1])
 end
 
 """
@@ -508,9 +613,11 @@ function total_self_force(set::ModeSet; phi_p::Real = 0, kwargs...)
     # sealed level route checks the mode number and the radial chart against it.
     vd = [_ms_mode_value(set.orbit, mode_config(set.config, m), m, set[m].levels, set[m].x_p;
                          phi_p = phi_p) for m in ms]
-    vals, dels = first.(vd), last.(vd)
+    vals, dels = [x.Fr for x in vd], [x.dFr for x in vd]
+    tvals, tdels = [x.Ft for x in vd], [x.dFt for x in vd]
     lv = maximum(length(set[m].levels) for m in ms)
     return total_self_force(set.orbit, vals; ms = ms, resolution_deltas = dels,
+                            Ft_modes = tvals, Ft_resolution_deltas = tdels,
                             reduction = :trace, levels = lv, kwargs...)
 end
 
@@ -529,17 +636,20 @@ function total_self_force(hists::AbstractVector{<:AmrHistory}; kwargs...)
     p = sortperm([h.m for h in hists])
     ms = [hists[k].m for k in p]
     seqs = map(p) do k
-        v = [f.Fr for f in mode_self_force_history(hists[k])]
-        length(v) >= 2 || throw(ArgumentError(
-            "total_self_force: mode $(hists[k].m) has $(length(v)) AMR level(s); the " *
+        h = mode_self_force_history(hists[k])
+        length(h) >= 2 || throw(ArgumentError(
+            "total_self_force: mode $(hists[k].m) has $(length(h)) AMR level(s); the " *
             "resolution error IS the difference between the highest and second-highest " *
             "(main.tex:722)"))
-        v
+        ([f.Fr for f in h], [f.Ft for f in h])
     end
-    vals = [v[end] for v in seqs]
-    dels = [v[end] - v[end - 1] for v in seqs]
-    lv = maximum(length, seqs)
+    vals = [v[1][end] for v in seqs]
+    dels = [v[1][end] - v[1][end - 1] for v in seqs]
+    tvals = [v[2][end] for v in seqs]
+    tdels = [v[2][end] - v[2][end - 1] for v in seqs]
+    lv = maximum(length(v[1]) for v in seqs)
     return total_self_force(orb, vals; ms = ms, resolution_deltas = dels,
+                            Ft_modes = tvals, Ft_resolution_deltas = tdels,
                             reduction = :trace, levels = lv, kwargs...)
 end
 

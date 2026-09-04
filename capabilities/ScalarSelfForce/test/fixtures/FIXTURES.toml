@@ -158,10 +158,10 @@ note = "INDEPENDENT-SOURCE oracle for the tex transcription in src/Extraction/re
 
 [[fixture]]
 file = "test/fixtures/modesum_wb_r10.jl"
-sha256 = "239bca38b8a98f50047f21080fe103a88255650e4e0186e9a1152f396c467dba"
-bytes = 7522
+sha256 = "1d6074d4980e63db948aac99d1eb2529e630511f2afcf60f70190d3bd747bfe1"
+bytes = 12522
 capture = "test/fixtures/capture/capture_modesum_wb_r10.jl"
 oracle = "this package's own m-mode pipeline (rows 42/43/44/47) at the commit named in the fixture header: solve_modes_parallel over m = 0:20 at the production crp_paper_config, 9 AMR grids per mode, one process per mode with OPENBLAS_NUM_THREADS=1, reduced by the sealed row-44 mode_self_force on the per-level diagnostics. NOT an external oracle - the external oracle of the node is the printed Warburton-Barack Table III, baked separately in test/fixtures/wb_reference.jl and string-equal to the tex mirror"
 oracle_commit = ""
 status = "tracked-generator"
-note = "RECORDING, not an oracle: the per-mode F_r^m and the SIGNED highest-minus-second-highest AMR difference for the five WB comparison spins at r0 = 10M. It exists so the mode-sum node's WB gate runs in seconds instead of ~30 CPU-minutes; test_modesum.jl gate (e) re-solves MSWB_LIVE_MODE LIVE for every spin at every suite run and requires this table to reproduce, so a drift of the per-mode pipeline cannot hide behind the recording. The capture script deliberately does NOT call the node it feeds. Regeneration costs ~15 min wall on 6 worker processes"
+note = "RECORDING, not an oracle: the per-mode F_r^m AND F_t^m and their SIGNED highest-minus-second-highest AMR differences for the five WB comparison spins at r0 = 10M (F_t is the node's SECOND external gate, against WB Table II, and needs no regularization). It exists so the mode-sum node's WB gate runs in seconds instead of ~30 CPU-minutes; test_modesum.jl gate (e) re-solves MSWB_LIVE_MODE LIVE for every spin at every suite run and requires this table to reproduce, so a drift of the per-mode pipeline cannot hide behind the recording. The capture script deliberately does NOT call the node it feeds. Regeneration costs ~15 min wall on 6 worker processes"

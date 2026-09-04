@@ -75,8 +75,8 @@ function main(argv)
             isempty(set.failures) ||
                 error("capture_modesum_wb_r10: modes failed at a = $a: " *
                       string([f.m for f in set.failures]))
-            fr, dl = per_mode(set)
-            tables[a] = (Fr = fr, delta = dl, wall = time() - t0,
+            fr, dl, ft, ftdl = per_mode(set)
+            tables[a] = (Fr = fr, delta = dl, Ft = ft, ft_delta = ftdl, wall = time() - t0,
                          nworkers = set.run.nworkers, max_load = set.run.max_load,
                          ndofs = set[last(MMODES)].levels[end].mesh.ndofs)
             @info "capture_modesum_wb_r10: spin done" a wall = time() - t0
@@ -96,16 +96,18 @@ end
 # diagnostics). This script deliberately does NOT call the mode-sum node it feeds: a recording
 # produced by the code it is used to test would be worth nothing.
 function per_mode(set)
-    chart = ScalarSelfForce.block_lattice_bounds(set.config)[3]
-    fr, dl = Float64[], Float64[]
+    fr, dl, ft, ftdl = Float64[], Float64[], Float64[], Float64[]
     for m in sort(collect(Int, set.ms))
         r = set[m]
-        v = [mode_self_force(set.orbit, m, l.psi, l.dpsi_r,
-                             ScalarSelfForce._sf_dpsi_z(chart, r.x_p[2], l.dpsi_w)).Fr
-             for l in r.levels]
-        push!(fr, v[end]); push!(dl, v[end] - v[end - 1])
+        # the SEALED row-44 level route: one call, both components, no chart handling here
+        h = mode_self_force_history(set.orbit, mode_config(set.config, m), m, r.levels;
+                                    x_p = r.x_p)
+        vr = [f.Fr for f in h]
+        vt = [f.Ft for f in h]
+        push!(fr, vr[end]);  push!(dl, vr[end] - vr[end - 1])
+        push!(ft, vt[end]);  push!(ftdl, vt[end] - vt[end - 1])
     end
-    return fr, dl
+    return fr, dl, ft, ftdl
 end
 
 vecrepr(v) = "[" * join((repr(x) for x in v), ", ") * "]"
@@ -161,6 +163,16 @@ function emit(io, tables, iters, sha)
     for a in SPINS
         println(io, "    ", repr(a), " => ", vecrepr(tables[a].delta), ",")
     end
+    println(io, ")\n")
+    println(io, "const MSWB_FT = Dict{Float64,Vector{Float64}}(")
+    for a in SPINS
+        println(io, "    ", repr(a), " => ", vecrepr(tables[a].Ft), ",")
+    end
+    println(io, ")\n")
+    println(io, "const MSWB_FT_DELTA = Dict{Float64,Vector{Float64}}(")
+    for a in SPINS
+        println(io, "    ", repr(a), " => ", vecrepr(tables[a].ft_delta), ",")
+    end
     println(io, ")")
     return nothing
 end
@@ -178,7 +190,9 @@ function json_artefact(tables, iters, sha)
                 ", \"wall_s\": ", repr(t.wall), ", \"nworkers\": ", t.nworkers,
                 ", \"max_load\": ", repr(t.max_load), ", \"ndofs_final\": ", t.ndofs,
                 ", \"Fr_modes\": ", vecrepr(t.Fr),
-                ", \"deltas\": ", vecrepr(t.delta), "}", i == length(SPINS) ? "" : ",")
+                ", \"deltas\": ", vecrepr(t.delta),
+                ", \"Ft_modes\": ", vecrepr(t.Ft),
+                ", \"Ft_deltas\": ", vecrepr(t.ft_delta), "}", i == length(SPINS) ? "" : ",")
     end
     println(io, "  ]")
     println(io, "}")
