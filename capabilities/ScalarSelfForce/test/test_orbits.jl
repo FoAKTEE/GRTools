@@ -160,3 +160,49 @@ const ORBIT_SPINS = [0.0, 0.5, -0.5, 0.9, -0.9, 0.998, -0.998]
         end
     end
 end
+
+# =================================================================================================
+# Regression probe for the equatorial p = 2 removable singularity of the Spacetime circular
+# constants (`fix(spacetime)` node `fix-circular-constants-p2`). Before that fix
+# `constants_of_motion(a, 2.0, 0, 1).Lz` was NaN, so `CircularOrbit(a, 2.0)` carried Lz = NaN and
+# zc2 = NaN, and every puncture call at that orbit died in `legendre_P3` with a `DomainError` —
+# which blocks arXiv:2606.04998's own fig:modes prograde panel at (a, r0) = (0.998, 2M).
+# Written BEFORE the fix; the oracle is the Bardeen–Press–Teukolsky closed form, transcribed here
+# independently of Spacetime.
+@testset "Orbits: r0 = 2M is a usable orbit (equatorial p = 2 singularity removed)" begin
+    bpt_Lz(a, r) = (u = sqrt(r); (r^2 - 2a * u + a^2) / (u * sqrt(u) * sqrt(u^3 - 3u + 2a)))
+    bpt_E(a, r)  = (u = sqrt(r); (u^3 - 2u + a)         / (u * sqrt(u) * sqrt(u^3 - 3u + 2a)))
+
+    # a = 0.998 (paper configuration, r0 = 2M outside its ISCO 1.2370) and a = 0.9 (r0 = 2M is a
+    # valid UNSTABLE circular orbit, inside its ISCO 2.3209). r0 = 2M carries no circular geodesic
+    # below a = 1/√2, where CircularOrbit already raised the photon-orbit DomainError.
+    @testset "CircularOrbit(a, 2.0) is finite and Bardeen-exact: a = $a" for a in (0.9, 0.998)
+        o = CircularOrbit(a, 2.0)
+        for f in (:E, :Lz, :Omega, :ut, :uphi, :rho2_dr2, :rho2_dtheta2, :zc2)
+            @test isfinite(getfield(o, f))
+        end
+        @test isapprox(o.E,  bpt_E(a, 2.0);  rtol = 1e-14)
+        @test isapprox(o.Lz, bpt_Lz(a, 2.0); rtol = 1e-14)
+        # the four-velocity identities, independent of constants.jl
+        @test isapprox(o.E,  (1 - 2 / o.r0) * o.ut + (2a / o.r0) * o.uphi;              rtol = 1e-13)
+        @test isapprox(o.Lz, (o.r0^2 + a^2 + 2a^2 / o.r0) * o.uphi - (2a / o.r0) * o.ut; rtol = 1e-13)
+        # main.tex:453 z_c² = 4(L² + r_p² + a² + 2M a²/r_p) — NaN before the fix
+        @test isapprox(o.zc2, 4 * (o.Lz^2 + o.r0^2 + a^2 + 2 * a^2 / o.r0); rtol = 1e-12)
+        @test o.zc2 > 0
+        @test dveff_dr_normalized(a, o.r0, o.E, o.Lz) < 1e-12
+    end
+
+    @testset "the puncture evaluates at r0 = 2M (a = 0.998)" begin
+        o = CircularOrbit(0.998, 2.0)
+        pu = Puncture(o)
+        for m in (0, 2)
+            psi = puncture_psi_m(pu, m, 2.1, 0.0)      # off-worldline field point, one call
+            @test isfinite(real(psi)) && isfinite(imag(psi))
+            @test !iszero(psi)
+            b = effective_source_bundle(pu, m, 2.1, 0.0)
+            for v in (b.source, b.psi, b.dpsi_r, b.dpsi_z)
+                @test isfinite(real(v)) && isfinite(imag(v))
+            end
+        end
+    end
+end
