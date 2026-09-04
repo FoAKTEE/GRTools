@@ -459,3 +459,41 @@ end
     @test Float64(radially_compressed(cb.observers, big"100.0")) ≈
           radially_compressed(obs, 100.0) rtol = 1e-13
 end
+
+# ---------------------------------------------------------------------------------------
+# `equatorial_symmetry` — the yaml's `ImposeEquatorialSymmetry` (yaml:36) as a KEYWORD.
+#
+# The production input file sets it `True` and that stays the default: this keyword adds no
+# behaviour to the shipped configuration, it makes the OTHER setting reachable. It matters
+# because arXiv:2606.04998's own published figures were evidently produced WITHOUT the
+# symmetry: `fig:ssf_convergence`'s abscissa begins at N_points = 480, which is the full-z
+# 5x3 lattice (30 elements at P = 4), not the 320 of the equatorial 5x2 one, and that lattice
+# is spectre's own `tests/InputFiles/SelfForce/ScalarCircularOrbit.yaml`
+# (`ImposeEquatorialSymmetry: False`). MEASURED on the full-z domain at a = 0.5, r0 = 10 M,
+# m = 2: level-0 dofs 480 (published 480), FOUR puncture elements, and the level-0 GMRES
+# residual ‖b‖ = 1.3915 against the published 1.375 — where the equatorial domain gives 320
+# dofs, two puncture elements and 1.7444.
+@testset "equatorial_symmetry keyword (linsolv-depth-gap)" begin
+    prod = crp_paper_config(; spin = 0.5, orbital_radius = 10.0, m_mode = 2,
+                            inner_radius = 2.0, P = 4, L = 0)
+    full = crp_paper_config(; spin = 0.5, orbital_radius = 10.0, m_mode = 2,
+                            inner_radius = 2.0, P = 4, L = 0, equatorial_symmetry = false)
+    # the DEFAULT is the production yaml's own value and nothing else moves
+    @test prod.orbit.impose_equatorial_symmetry === true
+    @test full.orbit.impose_equatorial_symmetry === false
+    # the sub-configs are plain structs with no `==` method, so compare their printed form
+    for f in fieldnames(typeof(prod))
+        f === :orbit && continue
+        @test string(getfield(prod, f)) == string(getfield(full, f))
+    end
+    for f in fieldnames(typeof(prod.orbit))
+        f === :impose_equatorial_symmetry && continue
+        @test string(getfield(prod.orbit, f)) == string(getfield(full.orbit, f))
+    end
+    # and it reaches the block lattice: 5x2 in the z² chart, 5x3 in the full-z one
+    _, z2, chart2 = block_lattice_bounds(prod)
+    _, zf, chartf = block_lattice_bounds(full)
+    @test chart2 === :z2 && length(z2) == 3
+    @test chartf === :z && length(zf) == 4
+    @test zf ≈ [-1.0, -0.5, 0.5, 1.0]                    # the signed square roots of {0.25, 1}
+end

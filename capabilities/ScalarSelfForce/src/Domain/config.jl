@@ -217,7 +217,8 @@ function crp_paper_config(; spin::Real=0.0,            # -p spin            (yam
                             worldtube_radius::Real=4.8,   # -p worldtube_radius (yaml:12)
                             worldtube_dz2::Real=0.25,     # -p worldtube_dz2    (yaml:12)
                             P::Integer=4,              # -p P               (yaml:12)
-                            L::Integer=0)              # -p L               (yaml:12)
+                            L::Integer=0,              # -p L               (yaml:12)
+                            equatorial_symmetry::Bool=true)  # …ImposeEquatorialSymmetry (yaml:36)
     T = float(promote_type(typeof(spin), typeof(orbital_radius), typeof(inner_radius),
                            typeof(outer_radius), typeof(worldtube_radius),
                            typeof(worldtube_dz2)))
@@ -239,7 +240,7 @@ function crp_paper_config(; spin::Real=0.0,            # -p spin            (yam
         m,                           # Background.CircularOrbit.MModeNumber (yaml:29)
         (v_to_t, v_to_t, t_to_u, t_to_u),  # …HyperboloidalSlicingTransitions (yaml:31-34)
         true,                        # …PenetratingHorizon (yaml:35)
-        true)                        # …ImposeEquatorialSymmetry (yaml:36)
+        equatorial_symmetry)         # …ImposeEquatorialSymmetry (yaml:36, default True)
 
     # …BoundaryConditions[r].Upper (yaml:114-125): Jinja2 `{% if m_mode == 0 %} None {% else %}`
     outer_bc = m == 0 ? nothing :
