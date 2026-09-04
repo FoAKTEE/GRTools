@@ -81,6 +81,17 @@ sf_cfg(; spin = 0.5, r0 = 10.0, m = 1, L = 0, P = 4) =
 
 # ---- ORACLE 1 (INDEPENDENT): the full folded field, differentiated numerically -------------
 # An analytic Ψ_m with genuine r AND z dependence, so ∂_zΨ ≠ 0 and F_θ is a real number.
+#
+# TWO SCOPE LIMITS, stated so the oracle is not read as more than it is:
+#   1. it CALLS `kerr_varphi_offset` and `sinm_theta`, the same sealed functions the
+#      implementation calls. What it derives independently is the ASSEMBLY — that χ(r) belongs
+#      inside the phase and therefore contributes `+im χ′` to ∂_r, that the fold is ×2, that
+#      ∂_t → −imΩ. It does NOT re-derive the DEFINITION of χ(r) or of sin^{|m|}θ; a wrong
+#      χ(r) would move `Φ` and `mode_self_force` together and pass. Those definitions are
+#      gated where they are owned, in Spacetime and in `ansatz.jl`.
+#   2. it differentiates AT θ = π/2, where sinθ = 1. So it confirms the magnitude and sign of
+#      the polar term but cannot separate `∂_θ = −sinθ ∂_z` from `∂_θ = −∂_z`; only an
+#      off-equatorial evaluation could, and the extraction never needs one.
 const SFC = (Complex{BigFloat}(big"0.37", big"-0.21"), Complex{BigFloat}(big"-0.13", big"0.29"),
              Complex{BigFloat}(big"0.41", big"0.17"), Complex{BigFloat}(big"-0.07", big"0.23"),
              Complex{BigFloat}(big"0.19", big"-0.11"))
@@ -559,13 +570,23 @@ const SF_SPECTRE_BOUNDS = [1.8660254037844386, 5.0, 6.0, 14.0, 25.0, 1.0e4]
                                    radial_bounds = [rp, 5.0, 6.0, 14.0, 25.0, 9.0e3])
 end
 
-# ============ (h) THE LIKE-FOR-LIKE COMPARISON against spectre's regression rows =============
+# ============ (h) THE LIKE-FOR-LIKE LATTICE against spectre's regression rows ================
 # With `equatorial_symmetry = false` AND `radial_bounds = SF_SPECTRE_BOUNDS` the lattice is
 # spectre's ScalarCircularOrbit.yaml one: 5x3 blocks, per-row element pattern [1,1,4,2,2],
 # 30 elements, 480 grid points, 4 elements touching the puncture (its NumContributingElements),
 # angular bounds [-1, -0.5, 0.5, 1], P = 4, L = 0, the same Sommerfeld outer BC and the same
-# DG/solver settings. That makes the FIRST grid an identical discrete problem, which is where
-# the comparison is gated.
+# DG/solver settings — the same discrete problem as far as the yaml specifies one, which is
+# where the comparison is gated. It is called LIKE-FOR-LIKE and not "identical": the reference
+# is four printed significant figures, so no comparison against it can resolve more than that.
+#
+# WHAT THE 480-POINT AGREEMENT DOES AND DOES NOT SAY. spectre publishes `-9.183e-5` and
+# `9.451e-5`; the last printed digit is `1e-8`, so a round-to-nearest reading admits anything
+# within a half-ULP of `5.0e-9`. Our observed deviations are `5.03505e-09` and `5.08179e-09` —
+# AT that half-ULP, marginally OUTSIDE the printed interval (by `3.5e-11` and `8.2e-11`). The
+# honest statement is therefore a BRACKET, not a margin: the true residual between the two
+# codes is `> ~1e-10` and `<= 1e-8`, and it is limited by the printed reference, not by either
+# solver. Quoting a "40x margin" against spectre's 2e-7 would be reading precision the
+# reference does not carry. `SF_LIKE4LIKE_ATOL` is set at 10x the printed floor.
 #
 # WHICH VALUE: the MEAN over all 4 containing elements from the LIVE `ModeSolution` (spectre's
 # reduction, ObserveSelfForce.hpp:89-107). Never the per-level one-sided trace.
@@ -576,8 +597,9 @@ end
 # own tolerance is not the right criterion there and that grid is reported, not gated.
 const SF_FULLZ_ITER1 = (-9.183e-5, 9.451e-5)      # spectre [1, 480, 4]
 const SF_FULLZ_ITER2 = (-1.365e-4, 9.138e-5)      # spectre [2, 975, 4]
-const SF_LIKE4LIKE_ATOL = 5.0e-8   # OUR band on the identical discrete problem, 4x tighter
-                                   # than spectre's 2e-7 (which is also asserted)
+const SF_SPECTRE_PRINTED_ULP = 1.0e-8   # the last printed digit of the reference rows
+const SF_LIKE4LIKE_ATOL = 5.0e-8   # OUR band, 10x the printed floor and 4x tighter than
+                                   # spectre's own 2e-7 (which is also asserted)
 
 sf_fullz(bounds) = crp_paper_config(; spin = 0.5, orbital_radius = 10.0, m_mode = 1,
                                     inner_radius = SF_ORB.rp, outer_radius = 1.0e4,
@@ -585,7 +607,7 @@ sf_fullz(bounds) = crp_paper_config(; spin = 0.5, orbital_radius = 10.0, m_mode 
                                     P = 4, L = 0, equatorial_symmetry = false,
                                     radial_bounds = bounds)
 
-@testset "(h) the identical spectre lattice, like for like" begin
+@testset "(h) the like-for-like lattice against spectre's rows" begin
     cfg = sf_fullz(SF_SPECTRE_BOUNDS)
     dom = block_domain(SF_ORB, cfg)
     xp = puncture_chart_position(dom, SF_ORB)
@@ -604,7 +626,7 @@ sf_fullz(bounds) = crp_paper_config(; spin = 0.5, orbital_radius = 10.0, m_mode 
         @test [get(per_block, i + dom.nr * j, 0) for i in 0:dom.nr-1] == [1, 1, 4, 2, 2]
     end
 
-    # (ii) GRID 0 == spectre iteration 1, on the IDENTICAL discrete problem
+    # (ii) GRID 0 == spectre iteration 1, on the like-for-like lattice
     sol = solve_mode(SF_ORB, cfg, 1; dom = dom)
     f0 = mode_self_force(sol)
     @test f0.reduction === :mean && length(f0.elements) == 4
@@ -621,14 +643,43 @@ sf_fullz(bounds) = crp_paper_config(; spin = 0.5, orbital_radius = 10.0, m_mode 
              reduction is what makes the mean meet spectre, a single trace would not\n",
             join((@sprintf("%+.9e", v) for v in per), " "), maximum(per) - minimum(per))
     @test d0re <= SF_SPECTRE_ATOL && d0im <= SF_SPECTRE_ATOL   # spectre's own tolerance
-    @test d0re <= SF_LIKE4LIKE_ATOL                            # and 4x tighter
+    @test d0re <= SF_LIKE4LIKE_ATOL                            # and 10x the printed floor
     @test d0im <= SF_LIKE4LIKE_ATOL
-    # the +z and -z traces coincide: the solution is equatorially symmetric even though the
-    # domain does not impose it, so the 4-element mean is really a 2-value mean
+    # the residual is BOUNDED BY THE PRINTED REFERENCE, not resolved by it: four significant
+    # figures cannot say more than `<= 1e-8`, and our deviations sit at the half-ULP, a hair
+    # outside the printed rounding interval. Assert the bracket, not a margin.
+    @printf("mode-self-force (h) observed printed-precision bracket: dRe %.5e dIm %.5e against \
+             a half-ULP of %.1e — the residual is > ~1e-10 and <= %.1e, limited by the four \
+             significant figures spectre publishes\n",
+            d0re, d0im, SF_SPECTRE_PRINTED_ULP / 2, SF_SPECTRE_PRINTED_ULP)
+    @test d0re <= SF_SPECTRE_PRINTED_ULP && d0im <= SF_SPECTRE_PRINTED_ULP
+
+    # F_theta AGAINST SPECTRE'S OWN PUBLISHED COLUMNS. This lattice does NOT impose equatorial
+    # symmetry, so `dpsi_z` is a genuinely computed number rather than the z²-chart's
+    # structural zero, and the comparison against the `0., 0.` of the regression row is a real
+    # one — the only external check on F_theta that exists anywhere (spectre hard-codes the
+    # value it prints, so this bounds OUR truncation error against ITS convention, and cannot
+    # confirm a NON-ZERO F_theta).
+    @printf("mode-self-force (h) observed F_theta on the full-z lattice: Re %+.5e Im %+.5e ; \
+             spectre's columns 0., 0. at atol %.1e ; dpsi_z %+.5e (a computed number here, \
+             not the z^2 chart's structural zero)\n", f0.Ftheta, imag(f0.Ftheta_complex),
+            SF_SPECTRE_ATOL, real(f0.dpsi_z))
+    @test f0.dpsi_z != 0
+    @test abs(f0.Ftheta) <= SF_SPECTRE_ATOL
+    @test abs(imag(f0.Ftheta_complex)) <= SF_SPECTRE_ATOL
+    # the +z and -z traces agree TO 12 SIGNIFICANT DIGITS: the solution is equatorially
+    # symmetric even though the domain does not impose it, so the 4-element mean is really a
+    # 2-value mean. Bitwise equality is NOT expected and is not asserted — the mirrored
+    # elements have different ids, offsets and hence different summation order.
     @test length(unique(round.(per; sigdigits = 12))) == 2
 
-    # (iii) GRID 1: ours 921 points against spectre's 975 — the grids DIVERGE here (spectre
-    # allows AMR coarsening, we do not), so this is REPORTED, not gated.
+    # (iii) GRID 1: ours 921 points against spectre's 975 — the grids DIVERGE here, so this is
+    # REPORTED, not gated. The cause is 2:1 BALANCE CLOSURE, not coarsening (neither criterion
+    # ever emits Join): spectre's 975 decomposes as 20x(4,4) + 4x(4,5) + 23x(5,5)
+    # = 320 + 80 + 575 over 47 elements, with block (1,1) split in BOTH dimensions and block
+    # (3,1) split in r while carrying p+1 in theta. Ours performs only one of those three
+    # closure splits, because our balancer checks the face-normal dimension alone — a row-43
+    # defect, in flight there, not an extraction one.
     ScalarSelfForce.amr_step!(sol; flags = amr_flags(sol),
                               options = amr_level_options(cfg, 1))
     f1 = mode_self_force(sol)

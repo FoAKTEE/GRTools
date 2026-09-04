@@ -298,6 +298,12 @@ formulation and consumes the physics-free hp-DG solver stack from
     ``m \ge 1`` and half of it at ``m = 0`` (Eq. (3.10)'s ``m = 0`` branch is
     unfolded while the parameter carries the ×2 at every ``m``). Gated against
     the vanishing of the doubly-infinite parameter sum.
+  - `mmode_reg_term_Fr(order, orbit, m)` — THE one helper for the
+    folded/unfolded bookkeeping: the term to subtract from an
+    Osburn–Nishimura Eq. (3.10) force mode, i.e. ``F^m_{r[order]}`` for
+    ``m \ge 1`` and half of it at ``m = 0`` (Eq. (3.10)'s ``m = 0`` branch is
+    unfolded while the parameter carries the ×2 at every ``m``). Gated against
+    the vanishing of the doubly-infinite parameter sum.
   - `mode_self_force(orbit, m, psi, dpsi_r, dpsi_z)` /
     `mode_self_force(sol::ModeSolution)` /
     `mode_self_force(hist::AmrHistory; level, reduction)` — ``F_r^m``
@@ -326,7 +332,7 @@ formulation and consumes the physics-free hp-DG solver stack from
     floor (main.tex:722), with the same definition as the `Solve`
     `resolution_error(hist; field)` helper. Observed at ``a = 0.5``,
     ``r_0 = 10M``, ``m = 1`` over the paper's 8 AMR levels: ``F_r^m``
-    converges to ``-1.3652\times10^{-4} + 9.1381\times10^{-5}\,i`` with a
+    converges to ``-1.3651707\times10^{-4} + 9.1380866\times10^{-5}\,i`` with a
     resolution error of ``4.6\times10^{-11}`` (``3.4\times10^{-7}``
     relative), reproducing spectre's own regression row
     ``[2, 975, 4, -1.365\times10^{-4}, 9.138\times10^{-5}, 0, 0]`` to
@@ -334,19 +340,20 @@ formulation and consumes the physics-free hp-DG solver stack from
     *[PRELIMINARY: mesh-dependent, re-measured after 6df9f51; per-level values
     move with the hp-AMR order map, so gate on tolerances and on the shape of
     the sequence, never on a golden value]*.
-  - `mode_self_force_history(orbit, config, m, levels; x_p)` /
-    `mode_force_convergence(orbit, config, m, levels; x_p)` — the SAME two
-    tables addressed through a bare `Vector{AmrLevel}` and the puncture
-    position, i.e. through exactly what a fanned-out `ModeResult` carries
-    (`res.levels`, `res.x_p`; the live `ModeSolution` is process-local by the
-    `Solve/parallel.jl` rule and does not travel). `config` must be the
-    per-mode configuration that solved ``m`` — `mode_config(config, m)` —
-    since an `AmrLevel` records no mode number and the angular chart is read
-    from the config through `block_lattice_bounds`. Both routes run through
-    one internal function, so they agree field by field (gated bitwise in
-    `test_selfforce_levels.jl`). This is the route
-    `reproduce/arXiv-2606.04998/fig_convergence.jl` uses to turn 21 fanned-out
-    sweeps into `fig:ssf_convergence`.
+  - **The like-for-like check against `spectre`.**
+    `crp_paper_config(; equatorial_symmetry = false, radial_bounds = [r_+, 5, 6, 14, 25,
+    10^4])` builds the lattice of `spectre`'s own regression input file — 5×3 blocks,
+    per-row element pattern ``[1,1,4,2,2]``, 30 elements, 480 grid points, 4 elements
+    touching the puncture. On that grid the extracted ``F_r^{m=1}`` at ``a = 0.5``,
+    ``r_0 = 10M`` is ``-9.1835\times10^{-5} + 9.4505\times10^{-5}\,i`` against the
+    published ``-9.183\times10^{-5} + 9.451\times10^{-5}\,i``: deviations of
+    ``5.0\times10^{-9}`` in both components. That reference carries four significant
+    figures, so the comparison **bounds** the residual between the two codes at
+    ``\lesssim 10^{-8}`` rather than resolving it — the deviations sit at the half-ULP of
+    the printed digits. ``F_\theta``, genuinely computed on this lattice rather than
+    structurally zero, matches the published ``0`` columns to the same tolerance. `spectre`'s
+    second grid is not comparable: its 975 points over 47 elements come from a 2:1 balance
+    closure in all dimensions that our balancer does not yet perform.
   - `regularized_mode_force(x, m; order = 4)` — ``F_r^m - F^m_{r[order]}``
     through `mmode_reg_term_Fr`, the per-mode term the mode sum adds up.
     Observed decay of the residual at ``a = 0.5``, ``r_0 = 10M``, 6 AMR
