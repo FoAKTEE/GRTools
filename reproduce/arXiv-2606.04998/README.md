@@ -41,7 +41,7 @@ alone, VLM-compare against the reference PDF, decide script-vs-structure, iterat
 | 1 | `fig:domain` — the DG computational domain: `\|Ψ_m\|` height- and colour-mapped over the (r, z²) element grid, `\|Ψ^ℛ_m\|` in the worldtube | `fig_domain.jl` | `expected/fig_domain.json` | heavy | **solid** | **match** | A single 3D panel plus an inset: |Ψ_m| height- **and** colour-mapped over the (r, z²) DG element grid with white element edges and the Legendre-Gauss collocation grid, |Ψ^ℛ_m| inside the red-framed worldtube, the v/t/u slicing arc with H = ∓1, and the six-step hp-AMR cascade at x_p magnified bottom-right. Seven AMR levels, 20 → 60 elements and 320 → 3762 dofs, GMRES 1, 7, 6, 5, 5, 4, 4 (the counts and the level map moved with the all-dimension 2:1 closure and the coarse-mesh chain; see the note below). Structure reproduced: the two |Ψ_m| lobes of the published render — the tan ridge in the polar row over the worldtube's radial span and the sharper wedge just outside the tube in r at the equator — agree in count and position, as do the flat navy near-horizon band, the low navy tube patch and the teal wavezone plateau. `--check` 52/52 at rtol 1e-10 with max|Δ| = 0, `-t1` ≡ `-t4`. ~500 s at -t4, of which the sweep is 223.5 s — **heavy**. |
 | 2 | `fig:matrix` — DG operator sparsity at the coarsest grid level + element numbering | `fig_matrix.jl` | `expected/fig_matrix.json` | heavy | **solid** | **match** | Two panels: the B/W spy of the 320×320 coarsest-level matrix over a light-gray element-block checkerboard, and the domain sketch numbering the 20 elements that index its rows and columns. Structure reproduced exactly: 20 diagonal blocks + 33 symmetric off-diagonal block pairs, of which the 8 pairs across the four 2:1 interfaces (2↔3, 2↔4, 7↔9, 8↔9, 12↔13, 12↔14, 17↔19, 18↔19 in the paper's numbering) are fully dense 16×16 and the other 25 carry 64 entries. Adjacency graph-isomorphic to the domain topology in BOTH directions (0 matrix-only, 0 topology-only pairs). Reference block-occupancy extracted from `matrix.pdf` at 600 dpi and compared block-by-block: identical. 398.8 s at -t4 — **heavy**, although the numerics are ~10 s: the cost is the first-call specialization of the ComplexF64 `MeshOperator` (104 s) and of the first Plots/GR render. |
 | 4 | `fig:convergence` — the DG convergence of every `F_r^m` up to m = 20 over the hp-AMR sequence, + the cumulative walltime | `fig_convergence.jl` | `expected/fig_convergence.json` | heavy | **preliminary** | **partial** | Two panels for all 21 modes at a = 0.5 M, r₀ = 10 M: `\|F_r^m − F^m_{r,ref}\|` against `sqrt(N_points)` with each mode's own highest-resolution level as its reference, and the cumulative walltime below. Presentation reproduces item by item (2 panels 3:1 sharing x, 21 grayscale lines at the published ramp `m/23` with no markers, log y over ~8 decades, the framed upper-right `m=0`/`m=20` legend, the dashed "Solver tolerance" line with its inside label, "1 s"/"10 s" ticks, light-gray grid, CM serif) and every mode converges exponentially. Two STRUCTURAL deviations, both escalated: the published abscissa is the **full-z 5×3 lattice** (480 → 6300 grid points; its first two values are spectre's own `ScalarCircularOrbit.yaml` regression rows, which set `ImposeEquatorialSymmetry: False`) while ours is the production equatorial-symmetry lattice (320 → 3538), and the published grids **depend on m** while ours cannot, which the shipped criteria (`RefineAtPuncture` ∘ `IncreaseResolution`) cannot produce. See the Fig. 4 section for the evidence and the `TruncationError` hypothesis. |
-| 6 | `fig:linsolv` — GMRES residual staircase over AMR levels + walltime per iteration | `fig_linsolv.jl` | `expected/fig_linsolv.json` | heavy | **preliminary** | **partial** | Two panels for the m = 2 mode at a = 0.5 M, r₀ = 10 M: the residual staircase of 8 consecutive AMR levels over a cumulative-iteration axis, and the walltime per iteration. Presentation and structure reproduce item by item (see the checklist below); the per-level ITERATION COUNTS do not — published `1, 7, 6, 5, 4, 3, 3, 2` (31 cumulative) against our `1, 8, 9, 9, 9, 9, 9, 9` (63). All five node gates pass (max 9 < 10 iterations per level; level 0 in 1 iteration; the count bounded across levels; the first iteration slowest on every level; every level below the 1e-12 tolerance), so the paper's stated claims hold — but the shape of the published staircases does not, which is a solver-quality finding escalated to rows 21 and 43, and why this row is `preliminary`. 252.7 s at -t4 in `run_all` with a warm depot (~400 s standalone with precompilation), of which the AMR sweep itself is 12.3 s. Generated on top of `6df9f51` (the `hp_refine` 2:1-closure fix). |
+| 6 | `fig:linsolv` — GMRES residual staircase over AMR grids + walltime per iteration | `fig_linsolv.jl` | `expected/fig_linsolv.json` | heavy | **solid** | **partial** | Two panels for the m = 2 mode at a = 0.5 M, r0 = 10 M on the **full-z** lattice (the published one; the yaml says otherwise — see below). Eight AMR grids, 30 → 119 elements, 480 → 8139 dofs. The grid sequence reproduces the paper's own convergence-figure abscissa — 480, 975, 1604, 2427, 3468, 4751, 6300 — **exactly, all seven, zero deviation**. Iterations `1, 7, 6, 5, 4, 3, 3, 3` (32 cumulative) against the published `1, 7, 6, 5, 4, 3, 3, 2` (31), **seven of eight grids exact**; ‖b‖₀ 1.39146 against 1.39401 (−0.18 %); per-iteration reduction 28.3, 44.5, 51.3, 82.6, 260.4, 192.2, 234.3 against 26.0, 42.7, 48.0, 82.3, 244.6, 191.9, 567.0. All eight gates pass. Remaining holes: the last grid takes 3 iterations against 2, and the walltime panel's amplitude (eager vs lazy build). |
 | 5 | `fig:modes` — 21 stacked `log₁₀\|Ψ_m\|` planes over the (r, z²) domain, at three spins | `fig_modes.jl` | `expected/fig_modes.json` | heavy | **preliminary** | **match** (3 of 3 panels) | Three 3D panels — `a = −0.998` and `a = 0` at their ISCOs (8.9944, 6 M) and `a = +0.998` at the **published** `r₀ = 2 M` — each carrying 21 semi-transparent wireframe planes of `log₁₀\|Ψ_m\|` over (r, z²), `Ψ^ℛ_m` inside the worldtube and `Ψ_m` outside, clipped at `r = 2 r₀`, m = 0…4 in the paper's categorical colours and m ≥ 5 in the published `m/23` grey ramp. NOT a mode-sum curve: the caption plots the FIELD. All three match item by item, including the tick sets (5/10/15, 2…12, 1.5…4.0), the two m = 0 dives per panel and the grey curtain's cliff at `r₀ + w_r`. The horizon order hold is chosen by a MEASURED rule — sweep with the package default, read `horizon_axis_profile(...).layer_ratio` for every mode, re-sweep held only if the maximum over m exceeds 1.05 — which leaves panels 1-2 on the default (0.1105, 0.3108) and holds panel 3 (3.889 → **0.5776**); GATE 7 gates the plotted value and the panel states both numbers and the setting. **preliminary** for one measured reason, flagged on the figure: at `a = 0.998, r₀ = 2` GMRES stagnates at m = 19 and 20 (final residual 9.3e-6 against the 1e-12 tolerance), so those two planes are drawn dashed and named, `pK_converged` carries the verdict per mode, and panel 3's decay claim breaks only at 19 → 20. 66 elements and 4814 dofs (4604 held) at the 8th grid from 320 at level 0. Four sweeps (three panels + panel 3's held re-sweep) through ONE `mode_pool` of 5 single-threaded workers: 1286 s — **heavy**. |
 
 ### What "the coarsest grid level" is
@@ -213,9 +213,9 @@ element boundaries and the inset cascade are independent of the closure (the h-r
 `level_gmres_iterations` and the sampled field values are not, and would move against a tree
 without it.
 
-## Fig. 6 — how many AMR levels, and what does not reproduce
+## Fig. 6 — the lattice, the resolved staircase, and what still does not reproduce
 
-### The level count is a convention mapping, derived from the source
+### The grid count is a convention mapping, derived from the source
 
 `Amr.Iterations: 8` (yaml:153) counts spectre's AMR **solver iterations**, i.e. *solves*, and the
 yaml's own trigger `EveryNIterations {N: 1, Offset: 1}` (yaml:157-160, commented "Run AMR in every
@@ -229,92 +229,95 @@ against `src/Elliptic/Amr/Actions.hpp:56` (`HasConverged{num_iterations, 0}`) �
 figure confirms the reading independently: its top panel carries exactly **8** disconnected
 staircases on a 0…32 axis.
 
-`ESSF::amr-driver` ran `iterations = 8`, i.e. **nine** levels; the ninth `9` of its published
-sequence `1, 8, 9, 9, 9, 9, 9, 9, 9` is that extra level. The first eight entries are this
-figure's.
+`ESSF::amr-driver`'s own default is `iterations = 8`, i.e. **nine** grids — one refinement more
+than the paper. The secondary `prod_*` series registered here is exactly that nine-grid sweep on
+the yaml's half domain.
 
-### The finding: the staircases do not shorten
+### Which lattice the published figure is on — the one deviation from the yaml
 
-| level | iters (paper) | iters (ours) | initial residual paper / ours | reduction per iteration paper / ours |
+The plotted sweep runs on the **full-z** lattice, `equatorial_symmetry = false`: 30 elements and
+480 grid points at the initial level, with the puncture contained in **four** elements. The paper's
+own input file says the opposite — `ImposeEquatorialSymmetry: True` (yaml:36) — which folds the
+domain onto `z² ∈ [0, 1]`. The yaml's `RefinedLevels` table (yaml:78-110) lists ten block entries,
+five "middle" rows (`LowerCornerIndex: [·, 0]`) and five "top" rows (`[·, 1]`); with the angular
+block bounds `[0., 0.25, 1.]` and `P = 4` that is 20 elements × 16 points = **320** points under
+equatorial symmetry, and 30 elements × 16 = **480** without it.
+
+Three measurements say the FIGURE was made on the full lattice, whatever the yaml says:
+
+| quantity | published | full-z (plotted) | half domain (yaml) |
+|---|---|---|---|
+| ‖b‖₀ = grid 0's plotted initial residual | 1.39401 | **1.39146** (−0.18 %) | 1.7444 (+25.1 %) |
+| grid points per AMR grid | 480, 975, 1604, 2427, 3468, 4751, 6300 | **exactly those, all seven** | 320, 632, 1014, 1506, 2120, 2868, 3762 — none of them |
+| iterations per grid | 1, 7, 6, 5, 4, 3, 3, 2 (31) | **1, 7, 6, 5, 4, 3, 3, 3 (32)** | 1, 7, 6, 5, 5, 4, 4, 4, 3 (39 over nine grids) |
+
+‖b‖₀ is decisive because the initial guess is zero, so grid 0's plotted initial residual **is** the
+source norm. The half-domain sweep is registered too, as the secondary `prod_*` series, so the
+yaml-versus-figure discrepancy is data in the golden rather than prose; the figure itself carries a
+one-line note saying which lattice it is.
+
+### Why the staircases shorten — the resolved question
+
+This node previously plotted a **flat** `1, 8, 9, 9, …` staircase against the published shortening
+one, and the gap was owned as an open finding. It is closed, and the cause was the **multigrid
+hierarchy**, not the figure. spectre does not build the hierarchy by re-coarsening the current
+grid: it uses the **AMR history** — every grid the sweep has already visited becomes a coarser
+multigrid level of the next
+(`Elliptic/Executables/SolveScalarSelfForce.hpp:173`;
+`ParallelAlgorithms/Amr/Actions/AdjustDomain.hpp:159-163, 203-212`;
+`SendDataToChildren.hpp:43-70`; `LinearSolver/Multigrid/ElementActions.hpp:96-135`;
+`Multigrid.hpp:56-58`). With `hierarchy = :history` (now the `solve_mode_amr` default,
+`fdcd919`) the preconditioner improves with depth exactly as the paper's does.
+
+| grid | iters (paper) | iters (ours) | ‖r₀‖ paper / ours | reduction·iter⁻¹ paper / ours |
 |---|---|---|---|---|
-| 0 | 1 | 1 | 1.375 / 1.744 | — |
-| 1 | 7 | 8 | 2.59e-3 / 2.53e-3 | 26.0 / 16.4 |
-| 2 | 6 | 9 | 7.06e-4 / 3.26e-3 | 42.7 / 12.2 |
-| 3 | 5 | 9 | 8.75e-5 / 3.64e-4 | 48.0 / 9.0 |
-| 4 | 4 | 9 | 2.37e-5 / 2.18e-4 | 82.3 / 9.3 |
-| 5 | 3 | 9 | 4.01e-6 / 5.12e-5 | 244.6 / 7.6 |
-| 6 | 3 | 9 | 9.64e-7 / 1.03e-5 | 191.9 / 6.4 |
-| 7 | 2 | 9 | 2.60e-7 / 5.30e-6 | 567.0 / 6.0 |
-| **total** | **31** | **63** | | |
+| 0 | 1 | 1 | 1.39401 / 1.39146 | — |
+| 1 | 7 | 7 | 2.6292e-3 / 2.5725e-3 | 26.0 / 28.3 |
+| 2 | 6 | 6 | 7.1549e-4 / 6.6525e-4 | 42.7 / 44.5 |
+| 3 | 5 | 5 | 8.8591e-5 / 8.6975e-5 | 48.0 / 51.3 |
+| 4 | 4 | 4 | 2.3976e-5 / 2.1682e-5 | 82.3 / 82.6 |
+| 5 | 3 | 3 | 4.0581e-6 / 3.6897e-6 | 244.6 / 260.4 |
+| 6 | 3 | 3 | 9.7638e-7 / 8.9674e-7 | 191.9 / 192.2 |
+| 7 | **2** | **3** | 2.6296e-7 / 2.2148e-7 | 567.0 / 234.3 |
+| **total** | **31** | **32** | | |
 
-The paper column is extracted from `linsolv.pdf`'s own **vector paths** (PyMuPDF; axes calibrated
-on the tick-label boxes and the bottom panel's minor-tick strokes, self-consistent to <1 %), not
-from pixels. "Reduction per iteration" is `(r₀ / r_final)^(1/iters)`.
+The paper column is extracted from `linsolv.pdf`'s own **vector paths** (PyMuPDF), not from
+pixels. The top panel's y axis is calibrated on the **exact** flipped-y anchors 20.44117 and
+103.93375 — the 10⁻¹ and 10⁻¹³ gridlines. A first extraction rounded those to 20.4 / 103.9 and put
+the whole published residual series ~1.35 % low (‖b‖₀ 1.375 instead of 1.39401); the iteration
+counts and the reduction-per-iteration ratios are invariant under that rescaling, ‖b‖₀ is not, so
+the ‖b‖₀ gate band is set from the corrected value. "Reduction per iteration" is
+`(‖r₀‖ / ‖r_final‖)^(1/iters)`. An independent re-extraction from the PDF content stream agrees.
 
-Both runs satisfy every claim the caption and main.tex:720 make — `< 10` iterations per level, the
-first level converging immediately, and no growth of the count as levels are added. What differs
-is that the paper's preconditioner becomes steadily **more** effective with depth while ours
-**degrades** (16.4× → 6.0×), and our per-level initial residual is larger at **every** level: at
-level 0 it is the source norm `‖b‖` itself, 1.744 against the published 1.375 (a factor 1.27 —
-an open [HOLE], see below), and from level 2 on the interpolated warm start is 1.4–13× larger. Owner: `ESSF::solver-stack-core` (the GMRES ∘ multigrid ∘ Schwarz composition)
-and `ESSF::amr-driver` (the level policy). Row 43 already measured a nearby A/B: with
-`coarse_orders = nothing` (the min rule for the coarse multigrid orders, instead of spectre-parity
-pinning at `P`) the same sweep gives `1, 8, 8, 8, 7, 7, 6, 7, 6` — decreasing, though still not
-the published shape. That is the first lead to follow.
+### Remaining holes
 
-### The golden is post-`hp_refine`-fix
-
-It is generated on top of `6df9f51` (*fix(ellipticcore)!: hp_refine — hold the order in a
-balance-split dimension*), where an element that the 2:1 balance splits no longer also carries a
-p increment in the split dimension, matching spectre
-(`ParallelAlgorithms/Amr/UpdateAmrDecision.cpp:82-87`, `Amr/Projectors/Mesh.cpp:30-34`).
-
-Measured effect on this figure: the dof sequence moves from
-`320, 603, 962, 1425, 2004, 2711, 3558, 4557` to `320, 593, 950, 1411, 1988, 2693, 3538, 4535`,
-and the per-level final residuals move in their last digits. The GMRES **iteration counts are
-unchanged** at `1, 8, 9, 9, 9, 9, 9, 9`, so the reproduction gap documented above survives the
-fix rather than having been caused by it.
-
-### [HOLE] the level-0 source norm is 1.27× the published one
-
-Level 0's initial residual is `‖b‖` itself (the initial guess is zero), and it is **1.744** here
-against the published **1.375** — a factor 1.27 that then propagates as an offset into every
-later level's starting residual.
-
-**Mass weighting is excluded as the cause.** The candidate explanation was that spectre's Krylov
-norm might be a mass-weighted inner product while ours is Euclidean. It is not: spectre's Krylov
-inner product is the plain Euclidean 2-norm of the *massive* residual
-(`NumericalAlgorithms/LinearSolver/InnerProduct.hpp:23-27,90-96`, with the mass matrix already
-applied by the DG operator under `Massive: True`,
-`Elliptic/DiscontinuousGalerkin/DgOperator.hpp:621-680`), and ours plots the same quantity —
-the Euclidean norm of the massive residual (`Solve/driver.jl:229-232`,
-`EllipticCore/src/gmres.jl:144`). Both sides therefore measure the same norm of the same kind of
-vector, so the ratio is **not** a norm-convention artefact.
-
-What remains open is the **normalisation of the source itself** — the fixed-source lift built
-from the effective source and the worldtube jump data, and any symmetry/mode factor (the
-equatorial-symmetry ½, the `e^{imφ}` convention, the ±m folding) that would scale `b` by an
-O(1) constant without touching the *shape* of any staircase. A constant rescaling of `b` cannot
-change GMRES iteration counts against a *relative* tolerance, but this solve uses an **absolute**
-one (`AbsoluteResidual: 1e-12`), so a 1.27× larger `b` costs a fraction of one iteration — far
-too little to explain the 63-vs-31 gap, which is why the two findings are separate.
-
-Open, unresolved, and handed to node 56 `linsolv-depth-gap` together with the depth gap.
+1. **The last grid takes 3 iterations against the published 2** (32 cumulative against 31). Its
+   reduction factor is 234 against the published 567 — the finest grid is where our preconditioner
+   is still weakest. Gated as a regression band (`total_iterations ≤ 33`), not papered over.
+2. **The walltime panel's amplitude**, because this package builds the Schwarz subdomain matrices
+   eagerly — see the next section. The panel's *shape* reproduces; its spike/plateau ratio and its
+   y-range do not.
+3. ~~The published grid sequence is m-dependent and ours is not.~~ **Closed by `13ea24c`** (the
+   2:1 closure applied in all dimensions). The grid sequence is now
+   `480, 975, 1604, 2427, 3468, 4751, 6300` — the paper's own convergence-figure abscissa, **all
+   seven exact, zero deviation** — and gate 8 asserts it. Our eighth grid, 8139, is the one the
+   paper holds as its reference and so has no published counterpart.
 
 ### The bottom panel: eager build, attributed by addition
 
 The paper's first-iteration bump is the **lazy** construction of the Schwarz subdomain matrices
 inside that iteration (main.tex:702). This package builds them **eagerly** in `rebuild!`, so the
 same work is measured in `SolveRecord.build_time` and *not* inside `iteration_time[1]`. The bottom
-panel therefore plots `iteration_time[1] + build_time` at each level's first point: the same
+panel therefore plots `iteration_time[1] + build_time` at each grid's first point: the same
 physical work charged to the same iteration, by addition rather than by measurement inside the
 timer — a bookkeeping equivalence, not a lazy build. Both columns stay separately registered in
 the golden, and the figure itself carries the note *"first point of each level includes the eager
-operator build"* under the bottom panel, so the panel cannot be read as a lazy-build measurement. Measured consequences (envelope over the `-t1` and `-t4` runs): with the attribution the
-first/rest ratio is **37…144** (paper: 1.8…2.9); without it, **0.35…3.1**, i.e. scattered about 1
-with no trend in level — there is no first-iteration feature here at all without the attribution. Our per-iteration plateau is *faster* than the paper's
-(0.034 s vs 0.274 s on the deepest level); only the eager build makes the sweep total larger
-(12.3 s against the published stamp's 0:00:06).
+operator build"* under the bottom panel, so the panel cannot be read as a lazy-build measurement.
+
+Measured on the landed full-z golden: the build runs 0.85 s → 24.9 s across the seven refinements,
+which is why the panel spans three decades where the published one spans about one and a half, and
+why the walltime stamp reads 0:01:04 against the published 0:00:06. Without the attribution the
+first/rest ratio is flat, i.e. there is no first-iteration feature here at all.
 
 ### Timings are reported, not gated
 
@@ -326,7 +329,6 @@ looser than the measured `-t1` vs `-t4` spread, which is **bitwise zero** with
 BLAS thread count introduces. `residual_log10_flat` is registered beside `residual_flat` because
 the harness compares arrays norm-wise: on the raw vector the O(1) initial residual would mask a
 factor-2 move at the 1e-13 floor.
-
 
 ## Fig. 4 — the paper's lattice is not the shipped yaml's, and the criteria are not either
 
