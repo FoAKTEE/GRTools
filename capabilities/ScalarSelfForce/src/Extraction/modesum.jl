@@ -591,8 +591,11 @@ function _ms_mode_value(orbit::CircularOrbit, config::RunConfig, m::Integer, lev
     h = mode_self_force_history(orbit, config, m, levels; x_p = x_p, phi_p = phi_p)
     vr = [f.Fr for f in h]
     vt = [f.Ft for f in h]
+    # the per-level reduction is the SEALED row-44 route's business, not this node's: report
+    # what it actually used rather than asserting a constant, so a change of its default is a
+    # re-measurement here and never a silently mislabelled table.
     return (Fr = vr[end], dFr = vr[end] - vr[end - 1],
-            Ft = vt[end], dFt = vt[end] - vt[end - 1])
+            Ft = vt[end], dFt = vt[end] - vt[end - 1], reduction = h[end].reduction)
 end
 
 """
@@ -615,10 +618,14 @@ function total_self_force(set::ModeSet; phi_p::Real = 0, kwargs...)
                          phi_p = phi_p) for m in ms]
     vals, dels = [x.Fr for x in vd], [x.dFr for x in vd]
     tvals, tdels = [x.Ft for x in vd], [x.dFt for x in vd]
+    red = unique(x.reduction for x in vd)
+    length(red) == 1 || throw(ArgumentError(
+        "total_self_force: the modes were reduced differently ($(red)); a mode sum must be " *
+        "homogeneous"))
     lv = maximum(length(set[m].levels) for m in ms)
     return total_self_force(set.orbit, vals; ms = ms, resolution_deltas = dels,
                             Ft_modes = tvals, Ft_resolution_deltas = tdels,
-                            reduction = :trace, levels = lv, kwargs...)
+                            reduction = only(red), levels = lv, kwargs...)
 end
 
 """
@@ -627,8 +634,9 @@ end
 The mode sum of a set of row-43 AMR sweeps, one per mode (the serial route; the fan-out's
 `ModeSet` is the parallel one). The histories may come in any order; their `m` values must
 form a contiguous `0:m_max`. Per-mode values and resolution deltas are read through
-[`mode_self_force_history`](@ref), so this route uses `reduction = :trace` exactly like the
-`ModeSet` one and the two are directly comparable.
+[`mode_self_force_history`](@ref), so this route uses whatever per-level reduction that sealed
+route reports — the same one the `ModeSet` route gets — and the two are directly comparable.
+`reduction` records which one it was; a set of modes that were not reduced alike throws.
 """
 function total_self_force(hists::AbstractVector{<:AmrHistory}; kwargs...)
     isempty(hists) && throw(ArgumentError("total_self_force: no histories"))
@@ -641,16 +649,20 @@ function total_self_force(hists::AbstractVector{<:AmrHistory}; kwargs...)
             "total_self_force: mode $(hists[k].m) has $(length(h)) AMR level(s); the " *
             "resolution error IS the difference between the highest and second-highest " *
             "(main.tex:722)"))
-        ([f.Fr for f in h], [f.Ft for f in h])
+        ([f.Fr for f in h], [f.Ft for f in h], h[end].reduction)
     end
     vals = [v[1][end] for v in seqs]
     dels = [v[1][end] - v[1][end - 1] for v in seqs]
     tvals = [v[2][end] for v in seqs]
     tdels = [v[2][end] - v[2][end - 1] for v in seqs]
     lv = maximum(length(v[1]) for v in seqs)
+    red = unique(v[3] for v in seqs)
+    length(red) == 1 || throw(ArgumentError(
+        "total_self_force: the modes were reduced differently ($(red)); a mode sum must be " *
+        "homogeneous"))
     return total_self_force(orb, vals; ms = ms, resolution_deltas = dels,
                             Ft_modes = tvals, Ft_resolution_deltas = tdels,
-                            reduction = :trace, levels = lv, kwargs...)
+                            reduction = only(red), levels = lv, kwargs...)
 end
 
 """

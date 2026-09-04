@@ -158,8 +158,8 @@ note = "INDEPENDENT-SOURCE oracle for the tex transcription in src/Extraction/re
 
 [[fixture]]
 file = "test/fixtures/modesum_wb_r10.jl"
-sha256 = "1d6074d4980e63db948aac99d1eb2529e630511f2afcf60f70190d3bd747bfe1"
-bytes = 12522
+sha256 = "11adcaaa738f9c18abe19ba58569dcb42a6ca0bd4ccb01b8cafaf638b94605c3"
+bytes = 12588
 capture = "test/fixtures/capture/capture_modesum_wb_r10.jl"
 oracle = "this package's own m-mode pipeline (rows 42/43/44/47) at the commit named in the fixture header: solve_modes_parallel over m = 0:20 at the production crp_paper_config, 9 AMR grids per mode, one process per mode with OPENBLAS_NUM_THREADS=1, reduced by the sealed row-44 mode_self_force on the per-level diagnostics. NOT an external oracle - the external oracle of the node is the printed Warburton-Barack Table III, baked separately in test/fixtures/wb_reference.jl and string-equal to the tex mirror"
 oracle_commit = ""

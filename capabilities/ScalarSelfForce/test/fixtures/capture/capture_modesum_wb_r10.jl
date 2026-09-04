@@ -75,8 +75,9 @@ function main(argv)
             isempty(set.failures) ||
                 error("capture_modesum_wb_r10: modes failed at a = $a: " *
                       string([f.m for f in set.failures]))
-            fr, dl, ft, ftdl = per_mode(set)
-            tables[a] = (Fr = fr, delta = dl, Ft = ft, ft_delta = ftdl, wall = time() - t0,
+            fr, dl, ft, ftdl, red = per_mode(set)
+            tables[a] = (Fr = fr, delta = dl, Ft = ft, ft_delta = ftdl, reduction = red,
+                         wall = time() - t0,
                          nworkers = set.run.nworkers, max_load = set.run.max_load,
                          ndofs = set[last(MMODES)].levels[end].mesh.ndofs)
             @info "capture_modesum_wb_r10: spin done" a wall = time() - t0
@@ -97,6 +98,7 @@ end
 # produced by the code it is used to test would be worth nothing.
 function per_mode(set)
     fr, dl, ft, ftdl = Float64[], Float64[], Float64[], Float64[]
+    reds = Symbol[]
     for m in sort(collect(Int, set.ms))
         r = set[m]
         # the SEALED row-44 level route: one call, both components, no chart handling here
@@ -106,8 +108,10 @@ function per_mode(set)
         vt = [f.Ft for f in h]
         push!(fr, vr[end]);  push!(dl, vr[end] - vr[end - 1])
         push!(ft, vt[end]);  push!(ftdl, vt[end] - vt[end - 1])
+        push!(reds, h[end].reduction)
     end
-    return fr, dl, ft, ftdl
+    length(unique(reds)) == 1 || error("capture_modesum_wb_r10: mixed reductions $(unique(reds))")
+    return fr, dl, ft, ftdl, only(unique(reds))
 end
 
 vecrepr(v) = "[" * join((repr(x) for x in v), ", ") * "]"
@@ -150,7 +154,8 @@ function emit(io, tables, iters, sha)
     println(io, "const MSWB_MMODES     = 0:", last(MMODES))
     println(io, "const MSWB_ITERATIONS = ", iters, "        # AMR refinement steps")
     println(io, "const MSWB_LEVELS     = ", iters + 1, "        # grids = iterations + 1")
-    println(io, "const MSWB_REDUCTION  = :trace")
+    println(io, "const MSWB_REDUCTION  = :", tables[SPINS[1]].reduction,
+            "        # what the SEALED row-44 level route actually used")
     println(io, "const MSWB_LIVE_MODE  = ", LIVE_MODE)
     println(io, "const MSWB_SPINS      = ", vecrepr(SPINS))
     println(io)
