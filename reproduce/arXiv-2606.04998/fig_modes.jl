@@ -405,10 +405,10 @@ end
 #   * one plane is drawn per ELEMENT, from that element's own Legendre-Gauss nodes and nothing
 #     else, so neighbouring patches do not touch — which is exactly how the reference's
 #     ParaView/DG cells read (its curtain is visibly made of separate cell patches);
-#   * the collocation lattice is subsampled to 3 lines per element per dimension (2 for the
-#     faint m ≥ 10 curtain): the
-#     8th AMR grid carries orders up to P + 7, and drawing every node line costs the 200 KB
-#     golden budget without adding a visible feature.
+#   * the collocation lattice is subsampled to 3 lines per element per dimension for the five
+#     coloured modes and 2 for the faint m ≥ 5 curtain: the 8th AMR grid carries orders up to
+#     P + 7, and drawing every node line costs the 200 KB golden budget without adding a
+#     visible feature.
 # Every presentation constant below (box proportions, oblique offsets, colours, alphas, tick
 # choices, label offsets) is a STYLE choice recorded here; none touches a registered value.
 using Plots
