@@ -1327,7 +1327,7 @@ uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 version = "0.7.0"
 
 [[deps.ScalarSelfForce]]
-deps = ["BigSpecial", "Data", "EllipticCore", "LinearAlgebra", "NumericsCore", "Printf", "Spacetime"]
+deps = ["BigSpecial", "Data", "Distributed", "EllipticCore", "LinearAlgebra", "NumericsCore", "Printf", "Spacetime"]
 path = "../capabilities/ScalarSelfForce"
 uuid = "2c6894da-19ee-44fd-8009-a03a1c15dffd"
 version = "0.1.0"

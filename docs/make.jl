@@ -45,7 +45,9 @@ makedocs(
         # this is a local-only site, so raise the hard cap (warn stays at 100 KiB).
         size_threshold = 512 * 2^10,
     ),
-    doctest = false,
+    # No `jldoctest` block exists in the suite yet (0 in docs/src, 0 in any docstring), so
+    # this runs zero doctests today and arms the gate for the first one that lands.
+    doctest = true,
     warnonly = [:missing_docs, :cross_references, :docs_block, :autodocs_block],
     checkdocs = :exports,
     pages = [
@@ -79,6 +81,7 @@ makedocs(
             "topics/data-artifacts.md",
             "topics/fixtures.md",
             "topics/reproducibility.md",
+            "topics/reproducing-2606.04998.md",
         ],
         "Migration" => "migration.md",
     ],

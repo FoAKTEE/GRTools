@@ -202,16 +202,21 @@ formulation and consumes the physics-free hp-DG solver stack from
 
   Under the paper's own `RefineAtPuncture` criterion (yaml:132,
   main.tex:552-560 — split only the elements *containing* the particle) over
-  five AMR levels (320 → 593 → 950 → 1411 → 1988 grid points), the counts are
-  9, 8, 7, 8, 6 with the min coarsening rule (coarsest grid
-  160 → 236 → 334 → 450 → 584) and 9, 8, 9, 9, 9 with spectre parity
+  five AMR levels (320 → 632 → 1014 → 1506 → 2120 grid points), the counts are
+  9, 8, 8, 8, 6 with the min coarsening rule (coarsest grid
+  160 → 227 → 323 → 437 → 569) and 9, 8, 10, 10, 9 with spectre parity
   (`coarse_orders = P`), which pins the bottom grid at 160 points and builds its
-  LU once. (These are the numbers after the EllipticCore `hp_refine`
-  two-to-one-closure fix; this page is the one maintained measurement table.) **main.tex:720's "less than 10 iterations per AMR level"
-  holds, and the count decreases with refinement depth.** Refining the *whole*
-  worldtube instead — which is not the paper's criterion — makes the counts
-  grow (9, 8, 9, 10, 11 and 9, 9, 11, 12, 18), so the refinement criterion, not
-  the solver, is what decides.
+  LU once. **main.tex:720's "less than 10 iterations per AMR level" holds as
+  ``\le 10`` at every level of both rules** — spectre parity reaches exactly 10
+  twice — **and the count falls with depth under the min rule** (the parity rule
+  is not monotone). Refining the *whole* worldtube instead — which is not the
+  paper's criterion — makes the counts GROW rather than fall, and costs far more
+  mesh: one uniform in-tube `hp_refine` step takes the initial lattice from
+  20 elements / 320 dofs to 37 / 725, against 30 / 632 under the paper's own
+  criterion. So the refinement criterion, not the solver, is what decides. The
+  uniform-in-tube iteration sequence itself is no longer pinned — the assertions
+  there are structural (which grid moves, which LU is rebuilt) — so no numbers
+  for it are quoted here.
 
   hp-AMR driver: `solve_mode_amr(orbit, config, m)` runs `iterations`
   refinement steps — so `iterations + 1` grids, and note the mapping: the yaml's
@@ -258,17 +263,25 @@ formulation and consumes the physics-free hp-DG solver stack from
   are read through the sealed `field_at` / `field_grad_at` above, so the driver
   adds no read-out surface of its own.
   Measured over the 8-level sweep at ``a = 0.5``, ``r_0 = 10M``, ``m = 2``:
-  20 → 63 elements and 320 → 4535 dofs, GMRES **1, 7, 6, 5, 5, 4, 4, 4** — the
+  20 → 66 elements and 320 → 4814 dofs, GMRES **1, 7, 6, 5, 5, 4, 4, 4** — the
   staircase SHORTENS with depth as `fig:linsolv` does (published
   1, 7, 6, 5, 4, 3, 3, 2), with the per-iteration residual reduction rising
-  29.8 → 135.4 where the derived hierarchy's falls 16.4 → 6.0; bottom LU built
+  26.0 → 138.6 over grids 1–7 and dipping to 92.1 at the deepest, where the
+  derived hierarchy's staircase stays flat (1, 8, 9, 8, 8, 7, 7 over the same
+  grids); bottom LU built
   **once** and hit seven times, Schwarz builds exactly the elements of each new
   finest grid; and successive differences of
   ``\partial_r\Psi^{\mathcal R}(x_p)`` falling geometrically
-  (``8.5\times10^{-5} \to 3.7\times10^{-10}``, ratios 0.06-0.33) — the whole
-  sweep in 18.9 s of warm single-threaded compute, which needs
-  `OPENBLAS_NUM_THREADS=1` (the dense subdomain solves are tiny, and the host's
-  default thread pool costs a factor 8.9). `resolution_error(hist)` and
+  (``3.8\times10^{-5}``, ``1.0\times10^{-6}``, ``1.1\times10^{-7}``,
+  ``2.5\times10^{-9}``, ``6.0\times10^{-9}``): the sequence reaches its own
+  RESOLUTION FLOOR inside the sweep, so the portable statement is the TWO-STEP
+  geometric envelope (each difference at most half the one two levels back), not
+  a per-step ratio — one step plateaus at 2.364 at the ``10^{-9}`` level. The
+  sweep needs `OPENBLAS_NUM_THREADS=1` (the dense subdomain solves are tiny, and
+  the host's default thread pool cost a measured factor 8.9); wall times are
+  reported and never gated — the figure driver's own
+  `reported_prod_sweep_wall_time` is the current record.
+  `resolution_error(hist)` and
   `relative_resolution_error(hist)` are the paper's own resolution-error
   estimate (main.tex:730), the difference between the highest and
   second-highest AMR level, and `AmrLevel.series_nodes` records how many in-tube
@@ -298,12 +311,6 @@ formulation and consumes the physics-free hp-DG solver stack from
     ``m \ge 1`` and half of it at ``m = 0`` (Eq. (3.10)'s ``m = 0`` branch is
     unfolded while the parameter carries the ×2 at every ``m``). Gated against
     the vanishing of the doubly-infinite parameter sum.
-  - `mmode_reg_term_Fr(order, orbit, m)` — THE one helper for the
-    folded/unfolded bookkeeping: the term to subtract from an
-    Osburn–Nishimura Eq. (3.10) force mode, i.e. ``F^m_{r[order]}`` for
-    ``m \ge 1`` and half of it at ``m = 0`` (Eq. (3.10)'s ``m = 0`` branch is
-    unfolded while the parameter carries the ×2 at every ``m``). Gated against
-    the vanishing of the doubly-infinite parameter sum.
   - `mode_self_force(orbit, m, psi, dpsi_r, dpsi_z)` /
     `mode_self_force(sol::ModeSolution)` /
     `mode_self_force(hist::AmrHistory; level, reduction)` — ``F_r^m``
@@ -324,8 +331,11 @@ formulation and consumes the physics-free hp-DG solver stack from
     `field_at` / `field_grad_at`. The `ModeSolution` method reduces by the
     **mean over every element containing the puncture** — spectre parity
     (`ObserveSelfForce.hpp:89-107`) — and `element = e` selects one one-sided
-    trace instead; the `AmrHistory` method uses `:trace` at every level so a
-    convergence sequence is homogeneous.
+    trace instead; the `AmrHistory` method ALSO defaults to `:mean` at every
+    level since the 2:1-closure commit — `AmrLevel` stores one trace per
+    containing element and their mean, so spectre's reduction no longer needs a
+    live `ModeSolution` — and `reduction = :trace` with an `element` is the
+    diagnostic form. Do not mix reductions inside one convergence sequence.
   - `mode_self_force_history(hist)` / `mode_force_convergence(hist)` — the
     per-AMR-level ``F_r^m`` sequence and its successive-difference table,
     including `resolution_error`, the error budget's numerical-resolution
@@ -333,13 +343,13 @@ formulation and consumes the physics-free hp-DG solver stack from
     `resolution_error(hist; field)` helper. Observed at ``a = 0.5``,
     ``r_0 = 10M``, ``m = 1`` over the paper's 8 AMR levels: ``F_r^m``
     converges to ``-1.3651707\times10^{-4} + 9.1380866\times10^{-5}\,i`` with a
-    resolution error of ``4.6\times10^{-11}`` (``3.4\times10^{-7}``
+    resolution error of ``1.4\times10^{-11}`` (``1.0\times10^{-7}``
     relative), reproducing spectre's own regression row
     ``[2, 975, 4, -1.365\times10^{-4}, 9.138\times10^{-5}, 0, 0]`` to
     ``1.7\times10^{-8}``, inside its ``2\times10^{-7}`` tolerance
-    *[PRELIMINARY: mesh-dependent, re-measured after 6df9f51; per-level values
-    move with the hp-AMR order map, so gate on tolerances and on the shape of
-    the sequence, never on a golden value]*.
+    *[PRELIMINARY: mesh-dependent, re-measured after the all-dimension 2:1
+    closure; per-level values move with the hp-AMR order map, so gate on
+    tolerances and on the shape of the sequence, never on a golden value]*.
   - **The like-for-like check against `spectre`.**
     `crp_paper_config(; equatorial_symmetry = false, radial_bounds = [r_+, 5, 6, 14, 25,
     10^4])` builds the lattice of `spectre`'s own regression input file — 5×3 blocks,
@@ -351,19 +361,30 @@ formulation and consumes the physics-free hp-DG solver stack from
     figures, so the comparison **bounds** the residual between the two codes at
     ``\lesssim 10^{-8}`` rather than resolving it — the deviations sit at the half-ULP of
     the printed digits. ``F_\theta``, genuinely computed on this lattice rather than
-    structurally zero, matches the published ``0`` columns to the same tolerance. `spectre`'s
-    second grid is not comparable: its 975 points over 47 elements come from a 2:1 balance
-    closure in all dimensions that our balancer does not yet perform.
+    structurally zero, matches the published ``0`` columns to the same tolerance.
+    `spectre`'s SECOND grid is now a like-for-like comparison too: since the 2:1 closure
+    binds in every dimension, the first AMR step lands on 975 points in 47 elements —
+    spectre's own sizes, ``20\times(4,4) + 4\times(4,5) + 23\times(5,5)`` — and there
+    ours reads ``-1.364232\times10^{-4} + 9.153029\times10^{-5}\,i`` against the
+    published ``-1.365\times10^{-4} + 9.138\times10^{-5}\,i``: ``7.7\times10^{-8}``
+    and ``1.5\times10^{-7}``, inside spectre's own ``2\times10^{-7}``
+    reproducibility tolerance (margins 2.6× and 1.3×) but 7.7 and 15.0 times the
+    printed ULP, so this one is RESOLVED — on an identical mesh the two codes differ
+    measurably by about ``10^{-7}`` *[HOLE: the cause of that difference is open]*.
   - `regularized_mode_force(x, m; order = 4)` — ``F_r^m - F^m_{r[order]}``
     through `mmode_reg_term_Fr`, the per-mode term the mode sum adds up.
     Observed decay of the residual at ``a = 0.5``, ``r_0 = 10M``, 6 AMR
-    levels: log-log slope ``-6.007 \pm 0.002`` over the resolved pair
-    ``m \in \{2, 5\}`` *[PRELIMINARY]*; the ``m = 10`` residual is only
-    ``2.8\times`` its own level-to-level difference at that depth, so fits
-    that include it (``-6.32 \pm 0.52`` over ``\{5, 10\}``) are
-    resolution-limited. A discharge of the ``m^{-6}`` claim is *[FUTURE]*:
-    it needs the process fan-out's 8 levels with ``m`` up to 20 and the same
-    propagated uncertainty.
+    levels: log-log slope ``-6.007 \pm 0.001`` over the resolved pair
+    ``m \in \{2, 5\}`` *[PRELIMINARY]*. Since the all-dimension 2:1 closure the
+    ``m = 10`` residual is RESOLVED as well — headroom 26.4 against its own
+    level-to-level difference, where it was 2.8 before — and the ``\{5, 10\}``
+    slope is a measurement rather than a resolution artefact: ``-6.356 \pm
+    0.056``, OUTSIDE the ``-6 \pm 0.3`` band that ``\{2, 5\}`` sits dead on.
+    The residual STEEPENS with ``m`` over this range instead of settling at
+    ``-6``. The ``m^{-6}`` claim is therefore *[HOLE]*, and no longer for want of
+    resolution: the resolved large-``m`` slope disagrees. Only the ``\{2, 5\}``
+    pair is gated; which limit the sequence approaches is what the fan-out's
+    ``m`` up to 20 at full depth has to say.
 
 - **Extraction — the total force and its large-``m`` tail**
   (`total_self_force`, `TotalSelfForce`, `mode_sum_tail`, `ModeSumTail`,
@@ -418,20 +439,20 @@ formulation and consumes the physics-free hp-DG solver stack from
     the tail costs a factor 3–9 in every deviation
     (``3.9\times10^{-7} \to 3.6\times10^{-6}``, …,
     ``6.4\times10^{-6} \to 3.4\times10^{-5}``), and the tail shrinks the drift
-    of the total between ``m_\mathrm{max} = 10`` and ``20`` by a factor 4.6–5.4.
+    of the total between ``m_\mathrm{max} = 10`` and ``20`` by a factor 4.6–5.9.
     It exceeds the paper's own omit-the-largest-``m`` truncation estimator by
-    3.48–3.52, against the ``m_\mathrm{max}/(p-1) = 3.90`` – ``3.94`` the model
+    3.48–3.53, against the ``m_\mathrm{max}/(p-1) = 3.88`` – ``3.94`` the model
     predicts — which is the "constant offset" main.tex:724 reports between its
     truncation model and its true error.
   - Decay exponents at the same configuration, fitted on ``m = 15``–``20`` at
-    every spin: the UNREGULARIZED ``F_r^m`` gives ``-4.071`` … ``-4.057`` with a
-    propagated ``\pm0.0075`` … ``\pm0.0098``, where the printed ``F^m_{r[4]}``
+    every spin: the UNREGULARIZED ``F_r^m`` gives ``-4.077`` … ``-4.057`` with a
+    propagated ``\pm0.0068`` … ``\pm0.0098``, where the printed ``F^m_{r[4]}``
     shape itself gives ``-4.017`` over the same modes *[SOLID]*. The REGULARIZED
-    residual gives ``-6.133`` … ``-6.079`` against the printed ``F^m_{r[6]}``
-    shape's ``-6.060`` — a deviation of ``0.019``–``0.073``, four times smaller
+    residual gives ``-6.150`` … ``-6.079`` against the printed ``F^m_{r[6]}``
+    shape's ``-6.060`` — a deviation of ``0.019``–``0.090``, four times smaller
     than before the 2:1 closure *[PRELIMINARY: the central value now lands inside
     the regularization node's ``-6 \pm 0.3`` band at every spin, but the
-    propagated uncertainty is ``\pm0.38`` … ``\pm0.64``, so the exponent is not
+    propagated uncertainty is ``\pm0.31`` … ``\pm0.64``, so the exponent is not
     RESOLVED and that ASYMPTOTIC gate is still not discharged]*.
   - The total's numerical-resolution error is the difference of two COMPLETE
     totals, not of two partial sums: the penultimate level's per-mode values are
@@ -442,9 +463,9 @@ formulation and consumes the physics-free hp-DG solver stack from
     cancel, which is the paper's own definition; `resolution_error_bound` makes
     the opposite worst-case assumption and the truth is bracketed by the two.
   - One place where our budget does not reproduce the paper's: at 9 AMR grids
-    the total's numerical-resolution error (``8.6\times10^{-11}`` –
-    ``1.0\times10^{-10}``) is 2–4 times LARGER than the finite-``m`` truncation
-    estimator (``2.7`` – ``5.4\times10^{-11}``), whereas main.tex:723 reports
+    the total's numerical-resolution error (``1.56`` –
+    ``1.64\times10^{-10}``) is 2.8–5.8 times LARGER than the finite-``m``
+    truncation estimator (``2.8`` – ``5.6\times10^{-11}``), whereas main.tex:723 reports
     resolution pushed well below truncation. The two estimators count
     differently: the truncation estimator is ONE ``m^{-6}``-suppressed mode
     (``3.8\times10^{-11}`` at ``a = 0``), while the resolution error ACCUMULATES
@@ -456,22 +477,29 @@ formulation and consumes the physics-free hp-DG solver stack from
     ``-5.0\times10^{-12}`` at ``m = 10`` and ``-6.7\times10^{-12}`` at
     ``m = 20``, so they do NOT grow with ``m``
     *[SOLID as a measurement; why the paper's budget orders the other way is not
-    established]*.
+    established]*. *[HOLE: the three per-mode ``\Delta_m`` quoted in the previous
+    sentence are the only numbers in this section that no artefact of the current
+    tree re-states — the row's own summary and its evidence file disagree on
+    their signs — so they are a claim about shape, not values to gate on.]*
   - Read the other way round, ``|F_r - F_r^{\rm WB}|`` divided by the coherent
     resolution error is ``0.12``, ``0.23``, ``0.11``, ``0.16``, ``0.15`` across
-    the five spins, and ``0.45``–``0.85`` against the truncation estimator: after
+    the five spins, and ``0.34``–``0.85`` against the truncation estimator: after
     the 2:1 closure the deviation from the printed table sits **inside both
     budgeted terms** at every spin, where before it was of the size of one more
     AMR step *[SOLID]*.
   - **A second, independent external gate: the dissipative component.**
     `total_self_force` also returns ``F_t = \sum_m F_t^m`` (and
     ``F_\varphi = -F_t/\Omega``), which needs NO regularization and NO tail —
-    the dissipative mode sum converges GEOMETRICALLY (last-mode ratio ``0.19``,
-    truncation ``\sim10^{-9}`` relative). Against Warburton–Barack Table II
+    the dissipative mode sum converges GEOMETRICALLY (successive ratio ``0.19``
+    over the RESOLVED window ``m = 5 \to 10``; by ``m = 20`` ``|F_t^m|`` has
+    reached its own ``\sim10^{-14}`` floor and the last-mode ratio is noise,
+    truncation ``10^{-10}``–``10^{-9}`` relative). Against Warburton–Barack Table II
     (`Warburton.tex:580`, NINE significant figures) at the same five spins the
     relative deviations are ``1.31``, ``1.54``, ``0.33``, ``0.67``,
     ``3.11 \times10^{-8}`` — two orders tighter than ``F_r`` *[SOLID]*. Its
-    per-mode resolution deltas are ``56\times`` smaller than ``F_r``'s, which is
+    per-mode resolution deltas are ``88\times`` smaller than ``F_r``'s (mean
+    ``|\Delta F_t^m| = 1.7\times10^{-13}`` against ``1.5\times10^{-11}`` at
+    ``a = 0``), which is
     why the conservative component is the one that binds and why the ``F_r``
     residual localizes to the regularization and tail side rather than to the
     solve or the extraction.
@@ -510,9 +538,12 @@ formulation and consumes the physics-free hp-DG solver stack from
   JIT for its first solve and 45 s more for its first AMR step, against
   15.9 s for a warm 8-level sweep, so several sweeps must share one pool.
   The fan-out is **JIT-bound, not solve-bound**, and its cost has three
-  regimes — only the third is a win. Measured on this tree for the paper's
+  regimes — only the third is a win. Measured for the paper's
   full ``m = 0\ldots20`` sweep at ``a = 0.5``, ``r_0 = 10M`` through 8 AMR
-  levels (single run, 256-core shared host, **[PRELIMINARY]**):
+  levels (single run, 256-core shared host, **[PRELIMINARY]**) — and, like the
+  iteration table below, taken BEFORE the multigrid-hierarchy adoption and the
+  all-dimension 2:1 closure, so the absolute wall times are those of a tree that
+  no longer exists and only the RATIOS between the three regimes are claimed:
 
   | regime | wall | vs. serial |
   |---|---|---|
@@ -631,6 +662,52 @@ Planned, each landing written test-first once it is grounded: the rest of
   without the hold and CONVERGES 9.5 → 5.5 with it, while the maximum over the
   rest of the plane is unchanged to every printed digit; the full tables are in
   the node's evidence.
+
+## Measured on the CRP exemplar (as of `13ea24c`, audited at `fafb189`)
+
+Every measured number on this page belongs to ONE reference point unless its own
+sentence names another, and this section is the single place where that point is
+stated — refresh it here when the pipeline moves.
+
+- **Exemplar.** ``a = 0.5``, ``r_0 = 10M``, ``m = 2`` (``m = 1`` where an
+  extraction value is quoted), ``P = 4``, ``L = 0``, the production
+  `crp_paper_config` — the paper's own input file `anc/ScalarSelfForce.yaml:8-12`.
+- **Lattice.** Two of them, and every mesh-derived number says which. The
+  PRODUCTION half domain (`ImposeEquatorialSymmetry: True`, yaml:36) runs
+  20 elements / 320 dofs at grid 0; the lattice the paper's own FIGURES were made
+  on is the FULL-``z`` one (`equatorial_symmetry = false`), 30 / 480 at grid 0 —
+  an erratum against the shipped yaml, established by vector extraction of two
+  published figures and recorded in the mission `ERRATA_found.md`.
+- **Anchoring commit.** GRTools `13ea24c` — the 2:1 refinement-decision closure
+  bound in EVERY dimension, together with spectre's `:mean` per-level reduction.
+  It moved every mesh-derived count and every per-level force value; anything on
+  this page that predates it is marked in place.
+- **Sources of record**, in the order a reader should trust them: the package
+  suites' own pins (`capabilities/ScalarSelfForce/test/test_driver.jl`,
+  `test_amr_driver.jl`, `test_modesum.jl`, `test_selfforce.jl`,
+  `test_parallel.jl`), the reproduction goldens
+  (`reproduce/arXiv-2606.04998/expected/*.json`, each stamped with the commit it
+  was generated at) and the paper's own printed values.
+
+The AMR sweep over the production half domain, which several bullets above quote:
+
+| grid | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|---|
+| elements | 20 | 30 | 36 | 42 | 48 | 54 | 60 | 66 | 72 |
+| dofs | 320 | 632 | 1014 | 1506 | 2120 | 2868 | 3762 | 4814 | 6036 |
+| GMRES | 1 | 7 | 6 | 5 | 5 | 4 | 4 | 4 | 3 |
+
+(`reproduce/arXiv-2606.04998/expected/fig_linsolv.json`, keys `prod_*`, generated
+at `13ea24c`; the eight-grid sweep the bullets describe is its first eight
+columns.) On the paper's own full-``z`` lattice the same sweep reproduces the
+PUBLISHED grid sequence exactly — 480, 975, 1604, 2427, 3468, 4751, 6300 points
+in 30, 47, 59, 71, 83, 95, 107 elements — with the staircase
+1, 7, 6, 5, 4, 3, 3, 3 against the published 1, 7, 6, 5, 4, 3, 3, 2.
+
+**Not refreshed at that commit, and marked where they appear:** the process
+fan-out's wall-clock table and its pre-closure per-``m`` iteration table were
+measured at `00c9abb`, before the multigrid-hierarchy adoption (`fdcd919`) and
+before `13ea24c`.
 
 ## Conventions (locked package-wide)
 

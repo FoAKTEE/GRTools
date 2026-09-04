@@ -1,3 +1,7 @@
+```@meta
+CurrentModule = EllipticCore
+```
+
 # EllipticCore
 
 Generic complex-parametric 2D hp-DG elliptic solver — a Tier-1 core stratum with
@@ -192,20 +196,32 @@ The solver stack, bottom to top:
   drives both halves of a step; `hold` is a keyword, and named for what it
   does, because its polarity is the opposite of `h_refine`'s "split these".
   [`hp_refine`](@ref) is the full AMR step from that one criterion — literally
-  `h_refine(p_refine(mesh; hold = flags), flags)` — and
+  `h_refine(p_refine(mesh; hold = closed), closed)` with
+  `closed = `[`balanced_flags`](@ref)`(mesh, flags)`, the caller's criterion
+  after the two-to-one decision closure; passing the RAW flags to the `p` half
+  would p-increment the elements the balance rule splits, which spectre does not
+  (it replaces the per-dimension flag by `Split`) — and
   [`transfer_solution`](@ref) carries the previous level's nodal solution over
   by Lagrange interpolation (exact on every polynomial the source element
   represents, across an h step, a p step, or the two combined; an order
   *decrease* is refused, since nodal interpolation onto fewer points is not the
   L2 projection).
 
-  The 2:1 closure follows the CRP's own solver input
-  (`anc/ScalarSelfForce.yaml:145`, `Isotropy: Anisotropic`): only the offending
-  dimension of a violating pair is split, and the dimensions marked in one sweep
-  are applied together, matching spectre's `amr::update_amr_decision` fixpoint
-  over pre-split decisions followed by a single domain adjustment. That is not
-  the *minimal* closure — a one-split-at-a-time alternative yields up to 16.7 %
-  fewer elements — but it is the algorithm the paper ran.
+  The 2:1 closure exists at two levels, and they are not the same rule.
+  [`balance_two_to_one`](@ref) closes a LEAF SET: it marks only the offending
+  dimension of a violating pair (`anc/ScalarSelfForce.yaml:145`,
+  `Isotropy: Anisotropic`), and the dimensions marked in one sweep are applied
+  together. [`balanced_flags`](@ref) closes the DECISION set that
+  [`hp_refine`](@ref) then applies, and its dimension loop runs over EVERY
+  dimension of every face neighbour — spectre's `amr::update_amr_decision`
+  (`UpdateAmrDecision.cpp:33-37`) skips one only when
+  `EnforceTwoToOneBalanceInNormalDirection` is FALSE, and the CRP sets it True
+  (yaml:146). Closing the normal direction alone under-splits: with the loop
+  bound in every dimension the CRP's own hp-AMR sweep reproduces the published
+  grid sequence exactly, level by level, 480, 975, 1604, 2427, 3468, 4751, 6300
+  points in 30, 47, 59, 71, 83, 95, 107 elements, with no fitted constant. That
+  is still not the *minimal* closure — a one-split-at-a-time alternative yields
+  up to 16.7 % fewer elements — but it is the algorithm the paper ran.
 
 ## Conventions
 

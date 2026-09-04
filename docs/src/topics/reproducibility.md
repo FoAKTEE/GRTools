@@ -207,8 +207,14 @@ is a visible skip, a `[[result]]` row that is not `solid`, or a `FIXTURES.toml` 
   alongside the solid ones; the `status` column is the honest state, and a `preliminary` row means
   the driver runs and its golden is stable, *not* that the physics claim is settled. It mirrors the
   mission knowledge ledger — promote the node first, then the row.
-* **arXiv:2606.04998 (elliptic scalar self-force) has no drivers yet.** The `EllipticCore` solver
-  stack is still being built; its figure drivers are a `future` node.
+* **arXiv:2606.04998 (elliptic scalar self-force) is reproduced for five of its seven figures.**
+  `fig:domain`, `fig:matrix`, `fig:convergence`, `fig:modes` and `fig:linsolv` have drivers,
+  goldens and `[[result]]` rows (all `heavy`, so CI does not run them); `fig:ssf_error_budget` is a
+  later node and `fig:precond` is not claimed. Two of the landed rows are `preliminary` for
+  measured reasons — the published grid sizes depend on `m` where ours cannot, `fig:linsolv`'s
+  finest grid takes one iteration more than the published one, and GMRES stagnates at `m = 19, 20`
+  on the published `a = 0.998`, `r0 = 2M` panel. See
+  [Reproducing arXiv:2606.04998](reproducing-2606.04998.md) for the map and the full hole list.
 
 ## Related pages
 
