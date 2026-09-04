@@ -475,15 +475,19 @@ end
 # m ∈ {0, 1, 2, 5, 10} at 6 AMR levels; after subtracting F^m_{r[4]} (through
 # `mmode_reg_term_Fr`, which owns the m = 0 halving) the residual should fall like m^{-6}.
 #
-# ROW 45's GATE IS **NOT** DISCHARGED HERE and this file does not claim it is. What IS gated is
-# the slope over the pair of modes whose residuals are RESOLVED at 6 levels — a point is
-# resolved when |residual| is at least SF_SLOPE_HEADROOM times the level-to-level difference —
-# together with the uncertainty that difference propagates into the slope. The largest-m point
-# available here (m = 10) does NOT meet that bar at 6 levels; its slope is printed with its
-# uncertainty and is not asserted. A discharge of row 45 needs the row-47 fan-out: 8 levels,
-# m up to 20, and this same propagated uncertainty.
+# ROW 45's GATE IS **NOT** DISCHARGED HERE and this file does not claim it is — but the REASON
+# changed when the 2:1 closure was bound in every dimension (row 43). A point counts as resolved
+# when |residual| is at least SF_SLOPE_HEADROOM times its own level-to-level difference. At the
+# previous mesh sequence m = 10 sat at headroom 2.8 and every fit through it was
+# resolution-limited. It is now at ~26, so the m ∈ {5, 10} slope is a RESOLVED measurement —
+# and it comes out near −6.36 with a propagated uncertainty of ~0.06, i.e. OUTSIDE the
+# −6 ± 0.3 band, while m ∈ {2, 5} sits at −6.007 ± 0.001, dead on it. Read together those two
+# say the residual STEEPENS with m over this range rather than settling at −6, which is
+# consistent with −6 plus a subleading correction but is not a measurement of −6. So the gate
+# stays on the {2, 5} pair, the {5, 10} slope is printed with its uncertainty and NOT asserted,
+# and row 45 still needs the row-47 fan-out (8 levels, m to 20) to say which limit it is.
 
-@testset "(e) m-sweep: the Heffernan-subtracted residual decay, on resolved modes only" begin
+@testset "(e) m-sweep: the Heffernan-subtracted residual decay" begin
     ms = (0, 1, 2, 5, 10)
     frs, res, ldiff = Float64[], Float64[], Float64[]
     for m in ms
@@ -527,9 +531,17 @@ end
     @test headroom[4] >= SF_SLOPE_HEADROOM
     @test d25 <= SF_SLOPE_SIGMA_MAX
     @test abs(s25 - SF_SLOPE_TARGET) <= SF_SLOPE_BAND
-    # NOT gated, printed above: m = 10's residual and every fit that uses it. Recorded here as
-    # the reason — it is a [FUTURE] obligation on row 45, not a passing gate.
-    @test headroom[5] < SF_SLOPE_HEADROOM || d510 <= SF_SLOPE_SIGMA_MAX
+    # NOT gated, printed above: every fit through m = 10. It is now RESOLVED (headroom well past
+    # SF_SLOPE_HEADROOM) and its slope is precise (sigma well under SF_SLOPE_SIGMA_MAX) — which
+    # is exactly why it must not be asserted against −6 ± 0.3: it lands outside that band, and
+    # that is a measurement to report, not a gate to satisfy. What IS asserted is that the point
+    # is trustworthy on its own terms, so the disagreement cannot be blamed on resolution.
+    @test headroom[5] >= SF_SLOPE_HEADROOM
+    @test d510 <= SF_SLOPE_SIGMA_MAX
+    @printf("mode-self-force (e) FINDING: the m∈{5,10} slope is RESOLVED (headroom %.1f, \
+             sigma %.4f) at %+.4f — outside the -6 +- %.1f band that m∈{2,5} sits dead on. The \
+             residual steepens with m over this range; row 45 stays [FUTURE]\n",
+            headroom[5], d510, s510, SF_SLOPE_BAND)
     # the raw (unsubtracted) sequence is NOT monotone at small m — m = 0 and m = 1 dominate
     @test abs(frs[1]) > abs(frs[3]) && abs(frs[2]) > abs(frs[3])
 end
@@ -601,8 +613,18 @@ end
 #
 # GRID CORRESPONDENCE: spectre's iteration 0 is its un-solved initial guess; its iteration 1 is
 # the first solve on the 480-point mesh (our AMR level 0); its iteration 2 is the mesh after one
-# AMR step (our AMR level 1) — where the two grids DIVERGE, 921 points against 975, so spectre's
-# own tolerance is not the right criterion there and that grid is reported, not gated.
+# AMR step (our AMR level 1). Since the 2:1 closure was bound in EVERY dimension (row 43) BOTH
+# of those are matching grids — 480 points in 30 elements and 975 in 47, spectre's own sizes —
+# so BOTH published rows are compared here, and both are gated. That is the strongest check
+# this node has: two identical discrete problems, not one.
+#
+# THE TWO GRIDS SAY DIFFERENT THINGS, and the difference is the point. At grid 0 the residual is
+# AT the printed floor (both components ~5.0e-9 = the half-ULP of four significant figures), so
+# it is bounded, not resolved. At grid 1 it is RESOLVED: ~7.7e-8 and ~1.5e-7, several times the
+# printed ULP, still inside spectre's own 2e-7 reproducibility tolerance but no longer a
+# printing artefact. Grid 1 is therefore gated at spectre's tolerance and NOT at the printed
+# floor — the floor is a statement grid 1 does not support, and it is reported as such rather
+# than asserted away.
 const SF_FULLZ_ITER1 = (-9.183e-5, 9.451e-5)      # spectre [1, 480, 4]
 const SF_FULLZ_ITER2 = (-1.365e-4, 9.138e-5)      # spectre [2, 975, 4]
 const SF_SPECTRE_PRINTED_ULP = 1.0e-8   # the last printed digit of the reference rows
@@ -681,23 +703,39 @@ sf_fullz(bounds) = crp_paper_config(; spin = 0.5, orbital_radius = 10.0, m_mode 
     # elements have different ids, offsets and hence different summation order.
     @test length(unique(round.(per; sigdigits = 12))) == 2
 
-    # (iii) GRID 1: ours 921 points against spectre's 975 — the grids DIVERGE here, so this is
-    # REPORTED, not gated. The cause is 2:1 BALANCE CLOSURE, not coarsening (neither criterion
-    # ever emits Join): spectre's 975 decomposes as 20x(4,4) + 4x(4,5) + 23x(5,5)
-    # = 320 + 80 + 575 over 47 elements, with block (1,1) split in BOTH dimensions and block
-    # (3,1) split in r while carrying p+1 in theta. Ours performs only one of those three
-    # closure splits, because our balancer checks the face-normal dimension alone — a row-43
-    # defect, in flight there, not an extraction one.
+    # (iii) GRID 1 == spectre iteration 2, ALSO a matching grid since the 2:1 closure was bound
+    # in every dimension: 975 points in 47 elements, decomposing as
+    # 20x(4,4) + 4x(4,5) + 23x(5,5) = 320 + 80 + 575, with block (1,1) split in BOTH dimensions
+    # and block (3,1) split in r while carrying p+1 in theta. Neither criterion ever emits Join,
+    # so no coarsening is involved on either side.
     ScalarSelfForce.amr_step!(sol; flags = amr_flags(sol),
                               options = amr_level_options(cfg, 1))
     f1 = mode_self_force(sol)
+    @test sol.mesh.ndofs == 975                    # spectre's own grid size, element for element
+    @test length(sol.mesh.elements) == 47
+    @test f1.reduction === :mean && length(f1.elements) == 4
     d1re = abs(real(f1.Fr_complex) - SF_FULLZ_ITER2[1])
     d1im = abs(imag(f1.Fr_complex) - SF_FULLZ_ITER2[2])
-    @printf("mode-self-force (h) observed grid 1 (%d pts against spectre's 975, %d elements): \
-             %+.12e %+.12e im ; spectre iter 2 %+.4e %+.4e ; dRe %.5e dIm %.5e — DIFFERENT \
-             grids, reported not gated\n", sol.mesh.ndofs, length(sol.mesh.elements),
-            real(f1.Fr_complex), imag(f1.Fr_complex), SF_FULLZ_ITER2..., d1re, d1im)
-    @test sol.mesh.ndofs > 480 && f1.reduction === :mean
+    @printf("mode-self-force (h) observed MATCHING grid 1 (%d pts = spectre's, %d elements, \
+             mean of %d): %+.12e %+.12e im ; spectre iter 2 %+.4e %+.4e ; dRe %.5e dIm %.5e \
+             (their atol %.1e ; printed ULP %.1e)\n", sol.mesh.ndofs,
+            length(sol.mesh.elements), length(f1.elements), real(f1.Fr_complex),
+            imag(f1.Fr_complex), SF_FULLZ_ITER2..., d1re, d1im, SF_SPECTRE_ATOL,
+            SF_SPECTRE_PRINTED_ULP)
+    # GATED at spectre's OWN reproducibility tolerance, which both components meet.
+    @test d1re <= SF_SPECTRE_ATOL
+    @test d1im <= SF_SPECTRE_ATOL
+    # ... and NOT at the printed floor, which grid 1 does not meet: unlike grid 0 the residual
+    # here is RESOLVED above the printed digits, so the two codes genuinely differ by ~1e-7 on
+    # this mesh. Reported, never tuned; it is the honest limit of the comparison.
+    @printf("mode-self-force (h) FINDING: at the matching 975-point grid the residual is \
+             RESOLVED, %.2fx and %.2fx the printed ULP (grid 0 sat AT the floor), while still \
+             inside spectre's own %.1e — the codes differ measurably on this mesh\n",
+            d1re / SF_SPECTRE_PRINTED_ULP, d1im / SF_SPECTRE_PRINTED_ULP, SF_SPECTRE_ATOL)
+    per1 = [mode_self_force(sol; element = e).Fr for e in f1.elements]
+    @printf("mode-self-force (h) observed grid-1 per-element traces Re(F_r): %s ; spread %.4e\n",
+            join((@sprintf("%+.9e", v) for v in per1), " "), maximum(per1) - minimum(per1))
+    @test length(unique(round.(per1; sigdigits = 12))) == 2
 
     # (iv) THE CONTRAST that isolates the cause: the same code on the CRP production bounds
     solc = solve_mode(SF_ORB, sf_fullz(nothing), 1)
