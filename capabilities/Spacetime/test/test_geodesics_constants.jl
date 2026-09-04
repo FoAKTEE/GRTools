@@ -5,6 +5,7 @@
 using Test
 using Spacetime
 include(joinpath(@__DIR__, "fixtures", "spacetime_constants_ref.jl"))  # const CONSTANTS_REF
+include(joinpath(@__DIR__, "fixtures", "spacetime_circeq_p2_prefix_ref.jl"))  # const CIRCEQ_P2_PREFIX_PIN
 
 @testset "Geodesics: constants of motion" begin
     # Representative (a,p,e,x): a=0 Schwarzschild, circular e=0, equatorial x=1, generic inclined,
@@ -201,70 +202,14 @@ end
     end
 
     # (b) BITWISE NEUTRALITY. Every other (a, p, e, x) must reproduce the PRE-FIX value under
-    # `===`. Captured from commit 5243f42 in a detached worktree before this node edited
-    # anything. The last three rows are p = 2 on branches the fix must NOT touch (inclined
-    # x = 0.5 and x = 0.9 circular, eccentric e = 0.2 equatorial).
+    # `===`. The 55 rows live in test/fixtures/spacetime_circeq_p2_prefix_ref.jl, captured from
+    # commit 5243f42 in a detached worktree before this node edited anything by the tracked
+    # capture script test/fixtures/capture/capture_circeq_p2_prefix.jl (see FIXTURES.toml). The
+    # last three rows are p = 2 on branches the fix must NOT touch (inclined x = 0.5 and x = 0.9
+    # circular, eccentric e = 0.2 equatorial).
     @testset "bitwise-identical to the pre-fix Schmidt evaluation away from the singularity" begin
-        pre_fix_pin = [
-        # --- circular equatorial (e = 0, x = ±1), away from p = 2 ---
-        (a = 0.0, p = 6.0, e = 0.0, x = 1.0, E = 0.9428090415820634, Lz = 3.464101615137755, Q = 0.0),
-        (a = 0.0, p = 6.0, e = 0.0, x = -1.0, E = 0.9428090415820634, Lz = -3.464101615137755, Q = 0.0),
-        (a = 0.0, p = 10.0, e = 0.0, x = 1.0, E = 0.9561828874675149, Lz = 3.7796447300922735, Q = 0.0),
-        (a = 0.0, p = 10.0, e = 0.0, x = -1.0, E = 0.9561828874675149, Lz = -3.7796447300922735, Q = 0.0),
-        (a = 0.5, p = 2.5, e = 0.0, x = 1.0, E = 1.4184247781443615, Lz = 5.406167605043682, Q = 0.0),
-        (a = 0.5, p = 3.0, e = 0.0, x = 1.0, E = 0.9791813544770079, Lz = 3.2980591876185925, Q = 0.0),
-        (a = 0.5, p = 6.0, e = 0.0, x = 1.0, E = 0.9296817250679497, Lz = 3.051450949862335, Q = 0.0),
-        (a = 0.5, p = 6.0, e = 0.0, x = -1.0, E = 0.9625863042965734, Lz = -4.006427531603818, Q = 0.0),
-        (a = 0.5, p = 10.0, e = 0.0, x = 1.0, E = 0.9537754836255025, Lz = 3.5893904590904584, Q = 0.0),
-        (a = 0.5, p = 10.0, e = 0.0, x = -1.0, E = 0.9592011926920925, Lz = -4.000011893806728, Q = 0.0),
-        (a = -0.5, p = 2.5, e = 0.0, x = -1.0, E = 1.4184247781443615, Lz = -5.406167605043682, Q = 0.0),
-        (a = -0.5, p = 3.0, e = 0.0, x = -1.0, E = 0.9791813544770079, Lz = -3.2980591876185925, Q = 0.0),
-        (a = -0.5, p = 6.0, e = 0.0, x = 1.0, E = 0.9625863042965734, Lz = 4.006427531603818, Q = 0.0),
-        (a = -0.5, p = 6.0, e = 0.0, x = -1.0, E = 0.9296817250679497, Lz = -3.051450949862335, Q = 0.0),
-        (a = -0.5, p = 10.0, e = 0.0, x = 1.0, E = 0.9592011926920925, Lz = 4.000011893806728, Q = 0.0),
-        (a = -0.5, p = 10.0, e = 0.0, x = -1.0, E = 0.9537754836255025, Lz = -3.5893904590904584, Q = 0.0),
-        (a = 0.9, p = 1.9, e = 0.0, x = 1.0, E = 0.8841158772165063, Lz = 2.249118203605822, Q = 0.0),
-        (a = 0.9, p = 2.5, e = 0.0, x = 1.0, E = 0.8463300697960878, Lz = 2.1095807456750633, Q = 0.0),
-        (a = 0.9, p = 3.0, e = 0.0, x = 1.0, E = 0.8606311772539785, Lz = 2.188259195548883, Q = 0.0),
-        (a = 0.9, p = 6.0, e = 0.0, x = 1.0, E = 0.9225996262796217, Lz = 2.7942783614832116, Q = 0.0),
-        (a = 0.9, p = 6.0, e = 0.0, x = -1.0, E = 0.9853496579901126, Lz = -4.564553289908999, Q = 0.0),
-        (a = 0.9, p = 10.0, e = 0.0, x = 1.0, E = 0.9522402386495982, Lz = 3.457299296190152, Q = 0.0),
-        (a = 0.9, p = 10.0, e = 0.0, x = -1.0, E = 0.962112819266394, Lz = -4.199774823890682, Q = 0.0),
-        (a = -0.9, p = 1.9, e = 0.0, x = -1.0, E = 0.8841158772165063, Lz = -2.249118203605822, Q = 0.0),
-        (a = -0.9, p = 2.5, e = 0.0, x = -1.0, E = 0.8463300697960878, Lz = -2.1095807456750633, Q = 0.0),
-        (a = -0.9, p = 3.0, e = 0.0, x = -1.0, E = 0.8606311772539785, Lz = -2.188259195548883, Q = 0.0),
-        (a = -0.9, p = 6.0, e = 0.0, x = 1.0, E = 0.9853496579901126, Lz = 4.564553289908999, Q = 0.0),
-        (a = -0.9, p = 6.0, e = 0.0, x = -1.0, E = 0.9225996262796217, Lz = -2.7942783614832116, Q = 0.0),
-        (a = -0.9, p = 10.0, e = 0.0, x = 1.0, E = 0.962112819266394, Lz = 4.199774823890682, Q = 0.0),
-        (a = -0.9, p = 10.0, e = 0.0, x = -1.0, E = 0.9522402386495982, Lz = -3.457299296190152, Q = 0.0),
-        (a = 0.998, p = 1.9, e = 0.0, x = 1.0, E = 0.7673689196223052, Lz = 1.6546293484694026, Q = 0.0),
-        (a = 0.998, p = 2.5, e = 0.0, x = 1.0, E = 0.8193693044494106, Lz = 1.8737109831683405, Q = 0.0),
-        (a = 0.998, p = 3.0, e = 0.0, x = 1.0, E = 0.8477143209755932, Lz = 2.0303872428276937, Q = 0.0),
-        (a = 0.998, p = 6.0, e = 0.0, x = 1.0, E = 0.9212350826689453, Lz = 2.739722458617393, Q = 0.0),
-        (a = 0.998, p = 6.0, e = 0.0, x = -1.0, E = 0.9921792037808781, Lz = -4.722477702716197, Q = 0.0),
-        (a = 0.998, p = 10.0, e = 0.0, x = 1.0, E = 0.9519128613708321, Lz = 3.4275270765924644, Q = 0.0),
-        (a = 0.998, p = 10.0, e = 0.0, x = -1.0, E = 0.9628998146930459, Lz = -4.252091602776, Q = 0.0),
-        (a = -0.998, p = 1.9, e = 0.0, x = -1.0, E = 0.7673689196223052, Lz = -1.6546293484694026, Q = 0.0),
-        (a = -0.998, p = 2.5, e = 0.0, x = -1.0, E = 0.8193693044494106, Lz = -1.8737109831683405, Q = 0.0),
-        (a = -0.998, p = 3.0, e = 0.0, x = -1.0, E = 0.8477143209755932, Lz = -2.0303872428276937, Q = 0.0),
-        (a = -0.998, p = 6.0, e = 0.0, x = 1.0, E = 0.9921792037808781, Lz = 4.722477702716197, Q = 0.0),
-        (a = -0.998, p = 6.0, e = 0.0, x = -1.0, E = 0.9212350826689453, Lz = -2.739722458617393, Q = 0.0),
-        (a = -0.998, p = 10.0, e = 0.0, x = 1.0, E = 0.9628998146930459, Lz = 4.252091602776, Q = 0.0),
-        (a = -0.998, p = 10.0, e = 0.0, x = -1.0, E = 0.9519128613708321, Lz = -3.4275270765924644, Q = 0.0),
-        # --- other branches (inclined circular, eccentric equatorial, polar) ---
-        (a = 0.9, p = 10.0, e = 0.0, x = 0.5, E = 0.9538433478686694, Lz = 1.7955565292763689, Q = 9.726855841624962),
-        (a = 0.5, p = 7.0, e = 0.0, x = 0.3, E = 0.9419868559907482, Lz = 1.0146170980765363, Q = 10.434491975785827),
-        (a = -0.7, p = 12.0, e = 0.4, x = 0.6, E = 0.9669180949945181, Lz = 2.389883252673195, Q = 10.174258138914741),
-        (a = 0.9, p = 10.0, e = 0.1, x = 0.5, E = 0.9542699747531124, Lz = 1.7964716981097308, Q = 9.736223241613233),
-        (a = 0.998, p = 6.0, e = 0.2, x = 0.8, E = 0.9263968995765239, Lz = 2.2696367957704515, Q = 2.9484187821323125),
-        (a = 0.0, p = 8.0, e = 0.3, x = 1.0, E = 0.95253975012074, Lz = 3.6103494592521925, Q = 0.0),
-        (a = 0.9, p = 10.0, e = 0.0, x = 0.0, E = 0.9559116358210666, Lz = 0.0, Q = 14.175086162300348),
-        (a = 0.9, p = 10.0, e = 0.2, x = 0.0, E = 0.9574725410737306, Lz = 0.0, Q = 14.25031969387193),
-        (a = 0.998, p = 2.0, e = 0.0, x = 0.5, E = 1.0124596764364187, Lz = 1.601177715351133, Q = 7.672579429669359),
-        (a = 0.998, p = 2.0, e = 0.2, x = 1.0, E = 0.7859903523518139, Lz = 1.7057174336893255, Q = 0.0),
-        (a = 0.9, p = 2.0, e = 0.0, x = 0.9, E = 0.9069632892440683, Lz = 2.1923468967595356, Q = 1.1547281896117398),        ]
-        @test length(pre_fix_pin) == 55
-        for r in pre_fix_pin
+        @test length(CIRCEQ_P2_PREFIX_PIN) == 55
+        for r in CIRCEQ_P2_PREFIX_PIN
             @test geodesic_energy(r.a, r.p, r.e, r.x)           === r.E
             @test geodesic_angular_momentum(r.a, r.p, r.e, r.x) === r.Lz
             @test carter_constant(r.a, r.p, r.e, r.x)           === r.Q
@@ -283,17 +228,33 @@ end
     end
 
     # Float64 continuity through p = 2 from both sides. NOTE the generic Schmidt form loses about
-    # log10|p−2|⁻¹ digits in a NEIGHBOURHOOD of the singularity (measured relative error in Lz vs
-    # a 256-bit evaluation, a = 0.998: 1.1e−14 at |p−2| = 1e−2, 6.2e−11 at 1e−6, 1.5e−6 at 1e−10)
-    # — an accuracy-only defect of the untouched generic form, not a NaN, and out of this node's
-    # scope; closing it would mean re-evaluating every equatorial radius. Hence the tolerance
-    # below is the physical variation 100·|p−2| (measured budget use 0.196), not machine epsilon.
+    # log10|p−2|⁻¹ digits in a NEIGHBOURHOOD of the singularity, and the loss runs all the way to
+    # TOTAL: measured relative error of Lz against a 256-bit evaluation at a = 0.998 is 1.1e−14 at
+    # |p−2| = 1e−2, 6.2e−11 at 1e−6, 1.5e−6 at 1e−10 — and 11 % at `nextfloat(2.0)` (Lz =
+    # 1.4999999999999998) and 77 % at `prevfloat(2.0)` (Lz = 3.0000000000000004). Those neighbours
+    # are silently FINITE and identically wrong before and after this fix; only p == 2 itself is
+    # repaired. Hence the tolerance below is the physical variation 100·|p−2| (measured budget use
+    # 0.196), not machine epsilon, and the smallest offset tested is 1e−6 — a tighter d would be
+    # gating the generic form's conditioning, which this node does not own.
     @testset "continuous through p = 2 in Float64: a = $a" for a in p2_spins
         c2 = constants_of_motion(a, 2.0, 0.0, 1.0)
         for d in (1e-4, 1e-6), p in (2.0 - d, 2.0 + d)
             c = constants_of_motion(a, p, 0.0, 1.0)
             @test isapprox(c.E,  c2.E;  rtol = 100d)
             @test isapprox(c.Lz, c2.Lz; rtol = 100d)
+        end
+    end
+
+    # The immediate float neighbours of p = 2 are the far end of that conditioning loss: the
+    # values are catastrophically wrong (11 % / 77 % at a = 0.998) yet perfectly finite, both
+    # before and after this fix. Nothing here pins those wrong values — a future node closing the
+    # neighbourhood must be free to change them — but they must never become NaN or Inf again, and
+    # E, whose branch has no such factor, must stay accurate right through the point.
+    @testset "the float neighbours of p = 2 stay finite (their ACCURACY is a known hole)" begin
+        for a in p2_spins, p in (prevfloat(2.0), nextfloat(2.0))
+            c = constants_of_motion(a, p, 0.0, 1.0)
+            @test isfinite(c.E) && isfinite(c.Lz) && isfinite(c.Q)
+            @test isapprox(c.E, constants_of_motion(a, 2.0, 0.0, 1.0).E; rtol = 1e-14)
         end
     end
 

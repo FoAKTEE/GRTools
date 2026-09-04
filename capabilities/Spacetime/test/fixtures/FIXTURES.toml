@@ -85,3 +85,13 @@ oracle = "ModifiedGravity/src/ghp_operators.jl schw_spincoeff closed forms (tran
 oracle_commit = ""
 status = "upstream-copy"
 note = "closed-form literals quoted verbatim from the source; no generator applies"
+
+[[fixture]]
+file = "test/fixtures/spacetime_circeq_p2_prefix_ref.jl"
+sha256 = "19f40e03bd7de34fbcd4c2b36746c3c2502e967eba9e6a0c895f9dea7976610d"
+bytes = 6566
+capture = "test/fixtures/capture/capture_circeq_p2_prefix.jl"
+oracle = "Spacetime's OWN pre-fix Schmidt closed forms (geodesic_energy / geodesic_angular_momentum / carter_constant) on the 55-key grid of the paired test — a bitwise regression pin, not an external oracle: it proves the equatorial p = 2 repair moved no other (a, p, e, x)"
+oracle_commit = "5243f42"
+status = "tracked-notrerunnable"
+note = "the oracle STATE is the pre-fix tree: re-running the capture at 5243f42 in a detached worktree reproduces the file byte-identically (verified twice), but at HEAD it does not — the (a, p = 2, e = 0, |x| = 1) keys the pre-fix code returned as NaN, and which the script therefore skips, are finite now and would be emitted as extra rows. That asymmetry IS the pin. Compared with `===` in test_geodesics_constants.jl"

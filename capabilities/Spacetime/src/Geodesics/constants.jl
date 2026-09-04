@@ -78,10 +78,34 @@
 #     a = 1/sqrt(2). Below that spin the pair raises the ordinary `DomainError` of a negative
 #     radicand, which is what every neighbouring radius already does; pre-fix, a = 0 silently
 #     returned E = 0.0 with Lz = Q = NaN at what is its own horizon.
-#  2. This repairs the singularity, NOT the conditioning of the generic form around it: the
-#     Schmidt Lz loses about log10|p-2|^-1 digits in a NEIGHBOURHOOD of p = 2 (relative error vs a
-#     256-bit evaluation at a = 0.998: 1.1e-14 at |p-2| = 1e-2, 6.2e-11 at 1e-6, 1.5e-6 at 1e-10).
-#     Closing that would mean re-evaluating every equatorial radius through the pair above.
+#  2. This repairs the singularity, NOT the conditioning of the generic form around it, and the
+#     distinction matters to any caller that computes p arithmetically rather than writing the
+#     literal 2.0. The Schmidt Lz loses about log10|p-2|^-1 digits in a NEIGHBOURHOOD of p = 2,
+#     and the loss runs all the way to TOTAL at the immediate float neighbours. Relative error of
+#     Lz against a 256-bit evaluation, a = 0.998:
+#
+#         |p-2| :  1e-2      1e-6      1e-10     1 ulp (nextfloat)   1 ulp (prevfloat)
+#         rel   :  1.1e-14   6.2e-11   1.5e-6    1.15e-1 (11 %)      7.7e-1 (77 %)
+#
+#     i.e. `geodesic_angular_momentum(0.998, nextfloat(2.0), 0, 1)` = 1.4999999999999998 and
+#     `prevfloat(2.0)` = 3.0000000000000004 against a true 1.6941511059695233 - SILENTLY FINITE
+#     and badly wrong, identically so before and after this repair (they are the generic form's
+#     own cancellation, and 2.0 +/- 1 ulp is not the exact root, so no exact-trigger branch can
+#     reach them). Q is affected the same way; E is not (its closed form has no such factor -
+#     4.3e-16 at both neighbours). Recomputing the whole equatorial branch through the pair above
+#     would fix it, at the cost of moving every equatorial value by up to 10 ulp.
+#
+#  3. The INCLINED branch (|x| < 1) carries the same denominator and the same removable root, at
+#     p* = 1 + sqrt(1 + a^2(x^2-1)) < 2, and is left untouched here - but note WHY the trigger
+#     below cannot serve it. p* is irrational, so in Float64 the denominator at the computed p* is
+#     +2.1e-17 (a = 0.998, x = 0.99), +1.1e-16 (0.998, 0.9), +1.6e-16 (0.9, 0.99), -5.8e-17
+#     (0.998, 0.999) - near zero but never exactly zero, so an exact-zero predicate can never fire
+#     there. What comes out is the cancellation ratio: Lz = 0, 3.24, 2.788, -0.0 against 256-bit
+#     values 1.687, 1.637, 2.174, 1.693 (28-100 % wrong) with Q wrong by 62-262 %, silently finite.
+#     This is pre-existing (identical at 5243f42) and out of the p = 2 node's scope. A node that
+#     takes it on cannot copy the mechanism below: it must either cancel the common factor
+#     algebraically in Schmidt's general formula, or detect the near-zero denominator with a
+#     SCALED tolerance and evaluate the analytic limit there.
 @inline _circular_lz_denominator(a, p, x) = (p - 2) * p - a^2 * (x^2 - 1)
 
 # Only the p = 2 root of the equatorial denominator p(p-2) is REMOVABLE: at p = 0 - the ring
@@ -129,6 +153,15 @@ Bardeen-Press-Teukolsky value `(p^2 - 2a sqrt(p) + a^2)/(p^(3/4) sqrt(p^(3/2) - 
 Schmidt evaluation bitwise. `r = 2M` is a circular geodesic only for `a > 1/sqrt(2)`; below that
 spin the radicand is negative and the call raises `DomainError`, as it already does at every
 neighbouring radius.
+
+!!! warning "Only `p == 2` exactly is repaired"
+    The generic form is ill-conditioned in a NEIGHBOURHOOD of `p = 2`, and this endpoint does not
+    change that. At `a = 0.998` the relative error of `Lz` against a 256-bit evaluation is 1.5e-6
+    at `|p-2| = 1e-10` and reaches 11 % at `nextfloat(2.0)` (1.4999999999999998) and 77 % at
+    `prevfloat(2.0)` (3.0000000000000004), against a true 1.6941511059695233 - silently finite and
+    wrong, both before and after the repair. Pass the literal `2.0`; a radius arrived at by
+    arithmetic (an ISCO scaling, a mesh coordinate, a unit conversion) may land a few ulp away and
+    get one of those values with no warning. `E` is unaffected there (4.3e-16).
 """
 @inline geodesic_angular_momentum(a, p, e, x) = iszero(x) ? _constants_zero(a, p, e, x) :
     (iszero(e) ? _angular_momentum_circular_sel(a, p, x) : _angular_momentum_generic(a, p, e, x))

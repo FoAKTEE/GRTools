@@ -51,6 +51,15 @@ limit — while every other radius keeps the Schmidt evaluation bitwise. ``r = 2
 geodesic only for ``a > 1/\sqrt{2}`` (it IS the prograde photon orbit at that spin), and below
 it the call raises the same `DomainError` as its neighbours rather than returning a silent `NaN`.
 
+Only ``p = 2`` **exactly** is repaired. The generic form is ill-conditioned in a *neighbourhood*
+of that point and this endpoint does not change it: at ``a = 0.998`` the relative error of
+``L_z`` against a 256-bit evaluation is ``1.5\times10^{-6}`` at ``|p-2| = 10^{-10}`` and reaches
+11 % at `nextfloat(2.0)` and 77 % at `prevfloat(2.0)` — silently finite and wrong, identically so
+before and after the fix (``E`` is unaffected, ``4.3\times10^{-16}``). Pass the literal `2.0`; a
+radius reached by arithmetic can land a few ulp away and pick up one of those values with no
+warning. Closing the neighbourhood means routing the whole equatorial branch through the
+Bardeen–Press–Teukolsky pair, which moves every equatorial value by up to 10 ulp.
+
 ## Dependencies and poison-axis budget
 
 Runtime `[deps]` are exactly `LinearAlgebra` + `NumericsCore` (Carlson/elliptic/Jacobi for
