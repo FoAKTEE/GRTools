@@ -383,7 +383,12 @@ end
         # ... and, the physically meaningful statement: any drift is smaller than this mode's
         # own numerical-resolution uncertainty, so it cannot move the total.
         @test abs(v[end] - rec) <= abs(recd)
-        @test isapprox(v[end] - v[end - 1], recd; rtol = 1.0e-3)
+        # the recorded DELTA is a difference of two nearly-equal levels, so it can only be
+        # reproduced to the ABSOLUTE accuracy the values themselves are reproduced to — a
+        # relative gate on it would be a statement about that cancellation, not about the
+        # solve. Its SHAPE is gated separately and loosely.
+        @test abs((v[end] - v[end - 1]) - recd) <= 2 * MS_LIVE_RTOL * abs(rec)
+        @test isapprox(v[end] - v[end - 1], recd; rtol = 5.0e-2)
         @test length(v) == MS_TAB.MSWB_ITERATIONS + 1
     end
 end

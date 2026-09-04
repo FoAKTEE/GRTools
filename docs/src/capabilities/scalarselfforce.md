@@ -390,15 +390,15 @@ formulation and consumes the physics-free hp-DG solver stack from
 
     | ``a/M`` | ours ``(M^2/q^2)F_r`` | WB printed | rel. dev. | tail | resolution |
     |---|---|---|---|---|---|
-    | ``-0.9`` | ``+4.93998713\times10^{-5}`` | ``+4.939995\times10^{-5}`` | ``1.6\times10^{-6}`` | ``+1.94\times10^{-10}`` | ``1.2\times10^{-10}`` |
-    | ``-0.5`` | ``+3.28941335\times10^{-5}`` | ``+3.28942\times10^{-5}`` | ``2.0\times10^{-6}`` | ``+1.60\times10^{-10}`` | ``1.2\times10^{-10}`` |
-    | ``0`` | ``+1.37843603\times10^{-5}`` | ``+1.378448\times10^{-5}`` | ``8.7\times10^{-6}`` | ``+1.31\times10^{-10}`` | ``1.2\times10^{-10}`` |
-    | ``+0.5`` | ``-4.03529509\times10^{-6}`` | ``-4.03517\times10^{-6}`` | ``3.1\times10^{-5}`` | ``+1.11\times10^{-10}`` | ``1.2\times10^{-10}`` |
-    | ``+0.9`` | ``-1.76824386\times10^{-5}`` | ``-1.768232\times10^{-5}`` | ``6.7\times10^{-6}`` | ``+9.7\times10^{-11}`` | ``1.0\times10^{-10}`` |
+    | ``-0.9`` | ``+4.93998709\times10^{-5}`` | ``+4.939995\times10^{-5}`` | ``1.6\times10^{-6}`` | ``+1.94\times10^{-10}`` | ``1.2\times10^{-10}`` |
+    | ``-0.5`` | ``+3.28941331\times10^{-5}`` | ``+3.28942\times10^{-5}`` | ``2.0\times10^{-6}`` | ``+1.60\times10^{-10}`` | ``1.2\times10^{-10}`` |
+    | ``0`` | ``+1.37843599\times10^{-5}`` | ``+1.378448\times10^{-5}`` | ``8.7\times10^{-6}`` | ``+1.31\times10^{-10}`` | ``1.2\times10^{-10}`` |
+    | ``+0.5`` | ``-4.03529547\times10^{-6}`` | ``-4.03517\times10^{-6}`` | ``3.1\times10^{-5}`` | ``+1.11\times10^{-10}`` | ``1.1\times10^{-10}`` |
+    | ``+0.9`` | ``-1.76824391\times10^{-5}`` | ``-1.768232\times10^{-5}`` | ``6.7\times10^{-6}`` | ``+9.7\times10^{-11}`` | ``1.0\times10^{-10}`` |
 
-    *[SOLID: worst relative deviation ``3.1\times10^{-5}``, sixteen times inside
-    the ``5\times10^{-4}`` node gate; measured at GRTools `5700c16`, tolerance-
-    gated, not golden-valued]*. Dropping the tail roughly doubles every
+    *[SOLID: worst relative deviation ``3.11\times10^{-5}``, sixteen times inside
+    the ``5\times10^{-4}`` node gate; measured at GRTools `3dfc4c2`, on top of the
+    wave-13 multigrid-provenance adoption; tolerance-gated, not golden-valued]*. Dropping the tail roughly doubles every
     deviation (``5.5\times10^{-6} \to`` … ``\to 5.8\times10^{-5}``), and the
     tail shrinks the drift of the total between ``m_\mathrm{max} = 10`` and
     ``20`` by a factor 4.4–5.8. It exceeds the paper's own
