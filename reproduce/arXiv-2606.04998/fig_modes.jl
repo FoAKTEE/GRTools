@@ -27,60 +27,61 @@
 #   julia --project=reproduce reproduce/arXiv-2606.04998/fig_modes.jl --check
 #   julia --project=reproduce reproduce/arXiv-2606.04998/fig_modes.jl --plot-only   # redraw only
 #
-# THE THREE CONFIGURATIONS, AND WHERE THEY DEVIATE FROM THE PUBLISHED PANEL TITLES.
-# The caption says "at the ISCO for three different black hole spins", so the driver takes
-# r0 = `kerr_isco(a)` from Spacetime for a in {-0.998, 0, +0.998} and never types a radius:
+# THE THREE CONFIGURATIONS. The caption says "at the ISCO for three different black hole
+# spins" and the published panel titles say `r0 = 9, 6, 2`; each published abscissa ends exactly
+# at twice its title's radius (18, 12, 4 — the caption's "clipped at r = 2 r0"), so the panels
+# were run at 9, 6 and 2, and only the middle one IS its spin's ISCO:
 #
-#     a = -0.998  r_ISCO = 8.9943744548 M      published panel title: r0 = 9
-#     a =  0      r_ISCO = 6              M      published panel title: r0 = 6
-#     a = +0.998  r_ISCO = 1.2369706552 M      published panel title: r0 = 2
+#     a = -0.998   r_ISCO = 8.9943744548 M   (title r0 = 9 — the ISCO to 0.06 %)   PLOTTED: ISCO
+#     a =  0       r_ISCO = 6            M   (title r0 = 6 — identical)            PLOTTED: ISCO
+#     a = +0.998   r_ISCO = 1.2369706552 M   (title r0 = 2 — 1.6 x the ISCO)       PLOTTED: 2 M
 #
-# [FINDING] The published titles are round numbers and the third one is NOT the ISCO: the
-# prograde ISCO at a = 0.998 M is 1.237 M, not 2 M. The titles are corroborated by the published
-# axes, each of which ends exactly at twice its title's radius (18, 12, 4 — the caption's
-# "clipped at r = 2 r0"), so the published panels were run at r0 = 9, 6, 2; only the middle one
-# is its spin's ISCO, the first is the ISCO to 0.06 %, and the third is 1.6 x it. This driver
-# follows the CAPTION (and the node's own brief) rather than the titles, and every panel title
-# it draws carries the radius actually solved.
+# So panels 1-2 follow the caption and panel 3 follows the PUBLISHED TITLE, which is the
+# configuration the paper actually drew. `kerr_isco` supplies the first two radii; the third is
+# the paper's own printed number. Every panel title carries the radius actually solved.
 #
-# WHY r0 = 2 M WAS NOT CONSTRUCTIBLE WHEN THIS FIGURE FIRST LANDED — FIXED UPSTREAM SINCE.
-# `CircularOrbit(a, 2.0).Lz` was `NaN`: Spacetime's `_angular_momentum_circular`
-# (capabilities/Spacetime/src/Geodesics/constants.jl:13, the generic Schmidt closed form) divides
-# by `((p - 2) p - a^2 (x^2 - 1))`, which on the EQUATOR (x^2 = 1) is exactly `p (p - 2)` and
-# vanishes at `p = 2` together with its numerator, and `_carter_circular` (constants.jl:17)
-# inherits it as `0 * NaN`, so `Lz` AND `Q` were 0/0 while `E` — which carries no such factor —
-# was already right. `CircularOrbit.zc2 = 4 (Lz^2 + ...)` (main.tex:453) took the NaN and the
-# puncture died in `legendre_P3`. The NaN only bit where `r = 2 M` actually carries a circular
-# geodesic, i.e. outside the prograde photon orbit, `a > 1/sqrt(2) = 0.70710678`; below that the
-# radicand is negative and the `DomainError` those spins raise is physically CORRECT (at a = 0,
-# `p = 2` is the horizon, where the pre-fix code returned a silent `E = 0.0`). ESSF::row-57
-# removed it at 47f0ec0 (`_circeq_removable` + the Bardeen-Press-Teukolsky equatorial pair,
-# bitwise-neutral away from the endpoint over 165 `===` rows) with 7082f9a pinning the orbit and
-# the puncture at r0 = 2 M and 12b43bd excluding p = 0; a conditioning band survives around the
-# endpoint (the Schmidt form loses about `log10|p - 2|^-1` digits, ~7 at |p - 2| ~ 1e-8) and is
-# that row's measured envelope, not this figure's business.
-# THIS DRIVER STILL PLOTS THE ISCO, deliberately: it follows the caption, and regenerating the
-# third panel at the published r0 = 2 M waits on ESSF::fix-horizon-axis-layer (row 58, below),
-# because the layer that spoils the ISCO panel is a property of the inner boundary, not of r0.
+# r0 = 2 M WAS NOT CONSTRUCTIBLE UNTIL ESSF::row-57 FIXED IT (47f0ec0 + 7082f9a + 12b43bd).
+# `CircularOrbit(a, 2.0).Lz` was `NaN`: `_angular_momentum_circular`
+# (capabilities/Spacetime/src/Geodesics/constants.jl:13) divides by
+# `((p - 2) p - a^2 (x^2 - 1))`, which on the EQUATOR is exactly `p (p - 2)` and vanishes at
+# `p = 2` with its numerator, and `_carter_circular` (constants.jl:17) inherits it as `0 * NaN`
+# — so `Lz` AND `Q` were 0/0 while `E`, which carries no such factor, was already right;
+# `zc2 = 4 (Lz^2 + ...)` (main.tex:453) took the NaN and the puncture died in `legendre_P3`. It
+# only bit where `r = 2 M` carries a circular geodesic at all, `a > 1/sqrt(2) = 0.70710678`;
+# below that the negative radicand makes the `DomainError` those spins raise physically correct
+# (at a = 0, `p = 2` is the horizon, where the pre-fix code returned a silent `E = 0.0`). The
+# fix is bitwise-neutral away from the endpoint; a conditioning band survives around it (about
+# `log10|p - 2|^-1` digits) and is that row's envelope, not this figure's business.
 #
-# [HOLE] THE THIRD PANEL CARRIES A SPURIOUS HORIZON-AXIS BOUNDARY LAYER (row 58).
-# What breaks the m-decay of the a = +0.998 panel beyond m ~ 13 is NOT a failure to converge: it
-# is a layer on the INNERMOST radial node line -- the first Legendre-Gauss collocation line
-# inside the horizon-adjacent element, r - r_+ = 1.9e-4 M at this ISCO -- growing toward the
-# axis, where the discretization has no business supporting anything. The mode variable carries `sin^|m| theta`
-# factored out, so axis regularity requires the plane to fall like `(1 - z^2)^(m/2)` as
-# `z^2 -> 1`; MEASURED at m = 17 along `r = r_+` the field instead RISES, |u| = 1.6e-5 at
-# z^2 = 0.003 to 1.05 at z^2 = 0.9918, where regularity asks for 0.98 down to 1.8e-18 — a
-# 23-decade violation. One node in from the boundary (r > r_+ + 0.02) the same modes decay
-# physically (-0.107 decades per mode over m = 13..20, re-measured here from the figure's own
-# surface cache) and GMRES converges in 10-11 iterations, so the solver is fine and the interior
-# is fine. The layer is present at every spin and is a question of SCALE:
-# the inner-boundary axis:equator ratio at m = 17 / 20 is 1.14 / 1.14 at a = 0 (absent),
-# 4.5e3 / 8.9e3 at a = -0.998 but at an absolute 3.70e-8, four decades below that panel's
-# maximum and therefore invisible, and 6.57e4 / 4.08e4 at O(1) for a = +0.998 (|u| = 1.05 at
-# m = 17), where it dominates the plane from m ~ 14. Independently re-measured from this
-# figure's own surface cache (evidence/fig-modes/layer_check_at_cba9b7b.log). Owned by ESSF::fix-horizon-axis-layer (row 58: the horizon boundary condition and axis
-# regularity); NOT worked around here, and the third panel says so on the figure.
+# THE HORIZON-AXIS LAYER, AND THE RULE THAT DECIDES THE HOLD (ESSF::fix-horizon-axis-layer).
+# WHAT REGULARITY MEANS HERE, stated correctly: `eq:mode_sum` factors `sin^|m| theta` OUT of the
+# field, so `Psi_m` is the variable that is ANALYTIC at the axis and approaches a finite,
+# generically NON-ZERO limit there (main.tex:227: each mode "approaches a non-zero constant
+# amplitude ... towards the poles"). A healthy plane therefore has an axis:equator ratio of
+# ORDER ONE and a fitted `log|Psi_m|` vs `log(1 - z^2)` slope near ZERO — it must NOT fall like
+# `(1 - z^2)^(m/2)`, which is `Phi`'s m-mode, never `Psi_m`.
+# WHAT GOES WRONG: at the horizon the operator degenerates and its second radial branch is
+# `Psi_m ~ (r - r_+)^(i nu)` with `nu = 2 m |Omega - Omega_H| (r_+^2 + a^2)/(r_+ - r_-)` — unit
+# modulus, infinitely oscillatory, and excluded ONLY by the polynomial trial space. When hp-AMR
+# refines the horizon element away, that exclusion weakens and the branch appears as a layer on
+# the innermost radial node line, growing toward the axis. It is present at EVERY spin and is a
+# question of SCALE, so the driver does not key on the spin: it MEASURES.
+# THE RULE: sweep the panel with the package default (`horizon_hold = false`, reference
+# parity), read `horizon_axis_profile(dom, orbit, mesh, u).layer_ratio` — the near-horizon
+# strip's maximum over the rest of the plane's — for EVERY mode, and re-sweep with
+# `solve_kwargs = (; horizon_hold = true)` only when the MAXIMUM OVER m exceeds
+# LAYER_GATE = 1.05. The maximum, not the top mode: `layer_ratio` is not monotone in m
+# (MEASURED at a = +0.998, r0 = 2: it peaks at 3.889 at m = 12 and falls to 3.6e-3 by m = 20). The plotted run's own
+# `layer_ratio` is then GATED (GATE 7) and both numbers, with the setting, are stated on the
+# panel and registered (`pK_layer_ratio`, `pK_layer_ratio_default_max`, `pK_horizon_hold`).
+#
+# [HOLE] GMRES STAGNATES AT m = 20 FOR a = +0.998, r0 = 2 M. Measured in this node's evidence in
+# BOTH hold settings: `converged = false` with a final residual of 2.3e-5 (default) / 7.6e-5
+# (held) against the yaml's 1e-12 tolerance, stopping at 71 / 137 iterations, far short of the
+# 500 cap; every other grid of both sweeps converged, and the per-grid staircase GROWS with
+# depth (1, 7, 7, 7, 11, 21, 61, 235 at m = 19). The mode STAYS in the figure — drawn dashed and
+# fainter, named in the panel note with the plotted run's own residual — and `pK_converged`
+# carries the verdict per mode. Handed to ESSF::fix-horizon-axis-layer's owner.
 #
 # THE WORLDTUBE RADIUS IS A DOCUMENTED CHOICE, NOT A PAPER NUMBER. The yaml is templated in
 # `worldtube_radius` (anc/ScalarSelfForce.yaml:12) and the paper publishes a value only for its
@@ -100,12 +101,14 @@
 # spectre SOLVES and its trigger skips the initial guess, so the sweep is 7 refinements — the
 # driver DERIVES `cfg.amr.iterations - cfg.amr.trigger_offset` exactly as fig_linsolv.jl does.
 #
-# GOLDEN. Per panel: the configuration (spin, r_ISCO, r_+, w_r, the six block bounds, x_p, the
-# final element/dof counts) and, per m, six columns — the plotted amplitude `max_abs_psi`, the
-# particle diagnostics `abs_psi_xp` / `abs_dpsi_r_xp` at the two highest AMR grids (the raw
-# ingredients of `resolution_error`, which is deliberately NOT re-derived here: its ONE
-# definition lives in `Solve/amr.jl` and rows 44/50/53 share it), the extracted `Fr`, and the
-# final grid's GMRES iteration count. `Fr` comes from the SEALED raw-ingredient method
+# GOLDEN. Per panel: the configuration (spin, r0, r_+, w_r, the six block bounds, x_p, the
+# final element/dof counts) plus the rule's verdict (`horizon_hold`, `layer_ratio_default_max`)
+# and, per m — the plotted amplitude `max_abs_psi`, the particle diagnostics `abs_psi_xp` /
+# `abs_dpsi_r_xp` at the two highest AMR grids (the raw ingredients of `resolution_error`, which
+# is deliberately NOT re-derived here: its ONE definition lives in `Solve/amr.jl` and rows
+# 44/50/53 share it), the extracted `Fr`, the final grid's GMRES iteration count, the sealed
+# row-58 instrument on the plotted run (`layer_ratio`, `axis_equator_ratio`, `axis_exponent`,
+# `branch_index`), and the solver's own verdict (`converged`, `final_residual`). `Fr` comes from the SEALED raw-ingredient method
 # `mode_self_force(orbit, m, psi, dpsi_r)`, whose third argument `d_z Psi^R` is the method's own
 # default zero; that is bitwise what the `AmrHistory` method passes at an equatorial puncture in
 # the z^2 chart (`_sf_dpsi_z(:z2, 0, d_w) = 2 sqrt(0) d_w`), and the driver GATES the two
@@ -140,7 +143,11 @@ using GrTools.EllipticCore
 using GrTools.Spacetime: kerr_isco
 
 # ───────────────────────────── parameters ────────────────────────────────────────────────────
-const SPINS   = (-0.998, 0.0, 0.998)   # main.tex:694 (the caption) + fig:error_budget's spin set
+# (spin, radius): `:isco` is Spacetime's Bardeen closed form, a number is the paper's own
+# printed panel title. Panels 1-2 are their spins' ISCOs (the caption); panel 3 is the PUBLISHED
+# configuration r0 = 2 M, constructible since the p = 2 removable-singularity fix.
+const PANELS  = ((-0.998, :isco), (0.0, :isco), (0.998, 2.0))
+const LAYER_GATE = 1.05                # the measured `layer_ratio` a plotted panel may not pass
 const WR_FRAC = 0.6                    # w_r = WR_FRAC (r0 - r_+); see the header
 const WDZ2    = 0.25                   # yaml:12
 const PORD    = 4                      # yaml:12
@@ -155,24 +162,25 @@ for f in (:solve_modes_parallel, :mode_pool, :mode_self_force, :puncture_chart_p
         "(ESSF::mmode-parallel-driver) over the hp-AMR driver (ESSF::amr-driver).")
 end
 
-panels = map(SPINS) do a
-    r0  = kerr_isco(a)                          # never typed in: Spacetime's Bardeen closed form
+panels = map(PANELS) do (a, spec)
+    r0  = spec === :isco ? kerr_isco(a) : float(spec)
     orb = CircularOrbit(a, r0)
     wr  = WR_FRAC * (r0 - orb.rp)
     cfg = crp_paper_config(; spin = a, orbital_radius = r0, m_mode = first(MMS),
                            inner_radius = orb.rp, outer_radius = ROUT, worldtube_radius = wr,
                            worldtube_dz2 = WDZ2, P = PORD, L = LREF)
     dom = block_domain(orb, cfg)
-    (a = a, r0 = r0, orb = orb, wr = wr, cfg = cfg, dom = dom,
+    (a = a, r0 = r0, spec = spec, orb = orb, wr = wr, cfg = cfg, dom = dom,
      xp = puncture_chart_position(dom, orb), rmax = 2 * r0)
 end
 const ITER = panels[1].cfg.amr.iterations - panels[1].cfg.amr.trigger_offset   # 8 - 1 = 7
 
-println("\n[fig_modes] three ISCO configurations, m = ", first(MMS), ":", last(MMS),
+println("\n[fig_modes] three configurations, m = ", first(MMS), ":", last(MMS),
         ", ", ITER + 1, " AMR grids, P = ", PORD, ", L = ", LREF)
 for p in panels
-    @printf("[fig_modes] a = %+.4f  r_ISCO = %.10f  r₊ = %.10f  w_r = %.10f  x_p = %s\n",
-            p.a, p.r0, p.orb.rp, p.wr, string(p.xp))
+    @printf("[fig_modes] a = %+.4f  r₀ = %.10f (%s)  r₊ = %.10f  w_r = %.10f  x_p = %s\n",
+            p.a, p.r0, p.spec === :isco ? "the ISCO" : "the published title",
+            p.orb.rp, p.wr, string(p.xp))
     println("[fig_modes]    block bounds ", p.dom.bounds_r, "  clip at 2r₀ = ", p.rmax)
 end
 flush(stdout)
@@ -188,6 +196,11 @@ struct Patch                      # one element's nodal lattice of ONE mode, as 
     v::Matrix{Float64}            # |Ψ_m| (|Ψ^R_m| inside the worldtube) at those nodes
     tube::Bool                    # is this element inside the regularized region?
 end
+
+"the plotted quantity of row 58's rule: `layer_ratio` for every mode of a fanned-out sweep"
+layer_ratios(p, s) = [haskey(s, m) ?
+                      horizon_axis_profile(p.dom, p.orb, s[m].levels[end].mesh, s[m].u).layer_ratio :
+                      NaN for m in MMS]
 
 surfaces = Vector{Vector{Vector{Patch}}}()      # [panel][mode][element]
 tables   = Vector{NamedTuple}()
@@ -206,18 +219,39 @@ if !PLOT_ONLY
         "the ScalarSelfForce project file is not where `pathof` says it is: $(ssf_project)")
     println("[fig_modes] worker project: ", ssf_project); flush(stdout)
     t_all = time()
-    sets = mode_pool(NWORK; threads_per_worker = 1, blas_threads = 1,
-                     project = ssf_project) do pool
+    sweeps = mode_pool(NWORK; threads_per_worker = 1, blas_threads = 1,
+                       project = ssf_project) do pool
         map(panels) do p
+            # THE SWITCH RULE, MEASURED — never assumed, never keyed on the spin. Sweep with the
+            # package DEFAULT (`horizon_hold = false`, reference parity), read the sealed row-58
+            # instrument on every fanned-out mode, and re-sweep with the hold only if the
+            # near-horizon strip carries more than LAYER_GATE of the rest of the plane anywhere.
+            # THE MAXIMUM OVER m IS THE RULE'S INPUT, not the top mode: `layer_ratio` is NOT
+            # monotone in m — MEASURED at a = +0.998, r0 = 2 it rises from m = 6, peaks at 3.889
+            # at m = 12 and falls back to 3.6e-3 by m = 20, so a top-mode probe reads the panel
+            # as healthy when it is not.
             t = time()
             s = solve_modes_parallel(p.orb, p.cfg, MMS; pool = pool, iterations = ITER,
                                      log = monitor_log)
-            @printf("[fig_modes] a = %+.4f: %d/%d modes in %.1f s (%d workers)\n",
-                    p.a, length(s.results), length(MMS), time() - t, s.run.nworkers)
+            lay = layer_ratios(p, s)
+            hold = maximum(lay) > LAYER_GATE
+            @printf("[fig_modes] a = %+.4f: %d/%d modes in %.1f s (%d workers, default); layer_ratio max %.4g at m = %d (gate %.2f) ⇒ horizon_hold = %s\n",
+                    p.a, length(s.results), length(MMS), time() - t, s.run.nworkers,
+                    maximum(lay), argmax(lay) - 1, LAYER_GATE, string(hold))
             flush(stdout)
-            s
+            lay_default = maximum(lay)
+            if hold
+                t = time()
+                s = solve_modes_parallel(p.orb, p.cfg, MMS; pool = pool, iterations = ITER,
+                                         solve_kwargs = (; horizon_hold = true), log = monitor_log)
+                @printf("[fig_modes] a = %+.4f: re-swept %d/%d modes in %.1f s with horizon_hold = true; layer_ratio max %.4g\n",
+                        p.a, length(s.results), length(MMS), time() - t, maximum(layer_ratios(p, s)))
+                flush(stdout)
+            end
+            (set = s, hold = hold, probe_ratio = lay_default)
         end
     end
+    sets = [q.set for q in sweeps]
     @printf("[fig_modes] all three panels: %.1f s; load monitor %s\n", time() - t_all, monitor_log)
     for (p, s) in zip(panels, sets)      # the compute-usage record, per sweep (types are the
         r = s.run                        # row-47 `ModeRunRecord`'s own — printed, never coerced)
@@ -251,6 +285,8 @@ if !PLOT_ONLY
         psi_xp = Float64[]; dpsi_xp = Float64[]
         psi_xp_prev = Float64[]; dpsi_xp_prev = Float64[]
         ndofs = Int[]; ndofs0 = Int[]; nelem = Int[]; iters = Int[]
+        ratio = Float64[]; expo = Float64[]; layer = Float64[]; nu = Float64[]
+        conv = Bool[]; resid = Float64[]
         tube_lo = Float64[]; tube_hi = Float64[]; tube_rmin = Float64[]
         out_lo = Float64[]; out_hi = Float64[]
         for m in MMS
@@ -296,18 +332,26 @@ if !PLOT_ONLY
             push!(ndofs, mesh.ndofs); push!(ndofs0, res.levels[1].mesh.ndofs)
             push!(nelem, length(mesh.elements))
             push!(iters, lvl.record.iterations)
+            # the sealed row-58 instrument on the plotted run, and the solver's own verdict
+            hp = horizon_axis_profile(p.dom, p.orb, mesh, res.u)
+            push!(ratio, hp.ratio); push!(expo, hp.exponent); push!(layer, hp.layer_ratio)
+            push!(nu, horizon_branch_index(p.orb, m))
+            push!(conv, res.converged); push!(resid, lvl.record.final_residual)
         end
         @printf("[fig_modes] a = %+.4f: sampled %d planes\n", p.a, length(psurf)); flush(stdout)
         push!(surfaces, psurf)
         push!(tables, (maxpsi = maxpsi, fr = fr, psi_xp = psi_xp, dpsi_xp = dpsi_xp,
                        psi_xp_prev = psi_xp_prev, dpsi_xp_prev = dpsi_xp_prev,
                        ndofs = ndofs, ndofs0 = ndofs0, nelem = nelem, iters = iters,
+                       ratio = ratio, expo = expo, layer = layer, nu = nu,
+                       conv = conv, resid = resid,
                        tube_lo = tube_lo, tube_hi = tube_hi, tube_rmin = tube_rmin,
                        out_lo = out_lo, out_hi = out_hi))
     end
 
-    metas = [(a = p.a, r0 = p.r0, rp = p.orb.rp, wr = p.wr, rmax = p.rmax,
-              bounds = collect(p.dom.bounds_r), xp = p.xp, omega = p.orb.Omega) for p in panels]
+    metas = [(a = p.a, r0 = p.r0, spec = p.spec, rp = p.orb.rp, wr = p.wr, rmax = p.rmax,
+              bounds = collect(p.dom.bounds_r), xp = p.xp, omega = p.orb.Omega,
+              hold = q.hold, layer_probe = q.probe_ratio) for (p, q) in zip(panels, sweeps)]
     if opts.mode === :regen
         open(SURFACE_CACHE, "w") do io
             serialize(io, (surfaces = surfaces, tables = tables, meta = metas))
@@ -392,7 +436,23 @@ for (k, (mt, tb)) in enumerate(zip(metas, tables))
         register!(tag * "_m0_drops_two_decades", m0_drop)
         register!(tag * "_m0_deeper_than_m1_m2", m0_deeper_than_neighbours)
         register!(tag * "_deepest_worldtube_mode", argmax(tube_dec) - 1)
+        register!(tag * "_horizon_hold", mt.hold)
+        register!(tag * "_layer_ratio_default_max", mt.layer_probe)
+        register!(tag * "_layer_ratio", tb.layer)
+        register!(tag * "_axis_equator_ratio", tb.ratio)
+        register!(tag * "_axis_exponent", tb.expo)
+        register!(tag * "_branch_index", tb.nu)
+        register!(tag * "_converged", tb.conv)
+        register!(tag * "_final_residual", tb.resid)
     end
+    # GATE 7 (row 58's rule, on the PLOTTED run): the near-horizon strip must never carry more
+    # than LAYER_GATE of the rest of the plane. The driver CHOOSES `horizon_hold` to satisfy it,
+    # so a violation here means the rule did not work and the panel is not drawable as physics.
+    maximum(tb.layer) <= LAYER_GATE || push!(gatefails,
+        "GATE 7: a = $(mt.a) — plotted layer_ratio max " *
+        @sprintf("%.4g", maximum(tb.layer)) * " > " * @sprintf("%.2f", LAYER_GATE) *
+        " at m = $(argmax(tb.layer) - 1) (horizon_hold = $(mt.hold), default sweep " *
+        @sprintf("%.4g", mt.layer_probe) * ")")
     @printf("\n[fig_modes] panel %d  a = %+.4f  r₀ = %.6f  (%d elements, %d dofs)\n",
             k, mt.a, mt.r0, tb.nelem[1], tb.ndofs[1])
     push!(claims, (mono2 = mono2, lastbreak = lastbreak, firstbreak = firstbreak,
@@ -403,10 +463,18 @@ for (k, (mt, tb)) in enumerate(zip(metas, tables))
     @printf("[fig_modes]   CLAIM B m=0 drops %.2f decades in the worldtube (m=1 %.2f, m=2 %.2f); deepest plane m = %d\n",
             tube_dec[1], tube_dec[2], tube_dec[3], argmax(tube_dec) - 1)
     @printf("[fig_modes]   top plane at log₁₀|Ψ| = %+.3f\n", top)
-    println("   m   log₁₀max|Ψ_m|   |Ψ^ℛ(x_p)|    F_r^m           tube[dec]  out[dec]  its")
+    @printf("[fig_modes]   horizon_hold = %s (default sweep layer_ratio max %.4g, gate %.2f); plotted layer_ratio max %.4g at m = %d\n",
+            string(mt.hold), mt.layer_probe, LAYER_GATE, maximum(tb.layer), argmax(tb.layer) - 1)
+    let bad = [i - 1 for i in eachindex(tb.conv) if !tb.conv[i]]
+        isempty(bad) ? println("[fig_modes]   every mode converged") :
+            @printf("[fig_modes]   NOT CONVERGED: m = %s (worst final residual %.3e against the 1e-12 tolerance)\n",
+                    join(bad, ", "), maximum(tb.resid[i] for i in eachindex(tb.conv) if !tb.conv[i]))
+    end
+    println("   m   log₁₀max|Ψ_m|   |Ψ^ℛ(x_p)|    F_r^m           tube[dec]  axis:eq    layer   its  conv")
     for i in eachindex(A)
-        @printf("  %2d   %+8.4f      %.4e   %+.6e   %6.2f    %6.2f   %2d\n", i - 1,
-                log10(A[i]), tb.psi_xp[i], tb.fr[i], tube_dec[i], out_dec[i], tb.iters[i])
+        @printf("  %2d   %+8.4f      %.4e   %+.6e   %6.2f   %9.3e %8.3e %4d  %s\n", i - 1,
+                log10(A[i]), tb.psi_xp[i], tb.fr[i], tube_dec[i], tb.ratio[i], tb.layer[i],
+                tb.iters[i], tb.conv[i] ? "yes" : "NO")
     end
     flush(stdout)
 end
@@ -452,8 +520,8 @@ const DXW = 0.17     # oblique offset of z² = 1, horizontal
 const DYW = 0.30     # ... and vertical
 const TIL = 0.05     # the r axis tilts down to the right, as the reference's does
 const GAP = 0.58     # gap between panels
-const PXU = 136      # px per canvas unit — the golden's size knob
-const SC  = PXU / 136
+const PXU = 127      # px per canvas unit — the golden's size knob
+const SC  = PXU / 127
 # Plots' `font()` parser reads an INTEGER argument as the point size and ANY OTHER Real as a
 # ROTATION IN DEGREES, so a Float64 size silently tilts the label (and leaves the size at its
 # default). Every text size therefore goes through `FS`.
@@ -483,7 +551,7 @@ function nticks(lo, hi; ints_hint::Bool = true)
     for s in (0.1, 0.2, 0.5, 1.0, 2.0, 5.0)
         step = base * s
         ts = filter(t -> lo + 0.03span <= t <= hi, collect(step * ceil(lo / step):step:hi))
-        length(ts) <= (ints_hint ? 6 : 5) && return (ts, step)
+        length(ts) <= 6 && return (ts, step)
     end
     return ([lo + span / 2], span)
 end
@@ -505,11 +573,13 @@ plt = plot([NaN], [NaN]; label = "", legend = false, axis = false, grid = false,
 
 cams = Cam[]
 for (k, surf) in enumerate(surfaces)
-    meta = metas[k]
+    meta = metas[k]; tb = tables[k]
     cam = Cam((k - 1) * (PW + DXW + GAP), meta.rp, meta.rmax)
     push!(cams, cam)
-    # the planes, high m first
+    # the planes, high m first; a plane whose own solve did not converge is drawn DASHED and
+    # fainter, and the panel note below names it — it stays in the figure, flagged, never hidden
     for m in reverse(0:(length(surf)-1))
+        ok = tb.conv[m+1]
         nl = m <= 4 ? 3 : 2      # wireframe stride: the faint high-m curtain needs fewer lines
         xs = Float64[]; ys = Float64[]
         for q in surf[m+1]
@@ -538,7 +608,8 @@ for (k, surf) in enumerate(surfaces)
                 push!(xs, NaN); push!(ys, NaN)
             end
         end
-        plot!(plt, xs, ys; linecolor = mcolor(m), linealpha = malpha(m),
+        plot!(plt, xs, ys; linecolor = mcolor(m), linealpha = ok ? malpha(m) : 0.55 * malpha(m),
+              linestyle = ok ? :solid : :dash,
               linewidth = (m <= 4 ? 0.70 : 0.45) * SC, label = "")
     end
     # the box
@@ -561,25 +632,34 @@ for (k, surf) in enumerate(surfaces)
         end
     end
     # r ticks along the bottom front edge
+    # up to six ticks whatever the step: the 1/2/5 family never needs more than one decimal
+    # here, and six is what the published panels carry (5/10/15, 2…12, 1.5…4.0).
     rt, rstep = nticks(cam.rlo, cam.rhi)
-    if !all(t -> abs(t - round(t)) < 1e-9, rt)
-        rt, rstep = nticks(cam.rlo, cam.rhi; ints_hint = false)
-    end
     for t in rt
         x = sx(cam, t, 0.0); y = sy(cam, t, 0.0, ZLO)
         plot!(plt, [x, x], [y, y - 0.028]; linecolor = :black, linewidth = 0.9SC, label = "")
-        annotate!(plt, x, y - 0.085, text(fmt_tick(t, rstep), FS(8), :black, :center))
+        annotate!(plt, x, y - 0.085, text(fmt_tick(t, rstep), FS(length(rt) >= 6 ? 6 : 8), :black, :center))
     end
     annotate!(plt, sx(cam, (cam.rlo + cam.rhi) / 2, 0.0), sy(cam, cam.rhi, 0.0, ZLO) - 0.21,
               text("\$r\$", FS(14), :black, :center))
-    annotate!(plt, sx(cam, (cam.rlo + cam.rhi) / 2, 0.5), sy(cam, cam.rlo, 1.0, ZHI) + 0.17,
+    annotate!(plt, sx(cam, (cam.rlo + cam.rhi) / 2, 0.5), sy(cam, cam.rlo, 1.0, ZHI) + 0.315,
               text(@sprintf("\$a = %.3f, r_0 = %.3f\$", meta.a, meta.r0), FS(12),
                    :black, :center))
-    # a panel whose measured claim fails says so ON the figure, from the measurement itself
-    if !claims[k].mono2
-        annotate!(plt, sx(cam, (cam.rlo + cam.rhi) / 2, 0.5), sy(cam, cam.rlo, 1.0, ZHI) + 0.075,
-                  text("PRELIMINARY: spurious horizon-axis layer for \$m > $(claims[k].firstbreak)\$",
-                       FS(8), RGB(0.35, 0.35, 0.35), :center))
+    # THE PANEL NOTE, every line of it read off this panel's own measurement: the row-58 rule's
+    # verdict and the setting it chose, then any mode whose solve did not converge, then the
+    # decay claim if it fails. Nothing here is typed.
+    notes = String[]
+    push!(notes, @sprintf("layer %.3g (def %.3g)  hold=%s", maximum(tb.layer), meta.layer_probe,
+                          meta.hold ? "true" : "false"))
+    let bad = [i - 1 for i in eachindex(tb.conv) if !tb.conv[i]]
+        isempty(bad) || push!(notes, @sprintf("m=%s GMRES stalled at %.1e", join(bad, ","),
+                                              maximum(tb.resid[i] for i in eachindex(tb.conv) if !tb.conv[i])))
+    end
+    claims[k].mono2 || push!(notes, "PRELIM: decay stops after m=$(claims[k].firstbreak)")
+    for (i, nt) in enumerate(notes)
+        annotate!(plt, sx(cam, (cam.rlo + cam.rhi) / 2, 0.5),
+                  sy(cam, cam.rlo, 1.0, ZHI) + 0.225 - 0.077 * (i - 1),
+                  text(nt, FS(6), RGB(0.35, 0.35, 0.35), :center))
     end
 end
 
@@ -598,7 +678,7 @@ for (i, lab) in enumerate(("\$m = 0\$", "\$m = 1\$", "\$m = 2\$", "\$m = 3\$", "
 end
 
 fx0 = cams[1].x0 - 0.44; fx1 = lx + 0.62
-fy0 = -0.34; fy1 = PH + DYW + 0.30
+fy0 = -0.34; fy1 = PH + DYW + 0.45
 plot!(plt; xlims = (fx0, fx1), ylims = (fy0, fy1),
       size = (round(Int, PXU * (fx1 - fx0)), round(Int, PXU * (fy1 - fy0))))
 

@@ -42,7 +42,7 @@ alone, VLM-compare against the reference PDF, decide script-vs-structure, iterat
 | 2 | `fig:matrix` — DG operator sparsity at the coarsest grid level + element numbering | `fig_matrix.jl` | `expected/fig_matrix.json` | heavy | **solid** | **match** | Two panels: the B/W spy of the 320×320 coarsest-level matrix over a light-gray element-block checkerboard, and the domain sketch numbering the 20 elements that index its rows and columns. Structure reproduced exactly: 20 diagonal blocks + 33 symmetric off-diagonal block pairs, of which the 8 pairs across the four 2:1 interfaces (2↔3, 2↔4, 7↔9, 8↔9, 12↔13, 12↔14, 17↔19, 18↔19 in the paper's numbering) are fully dense 16×16 and the other 25 carry 64 entries. Adjacency graph-isomorphic to the domain topology in BOTH directions (0 matrix-only, 0 topology-only pairs). Reference block-occupancy extracted from `matrix.pdf` at 600 dpi and compared block-by-block: identical. 398.8 s at -t4 — **heavy**, although the numerics are ~10 s: the cost is the first-call specialization of the ComplexF64 `MeshOperator` (104 s) and of the first Plots/GR render. |
 | 4 | `fig:convergence` — the DG convergence of every `F_r^m` up to m = 20 over the hp-AMR sequence, + the cumulative walltime | `fig_convergence.jl` | `expected/fig_convergence.json` | heavy | **preliminary** | **partial** | Two panels for all 21 modes at a = 0.5 M, r₀ = 10 M: `\|F_r^m − F^m_{r,ref}\|` against `sqrt(N_points)` with each mode's own highest-resolution level as its reference, and the cumulative walltime below. Presentation reproduces item by item (2 panels 3:1 sharing x, 21 grayscale lines at the published ramp `m/23` with no markers, log y over ~8 decades, the framed upper-right `m=0`/`m=20` legend, the dashed "Solver tolerance" line with its inside label, "1 s"/"10 s" ticks, light-gray grid, CM serif) and every mode converges exponentially. Two STRUCTURAL deviations, both escalated: the published abscissa is the **full-z 5×3 lattice** (480 → 6300 grid points; its first two values are spectre's own `ScalarCircularOrbit.yaml` regression rows, which set `ImposeEquatorialSymmetry: False`) while ours is the production equatorial-symmetry lattice (320 → 3538), and the published grids **depend on m** while ours cannot, which the shipped criteria (`RefineAtPuncture` ∘ `IncreaseResolution`) cannot produce. See the Fig. 4 section for the evidence and the `TruncationError` hypothesis. |
 | 6 | `fig:linsolv` — GMRES residual staircase over AMR levels + walltime per iteration | `fig_linsolv.jl` | `expected/fig_linsolv.json` | heavy | **preliminary** | **partial** | Two panels for the m = 2 mode at a = 0.5 M, r₀ = 10 M: the residual staircase of 8 consecutive AMR levels over a cumulative-iteration axis, and the walltime per iteration. Presentation and structure reproduce item by item (see the checklist below); the per-level ITERATION COUNTS do not — published `1, 7, 6, 5, 4, 3, 3, 2` (31 cumulative) against our `1, 8, 9, 9, 9, 9, 9, 9` (63). All five node gates pass (max 9 < 10 iterations per level; level 0 in 1 iteration; the count bounded across levels; the first iteration slowest on every level; every level below the 1e-12 tolerance), so the paper's stated claims hold — but the shape of the published staircases does not, which is a solver-quality finding escalated to rows 21 and 43, and why this row is `preliminary`. 252.7 s at -t4 in `run_all` with a warm depot (~400 s standalone with precompilation), of which the AMR sweep itself is 12.3 s. Generated on top of `6df9f51` (the `hp_refine` 2:1-closure fix). |
-| 5 | `fig:modes` — 21 stacked `log₁₀\|Ψ_m\|` planes over the (r, z²) domain, at the ISCO for three spins | `fig_modes.jl` | `expected/fig_modes.json` | heavy | **preliminary** | **partial** (2 of 3 panels match) | Three 3D panels, `a ∈ {−0.998, 0, +0.998}` at `r₀ = kerr_isco(a) = 8.9944, 6, 1.2370 M`, each carrying 21 semi-transparent wireframe planes of `log₁₀\|Ψ_m\|` over (r, z²) — `Ψ^ℛ_m` inside the worldtube, `Ψ_m` outside, clipped at `r = 2 r₀` — with m = 0…4 in the paper's categorical colours and m ≥ 5 in the published `m/23` grey ramp. NOT a mode-sum curve: the caption plots the FIELD. Panels 1 and 2 **match** item by item, including the grey curtain's cliff at `r₀ + w_r` (13.75 against ≈ 13.5 read off the published panel; 8.4 against ≈ 8.5), the two m = 0 dives per panel, and the two-sided 0…−5 ticks. Panel 3 is **preliminary** and says so on the figure: at the prograde ISCO a **spurious boundary layer on the innermost radial node line `r = r₊`** grows toward the axis and takes over the plane from m ≈ 14 — at m = 17 along `r = r₊` the field RISES from `\|u\| = 1.6e-5` at `z² = 0.003` to `1.05` at `z² = 0.9918`, where axis regularity (`sin^\|m\|θ` is factored out, so the plane must fall like `(1 − z²)^{m/2}`) asks for 0.98 down to 1.8e-18 — a 23-decade violation; one node in (`r > r₊ + 0.02`) the same modes decay physically at −0.087 dec/mode with GMRES converging in 10–11 iterations. It is present at every spin and is a matter of scale (inner-boundary axis:equator ratio at m = 17: 1.3 at a = 0, 4.5e3 at a = −0.998 but at an absolute 3.7e-8, four decades below that panel's maximum, and 6.6e4 at O(1) here), and it is owned by `ESSF::fix-horizon-axis-layer`. Separately, the published prograde panel is at `r₀ = 2 M` — **not** its spin's ISCO — which was unconstructible when this figure landed (`Lz` and `Q` were 0/0 at `p = 2` on the equator) and is constructible since `47f0ec0`; regenerating that panel waits on the layer fix. Both claims are registered per panel, so `--check` compares them instead of aborting. 63 modes (3 × 21) at the paper's 8 AMR grids through ONE `mode_pool` of 5 single-threaded workers: 561 s all told, of which the first panel's 378 s is the pool's JIT (the two warm panels take 86 s each); whole-system load max 0.060 against the 0.90 guard — **heavy**. |
+| 5 | `fig:modes` — 21 stacked `log₁₀\|Ψ_m\|` planes over the (r, z²) domain, at three spins | `fig_modes.jl` | `expected/fig_modes.json` | heavy | **preliminary** | **match** (3 of 3 panels) | Three 3D panels — `a = −0.998` and `a = 0` at their ISCOs (8.9944, 6 M) and `a = +0.998` at the **published** `r₀ = 2 M` — each carrying 21 semi-transparent wireframe planes of `log₁₀\|Ψ_m\|` over (r, z²), `Ψ^ℛ_m` inside the worldtube and `Ψ_m` outside, clipped at `r = 2 r₀`, m = 0…4 in the paper's categorical colours and m ≥ 5 in the published `m/23` grey ramp. NOT a mode-sum curve: the caption plots the FIELD. All three match item by item, including the tick sets (5/10/15, 2…12, 1.5…4.0), the two m = 0 dives per panel and the grey curtain's cliff at `r₀ + w_r`. The horizon order hold is chosen by a MEASURED rule — sweep with the package default, read `horizon_axis_profile(...).layer_ratio` for every mode, re-sweep held only if the maximum over m exceeds 1.05 — which leaves panels 1-2 on the default (0.1105, 0.3108) and holds panel 3 (3.889 → **0.5776**); GATE 7 gates the plotted value and the panel states both numbers and the setting. **preliminary** for one measured reason, flagged on the figure: at `a = 0.998, r₀ = 2` GMRES stagnates at m = 19 and 20 (final residual 9.3e-6 against the 1e-12 tolerance), so those two planes are drawn dashed and named, `pK_converged` carries the verdict per mode, and panel 3's decay claim breaks only at 19 → 20. 66 elements and 4814 dofs (4604 held) at the 8th grid from 320 at level 0. Four sweeps (three panels + panel 3's held re-sweep) through ONE `mode_pool` of 5 single-threaded workers: 1286 s — **heavy**. |
 
 ### What "the coarsest grid level" is
 
@@ -456,7 +456,7 @@ the bottom panel measures the compiler. The warm-up is itself the JIT payment an
 run.
 
 
-## Fig. 5 — what is plotted, which radii, and the two reasons panel 3 is preliminary
+## Fig. 5 — what is plotted, which radii, and the rule that picks the horizon hold
 
 ### The figure plots the FIELD, not a mode-sum curve
 
@@ -472,38 +472,28 @@ domain, which is exactly `sol.u` under the row-42 contract (`Ψ^ℛ` inside the 
 outside). The driver draws the element nodal values themselves — no interpolation — which is
 also what the published ParaView render shows, patch by DG patch.
 
-### The radii: the caption says ISCO, the panel titles say 9, 6, 2
+### The panels: two ISCOs and the published prograde radius
 
-| panel | published title | `kerr_isco(a)` | what we ran |
+| panel | published title | `kerr_isco(a)` | what we plot |
 |---|---|---|---|
-| a = −0.998 | `r₀ = 9` | 8.9943744548 | 8.9943744548 (the ISCO; 0.06 % from the title) |
-| a = 0 | `r₀ = 6` | 6 | 6 (identical) |
-| a = +0.998 | `r₀ = 2` | 1.2369706552 | 1.2369706552 (the ISCO; the title is 1.6× it) |
+| a = −0.998 | `r₀ = 9` | 8.9943744548 | **8.9943744548** — the ISCO (0.06 % from the title) |
+| a = 0 | `r₀ = 6` | 6 | **6** — the ISCO, and the title |
+| a = +0.998 | `r₀ = 2` | 1.2369706552 | **2** — the PUBLISHED title (1.6× the ISCO) |
 
-The published titles are corroborated by the published abscissae, each of which ends exactly at
-twice its title's radius (18, 12, 4 — the caption's "clipped at `r = 2 r₀`"), so the published
-panels were run at `r₀ = 9, 6, 2` and only the middle one is its spin's ISCO. This driver
-follows the CAPTION and the node's brief — `r₀ = kerr_isco(a)`, never a typed radius — and every
-panel title it draws carries the radius actually solved.
+Each published abscissa ends exactly at twice its title's radius (18, 12, 4 — the caption's
+"clipped at `r = 2 r₀`"), so the published panels were run at 9, 6 and 2, and only the middle
+one is its spin's ISCO. Panels 1-2 follow the caption, panel 3 follows the published title —
+which is what the paper actually drew — and every panel title carries the radius solved.
 
-**`r₀ = 2 M` was not constructible when this figure landed — fixed upstream since.**
-`CircularOrbit(a, 2.0).Lz` was `NaN`: Spacetime's generic circular closed form
-(`capabilities/Spacetime/src/Geodesics/constants.jl:13`) divides by
-`(p − 2) p − a²(x² − 1)`, which on the **equator** is exactly `p (p − 2)` and vanishes at
-`p = 2` together with its numerator; `_carter_circular` (`constants.jl:17`) inherits it as
-`0·NaN`, so **`Lz` and `Q`** were 0/0 while **`E`**, which carries no such factor, was already
-right. `zc2 = 4(Lz² + …)` (main.tex:453) took the NaN and the puncture died in `legendre_P3`.
-The NaN only bit where `r = 2 M` actually carries a circular geodesic, i.e. outside the
-prograde photon orbit, `a > 1/√2 = 0.70710678`; below that the negative radicand makes the
-`DomainError` those spins raise physically correct (at `a = 0`, `p = 2` is the horizon, where
-the pre-fix code returned a silent `E = 0.0`). Measured: `NaN` at (0.9, 2.0) and (0.998, 2.0),
-finite at 1.9, 2.5, 3.0. `ESSF::fix-horizon-axis-layer`'s sibling node removed it at `47f0ec0`
-(the Bardeen–Press–Teukolsky equatorial pair behind an exact removable-endpoint trigger,
-bitwise-neutral away from `p = 2`), with `7082f9a` pinning the orbit and the puncture at
-`r₀ = 2 M` and `12b43bd` excluding `p = 0`; a conditioning band survives around the endpoint
-(≈ `log₁₀|p − 2|⁻¹` digits lost, ~7 at `|p − 2| ≈ 1e-8`) and is that row's measured envelope.
-So the published third panel IS constructible now — but regenerating it waits on the layer
-below, which is a property of the inner boundary and not of `r₀`.
+`r₀ = 2 M` was **not constructible** until `47f0ec0`: `_angular_momentum_circular`
+(`constants.jl:13`) divides by `(p − 2) p − a²(x² − 1)`, which on the equator is `p (p − 2)` and
+vanishes at `p = 2` with its numerator, and `_carter_circular` (`:17`) inherits it as `0·NaN`,
+so **`Lz` and `Q`** were 0/0 while **`E`** was already right; `zc2` (main.tex:453) took the NaN
+and the puncture died in `legendre_P3`. It only bit where `r = 2 M` carries a circular geodesic
+at all, `a > 1/√2 = 0.70710678` (below that the negative radicand makes the `DomainError`
+correct; at `a = 0`, `p = 2` is the horizon, where the pre-fix code returned a silent `E = 0.0`).
+Fixed bitwise-neutrally away from the endpoint, with `7082f9a` pinning the orbit and the
+puncture at `r₀ = 2 M` and `12b43bd` excluding `p = 0`.
 
 ### The worldtube radius is a documented choice
 
@@ -521,68 +511,77 @@ nothing — and the published figure corroborates it: the grey curtain's cliff, 
 discontinuity between `Ψ^ℛ` inside the tube and `Ψ` outside, sits at `r₀ + w_r` = 13.75 and
 8.4 M in panels 1 and 2 against ≈ 13.5 and ≈ 8.5 M read off the published panels.
 
-### [HOLE] a spurious horizon–axis boundary layer takes over the prograde ISCO panel
+### The horizon–axis layer, and the measured rule that decides the hold
 
-At `a = +0.998`, `r₀ = r_ISCO = 1.2370 M` the whole radial gap between horizon and orbit is
-0.174 M, so the widest legal worldtube is 0.116 M and both vtu transitions are squeezed into
-`[1.063, 1.55] M`. What breaks the m-decay there is **not** a failure to converge — it is a
-spurious layer on the innermost radial node line, `r = r₊`, growing toward the axis:
+**What regularity means here, stated correctly.** `eq:mode_sum` factors `sin^{|m|}θ` **out** of
+the field, so `Ψ_m` is the variable that is analytic at the axis and approaches a finite,
+generically non-zero limit there — main.tex:227: each mode "approaches a non-zero constant
+amplitude … towards the poles". A healthy plane therefore has an **axis:equator ratio of order
+one** and a fitted `log|Ψ_m|` vs `log(1 − z²)` slope near **zero**. It must *not* fall like
+`(1 − z²)^{m/2}`; that is `Φ`'s m-mode, never `Ψ_m`. (Earlier revisions of this section had it
+the wrong way round; the measurement was always a ratio, so nothing measured changed.)
 
-* the mode variable has `sin^|m|θ` factored out, so axis regularity requires each plane to fall
-  like `(1 − z²)^{m/2}` as `z² → 1`. MEASURED at m = 17 along `r = r₊` it RISES instead:
-  `|u| = 1.6e-5` at `z² = 0.003` to `1.05` at `z² = 0.9918`, against the 0.98 → 1.8e-18 that
-  regularity asks for — a **23-decade violation**;
-* one node in from the boundary (`r > r₊ + 0.02`) the same modes decay physically, −0.107
-  decades per mode over m = 13…20, and GMRES converges in 10–11 iterations. The solver and the
-  interior are fine; the boundary row is not;
-* the layer exists at every spin and is a question of SCALE. Inner-boundary axis:equator ratio
-  at m = 17 / 20: **1.14 / 1.14** at `a = 0` (absent), **4.5e3 / 8.9e3** at `a = −0.998` but at
-  an absolute 3.70e-8 — four decades below that panel's maximum, hence invisible — and
-  **6.57e4 / 4.08e4** at O(1) for `a = +0.998` (`|u| = 1.05` at m = 17), where it dominates the
-  plane from m ≈ 14 and is what `p3_decay_monotone_from_m2 = false` records. Every ratio here is
-  re-measured from this figure's own surface cache (`evidence/fig-modes/layer_check_*.log`), and
-  the "innermost node line" is the first Legendre-Gauss collocation line inside the
-  horizon-adjacent element — `r − r₊` = 1.9e-4 M at this ISCO, 8.6e-3 and 4.4e-3 M on the other
-  two panels.
+**What goes wrong.** At the horizon the operator degenerates and its second radial branch is
+`Ψ_m ∼ (r − r₊)^{iν}` with `ν = 2m|Ω − Ω_H|(r₊² + a²)/(r₊ − r₋)` — unit modulus, infinitely
+oscillatory, excluded **only** by the polynomial trial space. Refine the horizon element away
+and it appears as a layer on the innermost radial node line. `ν` is 341.6 at m = 20 on panel 1,
+5.4 on panel 2 and 139.9 on panel 3, and the layer is present at every spin: it is a question of
+**scale**, so the driver never keys on the spin.
 
-Owned by **`ESSF::fix-horizon-axis-layer`** (the horizon boundary condition and axis
-regularity). The paper solves this configuration ("prograde orbits at the ISCO … with spin
-magnitude |a|/M = 0.998 … in a few seconds per m-mode"), so it is our limitation, and rows 46
-and 53 inherit it — row 53's error budget needs this very configuration.
+**The rule.** Sweep the panel with the package default (`horizon_hold = false`, reference
+parity), read `horizon_axis_profile(dom, orbit, mesh, u).layer_ratio` — the near-horizon strip's
+maximum over the rest of the plane's — for **every** mode, and re-sweep with
+`solve_kwargs = (; horizon_hold = true)` only if the **maximum over m** exceeds `1.05`. The
+plotted run's own `layer_ratio` is then gated (**GATE 7**), and both numbers and the setting are
+stated on the panel and registered.
 
-A SEPARATE, particle-side observation stands and is NOT the layer: at this ISCO
-`|Ψ^ℛ(x_p)|` and `F_r^m` moved by 2-3× per refinement step over 8 → 10 → 12 grids, while the
-same spin at `r₀ = 2.5 M` (worldtube 8× wider) decayed monotonically in m
-(`|Ψ^ℛ(x_p)|` = 1.00e-2 → 2.19e-6 over m = 0 … 20). That control separates a compressed-domain
-stall at the particle from the spin-driven layer at the boundary — but it was measured on the
-PRE-ADOPTION multigrid hierarchy (at `5700c16`, before `fdcd919`), and its GMRES columns
-(27/34/41 and 29/31/79 at the ISCO; 9/35/83/172/284 at `r₀ = 2.5`) are superseded: the landed
-panel-3 range is **4–11**. The particle-side numbers have not been re-measured on the adopted
-hierarchy.
+**The maximum over m, not the top mode** — measured, and it cost a run to learn: at
+`a = +0.998, r₀ = 2` the `layer_ratio` is 0.58 at m = 0, crosses one at m = 6, **peaks at 3.889
+at m = 12** and falls back to 3.6e-3 by m = 20, so a top-mode probe reads the panel as healthy
+(0.00363) and leaves the hold off.
 
-### Gates are registered claims, not aborts
+**What the rule decided here**: panels 1 and 2 pass on the default (`layer_ratio` max 0.1105 and
+0.3108, both at m = 0, i.e. no layer at all), panel 3 fails it (3.889) and is re-swept held, which
+brings it to **0.5776** — GATE 7 passes on all three. The hold changes the plane by up to 1.4
+decades and leaves the particle alone: at this configuration `F_r^m` and `|Ψ^ℛ(x_p)|` agreed
+between the two settings to 9.0e-4 and 2.6e-4 relative.
 
-Both of the paper's claims about this figure are measured per panel and REGISTERED — the
-fig_linsolv precedent — so `--check` keeps comparing numbers and a later change that breaks a
-claim which currently HOLDS fails the comparison:
+### [HOLE] GMRES stagnates at m = 19 and 20 for `a = +0.998`, `r₀ = 2 M`
+
+`converged = false` on those two modes with a worst final residual of **9.3e-6** against the
+yaml's 1e-12 tolerance, stopping far short of the 500-iteration cap; every other mode of every
+panel converged. Pre-adoption measurements of the same configuration gave 2.3e-5 (default) and
+7.6e-5 (held) at m = 20, with the per-grid staircase **growing** with depth
+(`1, 7, 7, 7, 11, 21, 61, 235` at m = 19). The two planes stay in the figure — drawn **dashed and
+fainter**, named in the panel note with the plotted run's own residual — and `pK_converged`
+carries the verdict per mode; the only break in panel 3's decay claim is the 19 → 20 step.
+Handed to `ESSF::fix-horizon-axis-layer`.
+
+### Gates: one hard gate on the rule, the paper's claims registered
+
+**GATE 7 is a real gate**: the plotted run's `layer_ratio` must not exceed 1.05 on any mode. The
+driver *chooses* `horizon_hold` to satisfy it, so a violation means the rule failed and the panel
+is not drawable as physics. Alongside it, `gatefails` holds only structural faults: a lost mode,
+a violated precondition of the extraction (`dom.chart === :z2` and `x_p[2] == 0`, which is what
+makes the sealed raw-ingredient `mode_self_force(orbit, m, psi, dpsi_r)` bitwise equal to the
+`AmrHistory` method's `:trace` reduction), and an oversized tracked PNG.
+
+The paper's two claims are **measured per panel and registered**, not asserted — the fig_linsolv
+precedent — so `--check` keeps comparing numbers and a later change that breaks a claim which
+currently holds fails the comparison:
 
 * `pK_decay_monotone_from_m2` — `max|Ψ_m|` strictly decreasing for m ≥ 2 (true, true, false),
-  with `pK_decay_first_break_m` / `_last_break_m` and the second, particle-local instrument
-  `pK_psi_xp_monotone_from_m2` (true, true, false);
-* `pK_worldtube_decades` / `pK_outside_decades` — the in- and out-of-worldtube dynamic range of
-  every plane, with `pK_m0_drops_two_decades` (2.43, 3.22, 2.65 decades) and
-  `pK_m0_deeper_than_m1_m2` (true on all three panels: m = 0 drops 2.43 against 0.95 / 1.23,
-  3.22 against 0.87 / 1.21, 2.65 against 1.09 / 0.93). NOTE the honest part: m = 0 is NOT the
-  deepest plane of all — high-m planes drop further (`pK_deepest_worldtube_mode` = 18, 12, 19)
-  because they oscillate more inside the tube. The paper's "particularly for the m = 0 mode" is
-  reproduced in the form it holds — against the neighbouring highlighted modes — and the full
-  vector is registered so the reading is checkable.
-
-`gatefails` is reserved for structural faults: a lost mode, a violated precondition of the
-extraction (`dom.chart === :z2` and `x_p[2] == 0`, which is what makes the sealed
-raw-ingredient `mode_self_force(orbit, m, psi, dpsi_r)` bitwise equal to the `AmrHistory`
-method's `:trace` reduction — verified identical at `a = 0, r₀ = 6, m = 2`), and an oversized
-tracked PNG.
+  with `pK_decay_first_break_m` (−1, −1, 19) and the particle-local
+  `pK_psi_xp_monotone_from_m2` (**true on all three** — with the hold, panel 3's particle-side
+  decay is monotone and only its plane's 19 → 20 step breaks, on the two stagnated modes);
+* `pK_worldtube_decades` / `pK_outside_decades` with `pK_m0_drops_two_decades` (2.43, 3.22, 3.04
+  decades) and `pK_m0_deeper_than_m1_m2` (**true on all three**: m = 0 drops 2.43 against
+  0.95/1.23, 3.22 against 0.87/1.21, 3.04 against 1.16/1.85). The honest part stays registered:
+  m = 0 is not the deepest plane of all (`pK_deepest_worldtube_mode` = 18, 12, 20);
+* the row-58 instrument and the solver's verdict, per mode: `pK_layer_ratio`,
+  `pK_axis_equator_ratio`, `pK_axis_exponent`, `pK_branch_index`, `pK_converged`,
+  `pK_final_residual`, plus the rule's inputs `pK_horizon_hold` and
+  `pK_layer_ratio_default_max`.
 
 ### The lattice these numbers belong to
 
