@@ -398,4 +398,24 @@ export ModePool, mode_pool
 export ModeResult, ModeFailure, ModeRunRecord, ModeSet
 export solve_modes_serial, solve_modes_parallel
 
+include("Extraction/modesum.jl")             # mode-sum-total-force (row 46)
+# THE TOTAL: total_self_force sums the REGULARIZED per-mode terms of row 44,
+# F_r = Sum_{m=0}^{m_max} [F_r^m - F^m_{r[4]}] + tail, which IS the accelerated sum of
+# main.tex:723 (the doubly-infinite parameter sum vanishes, so it equals Sum_m F_r^m plus the
+# analytic parameter tail mmode_reg_tail_Fr; both forms are computed and gated equal). It
+# reduces raw per-mode numbers, a ModeSet from the row-47 fan-out, a vector of AmrHistory, or
+# an (orbit, config) pair it solves itself. mode_sum_tail estimates what TRUNCATION leaves
+# behind, Sum_{m>m_max}[F_r^m - F^m_{r[4]}], ALWAYS in closed form: :heffernan imposes the
+# exact printed order-6 m-dependence and fits only the amplitude F_{r[6]} that [H14] never puts
+# in closed form, :fit frees the exponent and sums C m^-p by an Euler-Maclaurin Hurwitz zeta,
+# :none stops and reports the paper's own omit-the-last-mode estimator as its uncertainty; the
+# two models are always both computed and their disagreement is part of the uncertainty.
+# mode_decay_fit is the log-log decay exponent with the uncertainty the per-mode resolution
+# errors propagate into it and the HEADROOM RULE that keeps a mode drowned in its own
+# resolution floor out of a fit. Units are already Warburton-Barack's (q = M = 1). NO figure
+# (rows 50/51/53), NO new solver, NO re-derivation of F_r^m.
+export total_self_force, TotalSelfForce
+export mode_sum_tail, ModeSumTail
+export mode_decay_fit, ModeDecayFit
+
 end # module

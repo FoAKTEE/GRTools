@@ -48,4 +48,5 @@ using ScalarSelfForce
     include("test_selfforce.jl")   # mode-self-force-extraction (ESSF-W12-A)
     include("test_parallel.jl")   # mmode-parallel-driver (ESSF-W12-B)
     include("test_selfforce_levels.jl")   # fig-convergence: the level route (ESSF-W13-B)
+    include("test_modesum.jl")   # mode-sum-total-force (ESSF-W13-A)
 end

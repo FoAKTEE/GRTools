@@ -358,6 +358,74 @@ formulation and consumes the physics-free hp-DG solver stack from
     it needs the process fan-out's 8 levels with ``m`` up to 20 and the same
     propagated uncertainty.
 
+- **Extraction — the total force and its large-``m`` tail**
+  (`total_self_force`, `TotalSelfForce`, `mode_sum_tail`, `ModeSumTail`,
+  `mode_decay_fit`, `ModeDecayFit`). The number the paper is about,
+  ``F_r = \sum_{m=0}^{m_\mathrm{max}}[F_r^m - F^m_{r[4]}] + \text{tail}`` —
+  main.tex:723's accelerated sum. The two ways of writing it are the SAME
+  number: because the doubly-infinite parameter sum vanishes, summing the
+  *regularized* terms already contains `mmode_reg_tail_Fr(4, orbit, m_max+1)`.
+  That is an identity, and both forms are computed and gated equal to
+  ``4\times10^{-16}`` relative. `total_self_force` reduces raw per-mode values,
+  a `ModeSet` from the fan-out, a vector of `AmrHistory`, or an
+  `(orbit, config)` pair that it solves itself — hold ONE `mode_pool` across a
+  sweep of orbits.
+  - `mode_sum_tail(orbit, ms, terms; method)` estimates what truncation leaves
+    behind, ``\sum_{m>m_\mathrm{max}}[F_r^m - F^m_{r[4]}]``, **always in closed
+    form**. `:heffernan` (the default) imposes the exact printed order-6
+    ``m``-dependence and fits only the amplitude ``F_{r[6]}``, which
+    Heffernan–Ottewill–Wardell never give in closed form (they fit it
+    numerically); `:fit` frees the exponent and sums ``C\,m^{-p}`` by an
+    Euler–Maclaurin Hurwitz ``\zeta``; `:none` stops the sum and reports the
+    paper's own omit-the-largest-``m`` estimator as its uncertainty. Both models
+    are always computed and their disagreement is part of the uncertainty.
+  - `mode_decay_fit` is the log-log decay exponent with the uncertainty the
+    per-mode resolution errors propagate into it, and the **headroom rule**: a
+    mode whose value is within `headroom` times its own resolution error never
+    enters a fit (at 9 AMR grids that excludes ``m = 19, 20`` from the
+    regularized fit at ``|a| \ge 0.5``).
+  - MEASURED against the printed Warburton–Barack Table III (arXiv:1003.1860,
+    `Warburton.tex:620-645`) at ``r_0 = 10M``, ``m \le 20``, the production
+    configuration at 9 AMR grids per mode, one process per mode:
+
+    | ``a/M`` | ours ``(M^2/q^2)F_r`` | WB printed | rel. dev. | tail | resolution |
+    |---|---|---|---|---|---|
+    | ``-0.9`` | ``+4.93998713\times10^{-5}`` | ``+4.939995\times10^{-5}`` | ``1.6\times10^{-6}`` | ``+1.94\times10^{-10}`` | ``1.2\times10^{-10}`` |
+    | ``-0.5`` | ``+3.28941335\times10^{-5}`` | ``+3.28942\times10^{-5}`` | ``2.0\times10^{-6}`` | ``+1.60\times10^{-10}`` | ``1.2\times10^{-10}`` |
+    | ``0`` | ``+1.37843603\times10^{-5}`` | ``+1.378448\times10^{-5}`` | ``8.7\times10^{-6}`` | ``+1.31\times10^{-10}`` | ``1.2\times10^{-10}`` |
+    | ``+0.5`` | ``-4.03529509\times10^{-6}`` | ``-4.03517\times10^{-6}`` | ``3.1\times10^{-5}`` | ``+1.11\times10^{-10}`` | ``1.2\times10^{-10}`` |
+    | ``+0.9`` | ``-1.76824386\times10^{-5}`` | ``-1.768232\times10^{-5}`` | ``6.7\times10^{-6}`` | ``+9.7\times10^{-11}`` | ``1.0\times10^{-10}`` |
+
+    *[SOLID: worst relative deviation ``3.1\times10^{-5}``, sixteen times inside
+    the ``5\times10^{-4}`` node gate; measured at GRTools `5700c16`, tolerance-
+    gated, not golden-valued]*. Dropping the tail roughly doubles every
+    deviation (``5.5\times10^{-6} \to`` … ``\to 5.8\times10^{-5}``), and the
+    tail shrinks the drift of the total between ``m_\mathrm{max} = 10`` and
+    ``20`` by a factor 4.4–5.8. It exceeds the paper's own
+    omit-the-largest-``m`` truncation estimator by 3.57–3.65, against the
+    ``m_\mathrm{max}/(p-1) = 3.77`` – ``3.83`` the model predicts — which is the
+    "constant offset" main.tex:731 reports between its truncation model and its
+    true error.
+  - Decay exponents at the same configuration, on the trailing modes that clear
+    a headroom of 3: the UNREGULARIZED ``F_r^m`` gives ``-4.079`` … ``-4.058``
+    with a propagated ``\pm0.013`` … ``\pm0.021``, where the printed
+    ``F^m_{r[4]}`` shape itself gives ``-4.017`` over the same modes *[SOLID]*.
+    The REGULARIZED residual gives ``-6.23`` … ``-6.31`` against the printed
+    ``F^m_{r[6]}`` shape's ``-6.06`` … ``-6.08`` *[PRELIMINARY: at this AMR depth
+    the ``m \approx 20`` residuals sit within a few times their own resolution
+    error, so the propagated uncertainty is ``\pm0.53`` … ``\pm0.85``; the
+    ``-6 \pm 0.3`` ASYMPTOTIC gate of the regularization node is NOT discharged
+    by this measurement]*.
+  - One place where our budget does not reproduce the paper's: at 9 AMR grids
+    the total's numerical-resolution error (``1.0`` – ``1.2\times10^{-10}``,
+    the coherent difference between the two highest levels) is 3–4 times LARGER
+    than the finite-``m`` truncation estimator (``2.7`` – ``5.4\times10^{-11}``),
+    whereas main.tex:728 reports resolution pushed well below truncation. The
+    cause is that the per-mode resolution error GROWS with ``m`` at fixed AMR
+    depth (``5\times10^{-13}`` at ``m = 10`` against ``1.5\times10^{-11}`` at
+    ``m = 20`` for ``a = 0``) *[SOLID as a measurement; the discrepancy with the
+    paper's budget is not explained here]*.
+
 - **Solve — the process-parallel m fan-out** (`solve_modes_parallel`,
   `solve_modes_serial`, `mode_pool`, `mode_config`, `mode_pool_size`,
   `system_load`). The paper's ``m = 0\ldots20`` sweep (`CRP_PAPER_MMODES`,

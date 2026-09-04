@@ -155,3 +155,13 @@ oracle = "Wardell-Thornburg ancillary Mathematica notebook m-ModeKerrRegularizat
 oracle_commit = ""
 status = "tracked-generator"
 note = "INDEPENDENT-SOURCE oracle for the tex transcription in src/Extraction/regularization.jl (arXiv:1211.6446 KerrRegularization.tex:1675-1731); the capture script parses the notebook box structure directly, needs only python3+mpmath and the read-only ref-paper mirror, and re-emits this file byte-for-byte"
+
+[[fixture]]
+file = "test/fixtures/modesum_wb_r10.jl"
+sha256 = "58f499708edb2812c13d382110a95e45ef1f33e70e258614396ba74e632b80b4"
+bytes = 7523
+capture = "test/fixtures/capture/capture_modesum_wb_r10.jl"
+oracle = "this package's own m-mode pipeline (rows 42/43/44/47) at the commit named in the fixture header: solve_modes_parallel over m = 0:20 at the production crp_paper_config, 9 AMR grids per mode, one process per mode with OPENBLAS_NUM_THREADS=1, reduced by the sealed row-44 mode_self_force on the per-level diagnostics. NOT an external oracle - the external oracle of the node is the printed Warburton-Barack Table III, baked separately in test/fixtures/wb_reference.jl and string-equal to the tex mirror"
+oracle_commit = ""
+status = "tracked-generator"
+note = "RECORDING, not an oracle: the per-mode F_r^m and the SIGNED highest-minus-second-highest AMR difference for the five WB comparison spins at r0 = 10M. It exists so the mode-sum node's WB gate runs in seconds instead of ~30 CPU-minutes; test_modesum.jl gate (e) re-solves MSWB_LIVE_MODE LIVE for every spin at every suite run and requires this table to reproduce, so a drift of the per-mode pipeline cannot hide behind the recording. The capture script deliberately does NOT call the node it feeds. Regeneration costs ~15 min wall on 6 worker processes"
