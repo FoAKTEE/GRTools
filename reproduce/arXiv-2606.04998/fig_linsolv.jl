@@ -163,6 +163,11 @@ function draw(xs, residual, iteration_time, build_time, abstol, walltime)
         plot!(bot, xs[k] .+ (0:(length(y) - 1)), y; color = :black, linewidth = 1.0,
               marker = (:circle, 3.0), markercolor = :black, markerstrokewidth = 0, label = "")
     end
+    # the attribution, ON THE FIGURE: this package builds the subdomain matrices eagerly, so the
+    # paper's lazy first-iteration cost is added to each level's first point (see the header).
+    annotate!(bot, xhi - 0.4, minimum(tall) / 10^0.13,
+              text("first point of each level includes the eager operator build",
+                   7, :right, :bottom, RGB(0.25, 0.25, 0.25), "Computer Modern"))
 
     plt = plot(top, bot; layout = grid(2, 1; heights = [0.6, 0.4]), size = (500, 550), dpi = 150,
                left_margin = 4Plots.mm, right_margin = 4Plots.mm, top_margin = 2Plots.mm,

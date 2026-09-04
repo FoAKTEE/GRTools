@@ -16,8 +16,8 @@ assembly). **Drivers here are THIN** — zero physics, per `reproduce/README.md`
 Style manual for every figure of this paper: `reproduce/_style/manuals/arXiv-2606.04998.md`
 (a copy; the canonical, evolving version is emri-disk
 `progress/elliptic-ssf/FIGURE_STYLE_MANUAL.md`). The recurring VLM procedure is mandatory —
-read the manual, render, VLM-check the render alone, VLM-compare against the reference PDF,
-decide script-vs-structure, iterate (`.claude/skills/vlm-figure-repro/SKILL.md`).
+read the manual (`reproduce/_style/manuals/arXiv-2606.04998.md`), render, VLM-check the render
+alone, VLM-compare against the reference PDF, decide script-vs-structure, iterate.
 
 > **Parameters.** The paper's figure captions name no parameters. Every driver here uses the
 > production example of the paper's own input file, `anc/ScalarSelfForce.yaml:8-12`:
@@ -208,8 +208,9 @@ from pixels. "Reduction per iteration" is `(r₀ / r_final)^(1/iters)`.
 Both runs satisfy every claim the caption and main.tex:720 make — `< 10` iterations per level, the
 first level converging immediately, and no growth of the count as levels are added. What differs
 is that the paper's preconditioner becomes steadily **more** effective with depth while ours
-**degrades** (16.4× → 6.0×), and our per-level initial residual (the interpolated warm start) is 1.4–13× larger
-from level 2 on. Owner: `ESSF::solver-stack-core` (the GMRES ∘ multigrid ∘ Schwarz composition)
+**degrades** (16.4× → 6.0×), and our per-level initial residual is larger at **every** level: at
+level 0 it is the source norm `‖b‖` itself, 1.744 against the published 1.375 (a factor 1.27 —
+an open [HOLE], see below), and from level 2 on the interpolated warm start is 1.4–13× larger. Owner: `ESSF::solver-stack-core` (the GMRES ∘ multigrid ∘ Schwarz composition)
 and `ESSF::amr-driver` (the level policy). Row 43 already measured a nearby A/B: with
 `coarse_orders = nothing` (the min rule for the coarse multigrid orders, instead of spectre-parity
 pinning at `P`) the same sweep gives `1, 8, 8, 8, 7, 7, 6, 7, 6` — decreasing, though still not
@@ -228,6 +229,32 @@ and the per-level final residuals move in their last digits. The GMRES **iterati
 unchanged** at `1, 8, 9, 9, 9, 9, 9, 9`, so the reproduction gap documented above survives the
 fix rather than having been caused by it.
 
+### [HOLE] the level-0 source norm is 1.27× the published one
+
+Level 0's initial residual is `‖b‖` itself (the initial guess is zero), and it is **1.744** here
+against the published **1.375** — a factor 1.27 that then propagates as an offset into every
+later level's starting residual.
+
+**Mass weighting is excluded as the cause.** The candidate explanation was that spectre's Krylov
+norm might be a mass-weighted inner product while ours is Euclidean. It is not: spectre's Krylov
+inner product is the plain Euclidean 2-norm of the *massive* residual
+(`NumericalAlgorithms/LinearSolver/InnerProduct.hpp:23-27,90-96`, with the mass matrix already
+applied by the DG operator under `Massive: True`,
+`Elliptic/DiscontinuousGalerkin/DgOperator.hpp:621-680`), and ours plots the same quantity —
+the Euclidean norm of the massive residual (`Solve/driver.jl:229-232`,
+`EllipticCore/src/gmres.jl:144`). Both sides therefore measure the same norm of the same kind of
+vector, so the ratio is **not** a norm-convention artefact.
+
+What remains open is the **normalisation of the source itself** — the fixed-source lift built
+from the effective source and the worldtube jump data, and any symmetry/mode factor (the
+equatorial-symmetry ½, the `e^{imφ}` convention, the ±m folding) that would scale `b` by an
+O(1) constant without touching the *shape* of any staircase. A constant rescaling of `b` cannot
+change GMRES iteration counts against a *relative* tolerance, but this solve uses an **absolute**
+one (`AbsoluteResidual: 1e-12`), so a 1.27× larger `b` costs a fraction of one iteration — far
+too little to explain the 63-vs-31 gap, which is why the two findings are separate.
+
+Open, unresolved, and handed to node 56 `linsolv-depth-gap` together with the depth gap.
+
 ### The bottom panel: eager build, attributed by addition
 
 The paper's first-iteration bump is the **lazy** construction of the Schwarz subdomain matrices
@@ -236,7 +263,8 @@ same work is measured in `SolveRecord.build_time` and *not* inside `iteration_ti
 panel therefore plots `iteration_time[1] + build_time` at each level's first point: the same
 physical work charged to the same iteration, by addition rather than by measurement inside the
 timer — a bookkeeping equivalence, not a lazy build. Both columns stay separately registered in
-the golden. Measured consequences (envelope over the `-t1` and `-t4` runs): with the attribution the
+the golden, and the figure itself carries the note *"first point of each level includes the eager
+operator build"* under the bottom panel, so the panel cannot be read as a lazy-build measurement. Measured consequences (envelope over the `-t1` and `-t4` runs): with the attribution the
 first/rest ratio is **37…144** (paper: 1.8…2.9); without it, **0.35…3.1**, i.e. scattered about 1
 with no trend in level — there is no first-iteration feature here at all without the attribution. Our per-iteration plateau is *faster* than the paper's
 (0.034 s vs 0.274 s on the deepest level); only the eager build makes the sweep total larger
