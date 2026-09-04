@@ -205,7 +205,8 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
     @testset "(a) the hp cascade: level map, order map, 2:1 balance" begin
         # structure only, no solves — this is the sealed amr node's metadata gate on the REAL
         # CRP domain. MEASURED (proto1_structure.log) at a = 0.5 and a = 0, identically:
-        # nel 20 27 33 39 45 51 57 63 69, ndofs 320 603 962 1425 2004 2711 3558 4557 5720.
+        # nel 20 27 33 39 45 51 57 63 69, ndofs 320 593 950 1411 1988 2693 3538 4535 5696
+        # (re-measured after the EllipticCore two-to-one-closure fix).
         for spin in (0.5, 0.0)
             cfg = da_cfg(; spin = spin)
             orb = da_orb(cfg)

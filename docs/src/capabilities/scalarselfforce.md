@@ -195,10 +195,12 @@ formulation and consumes the physics-free hp-DG solver stack from
 
   Under the paper's own `RefineAtPuncture` criterion (yaml:132,
   main.tex:552-560 — split only the elements *containing* the particle) over
-  five AMR levels (320 → 603 → 962 → 1425 → 2004 grid points), the counts are
-  9, 8, 8, 7, 6 with the min coarsening rule and 9, 8, 9, 9, 9 with spectre
-  parity (`coarse_orders = P`), which pins the bottom grid at 160 points and
-  builds its LU once. **main.tex:720's "less than 10 iterations per AMR level"
+  five AMR levels (320 → 593 → 950 → 1411 → 1988 grid points), the counts are
+  9, 8, 7, 8, 6 with the min coarsening rule (coarsest grid
+  160 → 236 → 334 → 450 → 584) and 9, 8, 9, 9, 9 with spectre parity
+  (`coarse_orders = P`), which pins the bottom grid at 160 points and builds its
+  LU once. (These are the numbers after the EllipticCore `hp_refine`
+  two-to-one-closure fix; this page is the one maintained measurement table.) **main.tex:720's "less than 10 iterations per AMR level"
   holds, and the count decreases with refinement depth.** Refining the *whole*
   worldtube instead — which is not the paper's criterion — makes the counts
   grow (9, 8, 9, 10, 11 and 9, 9, 11, 12, 18), so the refinement criterion, not

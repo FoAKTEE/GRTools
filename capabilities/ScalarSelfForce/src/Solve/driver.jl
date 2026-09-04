@@ -144,28 +144,31 @@ h-step. MEASURED on the production lattice at `L = 0`: `nothing` gives 2 levels
 
 `RefineAtPuncture` (yaml:132, main.tex:552-560) splits ONLY the elements containing the
 particle and raises `p` everywhere else. Under that criterion, at `a = 0.5`, `r₀ = 10`,
-`m = 2` over five levels (320 → 603 → 962 → 1425 → 2004 dofs), at the yaml-resolved overlap 4
+`m = 2` over five levels (320 → 593 → 950 → 1411 → 1988 dofs), at the yaml-resolved overlap 4
 ([`resolve_max_overlap`](@ref)):
 
 | `coarse_orders` | iterations | coarsest level dofs | bottom LU builds |
 |---|---|---|---|
-| `nothing` (MIN) | 9, 8, 8, 7, 6 | 160, 241, 340, 457, 592 | 1, 1, 1, 1, 1 |
+| `nothing` (MIN) | 9, 8, 7, 8, 6 | 160, 236, 334, 450, 584 | 1, 1, 1, 1, 1 |
 | `4` (spectre parity) | 9, 8, 9, 9, 9 | 160, 160, 160, 160, 160 | 1, 0, 0, 0, 0 |
 
-At the package default `overlap = 2` the same sweep gives 10, 9, 8, 7, 7 and 10, 9, 9, 9, 10.
 **main.tex:720's "less than 10 iterations per AMR level" HOLDS under the paper's own
-criterion, and the count DECREASES with refinement depth** (main.tex:722, scale independence).
+criterion**, and the count does not grow with refinement depth — under the MIN rule it ends
+BELOW where it started (9 → 6), which is main.tex:722's scale independence; it is not
+monotone step by step.
 
 CONTRAST — UNIFORM h REFINEMENT OF THE WHOLE WORLDTUBE (every in-tube element split, which is
-NOT the paper's criterion) over five levels (320 → 681 → 1924 → 6252 → 21632 dofs): MIN
-9, 8, 9, 10, 11 and parity 9, 9, 11, 12, 18 at overlap 4 (10, 9, 10, 12, 14 and
-10, 10, 12, 15, 32 at overlap 2) — the counts GROW. The refinement CRITERION, not the solver,
-is what decides; a driver that splits the whole tube pays for it.
+NOT the paper's criterion): its counts GROW (measured 9, 8, 9, 10, 11 for MIN and 9, 9, 11,
+12, 18 for parity over five levels). The refinement CRITERION, not the solver, is what
+decides; a driver that splits the whole tube pays for it. The parity/MIN trade is therefore
+criterion-dependent: under `RefineAtPuncture` parity costs 0, 0, +2, +1, +3 iterations across
+the five levels while pinning the bottom grid and never rebuilding its LU.
 
-The parity/MIN trade is therefore criterion-dependent: under `RefineAtPuncture` parity costs
-0, 0, +1, +2, +3 iterations across the five levels while pinning the bottom grid and never
-rebuilding its LU; under uniform in-tube refinement it costs 0, +1, +2, +3, +18. See this
-node's evidence tables.
+ALL OF THE ABOVE IS THE PRE-`6df9f51` MEASUREMENT except the two `RefineAtPuncture` rows,
+which are re-measured; the uniform-refinement dof and iteration sequences and the `overlap = 2`
+figures were taken before that fix moved every mesh sequence and are kept only as the ORDER OF
+MAGNITUDE of the contrast. THE ONE AUTHORITATIVE, MAINTAINED TABLE is the `Solve` section of
+`docs/src/capabilities/scalarselfforce.md`; prefer it over any docstring when they disagree.
 
 `coarse_orders` is the coarse-level POLYNOMIAL policy of [`MultigridHierarchy`](@ref):
 `nothing` (the default) p-coarsens by the MIN rule; an integer pins every coarser level at
@@ -176,8 +179,11 @@ the pinned coarse space falls behind a p-refined fine grid and costs iterations.
 here stays `nothing` because at `L = 0`, before any hp step, the two rules COINCIDE; row 43
 chooses per sweep with the measured table in front of it.
 
-`shrink` stays at the sealed row-21 default `1`, the only value that never costs an iteration
-on the anisotropic meshes the CRP's `Isotropy: Anisotropic` policy (yaml:145) produces.
+`shrink` stays at the sealed row-21 default `1` here; the AMR driver (row 43) passes `0.5`,
+which on the CRP's own hp sequence was MEASURED to give an identical iteration sequence and a
+hierarchy of 4 levels instead of 18 (`evidence/amr-driver/shrink_ab_afterA.md`). The row-21
+claim that `1` is "the only value that never costs an iteration" is not contradicted by that
+measurement — it simply does not bind on this refinement sequence.
 
 Tolerances keep the config's own real type, so a `RunConfig{BigFloat}` yields `BigFloat`
 tolerances and the solve is never silently Float64'd.
