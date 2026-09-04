@@ -1,6 +1,5 @@
 # Documenter output
 docs/build/
-paper/
 
 # Julia scratch
 *.jl.cov
@@ -19,21 +18,3 @@ scratch/
 
 # reproduce/ registry flock file (concurrency guard for MANIFEST.toml appends; always empty)
 reproduce/.manifest.lock
-
-# Overleaf Connect
-.overleafconnect
-*.aux
-*.synctex.gz
-*.fls
-*.fdb_latexmk
-*.bbl
-*.blg
-*.out
-*.toc
-*.pdf
-*.nav
-*.snm
-*.vrb
-*.lot
-*.lof
-%OUTDIR%/
