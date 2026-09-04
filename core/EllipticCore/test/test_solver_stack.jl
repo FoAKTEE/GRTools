@@ -1158,4 +1158,103 @@ end
     @test rsh.iterations <= SK_ITER_GATE
 end
 
+# ------------------------------------------- the EXPLICIT-CHAIN preconditioner factory ----
+# `multigrid_chain_preconditioner` (DAG row 56, linsolv-depth-gap). Written BEFORE the
+# implementation; the red run is captured in the node's evidence directory.
+#
+# WHY IT EXISTS. arXiv:2606.04998 does not run the DERIVED hierarchy under AMR. Its executable
+# keeps the coarse grids (`SolveScalarSelfForce.hpp:173`), every AMR step creates a new finest
+# grid at `grid_index + 1` (`Amr/Actions/AdjustDomain.hpp:157-163` for split elements, `:203-212`
+# for the p increment) and the parent survives as a coarser grid
+# (`Amr/Actions/SendDataToChildren.hpp:43-70`), so the grids the V-cycle walks
+# (`Multigrid/ElementActions.hpp:96-135`, `Multigrid.hpp:56-58`) ARE the AMR history. This
+# factory is how a caller hands that history to the stack: it owns a vector of coarse meshes,
+# FINEST-FIRST, and the factory reads it at every `rebuild!`.
+#
+# GATE CONSTANTS calibrated PRE-RED on the throwaway prototype
+# `evidence/linsolv-depth-gap/calibrate_chain_precond.jl` (log `calibrate_chain_precond.log`),
+# which runs the gate (M1) hp sweep both ways.
+SK_CHAIN_STEPS = 6              # the gate (M1) sweep length, reused
+SK_CHAIN_SPREAD = 1             # history counts span 1 iteration over steps >= 2 (measured 8,9,9,9,9)
+@testset "gate (M4): the explicit-chain preconditioner is the AMR history" begin
+    T = ComplexF64
+    fac = sk_factory(T)
+
+    # (1) EQUIVALENCE ANCHOR — handed the DERIVED hierarchy's own meshes, the chain factory is
+    #     the derived stack, bitwise, iterate for iterate.
+    mesh0 = sk_five_mesh(Float64, 1)
+    op0 = fac(mesh0)
+    ref = SolverStack(op0, fac; options = SolverStackOptions())
+    chain_eq = [l.mesh for l in ref.hierarchy.levels[2:end]]
+    st_eq = SolverStack(op0, fac; options = SolverStackOptions(),
+                        preconditioner = multigrid_chain_preconditioner(chain_eq))
+    @test length(st_eq.hierarchy.levels) == length(ref.hierarchy.levels)
+    _, beq, _ = sk_manufactured(op0, 0x9001)
+    x1 = zeros(T, op0.mesh.ndofs); x2 = zeros(T, op0.mesh.ndofs)
+    r1 = solve_linearized!(x1, ref, beq)
+    r2 = solve_linearized!(x2, st_eq, beq)
+    @test r1.iterations == r2.iterations
+    @test x1 == x2                                        # BITWISE the same solve
+
+    # (2) THE hp SWEEP, both hierarchies. The chain is the sweep's own mesh history, so the
+    #     coarsest level is the INITIAL mesh and never moves.
+    function hp_sweep(mode)
+        mesh = sk_five_mesh(Float64, 1)
+        chain = Mesh2D{Float64}[]
+        opts = SolverStackOptions(; coarse_orders = 4)
+        op = fac(mesh)
+        st = mode === :history ?
+             SolverStack(op, fac; options = opts,
+                         preconditioner = multigrid_chain_preconditioner(chain)) :
+             SolverStack(op, fac; options = opts)
+        its = Int[]; depth = Int[]; coarsest = Int[]
+        for step in 1:SK_CHAIN_STEPS
+            if step > 1
+                newmesh = hp_refine(mesh, sk_corner_flags(mesh))
+                mode === :history && pushfirst!(chain, mesh)
+                mesh = newmesh
+                op = fac(mesh)
+                rebuild!(st, op)
+            end
+            push!(depth, length(st.hierarchy.levels))
+            push!(coarsest, st.hierarchy.levels[end].mesh.ndofs)
+            _, b, _ = sk_manufactured(op, 0x7000 + step)
+            push!(its, solve_linearized!(zeros(T, op.mesh.ndofs), st, b).iterations)
+        end
+        return st, its, depth, coarsest, mesh
+    end
+    st_d, its_d, dep_d, co_d, _ = hp_sweep(:derived)
+    st_h, its_h, dep_h, co_h, m_end = hp_sweep(:history)
+    println("  [gate (M4)] derived: its=", its_d, " depth=", dep_d, " coarsest=", co_d,
+            " bottom=(", st_d.bottom_cache.builds, ",", st_d.bottom_cache.hits, ")")
+    println("  [gate (M4)] history: its=", its_h, " depth=", dep_h, " coarsest=", co_h,
+            " bottom=(", st_h.bottom_cache.builds, ",", st_h.bottom_cache.hits, ")")
+
+    # the DERIVED hierarchy degrades as the fine order runs away from the pinned coarse space
+    @test its_d[end] > its_d[1]
+    # the AMR-history hierarchy does NOT: after the first refinement the count is bounded
+    @test maximum(its_h[2:end]) - minimum(its_h[2:end]) <= SK_CHAIN_SPREAD
+    @test its_h[end] < its_d[end]
+    # its depth IS the number of grids the sweep has made (one per AMR step, level 0 included)
+    @test dep_h == collect(1:SK_CHAIN_STEPS)
+    # step 1 has an EMPTY chain: a single level, whose bottom solve IS the whole problem
+    @test its_h[1] == 1
+    # the coarsest grid is the INITIAL mesh and never moves (main.tex:674), so one bottom LU
+    @test all(==(mesh0.ndofs), co_h)
+    @test st_h.bottom_cache.builds == 1
+    @test st_h.bottom_cache.hits == SK_CHAIN_STEPS - 1
+    # the chain is READ at every rebuild, so mutating the caller's vector is what moved the depth
+    @test dep_h[end] - dep_h[1] == SK_CHAIN_STEPS - 1
+    # `initial_coarse_levels`, `shrink` and `coarse_orders` are NOT consulted by this factory:
+    # the depth is the chain's length + 1 whatever they say
+    chain2 = [l.mesh for l in ref.hierarchy.levels[2:3]]
+    st2 = SolverStack(op0, fac; options = SolverStackOptions(; initial_coarse_levels = 0,
+                                                             shrink = 0.5, coarse_orders = 4),
+                      preconditioner = multigrid_chain_preconditioner(chain2))
+    @test length(st2.hierarchy.levels) == 3
+    @test multigrid_chain_preconditioner isa Function
+    doc = string(Base.Docs.doc(Base.Docs.Binding(EllipticCore, :multigrid_chain_preconditioner)))
+    @test !occursin("No documentation found", doc)
+end
+
 end   # @testset "solver stack (solver-stack-core)"

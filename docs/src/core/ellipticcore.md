@@ -69,7 +69,25 @@ The solver stack, bottom to top:
   polynomial increment) and the coarsest the invariant initial lattice, which is
   what keeps the bottom `LU` factorized once. On the paper's own exemplar the
   supplied chain takes the GMRES counts from `1, 8, 9, 9, 9, 9, 9, 9` to
-  `1, 7, 7, 6, 5, 5, 5, 4`, i.e. from flat to the published falling staircase.
+  `1, 7, 7, 6, 5, 5, 5, 4`, i.e. from flat to the published falling staircase,
+  and with the reference's own `MaxOverlap: Auto` rule on top to
+  `1, 7, 6, 5, 5, 4, 4, 4` (published `1, 7, 6, 5, 4, 3, 3, 2`); the control
+  that fixes the reading is that giving the DERIVED hierarchy four times the
+  depth changes nothing at all. Every invariant a chain must satisfy — an
+  ancestor-or-equal at a per-dimension level gap of 0 or 1, an onto (exactly
+  tiling) map, no repeated or identical level, a coarse order never above the
+  fine one, and a factory that really rediscretizes on the mesh it is handed —
+  is refused with an `ArgumentError` rather than silently mis-projected.
+  The chain form also takes an **overlap policy** instead of one number: an
+  integer, one integer per level, or a callable of the level's own mesh. The
+  three are the same subdomains, because the smoother already clamps per
+  neighbour (`min(overlap, neighbour extent)`, the same `min` the reference
+  applies per element); what differs is the subdomain cache KEY, so an AMR
+  history must use the per-level form to keep the frozen coarse levels' Schwarz
+  factorizations cached. `multigrid_chain_preconditioner(meshes; overlap)` is
+  the `SolverStack` factory that feeds a live, caller-owned chain to the stack:
+  it re-reads the vector at every `rebuild!`, so pushing the mesh a sweep has
+  just left behind is all it takes for the hierarchy to follow the AMR.
   The transfers are the sealed mortar projections:
   [`mg_prolong!`](@ref) is the nodal Lagrange interpolation onto the children;
   [`mg_restrict_residual!`](@ref) is the Galerkin restriction `Pᵀ` of the

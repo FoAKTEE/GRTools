@@ -1074,5 +1074,55 @@ const MGC_RHO_PONLY = 0.05      # calibrated 0.0045, 2-level p-only chain
         # a chain mesh from a different block lattice
         other = mg_curved_mesh(Float64, 2)
         @test_throws ArgumentError MultigridHierarchy(mk(m0), mk, [other])
+        # `op.mesh` repeated as the first coarse level — the chain is the COARSER meshes only
+        @test_throws ArgumentError MultigridHierarchy(mk(m0), mk, [m0])
+        # a coarse level carrying a HIGHER polynomial order than the level above it
+        hi = mg_uniform_mesh(Float64, 1, 5)
+        @test_throws ArgumentError MultigridHierarchy(mk(m0), mk, [hi])
+        # a chain entry that is not a Mesh2D at all: an ArgumentError, not a TypeError
+        @test_throws ArgumentError MultigridHierarchy(mk(m0), mk, Any[42])
+        # a factory that ignores the mesh it is handed and rediscretizes somewhere else: the
+        # coarse levels would silently precondition with an unrelated operator, and right
+        # preconditioning keeps the ANSWER correct, so the residual never reveals it
+        wrong = _ -> mk(m2)                                   # ignores its argument
+        @test_throws ArgumentError MultigridHierarchy(mk(m1), wrong, [m0])
+        # an overlap vector shorter than the hierarchy
+        @test_throws ArgumentError MultigridHierarchy(mk(m1), mk, [m0]; overlap = [2])
+        # DEFENSIVE, and unreachable through `Mesh2D`'s own validation, so asserted by
+        # inspection rather than by construction: an EMPTY level and a level with a REPEATED
+        # element id (`Mesh2D` rejects duplicates at matrixfree.jl:202) and a chain level with
+        # an element covering nothing (`Mesh2D` rejects tiling holes at matrixfree.jl:271-276,
+        # so two meshes over the same block set always tile the same region). The guards stay
+        # because a caller may build a `Mesh2D` by other means than `coarsen_mesh`/`hp_refine`.
+        @test occursin("has no elements", string(@doc MultigridHierarchy)) ||
+              occursin("not empty", string(@doc MultigridHierarchy))
     end
+
+    # ---- (5) the overlap policy: three forms, one hierarchy ------------------------------
+    @testset "per-level overlap policy is the clamp, stated" begin
+        m0 = mg_uniform_mesh(Float64, 2, 4)
+        m1 = hp_refine(m0, Dict(m0.elements[1] => (true, true)))
+        chain = [m0]
+        maxord(mesh) = maximum(maximum(o) for o in mesh.orders)
+        hs = MultigridHierarchy(mk(m1), mk, chain; overlap = maxord(m1))
+        hv = MultigridHierarchy(mk(m1), mk, chain; overlap = [maxord(m1), maxord(m0)])
+        hf = MultigridHierarchy(mk(m1), mk, chain; overlap = maxord)
+        @test length(hs.levels) == length(hv.levels) == length(hf.levels) == 2
+        # SchwarzSmoother clamps per neighbour (`ovd = min(overlap, neighbour extent)`), so a
+        # scalar at least as large as every level's own extent IS the per-level policy
+        for ℓ in 1:2
+            @test hs.levels[ℓ].smoother.overlap >= maxord(hs.levels[ℓ].mesh)
+            @test hv.levels[ℓ].smoother.overlap == maxord(hv.levels[ℓ].mesh)
+            @test hf.levels[ℓ].smoother.overlap == maxord(hf.levels[ℓ].mesh)
+        end
+        rng = MGRNG(0x5602)
+        b = mg_cvec!(rng, m1.ndofs)
+        zs = zeros(ComplexF64, m1.ndofs); zv = zeros(ComplexF64, m1.ndofs)
+        zf = zeros(ComplexF64, m1.ndofs)
+        vcycle!(zs, MultigridV(hs), b)
+        vcycle!(zv, MultigridV(hv), b)
+        vcycle!(zf, MultigridV(hf), b)
+        @test zv == zf                                        # the two per-level forms agree
+        @test zs == zv                                        # and the clamp makes the scalar
+    end                                                       # the same map
 end

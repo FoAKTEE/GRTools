@@ -412,104 +412,145 @@ function MultigridHierarchy(op::MeshOperator{S,RT}, build_op;
 end
 
 """
-    MultigridHierarchy(op::MeshOperator, build_op, meshes::AbstractVector{<:Mesh2D};
-                       overlap = 2, shift = 0, epoch = 0, caches = nothing)
+    MultigridHierarchy(op::MeshOperator, build_op, meshes; overlap = 2, shift = 0,
+                       epoch = 0, caches = nothing)
 
-THE EXPLICIT-CHAIN FORM: level 1 is `op` on its own mesh and level `ℓ+1` is `meshes[ℓ]` with
-`build_op(meshes[ℓ])`, in the order given (finest first, `op.mesh` NOT repeated). The keywords
-mean exactly what they mean for the automatic form above; `maxlevels`, `shrink` and
-`coarse_orders` have no meaning here because the caller supplies the levels.
+THE EXPLICIT-CHAIN FORM: level 1 is `op` on its own mesh and level `ℓ+1` is `meshes[ℓ]`
+rediscretized by `build_op`, in the order given — FINEST FIRST, and `op.mesh` is NOT repeated.
+An EMPTY chain is the single-level hierarchy whose bottom solve is the whole problem.
+`maxlevels`, `shrink` and `coarse_orders` have no meaning here: the caller supplies the levels.
 
-Each `meshes[ℓ]` must be a COARSENING of the level above it in the same sense
-[`coarsen_mesh`](@ref) produces: every element of the finer mesh has an ancestor-or-equal in it,
-at a per-dimension refinement-level gap of 0 or 1. Orders are free — a link may coarsen `h`
-only, `p` only, or both. Anything else is an `ArgumentError`; a chain that is not a coarsening
-cannot be transferred and would otherwise be silently mis-projected.
+# INVARIANTS (each refused with an `ArgumentError`, never silently mis-transferred)
 
-An EMPTY chain gives the single-level hierarchy whose bottom solve is the whole problem.
+For every link — finer mesh `f`, coarser mesh `c`:
 
-# WHY THE FORM EXISTS (the reference's own hierarchy is not an h-coarsening of the fine mesh)
+  * `c` is a `Mesh2D`, is not empty, and repeats no element id;
+  * every element of `f` has an ancestor-or-equal in `c`, at a per-dimension refinement-level
+    gap of EXACTLY 0 or 1 (a negative gap, i.e. `c` finer than `f`, is refused);
+  * the ancestor map is ONTO: every element of `c` covers at least one element of `f`, so the
+    two meshes tile the same region with no unused coarse element;
+  * `c` is not IDENTICAL to `f` (same ids and same orders) — a chain that repeats a level is a
+    caller error, typically `op.mesh` supplied as `meshes[1]`;
+  * per element and per dimension the coarse order is ≤ the fine order;
+  * `build_op(c)` returns an operator ON `c` (same elements, orders and `ndofs`).
 
-The automatic constructor derives every coarse level from the CURRENT mesh, so it can only
-express an h-hierarchy at a fixed (or MIN-rule) order. arXiv:2606.04998 does not run that
-hierarchy under AMR. Its executable sets `amr::keep_coarse_grids = true`
-(`Elliptic/Executables/SelfForce/Scalar/SolveScalarSelfForce.hpp:173`), and then every AMR step
-creates a NEW FINEST GRID and keeps the old one: `ParallelAlgorithms/Amr/Actions/AdjustDomain.hpp:157-163`
-gives a `Split` element children at `grid_index + 1`, `:203-212` gives every element that is
-NOT split a same-shape child at `grid_index + 1` carrying the p increment, and
-`Amr/Actions/SendDataToChildren.hpp:43-70` re-registers the parent as a coarser grid instead of
-destroying it. The V-cycle then walks exactly those grids —
-`LinearSolver/Multigrid/ElementActions.hpp:96-135` sets the same
-`amr::Tags::{ParentId, ChildIds, ParentMesh}` triple that `Multigrid.hpp:160-186` traverses, and
-`Multigrid.hpp:56-58` says it in words: "Once the initial grids are created, AMR steps can
-create incrementally finer grids."
+Orders are otherwise free, so a link may coarsen `h` only, `p` only, or both.
 
-So under the paper's `Amr.Iterations: 8` the hierarchy at AMR level `k` has `k+1` levels and they
-ARE the AMR history: consecutive levels differ by ONE AMR step (one puncture split and one p
-increment elsewhere), and the coarsest is the invariant initial lattice — which is what makes
-main.tex:674 ("the bottom grid remains the same even when AMR adds finer levels") literally true.
-That chain is not recoverable from the finest mesh alone; the caller keeps it and passes it here.
+# OVERLAP POLICY
 
-MEASURED on the CRP exemplar (a = 0.5 M, r₀ = 10 M, m = 2, P = 4, L = 0, 8 AMR levels), through
-the [`SolverStack`](@ref) `preconditioner` seam and changing nothing else: GMRES iterations
-`1, 8, 9, 9, 9, 9, 9, 9` (63) with the automatic hierarchy against `1, 7, 7, 6, 5, 5, 5, 4` (40)
-with this one — the counts FALL with depth as the published `fig:linsolv` staircase does instead
-of flattening, the per-iteration residual reduction RISES (27.8 → 60.8 against 16.4 → 6.0), and
-the bottom LU is factorized ONCE and hit at all seven later levels (against two factorizations).
+`overlap` is the Schwarz overlap of each level's smoother and may be
+
+  * an `Integer` — the same value on every level;
+  * an `AbstractVector{<:Integer}` — one value per level, finest first (`length ≥` the number
+    of levels);
+  * a callable `mesh -> Integer` — evaluated on each level's own mesh.
+
+The three are interchangeable whenever the scalar is ≥ every level's own extent, because
+[`SchwarzSmoother`](@ref) already clamps per neighbour and per dimension
+(`ovd = min(overlap, neighbour extent)`, `schwarz.jl:120`) exactly as the reference does
+(`Schwarz/OverlapHelpers.cpp:21-24`, evaluated per element from its current extents in
+`Schwarz/ElementActions.hpp:244-264`). The policy exists so that intent can be stated rather
+than inferred from that clamp; it is gated bitwise against the scalar.
+
+Consumed by [`MultigridV`](@ref) exactly like the derived form; see
+`docs/src/core/ellipticcore.md` for why the reference's own hierarchy has this shape and what
+supplying it measures.
 """
 function MultigridHierarchy(op::MeshOperator{S,RT}, build_op,
                             meshes::AbstractVector;
-                            overlap::Integer = 2, shift::Real = 0,
+                            overlap = 2, shift::Real = 0,
                             epoch::Integer = 0, caches = nothing) where {S,RT}
+    n = length(meshes)
+    overlap isa AbstractVector && length(overlap) < n + 1 && throw(ArgumentError(
+        "MultigridHierarchy: the overlap policy has $(length(overlap)) entries for " *
+        "$(n + 1) levels"))
     built = Any[]
     mesh = op.mesh
     cur = op
-    n = length(meshes)
     for ℓ in 0:n
-        sm = SchwarzSmoother(cur; overlap = overlap, shift = shift, epoch = epoch,
-                             cache = _mg_cache(caches, ℓ + 1))
+        sm = SchwarzSmoother(cur; overlap = _mg_overlap_at(overlap, ℓ + 1, mesh), shift = shift,
+                             epoch = epoch, cache = _mg_cache(caches, ℓ + 1))
         if ℓ == n
             push!(built, MultigridLevel(mesh, cur, sm, Int[],
                                         NTuple{2,Matrix{RT}}[], NTuple{2,Matrix{RT}}[]))
             break
         end
-        cmesh = meshes[ℓ+1]::Mesh2D
+        cmesh = meshes[ℓ+1]
+        cmesh isa Mesh2D || throw(ArgumentError(
+            "MultigridHierarchy: chain level $(ℓ + 1) is a $(typeof(cmesh)), not a Mesh2D"))
         parent = _mg_chain_parent(mesh, cmesh, ℓ + 1)
         P, R = _mg_transfer_matrices(RT, mesh, cmesh, parent)
         push!(built, MultigridLevel(mesh, cur, sm, parent, P, R))
         mesh = cmesh
         cur = build_op(cmesh)::MeshOperator
+        _mg_chain_check_op(cur, cmesh, ℓ + 1)
     end
     levels = identity.(built)
     return MultigridHierarchy{eltype(levels)}(levels)
 end
 
-# fine element -> its index in the supplied coarse mesh, with the two conditions the transfers
-# need stated as refusals: the coarse mesh must COVER the fine one (an ancestor-or-equal of every
-# fine element is present) at a per-dimension level gap of 0 or 1.
+# the overlap of level ℓ (1 = finest) under the three policy forms
+_mg_overlap_at(ov::Integer, ::Int, ::Mesh2D) = Int(ov)
+_mg_overlap_at(ov::AbstractVector, ℓ::Int, ::Mesh2D) = Int(ov[ℓ])
+_mg_overlap_at(ov, ::Int, mesh::Mesh2D) = Int(ov(mesh))
+
+# the factory must rediscretize on the mesh it was handed: a factory that ignores its argument
+# (or closes over a stale mesh) otherwise preconditions with an operator that has nothing to do
+# with this level, and the residual never reveals it under right preconditioning.
+function _mg_chain_check_op(cur::MeshOperator, cmesh::Mesh2D, ℓ::Int)
+    ok = cur.mesh.ndofs == cmesh.ndofs && cur.mesh.elements == cmesh.elements &&
+         cur.mesh.orders == cmesh.orders && cur.mesh.offsets == cmesh.offsets
+    ok || throw(ArgumentError(
+        "MultigridHierarchy: build_op returned an operator on a DIFFERENT mesh than chain " *
+        "level $ℓ ($(cur.mesh.ndofs) dofs / $(length(cur.mesh.elements)) elements against " *
+        "$(cmesh.ndofs) / $(length(cmesh.elements))) — the factory must rediscretize the same " *
+        "problem on the mesh it is handed"))
+    return nothing
+end
+
+# fine element -> its index in the supplied coarse mesh, with every condition the transfers
+# need stated as a refusal rather than left to produce a wrong projection.
 function _mg_chain_parent(mesh::Mesh2D, cmesh::Mesh2D, ℓ::Int)
     isempty(cmesh.elements) && throw(ArgumentError(
         "MultigridHierarchy: chain level $ℓ has no elements"))
     lookup = Dict{ElementId,Int}(id => k for (k, id) in enumerate(cmesh.elements))
     length(lookup) == length(cmesh.elements) || throw(ArgumentError(
         "MultigridHierarchy: chain level $ℓ repeats an element id"))
+    cmesh.elements == mesh.elements && cmesh.orders == mesh.orders && throw(ArgumentError(
+        "MultigridHierarchy: chain level $ℓ is IDENTICAL to the level above it — `meshes` is " *
+        "the chain of COARSER meshes and must not repeat `op.mesh`"))
     parent = Vector{Int}(undef, length(mesh.elements))
+    covered = falses(length(cmesh.elements))
     for (e, el) in enumerate(mesh.elements)
         anc = _amr_ancestor(lookup, el)
         anc === nothing && throw(ArgumentError(
             "MultigridHierarchy: chain level $ℓ does not cover element $el of the level " *
             "above it — every supplied mesh must be a coarsening (an ancestor-or-equal of " *
             "every finer element, same block lattice), as `coarsen_mesh` produces"))
+        k = lookup[anc]
+        nf = mesh.orders[e]
+        nc = cmesh.orders[k]
         for d in 1:2
             Δ = el.segments[d].level - anc.segments[d].level
-            Δ <= 1 || throw(ArgumentError(
-                "MultigridHierarchy: chain level $ℓ is $Δ refinement levels below $el in " *
-                "dimension $d (the transfers require 0 or 1) — supply the intermediate mesh"))
+            0 <= Δ <= 1 || throw(ArgumentError(
+                "MultigridHierarchy: chain level $ℓ sits $Δ refinement levels below $el in " *
+                "dimension $d (the transfers require 0 or 1, and a coarser level may never " *
+                "be FINER than the level above it)"))
+            nc[d] <= nf[d] || throw(ArgumentError(
+                "MultigridHierarchy: chain level $ℓ gives $anc order $(nc[d]) in dimension " *
+                "$d against order $(nf[d]) for $el on the level above — a coarser level may " *
+                "not carry a HIGHER polynomial order"))
         end
-        parent[e] = lookup[anc]
+        covered[k] = true
+        parent[e] = k
     end
+    all(covered) || throw(ArgumentError(
+        "MultigridHierarchy: chain level $ℓ has $(count(!, covered)) element(s) covering no " *
+        "element of the level above it (first: $(cmesh.elements[findfirst(!, covered)])) — " *
+        "the two meshes must tile the same region"))
     return parent
 end
+
 
 # the cache for level ℓ: a fresh one per level (default), one shared cache, or the ℓ-th
 # entry of a caller-owned vector (extended in place as levels are built)

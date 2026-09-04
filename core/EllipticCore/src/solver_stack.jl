@@ -23,7 +23,8 @@
 export SolverStackOptions, SolverStack, SolveRecord, ResidualMonitor,
        solve!, solve_linearized!, rebuild!, invalidate!, linearized_rhs,
        cumulative_iterations,
-       multigrid_preconditioner, schwarz_only_preconditioner, no_preconditioner
+       multigrid_preconditioner, multigrid_chain_preconditioner,
+       schwarz_only_preconditioner, no_preconditioner
 
 # ---- options ----------------------------------------------------------------------------
 
@@ -587,11 +588,76 @@ function multigrid_preconditioner(stack::SolverStack)
                               overlap = o.overlap, shift = o.subdomain_complex_shift,
                               maxlevels = _ss_maxlevels(o), shrink = o.shrink,
                               coarse_orders = o.coarse_orders)
-    stack.build_time_hierarchy = (time_ns() - th) / 1e9
+    return _ss_from_hierarchy(stack, hier, th)
+end
+
+"""
+    multigrid_chain_preconditioner(meshes::AbstractVector) -> factory
+
+`preconditioner` factory for [`SolverStack`](@ref) that builds the EXPLICIT-CHAIN hierarchy
+[`MultigridHierarchy`](@ref)`(op, build_op, meshes)` instead of deriving the coarse levels by
+h-coarsening the current mesh. `meshes` is the CALLER'S OWN vector of coarse meshes,
+FINEST-FIRST and not repeating `op.mesh`; the factory READS IT AT EVERY [`rebuild!`](@ref), so
+mutating it (`pushfirst!` a mesh the sweep has just left behind) is how the hierarchy follows an
+AMR sweep. An empty vector is the single-level hierarchy whose bottom solve is the whole problem.
+
+`options.initial_coarse_levels`, `options.shrink` and `options.coarse_orders` are NOT consulted
+— the caller supplies the levels — while `subdomain_complex_shift`, `passes`,
+`multigrid_iterations`, `pre_smoothing`, `post_smoothing_at_bottom` and `use_bottom_solver` mean
+exactly what they mean for [`multigrid_preconditioner`](@ref).
+
+`overlap` overrides `options.overlap` with any of [`MultigridHierarchy`](@ref)'s overlap
+policies — an integer, one integer per level, or a callable of the level's own mesh. USE THE
+PER-LEVEL FORM WHEN THE CHAIN IS AN AMR HISTORY: the subdomain cache is keyed on
+`(element, subdomain shape, epoch, shift)` and the shape carries the overlap, so a scalar taken
+from the FINEST mesh changes the key of every coarser level at every rebuild and rebuilds
+factorizations that main.tex:676 says are reused. A callable that returns each level's own
+maximum order leaves the frozen coarse levels bit-identical — the same subdomains either way
+(the smoother clamps per neighbour), only the key differs.
+
+    chain = Mesh2D{Float64}[]                                   # coarse meshes, finest first
+    stack = SolverStack(op, build_op; preconditioner = multigrid_chain_preconditioner(chain))
+    …
+    pushfirst!(chain, sol.mesh)                                  # leaving this mesh behind
+    rebuild!(stack, build_op(finer_mesh))                        # the hierarchy grew by one
+
+# WHY: THE REFERENCE'S HIERARCHY IS ITS AMR HISTORY
+
+arXiv:2606.04998 does not run the derived hierarchy under AMR. Its executable keeps the coarse
+grids (`Elliptic/Executables/SelfForce/Scalar/SolveScalarSelfForce.hpp:173`,
+`amr::keep_coarse_grids = true`), every AMR step creates a NEW FINEST GRID at `grid_index + 1`
+(`ParallelAlgorithms/Amr/Actions/AdjustDomain.hpp:157-163` for a split element, `:203-212` for
+every element that is only p-refined) and the parent stays alive as a coarser grid
+(`Amr/Actions/SendDataToChildren.hpp:43-70`), while the V-cycle walks exactly those grids
+(`Multigrid/ElementActions.hpp:96-135`, `Multigrid.hpp:56-58`). So the hierarchy has one level
+per AMR step, consecutive levels differ by ONE step, and the coarsest is the invariant initial
+lattice — which is what makes main.tex:674's single cached bottom LU true.
+
+MEASURED on the `gate (M4)` hp sweep of this package's own five-block model, six steps, the two
+factories differing in nothing else: derived (coarse_orders pinned) `8, 9, 10, 11, 12, 14` with
+the count GROWING as the fine order runs away from the coarse space, against
+`1, 8, 9, 9, 9, 9` from the chain, bounded from the first refinement on. On the CRP's own
+exemplar the same substitution takes `1, 8, 9, 9, 9, 9, 9, 9` to `1, 7, 7, 6, 5, 5, 5, 4`.
+"""
+multigrid_chain_preconditioner(meshes::AbstractVector; overlap = nothing) =
+    function (stack::SolverStack)
+        o = stack.options
+        th = time_ns()
+        hier = MultigridHierarchy(_ss_precond_op(stack), stack.precondition_build_op, meshes;
+                                  caches = stack.subdomain_cache, epoch = stack.epoch,
+                                  overlap = overlap === nothing ? o.overlap : overlap,
+                                  shift = o.subdomain_complex_shift)
+        return _ss_from_hierarchy(stack, hier, th)
+    end
+
+# the common tail of every hierarchy-based factory: charge the hierarchy build, take (or hit)
+# the cached bottom LU through the hierarchy-aware constructor of
+# ESSF::multigrid-bottom-solver — it selects `hier.levels[end].op` itself, so the coarsest
+# operator can never be confused with the finest one at this call site — and wrap the V-cycle.
+function _ss_from_hierarchy(stack::SolverStack, hier, t_hierarchy::UInt64)
+    o = stack.options
+    stack.build_time_hierarchy = (time_ns() - t_hierarchy) / 1e9
     tb = time_ns()
-    # the hierarchy-aware constructor of ESSF::multigrid-bottom-solver: it selects
-    # `hier.levels[end].op` itself, so the coarsest operator can never be confused with the
-    # finest one at this call site.
     bottom = o.use_bottom_solver ?
              sparse_bottom_solver(hier; cache = stack.bottom_cache, epoch = stack.epoch) :
              nothing
