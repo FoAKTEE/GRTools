@@ -320,6 +320,19 @@ formulation and consumes the physics-free hp-DG solver stack from
     *[PRELIMINARY: mesh-dependent, re-measured after 6df9f51; per-level values
     move with the hp-AMR order map, so gate on tolerances and on the shape of
     the sequence, never on a golden value]*.
+  - `mode_self_force_history(orbit, config, m, levels; x_p)` /
+    `mode_force_convergence(orbit, config, m, levels; x_p)` — the SAME two
+    tables addressed through a bare `Vector{AmrLevel}` and the puncture
+    position, i.e. through exactly what a fanned-out `ModeResult` carries
+    (`res.levels`, `res.x_p`; the live `ModeSolution` is process-local by the
+    `Solve/parallel.jl` rule and does not travel). `config` must be the
+    per-mode configuration that solved ``m`` — `mode_config(config, m)` —
+    since an `AmrLevel` records no mode number and the angular chart is read
+    from the config through `block_lattice_bounds`. Both routes run through
+    one internal function, so they agree field by field (gated bitwise in
+    `test_selfforce_levels.jl`). This is the route
+    `reproduce/arXiv-2606.04998/fig_convergence.jl` uses to turn 21 fanned-out
+    sweeps into `fig:ssf_convergence`.
   - `regularized_mode_force(x, m; order = 4)` — ``F_r^m - F^m_{r[order]}``
     through `mmode_reg_term_Fr`, the per-mode term the mode sum adds up.
     Observed decay of the residual at ``a = 0.5``, ``r_0 = 10M``, 6 AMR

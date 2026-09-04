@@ -4,10 +4,15 @@
 #
 # WHAT THIS FILE OWNS — and nothing else:
 #   1. `mode_self_force`            — Osburn–Nishimura Eq. (3.10) on raw ingredients, on a
-#                                     `ModeSolution`, or on any level of an `AmrHistory`.
+#                                     `ModeSolution`, on any level of an `AmrHistory`, or on a
+#                                     bare `AmrLevel` + `(orbit, config, m, x_p)`.
 #   2. `mode_self_force_history`    — the per-AMR-level sequence (rows 50 / 53's input).
 #   3. `mode_force_convergence`     — its successive-difference / ratio table and the
 #                                     resolution floor (main.tex:719-724).
+#      2 and 3 come in two forms: the `AmrHistory` one and the LEVEL one, which needs only
+#      what the row-47 fan-out ships back (`ModeResult.levels`, `.x_p`) because the live
+#      `ModeSolution` is process-local and deliberately does not travel. Both go through the
+#      single `_sf_level_force` / `_sf_convergence` pair, so they cannot drift.
 #   4. `regularized_mode_force`     — `F_r^m − F^m_{r[order]}`, the per-m term row 46 SUMS;
 #                                     the folded/unfolded subtraction term itself is
 #                                     [`mmode_reg_term_Fr`](@ref), owned by
@@ -242,11 +247,53 @@ function mode_self_force(hist::AmrHistory, m::Integer = hist.m;
     end
     reduction === :trace || throw(ArgumentError(
         "mode_self_force: reduction must be :trace or :mean, got :$reduction"))
-    r = mode_self_force(hist.orbit, hist.m, l.psi, l.dpsi_r,
-                        _sf_dpsi_z(hist.solution.dom.chart, hist.x_p[2], l.dpsi_w);
+    return _sf_level_force(hist.orbit, hist.config, hist.m, l, hist.x_p, phi_p)
+end
+
+# ===================== the level route: extraction WITHOUT a live ModeSolution ==============
+# The `AmrHistory` methods above and the `(orbit, config, m, levels, x_p)` methods below are
+# the SAME code through this one function, so the two routes cannot drift.
+
+function _sf_level_force(orbit::CircularOrbit, config::RunConfig, m::Integer, l::AmrLevel,
+                         x_p, phi_p::Real)
+    _sf_check_chart(config)
+    chart = block_lattice_bounds(config)[3]          # the config IS the chart's source
+    r = mode_self_force(orbit, m, l.psi, l.dpsi_r, _sf_dpsi_z(chart, x_p[2], l.dpsi_w);
                         phi_p = phi_p)
     return merge(r, (reduction = :trace, element = l.element, elements = [l.element]),
                  (step = l.step, ndofs = l.mesh.ndofs))
+end
+
+# the mode number is the one thing an `AmrLevel` does NOT record, so the level route checks it
+# against the configuration that produced the level (`mode_config(config, m)` in the fan-out,
+# `crp_paper_config(; m_mode = m)` in a driver). A silently wrong `m` would rotate the ansatz
+# phase by the wrong amount and still return a plausible number.
+function _sf_check_mode(config::RunConfig, m::Integer)
+    Int(config.orbit.m_mode_number) == Int(m) || throw(ArgumentError(
+        "mode_self_force: this configuration solves m = $(config.orbit.m_mode_number) but the " *
+        "levels were passed as m = $m. `AmrLevel`s carry no mode number, so the config must " *
+        "be the one that produced them — `mode_config(config, m)` for a fan-out result."))
+    return nothing
+end
+
+"""
+    mode_self_force(orbit, config, m, level::AmrLevel, x_p; phi_p = 0)
+
+`F^m_α` from ONE hp-AMR level's sealed diagnostics, addressed WITHOUT a live
+[`ModeSolution`](@ref) — the form the process fan-out's payload supports.
+
+A worker ships back a [`ModeResult`](@ref) carrying `levels::Vector{AmrLevel}` and `x_p`; the
+`ModeSolution` is process-local by design and does not travel. This method takes exactly those
+two pieces plus the `orbit` and the per-mode `config` (`mode_config(config, m)`), which is
+where the angular chart comes from ([`block_lattice_bounds`](@ref) — `:z2` under equatorial
+symmetry, so `∂_zΨ = 2z ∂_{z²}Ψ`) and where the radial-chart and mode-number contracts are
+checked. The result is identical, field by field, to `mode_self_force(hist; level = k)` — both
+go through the same internal function.
+"""
+function mode_self_force(orbit::CircularOrbit, config::RunConfig, m::Integer, l::AmrLevel,
+                         x_p; phi_p::Real = 0)
+    _sf_check_mode(config, m)
+    return _sf_level_force(orbit, config, m, l, x_p, phi_p)
 end
 
 # ========================= the per-level sequence and its convergence ======================
@@ -264,7 +311,26 @@ measure resolution alone. The spectre-parity mean is `mode_self_force(hist.solut
 differ by the one-sided trace spread, which `AmrLevel.trace_spread` bounds.
 """
 mode_self_force_history(hist::AmrHistory; phi_p::Real = hist.solution.phi_p) =
-    [mode_self_force(hist; level = k, phi_p = phi_p) for k in eachindex(hist.levels)]
+    [_sf_level_force(hist.orbit, hist.config, hist.m, l, hist.x_p, phi_p) for l in hist.levels]
+
+"""
+    mode_self_force_history(orbit, config, m, levels::AbstractVector{<:AmrLevel};
+                            x_p, phi_p = 0) -> Vector
+
+The per-level sequence from a fanned-out sweep's `levels` — the same list
+`mode_self_force_history(hist)` returns, addressed through the pieces a
+[`ModeResult`](@ref) carries (`res.levels`, `res.x_p`) instead of through a live
+[`ModeSolution`](@ref). `config` must be the per-mode configuration that solved `m`
+(`mode_config(config, m)`); `x_p` is the puncture in the discretization chart.
+"""
+function mode_self_force_history(orbit::CircularOrbit, config::RunConfig, m::Integer,
+                                 levels::AbstractVector{<:AmrLevel};
+                                 x_p = puncture_chart_position(block_domain(orbit, config),
+                                                               orbit),
+                                 phi_p::Real = 0)
+    _sf_check_mode(config, m)
+    return [_sf_level_force(orbit, config, m, l, x_p, phi_p) for l in levels]
+end
 
 """
     mode_force_convergence(hist::AmrHistory; component = :Fr, phi_p = …) -> NamedTuple
@@ -290,15 +356,37 @@ vacuously empty table. Per-level values are MESH-DEPENDENT: gate on tolerances a
 shape of the sequence, never on a golden per-level value. `component` must name a real field
 of [`mode_self_force`](@ref)'s result (`:Fr`, `:Ft`, `:Ftheta`, `:Fphi`).
 """
-function mode_force_convergence(hist::AmrHistory; component::Symbol = :Fr,
-                                phi_p::Real = hist.solution.phi_p)
+mode_force_convergence(hist::AmrHistory; component::Symbol = :Fr,
+                       phi_p::Real = hist.solution.phi_p) =
+    _sf_convergence(mode_self_force_history(hist; phi_p = phi_p), component,
+                    length(hist.levels))
+
+"""
+    mode_force_convergence(orbit, config, m, levels::AbstractVector{<:AmrLevel};
+                           x_p, component = :Fr, phi_p = 0) -> NamedTuple
+
+`mode_force_convergence` on a fanned-out sweep's `levels` — the table `fig:ssf_convergence`
+plots, reachable from a [`ModeResult`](@ref) (`res.levels`, `res.x_p`) rather than only from a
+live [`ModeSolution`](@ref). Identical, field by field, to the [`AmrHistory`](@ref) method on
+the same sweep. `config` must be the per-mode configuration that solved `m`.
+"""
+function mode_force_convergence(orbit::CircularOrbit, config::RunConfig, m::Integer,
+                                levels::AbstractVector{<:AmrLevel};
+                                x_p = puncture_chart_position(block_domain(orbit, config),
+                                                              orbit),
+                                component::Symbol = :Fr, phi_p::Real = 0)
+    _sf_check_mode(config, m)
+    fs = mode_self_force_history(orbit, config, m, levels; x_p = x_p, phi_p = phi_p)
+    return _sf_convergence(fs, component, length(levels))
+end
+
+function _sf_convergence(fs, component::Symbol, nlev::Integer)
     component in (:Fr, :Ft, :Ftheta, :Fphi) || throw(ArgumentError(
         "mode_force_convergence: component must be one of (:Fr, :Ft, :Ftheta, :Fphi), " *
         "got :$component"))
-    length(hist.levels) >= 4 || throw(ArgumentError(
+    nlev >= 4 || throw(ArgumentError(
         "mode_force_convergence: needs at least 4 AMR levels for a two-step ratio to " *
-        "exist, got $(length(hist.levels)) — an emptier table would be a vacuous gate"))
-    fs = mode_self_force_history(hist; phi_p = phi_p)
+        "exist, got $(nlev) — an emptier table would be a vacuous gate"))
     v = [getproperty(f, component) for f in fs]
     d = [abs(v[k + 1] - v[k]) for k in 1:length(v)-1]
     rat = [iszero(d[k]) ? oftype(d[k], NaN) : d[k + 1] / d[k] for k in 1:length(d)-1]
