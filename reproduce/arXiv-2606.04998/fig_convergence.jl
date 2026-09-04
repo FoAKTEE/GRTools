@@ -627,5 +627,7 @@ code = ReproHarness.conclude!(opts; paper = "2606.04998", id = "fig_convergence"
                               tolerances = Dict("reported_cumulative_walltime_flat" => LOOSE,
                                                 "reported_mode_wall_time" => LOOSE,
                                                 "reported_sweep_wall_time" => LOOSE,
+                                                "reported_secondary_sweep_wall_time" => LOOSE,
+                                                "reported_secondary_mode_wall_time" => LOOSE,
                                                 "reported_nworkers" => LOOSE))
 exit(isempty(gatefails) ? code : max(code, 1))

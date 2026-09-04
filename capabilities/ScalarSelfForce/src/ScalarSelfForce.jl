@@ -347,15 +347,10 @@ include("Solve/amr.jl")                      # amr-driver (the row-43 production
 # amr_flags is the CRITERION: spectre's RefineAtPuncture (block-logical snap + CLOSED element
 # containment, so a puncture on a corner flags every element that touches it) merged with
 # IncreaseResolution, under the yaml Limits; the one normative statement of the criterion and
-# its snapping rule lives in its docstring. THE MULTIGRID HIERARCHY IS THE AMR HISTORY
-# (hierarchy = :history, the default, the reference's own reading: it keeps its coarse grids, so
-# every AMR step adds a finer grid and the V-cycle walks the whole history) - k+1 levels at AMR
-# level k, the coarsest the invariant initial lattice, one bottom LU for the sweep;
-# hierarchy = :derived keeps the h-coarsening of the current mesh for the A/B.
-# amr_level_options is the LEVEL POLICY (InitialCoarseLevels at level 0 - the direct bottom
-# solve - and MaxOverlap: Auto resolved from that grid's own extents, as the reference resolves
-# it, so the Schwarz overlap follows p-AMR). ScalarSelfForce.amr_step! is one level (not
-# exported).
+# its snapping rule lives in its docstring. amr_level_options is the multigrid LEVEL POLICY
+# (InitialCoarseLevels at level 0 - the direct bottom solve - then coarsening to the fixed
+# block structure so the bottom LU stays a cache hit, with shrink = 0.5 so a graded hp cascade
+# reaches it in a handful of levels). ScalarSelfForce.amr_step! is one level (not exported).
 # The particle diagnostics are read through the SEALED row-42 field_at / field_grad_at - this
 # node adds no read-out of its own - and resolution_error / relative_resolution_error are THE
 # one definition of the paper's numerical-resolution error (main.tex:722) that rows 44/50/53
