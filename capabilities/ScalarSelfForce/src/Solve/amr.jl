@@ -456,17 +456,35 @@ One level of an hp-AMR sweep — everything rows 44, 47, 48, 50, 52 and 53 read 
   - `record::SolveRecord{RT}` — this level's solve: `iterations`, the `residual` staircase,
     `iteration_time`, and the `build_time` / cache counters of the rebuild that preceded it
     (`fig:linsolv` is exactly this field across the levels).
-  - `element::Int` — the index into `mesh.elements` whose polynomial produced the diagnostics
-    below. The puncture is on an element CORNER, so its value is a one-sided trace; this is the
-    first containing element in mesh order, i.e. what [`field_at`](@ref) picks by default.
-  - `psi::T`, `dpsi_r::T`, `dpsi_w::T` — the particle diagnostics: `Ψ^ℛ_m(x_p)` and its two
-    chart derivatives `∂_{x1}Ψ^ℛ_m`, `∂_{x2}Ψ^ℛ_m` at the puncture, `x1 = r` and `x2 = z²`
-    under equatorial symmetry. These are the RAW ingredients of `F_r^m`; row 44 assembles the
-    self-force from them (and owns every convention that goes with it).
-  - `trace_spread::NTuple{2,RT}` — how far the OTHER containing elements' one-sided traces of
-    `psi` and `dpsi_r` differ from the recorded ones. A DG field is discontinuous across
-    faces, so this is a discretization diagnostic, and it collapses as the corner is refined
-    (MEASURED 8.4e-6 → 3.5e-17 and 2.2e-4 → 9.4e-11 over the 8-level sweep).
+  - `element::Int` — the FIRST containing element in mesh order, i.e. what [`field_at`](@ref)
+    picks by default. It is the representative of a single-element trace, not the source of the
+    diagnostics below.
+  - `elements::Vector{Int}` — EVERY element of `mesh` whose closed cell contains the puncture,
+    in the locator's own order. The puncture sits on an element corner, so there are TWO of
+    them in the `z²` chart (the equator is the domain boundary there) and FOUR in the full-`z`
+    chart — spectre's `NumContributingElements`.
+  - `traces::Vector{NTuple{3,T}}` — one `(Ψ^ℛ_m, ∂_{x1}Ψ^ℛ_m, ∂_{x2}Ψ^ℛ_m)` one-sided trace per
+    entry of `elements`, in the same order. A DG field is discontinuous across faces, so these
+    differ; keeping all of them means ANY reduction can be reproduced from a level alone,
+    without the `ModeSolution` (which is process-local and, for every level but the last,
+    discarded).
+  - `psi::T`, `dpsi_r::T`, `dpsi_w::T` — the particle diagnostics: the MEAN over `traces` of
+    `Ψ^ℛ_m(x_p)` and its two chart derivatives `∂_{x1}Ψ^ℛ_m`, `∂_{x2}Ψ^ℛ_m` at the puncture,
+    `x1 = r` and `x2 = z²` under equatorial symmetry. THE MEAN IS SPECTRE'S REDUCTION
+    (`ObserveSelfForce.hpp:89-107`: `funcl::Plus` then `funcl::Divides` by
+    `NumContributingElements`) and it is BITWISE the reduction
+    `mode_self_force(sol::ModeSolution)` performs on the live solution (gated). These are the
+    RAW ingredients of `F_r^m`; row 44 assembles the self-force from them (and owns every
+    convention that goes with it). MEASURED effect of recording the mean rather than one
+    one-sided trace: the sweep's `relative_resolution_error` falls from 3.39e-5 to 6.62e-6 on
+    the production half domain and from 6.66e-6 to 1.60e-7 on the full-`z` one — a one-sided
+    trace carries a face jump that the reduction cancels.
+  - `trace_spread::NTuple{3,RT}` — how far the containing elements' one-sided traces of `psi`,
+    `dpsi_r` AND `dpsi_w` differ from the recorded MEAN, one entry each. A DG field is
+    discontinuous across faces, so this is a discretization diagnostic, and it collapses as the
+    corner is refined. THE THIRD ENTRY IS NOT OPTIONAL: in the full-`z` chart `dpsi_w` is
+    `∂_zΨ^ℛ`, which feeds `F_θ` — a one-sided `dpsi_w` with no diagnostic beside it reports a
+    noise `F_θ` (measured 1.33e-4 against `|F_r| = 1.67e-5`) as if it were a result.
   - `series_nodes::Int` — how many of the in-worldtube collocation nodes of this level select
     the near-worldline SERIES route of the switched effective source (row 37). It is `0`
     throughout the paper's own sweep and the number exists to keep it honest: it is the AMR
@@ -482,10 +500,12 @@ struct AmrLevel{T<:Number,RT<:AbstractFloat}
     punctures::Vector{ElementId}
     record::SolveRecord{RT}
     element::Int
+    elements::Vector{Int}
+    traces::Vector{NTuple{3,T}}
     psi::T
     dpsi_r::T
     dpsi_w::T
-    trace_spread::NTuple{2,RT}
+    trace_spread::NTuple{3,RT}
     series_nodes::Int
     wall_time::Float64
 end
@@ -694,14 +714,22 @@ function _amrd_level(step::Int, sol::ModeSolution{T,RT}, flags::AbstractDict, xp
     es = _dr_containing(sol.mesh, xp[1], xp[2])       # Solve/'s one locator (driver.jl)
     isempty(es) && throw(ArgumentError(
         "amr-driver: the puncture ($(xp[1]), $(xp[2])) lies in no element of this mesh"))
-    e = first(es)
-    psi = field_at(sol, xp[1], xp[2]; element = e)
-    g = field_grad_at(sol, xp[1], xp[2]; element = e)
-    sp = (maximum(q -> abs(field_at(sol, xp[1], xp[2]; element = q) - psi), es),
-          maximum(q -> abs(field_grad_at(sol, xp[1], xp[2]; element = q)[1] - g[1]), es))
+    # EVERY containing element's one-sided trace, in the locator's own order, and their MEAN —
+    # spectre's reduction over `NumContributingElements` (`ObserveSelfForce.hpp:89-107`). The
+    # mean is what `psi`/`dpsi_r`/`dpsi_w` record; the individual traces stay in `traces`, so a
+    # single-element reduction is still reproducible from a level alone.
+    tr = NTuple{3,T}[(field_at(sol, xp[1], xp[2]; element = q),
+                      field_grad_at(sol, xp[1], xp[2]; element = q)...) for q in es]
+    n = length(tr)
+    psi = sum(t[1] for t in tr) / n
+    d1 = sum(t[2] for t in tr) / n
+    d2 = sum(t[3] for t in tr) / n
+    sp = (maximum(t -> abs(t[1] - psi), tr), maximum(t -> abs(t[2] - d1), tr),
+          maximum(t -> abs(t[3] - d2), tr))
     punct = [id for id in sol.mesh.elements if haskey(flags, id)]
-    return AmrLevel{T,RT}(step, sol.mesh, punct, sol.record, e, psi, g[1], g[2],
-                          (RT(sp[1]), RT(sp[2])), _amrd_series_nodes(sol), wall)
+    return AmrLevel{T,RT}(step, sol.mesh, punct, sol.record, first(es), collect(es), tr,
+                          psi, d1, d2, (RT(sp[1]), RT(sp[2]), RT(sp[3])),
+                          _amrd_series_nodes(sol), wall)
 end
 
 # how many in-worldtube collocation nodes of this level's mesh select the SERIES route of the

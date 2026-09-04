@@ -370,7 +370,12 @@ const SF_SPECTRE_ITER1 = (-9.183e-5, 9.451e-5)
     @test trace.reduction === :trace && trace.element in mean.elements
     # `reduction = :mean` on the final level of the history IS the ModeSolution reduction
     @test mode_self_force(SF_HIST; reduction = :mean).Fr == mean.Fr
-    @test_throws ArgumentError mode_self_force(SF_HIST; level = 1, reduction = :mean)
+    # `reduction = :mean` is now available at EVERY level, not only where a `ModeSolution`
+    # survives: `AmrLevel` stores one trace per containing element and their mean (row 43
+    # seq 6), so the spectre reduction no longer needs the solution vector.
+    @test mode_self_force(SF_HIST; level = 1, reduction = :mean).reduction === :mean
+    @test mode_self_force(SF_HIST; level = 1, reduction = :mean).element == 0
+    @test_throws ArgumentError mode_self_force(SF_HIST; level = 1, reduction = :median)
 
     # documentation only (printed, not asserted): the matching-iteration lattice difference
     @printf("mode-self-force (b) observed matching-iteration deviation, our level 1 vs \

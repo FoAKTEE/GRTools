@@ -459,11 +459,12 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
         @test all(l -> isfinite(l.psi) && isfinite(l.dpsi_r), hist.levels)
         @test hist.levels[end].trace_spread[1] < hist.levels[1].trace_spread[1] / 100
         @test hist.levels[end].trace_spread[2] < hist.levels[1].trace_spread[2] / 100
-        # the final level's value equals `field_at` on the returned ModeSolution — the
-        # read-out row 44 will use
-        @test hist.levels[end].psi ==
+        # the final level's STORED TRACES are `field_at`/`field_grad_at` on the returned
+        # ModeSolution, element by element — the read-out row 44 uses. `psi`/`dpsi_r` are their
+        # MEAN (spectre's reduction), which the trace-reduction testset gates separately.
+        @test hist.levels[end].traces[1][1] ==
               field_at(hist.solution, hist.x_p...; element = hist.levels[end].element)
-        @test hist.levels[end].dpsi_r ==
+        @test hist.levels[end].traces[1][2] ==
               field_grad_at(hist.solution, hist.x_p...;
                                 element = hist.levels[end].element)[1]
     end
@@ -654,5 +655,121 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
         # sealed `SchwarzConfig.max_overlap` is typed `Symbol`, so the mesh-independent branch
         # of this function cannot be exercised from a `RunConfig` at all.
         @test cfg.schwarz.max_overlap === :auto
+    end
+
+    # ---- the per-level TRACE REDUCTION: spectre's mean over NumContributingElements ---------
+    # A DG field is discontinuous across faces and the puncture sits on an element CORNER, so
+    # every containing element has its own one-sided trace. spectre reduces them by the MEAN
+    # (`ObserveSelfForce.hpp:89-107`: funcl::Plus then funcl::Divides by
+    # NumContributingElements). `AmrLevel` now stores every trace AND their mean, so a level
+    # alone reproduces either reduction — which matters because only the FINAL level keeps a
+    # `ModeSolution` and a fanned-out sweep does not ship one at all.
+    @testset "AmrLevel traces and the mean reduction" begin
+        cfg, orb, hist = da_pcfg, da_porb, da_hist
+        for l in hist.levels
+            @test length(l.elements) == length(l.traces) == 2   # z² chart: two, at the equator
+            @test l.element == first(l.elements)
+            @test l.psi    == sum(t[1] for t in l.traces) / length(l.traces)
+            @test l.dpsi_r == sum(t[2] for t in l.traces) / length(l.traces)
+            @test l.dpsi_w == sum(t[3] for t in l.traces) / length(l.traces)
+            # the spread is measured against the recorded MEAN and bounds the two reductions
+            @test l.trace_spread[1] == maximum(t -> abs(t[1] - l.psi), l.traces)
+            @test l.trace_spread[2] == maximum(t -> abs(t[2] - l.dpsi_r), l.traces)
+            # dpsi_w carries F_theta in the full-z chart and needs its own diagnostic
+            @test l.trace_spread[3] == maximum(t -> abs(t[3] - l.dpsi_w), l.traces)
+        end
+        # the stored traces ARE the live solution's, element by element, at the final level
+        sol = hist.solution
+        xp = hist.x_p
+        lastl = hist.levels[end]
+        @test lastl.elements == ScalarSelfForce._dr_containing(sol.mesh, xp[1], xp[2])
+        for (k, q) in enumerate(lastl.elements)
+            @test lastl.traces[k][1] == field_at(sol, xp[1], xp[2]; element = q)
+            g = field_grad_at(sol, xp[1], xp[2]; element = q)
+            @test lastl.traces[k][2] == g[1] && lastl.traces[k][3] == g[2]
+        end
+        # and the LEVEL-ROUTE mean is BITWISE the live ModeSolution's mean — the whole point
+        live = mode_self_force(sol)
+        levelmean = mode_self_force(hist; reduction = :mean)   # explicit: :trace is the default
+        @test live.reduction === :mean && levelmean.reduction === :mean
+        @test levelmean.elements == live.elements
+        @test levelmean.Fr == live.Fr
+        @test levelmean.Fr_complex == live.Fr_complex
+        # the mean is now available at EVERY level, not only where a solution survives
+        @test mode_self_force(hist; level = 1, reduction = :mean).reduction === :mean
+        # a single-element trace stays reachable, and it is that element's stored trace
+        tr = mode_self_force(hist; level = 1, reduction = :trace)
+        @test tr.reduction === :trace && tr.element == hist.levels[1].element
+        @test tr.elements == hist.levels[1].elements
+        @test tr.Fr != mode_self_force(hist; level = 1, reduction = :mean).Fr
+        # the mean is a STRICTLY better resolution diagnostic than a one-sided trace: the face
+        # jump it cancels is first order in h. MEASURED on this sweep (calibrate_traces.log):
+        # relative_resolution_error 3.3883e-5 with the first trace, 6.6199e-6 with the mean.
+        # `relative_resolution_error` reads `AmrLevel.dpsi_r`, which IS the mean, so the sweep's
+        # resolution estimate improves even though the level SEQUENCE still defaults to :trace
+        @test relative_resolution_error(hist) <= 3 * 6.62e-6
+    end
+
+    # ---- the full-z lattice end to end (the paper's own domain) -----------------------------
+    # `equatorial_symmetry = false` is spectre's own regression lattice
+    # (tests/InputFiles/SelfForce/ScalarCircularOrbit.yaml) and the domain the published figures
+    # were produced on: `fig:ssf_convergence`'s abscissa starts at 480 points, not 320.
+    @testset "the full-z lattice end to end" begin
+        orb = da_porb
+        cfg = crp_paper_config(; spin = 0.5, orbital_radius = 10.0, m_mode = 2,
+                               inner_radius = orb.rp, P = 4, L = 0,
+                               equatorial_symmetry = false)
+        dom = block_domain(orb, cfg)
+        @test dom.chart === :z
+        @test (dom.nr, dom.nz) == (5, 3)
+        @test length(dom.mesh.elements) == 30
+        @test dom.mesh.ndofs == 480                       # the published abscissa exactly
+        xp = puncture_chart_position(dom, orb)
+        @test xp == (10.0, 0.0)
+        @test length(amr_flags(dom.mesh, dom, orb, cfg)) == 4   # NumContributingElements = 4
+        @test length(ScalarSelfForce._dr_containing(dom.mesh, xp[1], xp[2])) == 4
+
+        # the z coordinate of every dof, so the two half-domains can be compared
+        function zsplit(mesh)
+            lo = Int[]; hi = Int[]
+            for e in eachindex(mesh.elements)
+                el = mesh.elements[e]
+                em = element_matrices(Float64, mesh.blocks[mesh.blockindex[el.block]], el,
+                                      mesh.orders[e])
+                nx, ny = mesh.orders[e]
+                for j in 1:ny, i in 1:nx
+                    g = mesh.offsets[e] + (j - 1) * nx + i
+                    push!(em.x[2][j] < 0 ? lo : hi, g)
+                end
+            end
+            return lo, hi
+        end
+        lo, hi = zsplit(dom.mesh)
+        @test length(lo) == length(hi) == 240             # the lattice is symmetric in z
+
+        # SOURCE CONTENT: nonzero, and mirror-consistent between z < 0 and z > 0. The orbit is
+        # equatorial, so the m-mode effective source has a definite parity in z; a domain that
+        # silently dropped one half (or mis-signed it) shows up here.
+        b = mode_fixed_source(ComplexF64, dom, orb, 2)
+        @test norm(b) > 0
+        @test norm(b[lo]) > 0 && norm(b[hi]) > 0
+        @test isapprox(norm(b[lo]), norm(b[hi]); rtol = 1e-12)
+
+        # JUMP CONTENT: the worldtube's fixed data, which reaches the right-hand side only
+        # through `operator_on_zero`, is nonzero and mirror-consistent the same way.
+        wt = worldtube_data(dom, orb, cfg, 2)
+        op = assemble_operator(ComplexF64, dom, wt, orb, cfg, 2)
+        j = operator_on_zero(op)
+        @test norm(j) > 0
+        @test norm(j[lo]) > 0 && norm(j[hi]) > 0
+        @test isapprox(norm(j[lo]), norm(j[hi]); rtol = 1e-12)
+
+        # ‖b‖₀ — the level-0 GMRES residual, the quantity that separates the two domains.
+        # MEASURED 1.391463 here against 1.744438 on the production half domain, where the
+        # published fig:linsolv level-0 residual is 1.375. The band is 2 % of the published
+        # value: this is a reproduction gate, not a fit.
+        nb = norm(EllipticCore.linearized_rhs(op, b))
+        @test isapprox(nb, 1.391463; rtol = 1e-5)
+        @test abs(nb - 1.375) / 1.375 < 0.02
     end
 end
