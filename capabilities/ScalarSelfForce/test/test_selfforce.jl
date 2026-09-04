@@ -359,7 +359,10 @@ const SF_SPECTRE_ITER1 = (-9.183e-5, 9.451e-5)
     per_el = [mode_self_force(SF_HIST.solution; element = e).Fr for e in mean.elements]
     mean_of_forces = sum(per_el) / length(per_el)
     spread = maximum(per_el) - minimum(per_el)
-    trace = mode_self_force(SF_HIST; level = lastindex(SF_HIST.levels))
+    # `:mean` is the level route's DEFAULT now (spectre's reduction, as for the live
+    # `mode_self_force(sol)`); a single-element trace is asked for explicitly.
+    trace = mode_self_force(SF_HIST; level = lastindex(SF_HIST.levels),
+                            reduction = :trace)
     @printf("mode-self-force (b) observed elements %d ; mean %+.12e ; first trace %+.12e ; \
              spread %.4e ; mean(ingredients)−mean(forces) %.3e\n", length(mean.elements),
             mean.Fr, trace.Fr, spread, abs(mean.Fr - mean_of_forces))
@@ -715,7 +718,7 @@ end
     @test_throws BoundsError mode_self_force(SF_HIST; level = 99)
     @test_throws ArgumentError mode_self_force(SF_HIST; reduction = :median)
     # the history's :trace level and the ModeSolution's SAME element agree bitwise
-    a = mode_self_force(SF_HIST)
+    a = mode_self_force(SF_HIST; reduction = :trace)
     b = mode_self_force(SF_HIST.solution; element = SF_HIST.levels[end].element)
     @test (a.Fr, a.Ft, a.Ftheta, a.Fphi) == (b.Fr, b.Ft, b.Ftheta, b.Fphi)
     @test a.element == b.element == SF_HIST.levels[end].element

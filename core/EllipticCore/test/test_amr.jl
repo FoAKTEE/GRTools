@@ -871,8 +871,12 @@ end
     for k in 1:4
         prev = cur
         new = hp_refine(prev, punct)
-        # the element set is exactly the h step's
-        @test new.elements == h_refine(prev, punct).elements
+        cl0 = balanced_flags(prev, punct)
+        # the element set is exactly the h step's ON THE CLOSED DECISION SET. It is NOT
+        # `h_refine(prev, punct)`'s: `h_refine` repairs the leaf set it is handed, while the
+        # decision closure enforces the 2:1 rule in EVERY dimension against every face
+        # neighbour, as `UpdateAmrDecision.cpp:33-37` does, and so splits at least as much.
+        @test new.elements == h_refine(prev, cl0).elements
         # orders: a parent SPLIT in dimension d keeps its order in d and gains one in the
         # other — and "split" means the CLOSED decision set, the caller's flags raised to
         # Split wherever the 2:1 rule forces it (spectre UpdateAmrDecision.cpp:82-87 +
@@ -893,7 +897,7 @@ end
         ph = h_refine(p_refine(prev; hold = cl), cl)
         @test ph.elements == new.elements && ph.orders == new.orders
         # ... and h-then-p with the CLOSED flags lifted along ancestry (the halves commute)
-        hstep = h_refine(prev, punct)
+        hstep = h_refine(prev, cl)
         lifted = Dict(id => get(cl, amr_ancestor_of(prev.elements, id), (false, false))
                       for id in hstep.elements)
         hp2 = p_refine(hstep; hold = lifted)
@@ -905,7 +909,11 @@ end
         @test amr_crossblock_ok(new.elements, conns)
         cur = new
     end
-    @test maximum(o -> o[1], cur.orders) == 8               # 4 + 4 steps away from the puncture
+    # RE-MEASURED under the all-dimension decision closure: 7, not 8. The closure splits more
+    # elements than the leaf-set repair did, and a dimension that ends Split HOLDS its order
+    # (Projectors/Mesh.cpp:29-35), so an element the closure now splits stops gaining a point in
+    # that dimension. Fewer elements reach 4 + 4.
+    @test maximum(o -> o[1], cur.orders) == 7
     @test minimum(o -> o[1], cur.orders) == 4               # ... and still 4 at the puncture
 end
 
@@ -959,6 +967,43 @@ end
 # carry a p increment in the split dimension — it does in the OTHER dimension, because
 # `Amr.Policies.Isotropy: Anisotropic` (anc/ScalarSelfForce.yaml:145) and
 # `EnforceTwoToOneBalanceInNormalDirection: True` (yaml:146) make the decision per dimension.
+# ============================================================================================
+# (n) THE 2:1 CLOSURE BINDS IN EVERY DIMENSION, not only across the shared face.
+#
+# `Domain/Amr/UpdateAmrDecision.cpp:33-37` loops over EVERY dimension for every face neighbour
+# and skips one only when `enforce_two_to_one_balance_in_normal_direction` is FALSE. The CRP
+# sets it True (`anc/ScalarSelfForce.yaml:146`), so nothing is skipped: a neighbour that wants
+# to be two levels finer in the TRANSVERSE dimension forces a split there too. Closing only the
+# normal direction under-splits, and the deficit is measurable against the reference's own
+# published grid — see the ScalarSelfForce suite's 975-point oracle.
+@testset "(n) balanced_flags closes the TRANSVERSE dimension too" begin
+    blk = amr_blk1()
+    # column [0,1/2] carries two elements stacked in dim 2 (dim-2 level 1); column [1/2,1]
+    # carries one (dim-2 level 0). Transverse gap 1: a legal, balanced start.
+    L0 = ElementId(21, SegmentId(1, 0), SegmentId(1, 0))
+    L1 = ElementId(21, SegmentId(1, 0), SegmentId(1, 1))
+    R = ElementId(21, SegmentId(1, 1), SegmentId(0, 0))
+    mesh = Mesh2D([blk], [L0, L1, R], (4, 4))
+    @test two_to_one_balanced(mesh.elements)
+    # split L0 in dim 2 only: its desired dim-2 level becomes 2 against R's 0 — a gap of TWO
+    # in the dimension TRANSVERSE to the face they share (which is a dim-1 face).
+    cl = balanced_flags(mesh, Dict(L0 => (false, true)))
+    @test cl[L0] == (false, true)
+    @test haskey(cl, R)                       # the normal-only rule leaves R alone
+    @test cl[R] == (false, true)              # ... and it must split in dim 2, not dim 1
+    @test !haskey(cl, L1) || cl[L1] == (false, false)
+    # the refined mesh is balanced and the closure is a fixpoint
+    new = hp_refine(mesh, Dict(L0 => (false, true)))
+    @test two_to_one_balanced(new.elements)
+    @test balanced_flags(mesh, cl) == cl
+    # and the ORDER rule still holds: a dimension the closure splits keeps its order
+    for (e, id) in enumerate(new.elements)
+        anc = amr_ancestor_of(mesh.elements, id)
+        anc === L1 && @test new.orders[e] == (5, 5)
+        anc === R && @test new.orders[e] == (5, 4)
+    end
+end
+
 @testset "(l) balanced_flags: the 2:1 closure holds the order in the SPLIT dimension" begin
     blk = amr_blk1()
 
@@ -983,7 +1028,7 @@ end
     end
     @test two_to_one_balanced(new.elements)
     # the element set is the h step's, and the closure is already a fixpoint
-    @test new.elements == h_refine(mesh, flags).elements
+    @test new.elements == h_refine(mesh, balanced_flags(mesh, flags)).elements
     @test balanced_flags(mesh, cl) == cl
 
     # ---- (l2) CASCADE: a balance split forcing a further balance split ---------------------

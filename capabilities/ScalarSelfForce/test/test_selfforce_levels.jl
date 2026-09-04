@@ -128,10 +128,9 @@ end
     @test mode_self_force(FCV_ORB, FCV_CFG, FCV_M, lvl, FCV_HIST.x_p).Ftheta == 0
     # move the evaluation point off the equator IN THE SAME CHART: the 2√(z²) factor must
     # appear, so F_θ becomes the raw-ingredient answer at dpsi_z = 2√(0.25)·dpsi_w.
-    # `lvl.psi/dpsi_r/dpsi_w` are the MEAN over the containing elements (row 43 seq 6), so the
-    # raw-ingredient comparison asks the level route for the SAME reduction
-    off = mode_self_force(FCV_ORB, FCV_CFG, FCV_M, lvl, (FCV_HIST.x_p[1], 0.25);
-                          reduction = :mean)
+    # `lvl.psi/dpsi_r/dpsi_w` are the MEAN over the containing elements, which is also the
+    # level route's default reduction, so the raw-ingredient comparison lines up
+    off = mode_self_force(FCV_ORB, FCV_CFG, FCV_M, lvl, (FCV_HIST.x_p[1], 0.25))
     raw = mode_self_force(FCV_ORB, FCV_M, lvl.psi, lvl.dpsi_r, 2 * sqrt(0.25) * lvl.dpsi_w)
     @test off.Ftheta == raw.Ftheta
     @test off.Ftheta != 0

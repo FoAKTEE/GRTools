@@ -656,8 +656,10 @@ end
     flags = [el for el in sol2.mesh.elements if inside_worldtube(sol2.dom, el)]
     newmesh = hp_refine(sol2.mesh, flags)
     # RE-PINNED after EllipticCore 6df9f51 (hp_refine no longer p-increments the elements the
-    # 2:1 closure splits, so the one closure element and its children lose one order): 681 → 671
-    @test newmesh.ndofs == 671 && length(newmesh.elements) == 33
+    # 2:1 closure splits): 681 → 671; and again after the all-dimension 2:1 decision closure
+    # (UpdateAmrDecision.cpp:33-37 binds in every dimension, so a uniform in-tube refinement
+    # now drags four more elements in): 671 → 725, 33 → 37 elements
+    @test newmesh.ndofs == 725 && length(newmesh.elements) == 37
     u = transfer_solution(sol2.mesh, newmesh, sol2.u)
     rebuild_for_mesh!(sol2, newmesh; u = u)
     @test sol2.mesh === newmesh
@@ -739,7 +741,7 @@ end
     cfg = dv_cfg(; spin = 0.5, m = 2)
     # RE-PINNED after EllipticCore 6df9f51: the MIN rule's coarse grids changed with the order
     # map, moving two of its counts (8, 7 → 7, 8); spectre parity is unaffected.
-    for (co, expect) in ((nothing, [9, 8, 7, 8, 6]), (4, [9, 8, 9, 9, 9]))
+    for (co, expect) in ((nothing, [9, 8, 8, 8, 6]), (4, [9, 8, 10, 10, 9]))
         s = solve_mode(dv_orb(cfg), cfg, 2;
                        options = solver_options(cfg; coarse_levels = nothing,
                                                 coarse_orders = co))
@@ -759,16 +761,17 @@ end
             push!(bot, s.stack.bottom_cache.builds)
             @test s.result.residual <= cfg.gmres.absolute_residual
         end
-        # RE-PINNED after EllipticCore 6df9f51 (the balance-split element and its descendants
-        # no longer carry the p increment in the split dimension)
-        @test nd == [320, 593, 950, 1411, 1988]
+        # RE-PINNED again after the all-dimension 2:1 decision closure (the closure now
+        # binds in every dimension, as UpdateAmrDecision.cpp:33-37 does, so it splits more
+        # elements and the dof sequence grows)
+        @test nd == [320, 632, 1014, 1506, 2120]
         @test its == expect                       # the WHOLE sequence, not one step
         # main.tex:720 HOLDS under the paper's criterion, at every level
         @test all(<=(10), its)
         if co === nothing
             @test its[end] < its[1]               # main.tex:722: the count DECREASES with depth
-            # RE-PINNED after EllipticCore 6df9f51 (the coarse order map follows the fine one)
-            @test coarsest == [160, 236, 334, 450, 584]
+            # RE-PINNED again after the all-dimension 2:1 decision closure
+            @test coarsest == [160, 227, 323, 437, 569]
             @test bot == [1, 2, 3, 4, 5]          # MIN rule rebuilds the bottom LU every step
         else
             @test coarsest == fill(160, 5)        # main.tex:674: the bottom grid does NOT move

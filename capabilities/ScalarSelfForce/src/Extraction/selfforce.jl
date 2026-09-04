@@ -69,7 +69,7 @@ end
     mode_self_force(orbit::CircularOrbit, m, psi, dpsi_r, dpsi_z = zero(psi); phi_p = 0)
     mode_self_force(sol::ModeSolution, m = sol.m; element = nothing, phi_p = sol.phi_p)
     mode_self_force(hist::AmrHistory, m = hist.m; level = lastindex(hist.levels),
-                    reduction = :trace, phi_p = …)
+                    reduction = :mean, phi_p = …)
 
 The `m`-mode contribution to the scalar self-force at the particle, Osburn–Nishimura
 Eq. (3.10) (`arXiv:2206.07031` `main.tex:178-184`) in this package's locked conventions.
@@ -232,7 +232,7 @@ end
 
 function mode_self_force(hist::AmrHistory, m::Integer = hist.m;
                          level::Integer = lastindex(hist.levels),
-                         reduction::Symbol = :trace,
+                         reduction::Symbol = :mean,
                          phi_p::Real = hist.solution.phi_p)
     Int(m) == hist.m || throw(ArgumentError(
         "mode_self_force: this AmrHistory is the m = $(hist.m) sweep, got m = $m"))
@@ -256,7 +256,7 @@ end
 # SEQUENCE must be homogeneous and because it is what every recorded table was measured with;
 # ask for `:mean` explicitly to get the reduction spectre reports.
 function _sf_level_force(orbit::CircularOrbit, config::RunConfig, m::Integer, l::AmrLevel,
-                         x_p, phi_p::Real; reduction::Symbol = :trace,
+                         x_p, phi_p::Real; reduction::Symbol = :mean,
                          element::Union{Nothing,Integer} = nothing)
     _sf_check_chart(config)
     reduction in (:trace, :mean) || throw(ArgumentError(
@@ -309,7 +309,7 @@ checked. The result is identical, field by field, to `mode_self_force(hist; leve
 go through the same internal function.
 """
 function mode_self_force(orbit::CircularOrbit, config::RunConfig, m::Integer, l::AmrLevel,
-                         x_p; reduction::Symbol = :trace, phi_p::Real = 0)
+                         x_p; reduction::Symbol = :mean, phi_p::Real = 0)
     _sf_check_mode(config, m)
     return _sf_level_force(orbit, config, m, l, x_p, phi_p; reduction = reduction)
 end
@@ -327,20 +327,21 @@ end
 traces the sealed [`AmrLevel`](@ref) stores — no level needs a `ModeSolution`, which matters
 because only the last one keeps one and a fanned-out sweep ships none.
 
-  - `:trace` (the DEFAULT) — the level's representative one-sided trace, `AmrLevel.element`.
-    Homogeneous across the sequence and what every recorded table in this package was measured
-    with, so it is what a convergence sequence keeps using.
-  - `:mean` — SPECTRE'S OWN REDUCTION over the level's `NumContributingElements`
-    (`ObserveSelfForce.hpp:89-107`), i.e. `AmrLevel.psi/dpsi_r/dpsi_w`. At the final level it is
-    BITWISE `mode_self_force(hist.solution)` (gated). It is also the better resolution measure —
-    the face jump it cancels is first order in `h`: MEASURED, the sweep's
+  - `:mean` (the DEFAULT) — SPECTRE'S OWN REDUCTION over the level's
+    `NumContributingElements` (`ObserveSelfForce.hpp:89-107`), i.e. `AmrLevel.psi/dpsi_r/dpsi_w`.
+    It is the same default the live [`mode_self_force`](@ref)`(sol::ModeSolution)` takes, and at
+    the final level the two are BITWISE equal (gated). It is also the better resolution
+    measure — the face jump it cancels is first order in `h`: MEASURED, the sweep's
     `relative_resolution_error` is 6.62e-6 under `:mean` against 3.39e-5 under `:trace` on the
     production half domain, and 1.60e-7 against 6.66e-6 on the full-`z` lattice.
+  - `:trace` — the level's representative one-sided trace, `AmrLevel.element`, or the trace of
+    an `element` you name. Homogeneous across a sequence too; use it to reproduce a
+    single-element reduction, never mixed with `:mean` inside one convergence sequence.
 
 The two differ by the trace spread, which `AmrLevel.trace_spread` bounds — now for `dpsi_w` as
 well as `psi` and `dpsi_r`, because in the full-`z` chart `dpsi_w` is what carries `F_θ`.
 """
-mode_self_force_history(hist::AmrHistory; reduction::Symbol = :trace,
+mode_self_force_history(hist::AmrHistory; reduction::Symbol = :mean,
                        phi_p::Real = hist.solution.phi_p) =
     [_sf_level_force(hist.orbit, hist.config, hist.m, l, hist.x_p, phi_p;
                      reduction = reduction) for l in hist.levels]
@@ -359,7 +360,7 @@ function mode_self_force_history(orbit::CircularOrbit, config::RunConfig, m::Int
                                  levels::AbstractVector{<:AmrLevel};
                                  x_p = puncture_chart_position(block_domain(orbit, config),
                                                                orbit),
-                                 reduction::Symbol = :trace, phi_p::Real = 0)
+                                 reduction::Symbol = :mean, phi_p::Real = 0)
     _sf_check_mode(config, m)
     return [_sf_level_force(orbit, config, m, l, x_p, phi_p; reduction = reduction)
             for l in levels]

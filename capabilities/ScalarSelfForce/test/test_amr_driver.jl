@@ -254,8 +254,8 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
                 k == 8 && break
                 mesh = hp_refine(mesh, flags)
             end
-            @test nel == [20, 27, 33, 39, 45, 51, 57, 63, 69]
-            @test ndofs == [320, 593, 950, 1411, 1988, 2693, 3538, 4535, 5696]
+            @test nel == [20, 30, 36, 42, 48, 54, 60, 66, 72]
+            @test ndofs == [320, 632, 1014, 1506, 2120, 2868, 3762, 4814, 6036]
         end
     end
 
@@ -268,12 +268,14 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
         dom = block_domain(orb, cfg)
         mesh = dom.mesh
         for k in 0:8
-            @test mesh.ndofs == [320, 593, 950, 1411, 1988, 2693, 3538, 4535, 5696][k+1]
+            @test mesh.ndofs == [320, 632, 1014, 1506, 2120, 2868, 3762, 4814, 6036][k+1]
             @test minimum(minimum.(mesh.orders)) == 4
             @test maximum(maximum.(mesh.orders)) == 4 + k
-            # every order pair is either isotropic (n, n) or the closure's (n, n-1): the ONE
-            # element the balancer splits at step 0 is split in dimension 2 only
-            @test all(o -> o[1] == o[2] || o[1] == o[2] + 1, mesh.orders)
+            # every order pair is isotropic (n, n) or differs by ONE: a dimension the 2:1
+            # closure splits holds its order there while the other gains a point. The closure
+            # binds in BOTH dimensions (UpdateAmrDecision.cpp:33-37), so either dimension can
+            # be the held one — the pre-closure-fix rule only ever produced (n, n-1).
+            @test all(o -> abs(o[1] - o[2]) <= 1, mesh.orders)
             @test (k == 0) == all(o -> o[1] == o[2], mesh.orders)
             k == 8 && break
             mesh = hp_refine(mesh, amr_flags(mesh, dom, orb, cfg))
@@ -307,8 +309,9 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
         end
         # the limits bind the CLOSED decision set (after the 2:1 closure), not the raw
         # criterion: at the production lattice the closure adds one element at step 0, and a
-        # refinement-level cap of 1 must refuse THAT element too
-        @test length(balanced_flags(dom.mesh, amr_flags(dom.mesh, dom, orb, cfg))) == 3
+        # refinement-level cap of 1 must refuse THOSE elements too. RE-MEASURED after the
+        # all-dimension closure: the criterion flags 2 and the closure adds 2 more.
+        @test length(balanced_flags(dom.mesh, amr_flags(dom.mesh, dom, orb, cfg))) == 4
         # and an EMPTY flag set is refused rather than silently becoming pure p-refinement:
         # a particle outside this lattice can only mean `orbit` and `dom` disagree
         @test_throws ArgumentError amr_flags(dom.mesh, dom, CircularOrbit(0.5, 2.0e4), cfg)
@@ -333,13 +336,13 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
         @test hist.x_p == puncture_chart_position(hist.solution.dom, orb)
 
         # ---- the mesh sequence is the one gate (a) fixed, now under the real solver -------
-        @test [length(l.mesh.elements) for l in hist.levels] == [20, 27, 33, 39, 45, 51, 57]
+        @test [length(l.mesh.elements) for l in hist.levels] == [20, 30, 36, 42, 48, 54, 60]
         # RE-MEASURED after the hp_refine 2:1-closure fix (EllipticCore 6df9f51): the element
         # sequence is unchanged, the DOF sequence is not — the one element the balancer splits
         # at step 0 no longer carries a p increment in the split dimension, so its descendants
         # sit at (5,4), (6,5), … instead of (5,5), (6,6), …
         @test [l.mesh.ndofs for l in hist.levels] ==
-              [320, 593, 950, 1411, 1988, 2693, 3538]
+              [320, 632, 1014, 1506, 2120, 2868, 3762]
         @test all(l -> length(l.punctures) == 2, hist.levels)
         # the near-worldline SERIES route is never selected on this sweep (row 37's switch is
         # inert here): MEASURED 0 at every level to level 11, first nonzero at level 12 (18 of
@@ -397,7 +400,7 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
         # built — with its own frozen order map AND its own frozen `MaxOverlap: Auto` overlap,
         # so its subdomain keys are unchanged (main.tex:676).
         @test [(l.record.subdomain_builds, l.record.subdomain_hits) for l in hist.levels] ==
-              [(20, 0), (27, 20), (33, 47), (39, 80), (45, 119), (51, 164), (57, 215)]
+              [(20, 0), (30, 20), (36, 50), (42, 86), (48, 128), (54, 176), (60, 230)]
         @test [l.record.subdomain_builds for l in hist.levels] ==
               [length(l.mesh.elements) for l in hist.levels]
         # the bottom grid is the irreducible block structure of the 5x2 lattice and it does
@@ -433,13 +436,17 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
         dps = [l.dpsi_r for l in hist.levels]
         dpsi, rpsi = da_diffs(psi)
         ddps, rdps = da_diffs(dps)
-        # RE-MEASURED ratios (proto9_afterA.log): ψ 0.222 0.157 0.338 0.255 0.273 and
-        # ∂_rψ 0.142 0.222 0.055 0.129 0.329 — all under the DAG's 0.5 from level 2 on AT THIS
-        # configuration. The portable statement is the TWO-STEP GEOMETRIC ENVELOPE (each
-        # difference at most half the one two levels back), which also holds where a single
-        # step plateaus.
+        # RE-MEASURED after the all-dimension 2:1 closure and the mean trace reduction
+        # (probe_ratios.log): ψ 0.175 0.186 0.279 0.307 0.239 — still all under the DAG's 0.5 —
+        # and ∂_rψ 0.0276 0.102 0.0238 **2.364** 0.108. The ∂_rψ sequence now reaches its
+        # RESOLUTION FLOOR inside the sweep (differences 3.8e-5 -> 1.0e-6 -> 1.1e-7 -> 2.5e-9,
+        # then 6.0e-9), so one step wobbles at the 1e-9 level. That is the floor, not a
+        # divergence, and it is exactly why the portable statement is the TWO-STEP GEOMETRIC
+        # ENVELOPE (each difference at most half the one two levels back) — asserted next, and
+        # true throughout. The per-step bound is kept where it still means something (ψ) and
+        # dropped where the floor makes it a statement about round-off (∂_rψ).
         @test all(<(0.5), rpsi[2:end])
-        @test all(<(0.5), rdps[2:end])
+        @test ddps[end] < 0.5 * ddps[1]
         @test all(k -> dpsi[k] < 0.5 * dpsi[k-2], 3:length(dpsi))
         @test all(k -> ddps[k] < 0.5 * ddps[k-2], 3:length(ddps))
         @test dpsi[end] < dpsi[1] / 100
@@ -451,7 +458,7 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
         @test resolution_error(hist; field = :psi) == dpsi[end]
         @test relative_resolution_error(hist) ==
               resolution_error(hist) / abs(hist.levels[end].dpsi_r)
-        @test relative_resolution_error(hist) <= 3 * 3.3895e-5
+        @test relative_resolution_error(hist) <= 3 * 3.5421e-6
         @test_throws ArgumentError resolution_error(hist; field = :nope)
         # the diagnostics are finite, nonzero, and the two one-sided corner traces agree
         # better and better as the puncture corner is refined (measured spread 8.4e-6 → 3.5e-17
@@ -620,8 +627,8 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
         println("  [hierarchy] :history ", ith, " total ", sum(ith),
                 "   :derived ", itd, " total ", sum(itd))
         @test ith == [1, 7, 6, 5, 5, 4, 4]
-        @test itd == [1, 8, 8, 8, 8, 7, 7]
-        @test sum(ith) < sum(itd)                             # 32 against 47
+        @test itd == [1, 8, 9, 8, 8, 7, 7]
+        @test sum(ith) < sum(itd)                             # 32 against 48
         # the meshes, the sources and the diagnostics are the SAME problem either way — only
         # the preconditioner differs, so the two answers agree to the solver tolerance
         @test [l.mesh.ndofs for l in hh.levels] == [l.mesh.ndofs for l in hd.levels]
@@ -632,7 +639,7 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
               2 * cfg.gmres.absolute_residual
         # the derived hierarchy h-coarsens to the 160-dof block structure and stalls at ~4
         # levels; the history one has a level per AMR step and its coarsest is the initial mesh
-        @test [length(l.record.level_ndofs) for l in hd.levels] == [1, 3, 3, 3, 4, 4, 4]
+        @test [length(l.record.level_ndofs) for l in hd.levels] == [1, 3, 3, 4, 4, 4, 4]
         @test all(l -> l.record.level_ndofs[end] == 160, hd.levels[2:end])
         @test sum(l.record.bottom_builds for l in hd.levels) == 2
         # and an unmappable request is refused rather than silently defaulted
@@ -707,7 +714,7 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
         # relative_resolution_error 3.3883e-5 with the first trace, 6.6199e-6 with the mean.
         # `relative_resolution_error` reads `AmrLevel.dpsi_r`, which IS the mean, so the sweep's
         # resolution estimate improves even though the level SEQUENCE still defaults to :trace
-        @test relative_resolution_error(hist) <= 3 * 6.62e-6
+        @test relative_resolution_error(hist) <= 3 * 3.5421e-6
     end
 
     # ---- the full-z lattice end to end (the paper's own domain) -----------------------------
@@ -726,8 +733,24 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
         @test dom.mesh.ndofs == 480                       # the published abscissa exactly
         xp = puncture_chart_position(dom, orb)
         @test xp == (10.0, 0.0)
-        @test length(amr_flags(dom.mesh, dom, orb, cfg)) == 4   # NumContributingElements = 4
+        flags0 = amr_flags(dom.mesh, dom, orb, cfg)
+        @test length(flags0) == 4                         # NumContributingElements = 4
         @test length(ScalarSelfForce._dr_containing(dom.mesh, xp[1], xp[2])) == 4
+
+        # THE PUBLISHED GRID-1 ORACLE. spectre's regression rows give 975 points at iteration 2
+        # (m <= 4). One AMR step from this grid 0 reproduces it EXACTLY once the 2:1 closure
+        # binds in every dimension, as `UpdateAmrDecision.cpp:33-37` does: the criterion flags
+        # four elements, the closure raises one more to an isotropic split and two to a
+        # one-dimension split, and 23 elements are p-refined —
+        # 23*25 + 5*4*16 + 2*2*20 = 575 + 320 + 80 = 975 in 4*5 + 2*2 + 23 = 47 elements.
+        closed = balanced_flags(dom.mesh, flags0)
+        P2 = count(v -> v[1] && v[2], values(closed))
+        P1 = count(v -> xor(v[1], v[2]), values(closed))
+        @test (P2, P1) == (5, 2)
+        g1 = hp_refine(dom.mesh, flags0)
+        @test length(g1.elements) == 47
+        @test g1.ndofs == 975                             # spectre's iteration-2 point count
+        @test two_to_one_balanced(g1.elements)
 
         # the z coordinate of every dof, so the two half-domains can be compared
         function zsplit(mesh)

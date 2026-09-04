@@ -325,27 +325,41 @@ hand `h_refine` the closure's own leaf set instead.
 """
 function balanced_flags(mesh::Mesh2D, flags; maxsweeps::Integer = 128)
     ids = mesh.elements
-    dec = Dict{ElementId,NTuple{2,Bool}}()
-    for id in ids
-        d = _amr_flag(flags, id)
-        (d[1] || d[2]) && (dec[id] = d)
+    n = length(ids)
+    # the decision, as a dense per-element pair — the fixpoint below reads it O(1) per face
+    d1 = falses(n)
+    d2 = falses(n)
+    for (e, id) in enumerate(ids)
+        f = _amr_flag(flags, id)
+        d1[e] = f[1]
+        d2[e] = f[2]
     end
-    lookup = Dict{ElementId,Bool}(id => true for id in ids)
+    # THE DECISION FIXPOINT, over EVERY dimension for every face neighbour — spectre's
+    # `amr::update_amr_decision` (`Domain/Amr/UpdateAmrDecision.cpp:33-37`), whose dimension loop
+    # skips a dimension only when `EnforceTwoToOneBalanceInNormalDirection` is FALSE. The CRP
+    # sets it True (`anc/ScalarSelfForce.yaml:146`), so nothing is skipped: an element whose
+    # neighbour wants to be two levels finer in ANY dimension must split in that dimension, and
+    # a dimension already Split is left alone (`Flag::Split == ... continue`, `:38-40`).
+    desired(e, dim) = ids[e].segments[dim].level + ((dim == 1 ? d1[e] : d2[e]) ? 1 : 0)
     for _ in 1:maxsweeps
-        leaves = balance_two_to_one(h_split(ids, dec); connections = mesh.connections)
         changed = false
-        for leaf in leaves
-            anc = _amr_ancestor(lookup, leaf)
-            anc === nothing && continue
-            cur = get(dec, anc, (false, false))
-            nxt = (cur[1] || leaf.segments[1].level > anc.segments[1].level,
-                   cur[2] || leaf.segments[2].level > anc.segments[2].level)
-            if nxt != cur
-                dec[anc] = nxt
+        for e in 1:n, dim in 1:2, sidx in 1:2
+            iface = mesh.faces[e][dim][sidx]
+            iface === nothing && continue
+            for nb in iface.nbs, dd in 1:2
+                (dd == 1 ? d1[e] : d2[e]) && continue
+                desired(nb, dd) - desired(e, dd) >= 2 || continue
+                dd == 1 ? (d1[e] = true) : (d2[e] = true)
                 changed = true
             end
         end
-        changed || return dec
+        if !changed
+            dec = Dict{ElementId,NTuple{2,Bool}}()
+            for e in 1:n
+                (d1[e] || d2[e]) && (dec[ids[e]] = (d1[e], d2[e]))
+            end
+            return dec
+        end
     end
     throw(ErrorException("balanced_flags: the decision fixpoint was not reached in " *
                          "$maxsweeps sweeps — this is a bug (decisions only ever gain " *
