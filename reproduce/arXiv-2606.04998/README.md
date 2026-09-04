@@ -328,7 +328,7 @@ the harness compares arrays norm-wise: on the raw vector the O(1) initial residu
 factor-2 move at the 1e-13 floor.
 
 
-## Fig. 4 — the abscissa is a different lattice, and the criteria are not the shipped ones
+## Fig. 4 — the paper's lattice is not the shipped yaml's, and the criteria are not either
 
 `fig_convergence.jl` plots what main.tex:719-724 says it plots: for each of the 21 modes, the
 absolute error `|F_r^m − F^m_{r,ref}|` at every AMR level against **that mode's own
@@ -338,50 +338,73 @@ gives **7 plotted points** — exactly the vertex count of the published curves.
 is the same convention mapping `fig_linsolv.jl` derives (`Amr.Iterations: 8` counts solves and
 the trigger's `Offset: 1` skips the initial guess ⇒ 7 refinements, 8 grids).
 
+The driver runs **two lattices from one worker pool** and plots the paper's:
+
+| | `ImposeEquatorialSymmetry` | lattice | level-0 grid | role |
+|---|---|---|---|---|
+| **plotted** | `false` | full-z 5×3, 30 elements | **480** points | the published one |
+| secondary | `true` (yaml:36) | half 5×2, 20 elements | 320 points | the shipped file's own, registered and gated, never drawn |
+
 ### What the published figure's own vector paths say
 
 `ssf_convergence.pdf` is a matplotlib vector figure. Its 21 top-panel and 21 bottom-panel
 polylines were parsed out of the page content stream and de-projected with the calibration the
 file itself carries (x gridlines at 20/40/60/80; y gridlines one decade apart, 1e-12…1e-5 on
 top and the "1 s"/"10 s" ticks below). Script and full table: this node's evidence,
-`published_figure_extract.py` / `published_figure_vertices.txt`. Four facts come straight off
-it, and two of them are deviations this node does not plot around.
+`published_figure_extract.py` / `published_figure_vertices.txt`.
 
 * **Seven vertices per curve** — consistent with 8 grids and the last one used as the
-  reference. This is an independent confirmation of the level-count mapping.
+  reference. An independent confirmation of the level-count mapping.
 * **The gray ramp is `m/23`** (0 at m = 0 to 0.8696 at m = 20), i.e. `gray(linspace(0,1,24))`
   truncated at 21 entries. The driver uses exactly that.
-* **The abscissa is a DIFFERENT LATTICE.** The published grid-point sequence is
-  `480, 975, 1604, 2427, 3468, 4751, 6300` (m ≤ 4). Its first two entries are, exactly, the
-  `NumPoints` column of spectre's own `tests/InputFiles/SelfForce/ScalarCircularOrbit.yaml`
-  regression — rows `[0, 480, 4, …]`, `[1, 480, 4, …]`, `[2, 975, 4, …]` at the same
-  `a = 0.5 M, r₀ = 10 M` — a file whose `ImposeEquatorialSymmetry: False` gives a **full-z 5×3
-  block lattice, 30 elements at P = 4 = 480 grid points**, with `NumContributingElements = 4`
-  because the puncture sits on a four-element corner there. The production input every driver
-  in this directory runs, `anc/ScalarSelfForce.yaml:36`, sets `ImposeEquatorialSymmetry: True`:
-  a 5×2 lattice, **20 elements, 320 grid points**, and a two-element puncture corner. So ours
-  is `320, 593, 950, 1411, 1988, 2693, 3538` — the same physics on half the sphere, and a
-  resolution axis that is a factor 1.50 … 1.78 shorter, level for level. The ratio
-  `N_published/N_ours` is registered as `ndofs_ratio_published_over_ours`
-  (1.500, 1.644, 1.688, 1.720, 1.744, 1.764, 1.781). **[SOLID measurement, [HOLE] as a
-  reproduction:** running the figure on the full-z lattice needs
-  `ImposeEquatorialSymmetry: False` end to end, which `crp_paper_config` hard-codes — the open
-  item already recorded in `RESEARCH_STATE.md`.**]**
-* **The published grids depend on m, ours cannot.** From level 1 on, the published `N_points`
-  splits by mode: 975 for m ≤ 4 and 970 for m ≥ 5 at level 1, spreading to 6300 (m ≤ 4), 6290,
-  6280, 6240, 6230, 6210, 6190, 6170, 6100 and 6092 (m ≥ 18) at the last plotted level — a
-  monotone decrease with m. `RefineAtPuncture` and `IncreaseResolution`, the only two criteria
-  the shipped yaml enables (yaml:130-132), are both m-independent, and our own sweep is
-  gated m-independent (`ndofs_identical_across_m = true`, GATE 3). The candidate is the yaml's
-  own **commented-out** `TruncationError` block (`AbsoluteTarget: 1.e-11`,
-  `RelativeTarget: 1.e-11`, yaml:133-136): it is solution-dependent, `Policies.AllowCoarsening:
-  True` is only meaningful beside an error-based criterion, higher m has a smaller far-field
-  amplitude and would coarsen more (which is the direction observed), the figure's dashed
-  "Solver tolerance" line sits at **1e-11** (measured off the PDF) while the GMRES
-  `AbsoluteResidual` is 1e-12, and main.tex:721 says the error falls "until it reaches the
+* **The abscissa is the FULL-z lattice, and it now reproduces EXACTLY.** The published
+  grid-point sequence is `480, 975, 1604, 2427, 3468, 4751, 6300` (m ≤ 4). Its first two
+  entries are the `NumPoints` column of spectre's own
+  `tests/InputFiles/SelfForce/ScalarCircularOrbit.yaml` regression at the same
+  `a = 0.5 M, r₀ = 10 M` — a file whose `ImposeEquatorialSymmetry: False` gives the full-z 5×3
+  block lattice, 30 elements at P = 4 = 480 grid points, with `NumContributingElements = 4`
+  because the puncture sits on a four-element corner. `anc/ScalarSelfForce.yaml:36` sets it
+  `True`, so the published figure was **not** run with the shipped file's own setting. With
+  `crp_paper_config(; equatorial_symmetry = false)` and the all-dimension 2:1 closure, our
+  plotted sequence is
+
+      480, 975, 1604, 2427, 3468, 4751, 6300      (the reference level is 8139)
+
+  — **the published sequence, level for level, exactly**, which GATE 5 asserts at all seven
+  plotted levels. The elements go `30, 47, 59, 71, 83, 95, 107, 119`; grid 1's 47 elements are
+  spectre's own `20 × (4,4) + 4 × (4,5) + 23 × (5,5) = 975`. The secondary half-domain sequence
+  is `320, 632, 1014, 1506, 2120, 2868, 3762`, registered beside it.
+* **The published grids still depend on m, and ours cannot.** From level 1 on the published
+  `N_points` splits by mode: 975 for m ≤ 4 and 970 for m ≥ 5, spreading to 6300 (m ≤ 4) down to
+  6092 (m ≥ 18) at the last plotted level — a monotone decrease with m. `RefineAtPuncture` and
+  `IncreaseResolution`, the only two criteria the shipped yaml enables (yaml:130-132), are both
+  m-independent, and our sweep is gated m-independent (`ndofs_identical_across_m = true`,
+  GATE 3). The candidate is the yaml's own **commented-out** `TruncationError` block
+  (`AbsoluteTarget: 1.e-11`, `RelativeTarget: 1.e-11`, yaml:133-136): it is solution-dependent,
+  `Policies.AllowCoarsening: True` is only meaningful beside an error-based criterion, higher m
+  has a smaller far-field amplitude and would coarsen more (the direction observed), the
+  figure's dashed "Solver tolerance" line sits at **1e-11** (measured off the PDF) while the
+  GMRES `AbsoluteResidual` is 1e-12, and main.tex:721 says the error falls "until it reaches the
   tolerances set for the GMRES algorithm **and for AMR**" — a second tolerance the shipped
-  configuration does not have. **[HOLE: consistent with every measurement here, but not
-  demonstrated; no run of ours enables that criterion.]**
+  configuration does not have. **[HOLE: consistent with every measurement here, not
+  demonstrated; no run of ours enables that criterion.]** It is now the ONLY part of the
+  abscissa that does not reproduce, and it is a 0.5 % effect (970 against 975) rather than the
+  50–78 % lattice mismatch it was hiding behind.
+
+### Which lattice the gates apply to
+
+The published-envelope R² floor (GATE 1a) is **scoped to the plotted lattice**, and the reason
+is physical, not cosmetic: `R2_FLOOR` is calibrated on the published curves, which descend ~7
+decades on grids reaching 6300 points. At the same 8 AMR steps the half domain only reaches
+3762 points and its curves floor at ~2e-11 against the plotted lattice's ~2e-13 — a floor
+**49…839× higher**, registered per mode as
+`floor_ratio_secondary_over_plotted_per_mode`. On a curve whose tail is already floor, R²
+measures what fraction of the fit range is floor rather than how exponentially the method
+converges. The lattice-independent half of the claim — every mode's error actually decays
+(GATE 1b) — is applied to both, as are the decade floor, the mesh m-independence, and the
+per-level GMRES convergence. The secondary series' fits are registered
+(`secondary_fit_r2_per_mode`, `secondary_fit_r2_min`, `n_modes_secondary_r2_above_098`) so the
+contrast between the two lattices is in the golden rather than in prose.
 
 ### The planned R² gate is falsified by the published figure itself
 
