@@ -532,28 +532,36 @@ formulation and consumes the physics-free hp-DG solver stack from
   measurement.) The per-mode cost is m-independent to **1.21``\times``** over
   the whole sweep.
 
-  The same artefact records the GMRES count per mode. At the paper's own
-  configuration the count at the finest AMR level **grows with** ``m``: 9, 9,
-  9, 9, 11, 11, 10, 10, 11, 11, 12, 13, 14, 14, 16, 17, 19, 20, 20, 20, 20 for
-  ``m = 0\ldots20``. This is not a discrepancy with main.tex:720 ("less than
-  10 iterations per AMR level"), which is stated for one exemplary mode
-  (``m = 2``, ``a = 0.5``, ``r_0 = 10M``) — and that mode measures 9 here, in
-  agreement. The growth is **new information**, and its cause is in the
-  configuration rather than the solver: the shipped vtu config sets
-  `ComplexShift: 0` (yaml:194,203; main.tex:680), so the preconditioner is
-  ``m``-agnostic while the operator's Helmholtz term scales as ``(m\Omega)^2``.
-  Turning the shift on at the policy value ``s = (m\Omega)^2`` makes it far
-  worse on this massive-Gauss formulation — measured 13 → 92 iterations at
-  ``m = 10`` and 16 → 215 at ``m = 20`` — which is the round-1 `helmholtz_shift`
-  calibration falsifier again. Every mode's shift is recorded in its
-  `ModeStamp`, so the claim is auditable rather than remembered.
+  **The artefact predates the 2:1 closure, and its iteration table is
+  superseded.** It was taken before the all-dimension closure (GRTools
+  13ea24c), which splits more elements and moves the GMRES counts as well as
+  the meshes. Its dof cascade and its per-``m`` iteration table are therefore
+  no longer current; what survives untouched is everything that compares two
+  runs of the *same* tree — bitwise ``parallel == serial``, collection order,
+  process isolation, the budget arithmetic and the lifecycle. Pre-closure, at
+  9 grids, the count at the finest level grew with ``m``: 9, 9, 9, 9, 11, 11,
+  10, 10, 11, 11, 12, 13, 14, 14, 16, 17, 19, 20, 20, 20, 20. Re-measured
+  post-closure at reduced depth (5 grids, cascade 320, 632, 1014, 1506, 2120),
+  ``m = 0, 2, 5, 10, 15, 20`` give **5, 5, 4, 5, 4, 6** — no growth with ``m``
+  at this depth, and every mode comfortably inside main.tex:720's "less than
+  10 iterations per AMR level" (for ``m = 2`` the per-level sequence moved
+  ``[1, 8, 9, 9, 9]`` to ``[1, 7, 6, 5, 5]``; for ``m = 20``,
+  ``[1, 5, 7, 11, 14]`` to ``[1, 5, 4, 5, 6]``). **The growth claim is not
+  established on the current tree and should not be relied on**; settling it at
+  the paper's 9 grids needs a fresh 21-mode artefact, which has not been run.
+  What does not change is the configuration fact underneath it: the shipped vtu
+  config sets `ComplexShift: 0` (yaml:194,203; main.tex:680), so the
+  preconditioner is ``m``-agnostic while the operator's Helmholtz term scales
+  as ``(m\Omega)^2``, and every mode's shift is recorded in its `ModeStamp`, so
+  such a claim stays auditable rather than remembered.
   `solve_kwargs` is forwarded verbatim to `solve_mode_amr`, so a caller can
   reach a keyword the driver does not name — `horizon_hold = true`, the
   high-spin cure, above all. It is validated on the master against
   `solve_mode_amr`'s own method table before a single worker starts, and it is
   recorded in every `ModeStamp`, so an archived sweep says which keywords
   produced it (measured at ``a = 0.5``, ``r_0 = 10M``, ``m = 2``: the first
-  refinement step alone gives 593 dofs by default against 575 held). Each
+  refinement step alone gives 632 dofs by default against 614 held, on the
+  2:1-closed meshes; it was 593 against 575 before that closure). Each
   `ModeResult` also carries `converged`, the roll-up of the per-level
   `record.converged`: a stagnated GMRES still returns a number, and a caller
   that plots it without looking has published a wrong one.

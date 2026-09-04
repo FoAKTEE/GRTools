@@ -532,8 +532,12 @@ end
 # THE GATE IS THE MESH. A keyword that reached the worker must CHANGE something the master can
 # see. MEASURED in-process at a = 0.5, r0 = 10M, m = 2 (probe archived with the evidence):
 # `horizon_hold` holds the order of the inner radial column, so the very first refinement step
-# already produces a smaller grid — 593 dofs by default against 575 held, then 950/910 and
-# 1411/1345. The one-step pair is the cheapest possible falsifier and is what is gated here.
+# already produces a smaller grid — 632 dofs by default against 614 held, then 1014/974 and
+# 1506/1440. The one-step pair is the cheapest possible falsifier and is what is gated here.
+# THE NUMBERS ARE POST-CLOSURE: the all-dimension 2:1 closure (GRTools 13ea24c) splits more
+# elements, so every hp-AMR dof count moved (593/575, 950/910, 1411/1345 before it) and the
+# gates below were re-pinned at 93fcc41. The closure moves the ITERATION counts too, not only
+# the meshes — see the `solve_modes_parallel` docstring.
 @testset "(7b) solve_kwargs reaches the worker, is recorded, and is validated first" begin
     cfg = pa_cfg(; m = 2)
     orb = pa_orb(cfg)

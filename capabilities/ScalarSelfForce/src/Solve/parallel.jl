@@ -1237,18 +1237,35 @@ when 21 processes run at once, so the sweep is memory-bandwidth- and residual-co
 long before it is core-bound. An earlier `~18×` figure was INFERRED from warm single-process
 timings and is superseded by this measurement. The per-mode cost is m-INDEPENDENT to 1.21×.
 
-# THE GMRES COUNT GROWS WITH m (measured, and it is not a discrepancy)
+# THE GMRES COUNT AND m — A CLAIM THE 2:1 CLOSURE MOVED
 
-The same artefact records, at the finest AMR level, 9, 9, 9, 9, 11, 11, 10, 10, 11, 11, 12, 13,
-14, 14, 16, 17, 19, 20, 20, 20, 20 iterations for `m = 0…20`. main.tex:720's "less than 10
-iterations per AMR level" is stated for ONE exemplary mode (`m = 2`, `a = 0.5`, `r₀ = 10M`),
-which measures 9 here — the paper's claim HOLDS where the paper makes it. The growth with `m`
-is NEW information, and it comes from the CONFIGURATION, not the solver: the shipped vtu config
-sets `ComplexShift: 0` (yaml:194,203; main.tex:680), so the preconditioner is m-AGNOSTIC while
-the operator's Helmholtz term scales as `(mΩ)²`. Turning the shift on at the policy value
-`s = (mΩ)²` makes it far worse on this massive-Gauss formulation (MEASURED: 13 → 92 iterations
-at `m = 10`, 16 → 215 at `m = 20`) — the round-1 [`helmholtz_shift`](@ref) calibration
-falsifier again. Each result's [`ModeStamp`](@ref) carries the shift it used.
+READ THIS BEFORE QUOTING AN ITERATION COUNT FROM THIS NODE. The 21-mode artefact
+(`evidence/mmode-parallel-driver/artefact_21modes_v2.json`) was taken BEFORE the all-dimension
+2:1 closure (GRTools 13ea24c). That closure splits more elements, and it moves the ITERATION
+counts as well as the meshes — so the artefact's dof cascade AND its per-m iteration table are
+SUPERSEDED, and only the properties that compare two runs of the SAME tree (bitwise
+parallel == serial, collection order, process isolation, the budget arithmetic, the lifecycle)
+survive it untouched.
+
+PRE-CLOSURE, at the paper's 9 grids, the count at the finest level GREW with `m`: 9, 9, 9, 9,
+11, 11, 10, 10, 11, 11, 12, 13, 14, 14, 16, 17, 19, 20, 20, 20, 20 for `m = 0…20`.
+
+POST-CLOSURE, MEASURED at reduced depth (5 grids, `probe_mgrowth_postclosure.jl`, on the
+cascade 320, 632, 1014, 1506, 2120): `m = 0, 2, 5, 10, 15, 20` give **5, 5, 4, 5, 4, 6**
+iterations at the finest level — NO growth with `m` at this depth, and every mode comfortably
+inside main.tex:720's "less than 10 iterations per AMR level". For `m = 2` the per-level
+sequence moved `[1, 8, 9, 9, 9]` → `[1, 7, 6, 5, 5]`; for `m = 20`, `[1, 5, 7, 11, 14]` →
+`[1, 5, 4, 5, 6]`.
+
+**THE GROWTH CLAIM IS THEREFORE NOT ESTABLISHED ON THE CURRENT TREE.** Do not rely on it.
+Settling it at the paper's 9 grids needs a fresh 21-mode artefact, which this node has not run.
+
+WHAT DOES NOT CHANGE is the CONFIGURATION fact underneath it: the shipped vtu config sets
+`ComplexShift: 0` (yaml:194,203; main.tex:680), so the preconditioner is m-AGNOSTIC while the
+operator's Helmholtz term scales as `(mΩ)²`. Each result's [`ModeStamp`](@ref) carries the
+shift it used, which is what makes any such claim auditable instead of remembered. The
+shift-on experiment quoted by this node (13 → 92 iterations at `m = 10`, 16 → 215 at `m = 20`
+at `s = (mΩ)²`) was itself measured pre-closure and is not re-derived here.
 
 # FAILURES, DEATHS AND DEADLINES
 
@@ -1262,8 +1279,10 @@ a keyword the driver does not name, `horizon_hold = true` (the row-58 high-spin 
 all. It is validated on the MASTER against `solve_mode_amr`'s own method table before a single
 worker starts, refused if it repeats a keyword the driver owns, and recorded in every
 [`ModeStamp`](@ref) so an archived sweep says which keywords produced it. MEASURED at
-`a = 0.5`, `r₀ = 10M`, `m = 2`: the first refinement step alone gives 593 dofs by default
-against 575 with `horizon_hold = true`, so the keyword is visible in the returned mesh.
+`a = 0.5`, `r₀ = 10M`, `m = 2`: the first refinement step alone gives 632 dofs by default
+against 614 with `horizon_hold = true`, so the keyword is visible in the returned mesh
+(re-measured on the all-dimension 2:1 closure, GRTools 13ea24c; it was 593 against 575 before
+that commit, and `test_parallel.jl` was re-pinned at 93fcc41).
 
 `timeout_s` bounds the whole sweep. Without it a hung mode hangs the sweep forever, because
 `remotecall_fetch` has no deadline; with it, the outstanding modes are cancelled the only way a
