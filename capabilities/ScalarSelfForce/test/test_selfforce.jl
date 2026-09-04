@@ -515,6 +515,84 @@ end
     @test abs(frs[1]) > abs(frs[3]) && abs(frs[2]) > abs(frs[3])
 end
 
+# ================= (h) THE FULL-Z LATTICE against spectre's regression rows ==================
+# `crp_paper_config(; equatorial_symmetry = false)` builds the 5x3 full-z lattice, which
+# reproduces the DISCRETE SIZE of spectre's ScalarCircularOrbit.yaml exactly: 30 elements,
+# 480 grid points, and 4 elements touching the puncture — its `NumContributingElements`. That
+# makes the matching-iteration comparison the production z^2 half-domain could not support.
+#
+# WHICH VALUE IS COMPARED: the MEAN over all 4 containing elements, taken from the LIVE
+# `ModeSolution` at each grid (spectre's reduction, `ObserveSelfForce.hpp:89-107`). The
+# per-level `AmrLevel` route is NOT used here — it records one one-sided trace per level, and a
+# one-sided value must never be frozen as the spectre comparison.
+#
+# GRID CORRESPONDENCE: spectre's iteration 0 row is its un-solved initial guess (all zeros);
+# its iteration 1 is the FIRST solve on the initial 480-point mesh (our AMR level 0) and its
+# iteration 2 is the mesh after one AMR step (our AMR level 1).
+#
+# WHAT IS *NOT* THE SAME, and why the level-0 real part is a FINDING rather than a gate: the
+# radial BLOCK BOUNDS differ. Ours are the CRP production ones
+# [r+, 2.8, 5.2, 14.8, 24.4, 1e4] (worldtube r in [5.2, 14.8], vtu transitions at 2.8/24.4);
+# spectre's regression yaml uses [r+, 5, 6, 14, 25, 1e4] (worldtube r in [6, 14]). The matching
+# 30/480/4 is a TOPOLOGY coincidence, not an identical discrete problem. At 480 points the
+# conservative Re(F_r) is nowhere near its limit and is therefore strongly lattice-dependent,
+# while the exponentially convergent Im(F_r) has already reached it — which is exactly the
+# pattern measured below. Nothing here is tuned to close that gap.
+const SF_FULLZ_ITER1 = (-9.183e-5, 9.451e-5)      # spectre [1, 480, 4]
+const SF_FULLZ_ITER2 = (-1.365e-4, 9.138e-5)      # spectre [2, 975, 4]
+
+@testset "(h) the full-z lattice against spectre's regression rows at matching grids" begin
+    cfg = crp_paper_config(; spin = 0.5, orbital_radius = 10.0, m_mode = 1,
+                           inner_radius = SF_ORB.rp, P = 4, L = 0,
+                           equatorial_symmetry = false)
+    dom = block_domain(SF_ORB, cfg)
+    xp = puncture_chart_position(dom, SF_ORB)
+    # (i) STRUCTURAL: we reproduce spectre's lattice topology and its NumContributingElements
+    @test dom.chart === :z
+    @test (dom.nr, dom.nz) == (5, 3)
+    @test length(dom.mesh.elements) == 30
+    @test dom.mesh.ndofs == 480
+    @test length(ScalarSelfForce._dr_containing(dom.mesh, xp[1], xp[2])) == 4
+    @test xp == (10.0, 0.0)
+
+    # (ii) AMR level 0 == spectre iteration 1, on 480 points with 4 contributing elements
+    sol = solve_mode(SF_ORB, cfg, 1; dom = dom)
+    f0 = mode_self_force(sol)
+    @test f0.reduction === :mean && length(f0.elements) == 4
+    d0re = abs(real(f0.Fr_complex) - SF_FULLZ_ITER1[1])
+    d0im = abs(imag(f0.Fr_complex) - SF_FULLZ_ITER1[2])
+    @printf("mode-self-force (h) observed level 0 (%d pts, %d elements, mean of %d): \
+             %+.12e %+.12e im ; spectre iter 1 %+.4e %+.4e ; dRe %.5e dIm %.5e (their atol %.1e)\n",
+            sol.mesh.ndofs, length(sol.mesh.elements), length(f0.elements),
+            real(f0.Fr_complex), imag(f0.Fr_complex), SF_FULLZ_ITER1...,
+            d0re, d0im, SF_SPECTRE_ATOL)
+
+    # (iii) AMR level 1 == spectre iteration 2 (ours 921 points against their 975 — the
+    # m-dependent-grid difference), and here BOTH components land inside spectre's tolerance
+    ScalarSelfForce.amr_step!(sol; flags = amr_flags(sol),
+                              options = amr_level_options(cfg, 1))
+    f1 = mode_self_force(sol)
+    @test f1.reduction === :mean && length(f1.elements) == 4
+    d1re = abs(real(f1.Fr_complex) - SF_FULLZ_ITER2[1])
+    d1im = abs(imag(f1.Fr_complex) - SF_FULLZ_ITER2[2])
+    @printf("mode-self-force (h) observed level 1 (%d pts, %d elements, mean of %d): \
+             %+.12e %+.12e im ; spectre iter 2 %+.4e %+.4e ; dRe %.5e dIm %.5e (their atol %.1e)\n",
+            sol.mesh.ndofs, length(sol.mesh.elements), length(f1.elements),
+            real(f1.Fr_complex), imag(f1.Fr_complex), SF_FULLZ_ITER2...,
+            d1re, d1im, SF_SPECTRE_ATOL)
+    # GATED: at the second grid both components reproduce spectre's row inside ITS OWN
+    # tolerance. Margins are 2.4x (Re) and 1.2x (Im) — the imaginary margin is thin, and a
+    # future mesh change that moves it past 2e-7 is a re-measurement to record, not a
+    # regression to hide: the two grids are 921 against 975 points.
+    @test d1re <= SF_SPECTRE_ATOL
+    @test d1im <= SF_SPECTRE_ATOL
+    # ... and the level-0 real-part gap is REPORTED, never asserted away (see the header).
+    @printf("mode-self-force (h) FINDING: at the 480-point grid Im(F_r) agrees within \
+             spectre's tolerance (%.5e) while Re(F_r) does not (%.5e) — the block bounds \
+             differ, so 30/480/4 is a topology match, not an identical discrete problem\n",
+            d0im, d0re)
+end
+
 # =========================== API surface: guards and equivalences ============================
 
 @testset "(g) API guards and cross-method equivalence" begin
