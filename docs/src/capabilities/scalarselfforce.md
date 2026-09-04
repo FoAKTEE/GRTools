@@ -475,12 +475,12 @@ formulation and consumes the physics-free hp-DG solver stack from
     ``1.2\times10^{-11}`` is the tail refitting); the per-mode
     ``\Delta_m`` are ``-1.55\times10^{-11}`` at ``m = 0``,
     ``-5.0\times10^{-12}`` at ``m = 10`` and ``-6.7\times10^{-12}`` at
-    ``m = 20``, so they do NOT grow with ``m``
+    ``m = 20``, so they do NOT grow with ``m``. Every ``\Delta_m`` is NEGATIVE at
+    all five spins, smallest in magnitude at ``m = 9``
+    (``-4.9\times10^{-12}`` at ``a = 0``) — which is exactly why the coherent
+    difference and the incoherent bound coincide and nothing cancels
     *[SOLID as a measurement; why the paper's budget orders the other way is not
-    established]*. *[HOLE: the three per-mode ``\Delta_m`` quoted in the previous
-    sentence are the only numbers in this section that no artefact of the current
-    tree re-states — the row's own summary and its evidence file disagree on
-    their signs — so they are a claim about shape, not values to gate on.]*
+    established]*.
   - Read the other way round, ``|F_r - F_r^{\rm WB}|`` divided by the coherent
     resolution error is ``0.12``, ``0.23``, ``0.11``, ``0.16``, ``0.15`` across
     the five spins, and ``0.34``–``0.85`` against the truncation estimator: after
@@ -497,9 +497,9 @@ formulation and consumes the physics-free hp-DG solver stack from
     (`Warburton.tex:580`, NINE significant figures) at the same five spins the
     relative deviations are ``1.31``, ``1.54``, ``0.33``, ``0.67``,
     ``3.11 \times10^{-8}`` — two orders tighter than ``F_r`` *[SOLID]*. Its
-    per-mode resolution deltas are ``88\times`` smaller than ``F_r``'s (mean
-    ``|\Delta F_t^m| = 1.7\times10^{-13}`` against ``1.5\times10^{-11}`` at
-    ``a = 0``), which is
+    per-mode resolution deltas are ``56\times`` smaller than ``F_r``'s (mean
+    ``|\Delta F_t^m| = 1.3\times10^{-13}`` against ``7.0\times10^{-12}`` at
+    ``a = 0``, and 31–56× across the five spins), which is
     why the conservative component is the one that binds and why the ``F_r``
     residual localizes to the regularization and tail side rather than to the
     solve or the extraction.

@@ -210,10 +210,11 @@ is a visible skip, a `[[result]]` row that is not `solid`, or a `FIXTURES.toml` 
 * **arXiv:2606.04998 (elliptic scalar self-force) is reproduced for five of its seven figures.**
   `fig:domain`, `fig:matrix`, `fig:convergence`, `fig:modes` and `fig:linsolv` have drivers,
   goldens and `[[result]]` rows (all `heavy`, so CI does not run them); `fig:ssf_error_budget` is a
-  later node and `fig:precond` is not claimed. Two of the landed rows are `preliminary` for
-  measured reasons — the published grid sizes depend on `m` where ours cannot, `fig:linsolv`'s
-  finest grid takes one iteration more than the published one, and GMRES stagnates at `m = 19, 20`
-  on the published `a = 0.998`, `r0 = 2M` panel. See
+  later node and `fig:precond` is not claimed. Two of them are `preliminary` for measured
+  reasons: `fig:convergence`, because the published grid sizes depend on `m` where ours cannot,
+  and `fig:modes`, because GMRES stagnates at `m = 19, 20` on the published `a = 0.998`,
+  `r0 = 2M` panel. `fig:linsolv` is `solid` and carries its own hole — its finest grid takes one
+  GMRES iteration more than the published one. See
   [Reproducing arXiv:2606.04998](reproducing-2606.04998.md) for the map and the full hole list.
 
 ## Related pages
