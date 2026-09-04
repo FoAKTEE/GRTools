@@ -15,7 +15,7 @@
 # plane must fall like `(1−z²)^{m/2}` reads the ansatz the wrong way round; the reference's
 # own Fig. 5 surfaces are flat in `z²`.)
 #
-# THE TWO NUMBERS THIS FILE ADDS.
+# WHAT THIS FILE ADDS — two measurements and one refinement rule.
 #   * [`horizon_branch_index`](@ref) — the dimensionless exponent `ν` of the SECOND radial
 #     branch at the horizon. At `r → r₊` the operator degenerates to
 #     `−c x u'' + (γ^r_m − c) u' + … = 0` with `x = r − r₊` and
@@ -28,11 +28,16 @@
 #   * [`horizon_axis_profile`](@ref) — the measured profile of `|Ψ_m|` along the innermost
 #     radial node line, its axis:equator ratio, its regularity exponent, and the amplitude of
 #     the near-horizon layer relative to the rest of the plane.
+#   * [`horizon_order_hold`](@ref) — the one refinement rule those two measurements forced:
+#     the element layer that touches `r₊` must keep its polynomial order, because that order
+#     IS the only thing rejecting the `x^{iν}` branch. It is the `hold` half of
+#     [`amr_step!`](@ref)`(…; horizon_hold = true)`, and that keyword defaults to `false`.
 #
 # NO PHYSICS IS DEFINED HERE. `horizon_branch_index` reads the SEALED coefficient callables
 # (`flux_coeff_r`, `gamma_r_m`) rather than re-typing them, and the profile reads the SEALED
 # nodal layout (`element_matrices`, `tensor_lin`, `mesh.offsets`) exactly as the figure
-# drivers do. This file only measures.
+# drivers do. No coefficient, no boundary condition and no solver setting is defined or
+# changed here; `horizon_order_hold` only NAMES elements.
 
 export horizon_branch_index, horizon_axis_profile
 
