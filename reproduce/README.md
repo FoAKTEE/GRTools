@@ -78,7 +78,7 @@ The **golden** column is measured on the file, not declared: `n values / size`,
 | arXiv:2603.12189 | `fig07` | figure | fast | solid | `arXiv-2603.12189/fig07.jl` | 16 / 6 KB | `Perturbation` `Spacetime` |
 | arXiv:2603.13482 | `fig_FE1_Cplus1_220k` | figure | fast | solid | `arXiv-2603.13482/fig_FE1_Cplus1_220k.jl` | 8 / 2 KB | `Perturbation` `Spacetime` |
 | arXiv:2603.13482 | `fig_delta_Omega` | figure | fast | solid | `arXiv-2603.13482/fig_delta_Omega.jl` | 18 / 17 KB | `Spacetime` |
-| arXiv:2606.04998 | `fig_domain` | figure | heavy | solid | `arXiv-2606.04998/fig_domain.jl` | 52 / 12 KB | `ScalarSelfForce` `EllipticCore` |
+| arXiv:2606.04998 | `fig_domain` | figure | heavy | solid | `arXiv-2606.04998/fig_domain.jl` | 53 / 12 KB | `ScalarSelfForce` `EllipticCore` |
 | arXiv:2606.04998 | `fig_linsolv` | figure | heavy | prelim | `arXiv-2606.04998/fig_linsolv.jl` | 47 / 8 KB | `ScalarSelfForce` `EllipticCore` |
 | arXiv:2606.04998 | `fig_matrix` | figure | heavy | solid | `arXiv-2606.04998/fig_matrix.jl` | 59 / 4 KB | `ScalarSelfForce` `EllipticCore` |
 | arXiv:2608.17003 | `check-printed-numbers` | check | fast | prelim | `arXiv-2608.17003/check_printed_numbers.jl` | (none) | `AccretionDisc` |
@@ -100,7 +100,7 @@ The **golden** column is measured on the file, not declared: `n values / size`,
 | _selftest | `harness-selftest` | check | fast | solid | `_selftest/selftest.jl` | 13 / 1 KB | `Spacetime` |
 
 **58 registered results** across 13 papers (+ the harness self-test): 50 solid · 6 prelim · 2 future.
-32 run at the default `--tier fast` ceiling; 55 goldens on disk, 840 KB total (cap 200 KB each).
+32 run at the default `--tier fast` ceiling; 55 goldens on disk, 841 KB total (cap 200 KB each).
 
 > **Not yet reproduced (2)** — declared open, not a defect: `2303.16798::tableI_full` (future, heavy, no golden yet), `2303.16798::fig_comparison_spherical` (future, heavy, no golden yet). 2 of them are `heavy`, so the default `--tier fast` sweep does not select them.
 <!-- END GENERATED INDEX -->

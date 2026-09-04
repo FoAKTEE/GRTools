@@ -356,3 +356,74 @@ function crp_paper_config(; spin::Real=0.0,            # -p spin            (yam
         false,         # ResourceInfo.AvoidGlobalProc0 (yaml:236)
         :auto)         # ResourceInfo.Singletons: Auto (yaml:237)
 end
+
+# ===================== the observer's radially compressed coordinate =========================
+
+"""
+    radially_compressed(obs::ObserverConfig, r) -> Real
+
+The `RadiallyCompressedCoordinates` radius of `obs` at the physical radius `r` (yaml:222-225)
+— the coordinate the paper's own volume observer writes so a domain that runs to
+`R = 10^4 M` can be drawn at all (`VariablesToObserve` includes
+`RadiallyCompressedCoordinates`, yaml:213-216), and therefore the abscissa of
+arXiv:2606.04998 Fig. 1.
+
+TRANSCRIBED from spectre, not re-derived: `src/Domain/RadiallyCompressedCoordinates.cpp:27-52`
+leaves `r ≤ r_in` untouched, sets the *compressed* outer radius to `r_in · log10(R)` ("chosen
+so it increases with both the inner and the outer radius but exponentials are tamed"), and
+returns the INVERSE of the `Interval` map that distributes the grid points radially,
+
+    Interval{A = r_in, B = r_in·log10(R), a = r_in, b = R, distribution, singularity_pos = 0}
+
+so this function is `Interval::inverse` (`src/Domain/CoordinateMaps/Interval.cpp:123-131`) for
+`Distribution::Inverse`, the distribution the production yaml selects
+(`Compression: *outer_shell_distribution`, the same `Inverse` as the wavezone's own radial
+map):
+
+    r_c(r) = ½ (A + B + (B − A)/(b − a) · (a + b − 2ab/r))    for r > r_in,   r_c(r) = r  below.
+
+At the production point (`r_in = 24.4`, `R = 10^4`, hence `B = 97.6`) this is
+`r_c(r) = 97.77904 − 1790.4487/r`, carrying `[24.4, 10^4]` onto `[24.4, 97.6]`.
+
+Only `Inverse` is implemented; any other `rcc_compression` throws rather than silently
+drawing a different axis. Type-generic in the config's own real type.
+See [`radially_compressed_inv`](@ref) for the return trip.
+"""
+function radially_compressed(obs::ObserverConfig{T}, r::Real) where {T}
+    obs.rcc_compression === :Inverse || throw(ArgumentError(
+        "radially_compressed: only spectre's `Inverse` compression is implemented, got " *
+        "$(obs.rcc_compression) (RadiallyCompressedCoordinates.Compression, yaml:225)"))
+    A = obs.rcc_inner_radius
+    b = obs.rcc_outer_radius
+    rr = T(r)
+    rr <= A && return rr
+    B = A * log10(b)
+    return (A + B + (B - A) / (b - A) * (A + b - 2 * A * b / rr)) / 2
+end
+
+"""
+    radially_compressed_inv(obs::ObserverConfig, rc) -> Real
+
+The physical radius whose [`radially_compressed`](@ref) coordinate is `rc` — spectre's
+`Interval::operator()` for `Distribution::Inverse`
+(`src/Domain/CoordinateMaps/Interval.cpp:81-89`) with the same
+`{A = r_in, B = r_in·log10(R), a = r_in, b = R}` and singularity at the origin:
+
+    r(r_c) = 2ab / (a + b − (b − a)/(B − A) · (2 r_c − B − A))   for r_c > r_in.
+
+Below `r_in` the map is the identity, so `radially_compressed_inv(obs, radially_compressed(obs, r)) == r`
+to round-off on the whole domain. It exists so a caller can lay points out UNIFORMLY in the
+drawn coordinate — which is what makes a probe set on a domain spanning four decades in `r`
+sample the picture rather than its outer decade.
+"""
+function radially_compressed_inv(obs::ObserverConfig{T}, rc::Real) where {T}
+    obs.rcc_compression === :Inverse || throw(ArgumentError(
+        "radially_compressed_inv: only spectre's `Inverse` compression is implemented, got " *
+        "$(obs.rcc_compression) (RadiallyCompressedCoordinates.Compression, yaml:225)"))
+    A = obs.rcc_inner_radius
+    b = obs.rcc_outer_radius
+    x = T(rc)
+    x <= A && return x
+    B = A * log10(b)
+    return 2 * A * b / (A + b - (b - A) / (B - A) * (2 * x - B - A))
+end

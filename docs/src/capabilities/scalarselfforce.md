@@ -85,6 +85,13 @@ formulation and consumes the physics-free hp-DG solver stack from
   `:equator`, `:pole` — the classification the ghost table of `Solve` shares
   with the lattice, so the two cannot drift), and the `block_coefficients` /
   `domain_coefficients` bundles the solver hands to `MeshOperator`.
+  `radially_compressed` and `radially_compressed_inv` are the observer's
+  `RadiallyCompressedCoordinates` map and its return trip — the coordinate the
+  paper's volume output is written in,
+  ``r_c(r) = \tfrac12 \left(A + B + \tfrac{B-A}{b-a}(a + b - 2ab/r)\right)`` above the
+  transition radius and the identity below it, transcribed
+  from spectre's `Interval` `Inverse` branch. It is a VISUALISATION coordinate: no
+  discretization, operator or solve reads it.
 - **Solve** — the two glue tables a `MeshOperator` over the block domain needs,
   and the assembly that composes them.
   Boundary conditions (the `bcs` table):

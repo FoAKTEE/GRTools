@@ -129,7 +129,13 @@ include("Domain/config.jl")                  # runtime-config-fixture
 # yaml's Jinja2 parameters (defaults = the header production example), reproducing every
 # derived number (v→t = r0 − 1.5wr, t→u = r0 + 3wr, block bounds, L+1 source pre-refinement,
 # m = 0 no-outer-BC branch). CRP_PAPER_MMODES = 0:20 is the paper's per-mode run sweep.
+# radially_compressed / radially_compressed_inv are the observer's own
+# `RadiallyCompressedCoordinates` map and its return trip (yaml:222-225), transcribed from
+# spectre's RadiallyCompressedCoordinates.cpp + CoordinateMaps/Interval.cpp `Inverse` branch:
+# the coordinate the paper's volume output is written in, and hence the abscissa of
+# arXiv:2606.04998 Fig. 1. NOT a discretization chart — nothing in the solver reads it.
 export RunConfig, crp_paper_config, SommerfeldBC, BlockRefinement, CRP_PAPER_MMODES
+export radially_compressed, radially_compressed_inv
 
 include("MModeOperator/vtu.jl")              # vtu-slicing-jumps
 # vtu piecewise slicing (main.tex:315-347; after config.jl — reads the RunConfig/OrbitConfig

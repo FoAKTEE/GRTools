@@ -108,15 +108,21 @@ Compression: *outer_shell_distribution}` (yaml:222-225), and spectre implements 
 as the inverse of an `Interval` map from `[r_in, r_in·log₁₀R]` onto `[r_in, R]` — at the
 production point
 
-    r_c(r) = 97.779 − 1790.6/r   on  [24.4, 10⁴] → [24.4, 97.6],     r_c(r) = r   below r_in.
+    r_c(r) = 97.77904 − 1790.4487/r  on  [24.4, 10⁴] → [24.4, 97.6],    r_c(r) = r  below r_in.
 
-That is this figure's horizontal coordinate, taken from `cfg.observers.rcc_*` rather than
-hard-coded. **Framing:** the published render itself stops at the u-block element boundary
+That map and its return trip are **`radially_compressed` / `radially_compressed_inv`** in
+`capabilities/ScalarSelfForce/src/Domain/config.jl`, taken from `cfg.observers.rcc_*` and
+gated in `test_runtime_config.jl` against an independent transcription of the two C++
+expressions (`Interval.cpp:123-131` for the map, `:81-89` for the inverse, plus the
+`compressed_outer_radius = r_in·log₁₀R` of `RadiallyCompressedCoordinates.cpp:34-39`). The
+driver only *calls* them: the 66 golden samples that are laid out uniformly in the drawn
+coordinate are pinned against the package, never against arithmetic the driver owns. **Framing:** the published render itself stops at the u-block element boundary
 `r = 48.68 M`; measured on `ssf_domain.pdf` the published worldtube patch sits at 4.5–21.5 % of
 the drawn ribbon, which the compressed coordinate predicts as 5.6–21.9 % if the ribbon is cut
-there (against 3.5–13.5 % for the full `r_c ∈ [1.87, 97.6]`). The driver frames the same way
-(`R_FRAME = 52`) — the outermost wavezone element runs off the right edge exactly as it does in
-the paper. Nothing is removed from the solve or from the golden.
+there (against 3.5–13.5 % for the full `r_c ∈ [1.87, 97.6]`). The driver frames the same way —
+`R_FRAME` is *derived* as 1.068 × the u block's own first element boundary
+(`map_forward(blockmap(u_block, 1), 0)` = 48.681 M), so the outermost wavezone element runs
+off the right edge exactly as it does in the paper. Nothing is removed from the solve or from the golden.
 
 ### What is plotted
 
@@ -132,6 +138,23 @@ element edges at once, so the driver does its own axonometric perspective projec
 depth-sorted quadrilaterals into one `:shape` series (`fill_z` carrying a (value, shade)
 categorical palette). Consequences, none structural:
 
+* the golden PNG is held to the shared **200 KB** reproduce budget by one knob, `PX_PER_UNIT`
+  (the raster resolution of the frame). Point sizes are absolute while the annotation offsets
+  are in data coordinates, so `SC = PX_PER_UNIT/429` scales type and stroke with it and the
+  layout is invariant under the knob. The canvas is derived from the frame, so
+  `aspect_ratio = :equal` letterboxes nothing. Measured at 272 px/unit: **191 839 B**. Palette
+  reduction is *not* the lever here — cutting the (value, shade) palette from 768 entries to 192
+  moved the file by 1 % (326 666 → 323 626 B), because GR antialiases every one of the 4457 quad
+  seams and every grid line, so the byte count follows the resolution, not the colour count;
+* `--check` renders to a **scratch path** and leaves the tracked PNG alone, so a check can never
+  rewrite a golden artifact; the size verdict is folded into the gate list *before* `gates_pass`
+  and `conclude!`, so an oversized figure is a FAIL row with a full comparison table rather than
+  a stacktrace. The vector PDF is written only on `--regen`/`--plot-only` and is kept out of the
+  index by `expected/.gitignore` beside the goldens — the root `.gitignore` is untouched;
+* `--plot-only` redraws from a **surface cache** (`expected/fig_domain_surface.jls`, untracked,
+  53 888 B) that `--regen` writes: 57 element sample lattices, ~8k values, which do not belong in
+  a 200 KB golden. It turns a cosmetic iteration from a ~500 s solve into a ~40 s redraw. Absence
+  of the cache is a HOLE, never a silent fallback;
 * element edges and collocation-grid lines are drawn after all quads, so a line on a far element
   is not hidden by a nearer fold (sub-pixel on this surface);
 * lighting is one Lambert term over an ambient floor — the reference's ParaView shading is what
@@ -152,6 +175,8 @@ categorical palette). Consequences, none structural:
    inner worldtube-boundary probe (worst ratio 0.0469) with the regularized field 17×
    flatter across the tube than the retarded field.
 3. **Determinism**: `--check` after `--regen` at `rtol = 1e-10`, `-t1` and `-t4` identical.
+   A sixth gate holds the tracked PNG inside the 200 KB budget and is registered as
+   `png_bytes_within_budget`.
 4. **VLM** against `ssf_domain.pdf`: **match**. All four structures the manual demands (warped coloured surface with white DG lines, flat far zone, detached red-framed patch, AMR inset) and 9/9 checklist items; the lobe count and placement agree. Five style differences are recorded in `evidence/fig-domain/vlm_verdict.md` — proportions (the published ParaView camera is not recoverable from the PDF), ParaView-vs-Lambert lighting, the added `H = ±1` labels, the drawn cliff face at the tube boundary, and the inset window.
 
 ### The order map is anchored to the fixed `hp_refine`

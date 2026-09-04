@@ -380,3 +380,82 @@ using TestKit: oracle_root, oracle_or_skip
         @test cb.orbit.orbital_radius > ob.r_isco
     end
 end
+
+# ── the observer's RadiallyCompressedCoordinates map ────────────────────────────────────────
+# Gate: `radially_compressed` / `radially_compressed_inv` must equal spectre's own composition
+#   RadiallyCompressedCoordinates.cpp:34-39  (compressed_outer_radius = inner*log10(outer);
+#                                             Interval{inner, that, inner, outer, compression, 0}
+#                                             evaluated through `interval.inverse(radius)`)
+#   Interval.cpp:123-131                     (Distribution::Inverse branch of Interval::inverse)
+#   Interval.cpp:81-89                       (Distribution::Inverse branch of Interval::operator())
+# The reference below is transcribed from those C++ expressions LITERALLY and independently of
+# the package implementation (different grouping, singularity_pos carried explicitly), so an
+# algebraic slip in either copy shows up as a mismatch rather than cancelling.
+@testset "radially compressed coordinates (spectre Interval, Inverse branch)" begin
+    # spectre Interval::inverse, Distribution::Inverse, singularity_pos = s  (Interval.cpp:123-131)
+    spectre_interval_inverse(A, B, a, b, s, y) =
+        0.5 * (A + B + (B - A) / (b - a) *
+               ((a - s) + (b - s) - 2.0 * (a - s) * (b - s) / (y - s)))
+    # spectre Interval::operator(), Distribution::Inverse, singularity_pos = s (Interval.cpp:81-89)
+    spectre_interval_forward(A, B, a, b, s, x) =
+        2.0 * (a - s) * (b - s) /
+        (a + b - 2.0 * s - (b - a) / (B - A) * (2.0 * x - B - A)) + s
+
+    cfg = crp_paper_config()
+    obs = cfg.observers
+    @test obs.rcc_compression === :Inverse
+    rin = obs.rcc_inner_radius
+    rout = obs.rcc_outer_radius
+    @test rin == 24.4                       # *t_to_u_transition = r0 + 3 wr (yaml:223)
+    @test rout == 1.0e4                     # *outer_radius (yaml:224)
+    # RadiallyCompressedCoordinates.cpp:34-39
+    comp_out = rin * log10(rout)
+    @test comp_out ≈ 97.6
+
+    for r in (24.4, 30.0, 48.68115942028986, 100.0, 1234.5, 9999.0, 1.0e4)
+        want = spectre_interval_inverse(rin, comp_out, rin, rout, 0.0, r)
+        @test radially_compressed(obs, r) ≈ want rtol = 1e-14
+    end
+    # below the inner radius the observer returns the coordinate untouched (…cpp:28-31, 44-46)
+    for r in (1.8660254037844386, 5.2, 14.8, 24.4)
+        @test radially_compressed(obs, r) == r
+    end
+    # the two endpoints of the compressed interval
+    @test radially_compressed(obs, rin) ≈ rin
+    @test radially_compressed(obs, rout) ≈ comp_out
+    # the closed-form the Fig. 1 driver's prose quotes: r_c = 97.77904 − 1790.4487/r
+    @test radially_compressed(obs, 1.0e4) - radially_compressed(obs, 100.0) ≈
+          1790.4487 * (1 / 100.0 - 1 / 1.0e4) rtol = 1e-6
+    @test radially_compressed(obs, 50.0) ≈ 97.77904 - 1790.4487 / 50.0 rtol = 1e-7
+
+    # the inverse is spectre's forward Interval map, and the two are mutual inverses
+    for x in (24.4, 40.0, 61.0, 90.0, 97.6)
+        want = spectre_interval_forward(rin, comp_out, rin, rout, 0.0, x)
+        @test radially_compressed_inv(obs, x) ≈ want rtol = 1e-14
+    end
+    for r in (25.0, 48.68115942028986, 300.0, 5000.0, 1.0e4)
+        @test radially_compressed_inv(obs, radially_compressed(obs, r)) ≈ r rtol = 1e-12
+    end
+    for r in (1.8660254037844386, 10.0, 24.4)
+        @test radially_compressed_inv(obs, radially_compressed(obs, r)) == r
+    end
+    # monotone increasing, and it really does compress: the whole wavezone fits in 73.2
+    @test issorted([radially_compressed(obs, r) for r in (24.4, 50.0, 500.0, 5000.0, 1.0e4)])
+    @test radially_compressed(obs, rout) - radially_compressed(obs, rin) ≈ comp_out - rin
+
+    # a non-Inverse compression is REFUSED, never silently drawn on a different axis
+    ob2 = typeof(obs)(obs.volume_file_name, obs.reduction_file_name, obs.trigger,
+                      obs.event_self_force, obs.fields_subfile_name, obs.variables_to_observe,
+                      obs.blocks_to_observe, obs.interpolate_to_mesh,
+                      obs.coordinates_floating_point_type, obs.floating_point_types,
+                      obs.rcc_inner_radius, obs.rcc_outer_radius, :Logarithmic)
+    @test_throws ArgumentError radially_compressed(ob2, 100.0)
+    @test_throws ArgumentError radially_compressed_inv(ob2, 60.0)
+
+    # type-generic: BigFloat config inherits BigFloat
+    cb = crp_paper_config(; spin = big"0.5", orbital_radius = big"10.0")
+    @test radially_compressed(cb.observers, big"100.0") isa BigFloat
+    @test radially_compressed_inv(cb.observers, big"60.0") isa BigFloat
+    @test Float64(radially_compressed(cb.observers, big"100.0")) ≈
+          radially_compressed(obs, 100.0) rtol = 1e-13
+end
