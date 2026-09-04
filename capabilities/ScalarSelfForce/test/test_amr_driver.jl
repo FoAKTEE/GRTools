@@ -348,14 +348,27 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
 
         # ---- (c) GMRES iterations per level ------------------------------------------------
         its = [l.record.iterations for l in hist.levels]
-        # RE-MEASURED (proto9_afterA.log, overlap 4, shrink 0.5, OPENBLAS_NUM_THREADS=1):
-        # 1, 8, 9, 9, 9, 9, 9 — main.tex:701's "the first AMR level converges immediately"
-        # (`InitialCoarseLevels: L = 0` makes the V-cycle the direct bottom solve) and
-        # main.tex:720's "less than 10 iterations per AMR level", which holds strictly AT THIS
-        # CONFIGURATION (a = 0.5, m = 2) and not universally — see the secondary-config testset.
-        # The gate is the measured maximum + 1.
-        @test its == [1, 8, 9, 9, 9, 9, 9]
+        # RE-MEASURED after the hierarchy adoption (calibrate_adoption.log): with the multigrid
+        # hierarchy taken from the AMR history and `MaxOverlap: Auto` resolved from each grid's
+        # own extents — the reference's own two rules — the staircase SHORTENS with depth as
+        # `fig:linsolv` does, instead of flattening at 9. main.tex:701's "the first AMR level
+        # converges immediately" (an empty chain is the single-level hierarchy whose bottom
+        # solve is the whole problem) and main.tex:720's "less than 10 iterations per AMR
+        # level" both hold, now with room to spare.
+        @test its == [1, 7, 6, 5, 5, 4, 4]
         @test all(<=(10), its)
+        # the count does not GROW with depth, and after the first refinement it falls
+        @test its[end] < its[2]
+        # the per-iteration residual reduction RISES with depth — the published trend
+        # (fig:linsolv: 27 -> 567 over eight levels), against the derived hierarchy's fall
+        redux = [(Float64(l.record.residual[1]) / Float64(l.record.final_residual))^
+                 (1 / l.record.iterations) for l in hist.levels[2:end]]
+        # MEASURED 29.8, 45.4, 62.6, 79.6, 113.1, 120.7 here and 29.8 … 135.4, 107.0 over nine
+        # levels: the trend RISES strongly with depth and the deepest level may dip, so the
+        # gate is on the rise, not on the last point alone.
+        @test maximum(redux) > 4 * redux[1]
+        @test redux[end] > 2 * redux[1]
+        @test issorted(redux[1:4])
         @test all(l -> l.record.final_residual <= cfg.gmres.absolute_residual, hist.levels)
         @test mode_residual(hist.solution) <= 1e-11
         # the monitor accumulated exactly one record per level — this IS fig:linsolv's input
@@ -364,27 +377,45 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
 
         # ---- (d) caches: one epoch, one bottom LU, Schwarz reuse ---------------------------
         @test hist.solution.stack.epoch == 0                  # a pure mesh change bumps nothing
-        # the bottom grid is the FIXED irreducible block structure from level 1 on, so its LU
-        # is built once there and hit at every later level (main.tex:674). Level 0 has its own
-        # single-level hierarchy (the direct solve), hence 2 builds in total, not 1.
-        @test sum(l.record.bottom_builds for l in hist.levels) == 2
-        @test sum(l.record.bottom_hits for l in hist.levels) == length(hist.levels) - 2
+        # THE BOTTOM GRID IS THE INITIAL LATTICE and it never moves: the chain's coarsest level
+        # is the mesh the sweep started from, so the LU is factorized ONCE at level 0 and is a
+        # cache HIT at every level after it — main.tex:674 ("the LU decomposition of A^bottom
+        # is cached and reused in all multigrid V-cycles across AMR iterations … the bottom
+        # grid remains the same even when AMR adds finer levels") made literally true. The
+        # derived hierarchy needed TWO factorizations and only reached the claim by pinning
+        # `coarse_orders`.
+        @test sum(l.record.bottom_builds for l in hist.levels) == 1
+        @test sum(l.record.bottom_hits for l in hist.levels) == length(hist.levels) - 1
         @test all(l -> l.record.bottom_builds + l.record.bottom_hits >= 1, hist.levels[2:end])
         # the EXACT per-level cache sequence of the canonical SIX-iteration sweep, re-measured
         # — not a wall-clock share. The nine-level pairs, the level-12 floor and the abstol
         # comparison are MEASURED BY THE HEAVY VERIFY SCRIPT (gated there), not by this suite.
         @test [(l.record.bottom_builds, l.record.bottom_hits) for l in hist.levels] ==
-              [(1, 0), (1, 0), (0, 1), (0, 1), (0, 1), (0, 1), (0, 1)]
+              [(1, 0), (0, 1), (0, 1), (0, 1), (0, 1), (0, 1), (0, 1)]
+        # SCHWARZ REUSE, now exact: the builds at each level are the elements of the NEW finest
+        # grid and nothing else, because every coarser level is a mesh the sweep has already
+        # built — with its own frozen order map AND its own frozen `MaxOverlap: Auto` overlap,
+        # so its subdomain keys are unchanged (main.tex:676).
         @test [(l.record.subdomain_builds, l.record.subdomain_hits) for l in hist.levels] ==
-              [(20, 0), (41, 8), (44, 16), (49, 21), (55, 37), (61, 41), (73, 42)]
+              [(20, 0), (27, 20), (33, 47), (39, 80), (45, 119), (51, 164), (57, 215)]
+        @test [l.record.subdomain_builds for l in hist.levels] ==
+              [length(l.mesh.elements) for l in hist.levels]
         # the bottom grid is the irreducible block structure of the 5x2 lattice and it does
         # NOT MOVE: 10 elements at order 4 = 160 dofs at every level from 1 on, which is why
         # its LU is a hit. With the policy's `shrink = 0.5` the hierarchy reaches it in a
         # handful of levels instead of one ring at a time (measured 4 levels at AMR level 8
         # against 18 at `shrink = 1`, with IDENTICAL iteration, dof and cache sequences and a
         # ~5 % build-time difference — see evidence/amr-driver/shrink_ab_afterA.md).
-        @test all(l -> l.record.level_ndofs[end] == 160, hist.levels[2:end])
-        @test all(l -> length(l.record.level_ndofs) <= 6, hist.levels)
+        @test all(l -> l.record.level_ndofs[end] == 320, hist.levels)
+        # the hierarchy has EXACTLY one level per AMR step so far (spectre's grids are its AMR
+        # grids: AdjustDomain.hpp:157-212 + SendDataToChildren.hpp:43-70), and its levels ARE
+        # the sweep's own mesh history
+        @test [length(l.record.level_ndofs) for l in hist.levels] == 1:length(hist.levels)
+        @test hist.levels[end].record.level_ndofs ==
+              reverse([l.mesh.ndofs for l in hist.levels])
+        # `MaxOverlap: Auto` is resolved from each grid's CURRENT extents, so it grows with the
+        # sweep (Schwarz/OverlapHelpers.cpp:21-24 inside ElementActions.hpp:244-264)
+        @test [resolve_max_overlap(cfg, l.mesh) for l in hist.levels] == 4:(3 + length(hist.levels))
         # Schwarz subdomain factorizations are reused on the levels AMR did not touch
         # (main.tex:676 "the matrix inverses can remain cached across AMR iterations, so we
         # only have to construct new subdomain matrices when AMR adds a finer level").
@@ -420,7 +451,7 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
         @test resolution_error(hist; field = :psi) == dpsi[end]
         @test relative_resolution_error(hist) ==
               resolution_error(hist) / abs(hist.levels[end].dpsi_r)
-        @test relative_resolution_error(hist) <= 3 * 3.3883e-5
+        @test relative_resolution_error(hist) <= 3 * 3.3895e-5
         @test_throws ArgumentError resolution_error(hist; field = :nope)
         # the diagnostics are finite, nonzero, and the two one-sided corner traces agree
         # better and better as the puncture corner is refined (measured spread 8.4e-6 → 3.5e-17
@@ -568,5 +599,60 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
         @test db[end] > 5 * dg[end]
         @test eb[end] > 3.5 * eg[end]
         @test da_georatio(rg) < 0.30 <= da_georatio(rb)
+    end
+
+    # ---- the `hierarchy` option: the reference's own provenance, and its falsifier ---------
+    # arXiv:2606.04998 does not derive its coarse grids from the current mesh. Its executable
+    # keeps them (`SolveScalarSelfForce.hpp:173`), every AMR step creates a new finest grid at
+    # `grid_index + 1` (`Amr/Actions/AdjustDomain.hpp:157-163` for a split element, `:203-212`
+    # for one that is only p-refined) and the parent stays alive as a coarser grid
+    # (`Amr/Actions/SendDataToChildren.hpp:43-70`), while the V-cycle walks exactly those grids
+    # (`Multigrid/ElementActions.hpp:96-135`, `Multigrid.hpp:56-58`). `hierarchy = :history` is
+    # that reading and is the DEFAULT; `:derived` keeps the h-coarsening of the current mesh
+    # reachable so the A/B stays reproducible.
+    @testset "hierarchy = :history against :derived" begin
+        cfg, orb = da_pcfg, da_porb
+        hh = da_hist                                          # the default sweep, :history
+        hd = solve_mode_amr(orb, cfg, 2; iterations = 6, hierarchy = :derived)
+        ith = [l.record.iterations for l in hh.levels]
+        itd = [l.record.iterations for l in hd.levels]
+        println("  [hierarchy] :history ", ith, " total ", sum(ith),
+                "   :derived ", itd, " total ", sum(itd))
+        @test ith == [1, 7, 6, 5, 5, 4, 4]
+        @test itd == [1, 8, 8, 8, 8, 7, 7]
+        @test sum(ith) < sum(itd)                             # 32 against 47
+        # the meshes, the sources and the diagnostics are the SAME problem either way — only
+        # the preconditioner differs, so the two answers agree to the solver tolerance
+        @test [l.mesh.ndofs for l in hh.levels] == [l.mesh.ndofs for l in hd.levels]
+        # both solve the SAME linear system to the same ABSOLUTE tolerance, so the two
+        # iterates differ by at most that tolerance times an O(1) amplification (measured
+        # 1.31e-13 against the yaml's 1e-12), not by a relative amount
+        @test abs(hh.levels[end].dpsi_r - hd.levels[end].dpsi_r) <=
+              2 * cfg.gmres.absolute_residual
+        # the derived hierarchy h-coarsens to the 160-dof block structure and stalls at ~4
+        # levels; the history one has a level per AMR step and its coarsest is the initial mesh
+        @test [length(l.record.level_ndofs) for l in hd.levels] == [1, 3, 3, 3, 4, 4, 4]
+        @test all(l -> l.record.level_ndofs[end] == 160, hd.levels[2:end])
+        @test sum(l.record.bottom_builds for l in hd.levels) == 2
+        # and an unmappable request is refused rather than silently defaulted
+        @test_throws ArgumentError solve_mode_amr(orb, cfg, 2; iterations = 0,
+                                                  hierarchy = :nope)
+    end
+
+    # ---- `MaxOverlap: Auto` is a property of the MESH, not of the config -------------------
+    @testset "resolve_max_overlap follows the grid" begin
+        cfg = da_pcfg
+        dom = block_domain(da_orb(cfg), cfg)
+        @test resolve_max_overlap(cfg, dom.mesh) == resolve_max_overlap(cfg) == 4
+        refined = hp_refine(dom.mesh, Dict(dom.mesh.elements[1] => (true, true)))
+        @test resolve_max_overlap(cfg, refined) == 5          # IncreaseResolution raised it
+        # it is the MAXIMUM order on the grid, which is what the per-neighbour clamp
+        # `ovd = min(overlap, neighbour extent)` (schwarz.jl:120) turns into each neighbour's
+        # own extent — the same `min` the reference applies (OverlapHelpers.cpp:21-24)
+        @test resolve_max_overlap(cfg, refined) == maximum(maximum(o) for o in refined.orders)
+        # [HOLE, node runtime-config-fixture] the yaml permits an INTEGER MaxOverlap but the
+        # sealed `SchwarzConfig.max_overlap` is typed `Symbol`, so the mesh-independent branch
+        # of this function cannot be exercised from a `RunConfig` at all.
+        @test cfg.schwarz.max_overlap === :auto
     end
 end

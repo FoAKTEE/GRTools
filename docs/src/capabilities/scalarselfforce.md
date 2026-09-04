@@ -236,20 +236,34 @@ formulation and consumes the physics-free hp-DG solver stack from
   `IncreaseResolution`, which is the sealed `hp_refine` one-container contract.
   The yaml `Limits` (`Auto` = 15 refinement levels, 20 grid points) are enforced
   with `ErrorBeyondLimits: True` semantics: an `ArgumentError`, never a silent
-  clip. `amr_level_options(config, step)` is the multigrid level policy — the
-  yaml's `InitialCoarseLevels` at level 0, so the first level converges
-  immediately on the direct bottom solve (main.tex:701), then coarsening to the
-  irreducible block structure, a grid that does not move as AMR adds finer
-  levels, so the bottom LU is factorized once and hit at every later level
-  (main.tex:674). `amr_step!` is one level, `puncture_chart_position` is
+  clip. **The multigrid hierarchy is the AMR history** (`hierarchy = :history`,
+  the default): the reference keeps its coarse grids, so every AMR step adds a
+  new finest grid at `grid_index + 1` — split children where the flag is
+  `Split`, one same-shape child carrying the polynomial increment everywhere
+  else — the parent survives as a coarser grid, and the V-cycle walks exactly
+  those grids. At AMR level ``k`` the hierarchy therefore has ``k+1`` levels,
+  consecutive levels one AMR step apart, and the coarsest is the INITIAL
+  lattice, which never moves — so the bottom `LU` is factorized **once** and is
+  a cache hit at every later level (main.tex:674), and the frozen coarse levels
+  keep their Schwarz factorizations too (main.tex:676). `hierarchy = :derived`
+  keeps the h-coarsening of the current mesh reachable for the A/B.
+  `amr_level_options(config, step, mesh)` is the level policy — the yaml's
+  `InitialCoarseLevels` at level 0, so the first level converges immediately on
+  the direct bottom solve (main.tex:701), and `MaxOverlap: Auto` resolved from
+  **that grid's own extents**, as the reference resolves it inside its AMR
+  projector, so the Schwarz overlap grows 4, 5, … 11 over the paper's eight
+  levels instead of staying at the initial ``P``. `amr_step!` is one level,
+  `puncture_chart_position` is
   ``(r_0, 0)`` in the discretization chart. The per-level particle diagnostics
   are read through the sealed `field_at` / `field_grad_at` above, so the driver
   adds no read-out surface of its own.
   Measured over the 8-level sweep at ``a = 0.5``, ``r_0 = 10M``, ``m = 2``:
-  20 → 69 elements and 320 → 5696 dofs, GMRES **1 then 8–9** iterations per level
-  (main.tex:720's "less than 10" holds at this configuration; 10 is measured at
-  one level of ``a = 0`` and at three levels of ``m = 5``), bottom LU built twice
-  and hit seven times, and successive differences of
+  20 → 63 elements and 320 → 4535 dofs, GMRES **1, 7, 6, 5, 5, 4, 4, 4** — the
+  staircase SHORTENS with depth as `fig:linsolv` does (published
+  1, 7, 6, 5, 4, 3, 3, 2), with the per-iteration residual reduction rising
+  29.8 → 135.4 where the derived hierarchy's falls 16.4 → 6.0; bottom LU built
+  **once** and hit seven times, Schwarz builds exactly the elements of each new
+  finest grid; and successive differences of
   ``\partial_r\Psi^{\mathcal R}(x_p)`` falling geometrically
   (``8.5\times10^{-5} \to 3.7\times10^{-10}``, ratios 0.06-0.33) — the whole
   sweep in 18.9 s of warm single-threaded compute, which needs

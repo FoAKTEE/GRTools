@@ -78,6 +78,31 @@ function resolve_max_overlap(config::RunConfig)
 end
 
 """
+    resolve_max_overlap(config::RunConfig, mesh::Mesh2D) -> Int
+
+`MaxOverlap` resolved against a SPECIFIC mesh — the form an hp-AMR sweep needs.
+
+`Auto` is `min(volume_extent, ∞)` = the neighbour's FULL extent, and the reference evaluates it
+INSIDE the AMR projector, from each element's CURRENT extents
+(`Schwarz/OverlapHelpers.cpp:21-24` called at `Schwarz/ElementActions.hpp:244-264`), so under
+`IncreaseResolution` the intruding extent grows by one at every AMR level. The config-only
+method above can only return the INITIAL `P`, which is right at level 0 and one order too small
+at every level after it; this method returns the mesh's own largest order instead.
+
+ONE INTEGER IS EXACT HERE, not an approximation: [`SchwarzSmoother`](@ref) clamps per face and
+per dimension (`ovd = min(overlap, neighbour extent)`), the same `min` spectre applies, so
+passing the mesh's maximum order gives every neighbour exactly its own extent. An explicit
+integer `MaxOverlap` is mesh-independent and is returned unchanged.
+"""
+function resolve_max_overlap(config::RunConfig, mesh::Mesh2D)
+    mo = config.schwarz.max_overlap
+    mo === :auto || return resolve_max_overlap(config)
+    isempty(mesh.elements) && throw(ArgumentError(
+        "resolve_max_overlap: the mesh has no elements"))
+    return maximum(maximum(o) for o in mesh.orders)
+end
+
+"""
     solver_options(config::RunConfig;
                    coarse_levels = config.multigrid.initial_coarse_levels,
                    coarse_orders = nothing, shrink = 1) -> SolverStackOptions
@@ -399,13 +424,14 @@ function solve_mode(orbit::CircularOrbit, config::RunConfig{RT},
                     mesh::Mesh2D = dom.mesh,
                     phi_p::Real = 0,
                     x0::Union{Nothing,AbstractVector} = nothing,
+                    preconditioner = multigrid_preconditioner,
                     monitor::ResidualMonitor = ResidualMonitor(real(T))) where {RT}
     mm = Int(m)
     wtf = mh -> worldtube_data(dom, orbit, config, mm; mesh = mh, phi_p = phi_p)
     wt = wtf(mesh)
     op = assemble_operator(T, dom, wt, orbit, config, mm; mesh = mesh)
     build_op = operator_builder(T, dom, orbit, config, mm; worldtube = wtf)
-    stack = SolverStack(op, build_op; options = options)
+    stack = SolverStack(op, build_op; options = options, preconditioner = preconditioner)
     b = mode_fixed_source(T, dom, orbit, mm; mesh = mesh, phi_p = phi_p)
     sol = ModeSolution{T,RT}(config, orbit, mm, RT(phi_p), dom, mesh, wt, op, stack, b,
                              zeros(T, mesh.ndofs), monitor, nothing, nothing)

@@ -263,12 +263,26 @@ end
 # ============================== the multigrid level policy ================================
 
 """
-    amr_level_options(config::RunConfig, step::Integer;
-                      coarse_orders = InitialGridPoints, shrink = 1) -> SolverStackOptions
+    amr_level_options(config::RunConfig, step::Integer, mesh = nothing;
+                      coarse_orders = InitialGridPoints, shrink = 0.5) -> SolverStackOptions
 
 The multigrid LEVEL POLICY of an hp-AMR sweep: the [`solver_options`](@ref) this package hands
-[`rebuild_for_mesh!`](@ref) at AMR level `step`. Two decisions, both measured on the real CRP
-problem (`evidence/amr-driver/proto2_*.log`), both taken from the paper:
+[`rebuild_for_mesh!`](@ref) at AMR level `step`, for the grid `mesh` that level solves on.
+
+**`overlap`.** `MaxOverlap: Auto` (yaml:198) is the neighbour's FULL extent and the reference
+resolves it INSIDE the AMR projector, from each element's CURRENT extents
+(`Schwarz/OverlapHelpers.cpp:21-24` at `Schwarz/ElementActions.hpp:244-264`), so under
+`IncreaseResolution` it grows by one at every AMR level. Handed a `mesh` this function returns
+[`resolve_max_overlap`](@ref)`(config, mesh)`, that grid's own largest order (4, 5, … 11 over the
+paper's eight levels); handed `nothing` it falls back to the config's initial `P`, which is the
+level-0 value and one order too small at every level after it. MEASURED effect of the mesh-aware
+rule alone, everything else the landed derived hierarchy: `1, 8, 9, 9, 9, 9, 9, 9` → `1, 8, 8,
+8, 8, 7, 7, 7` over eight levels.
+
+The other two decisions are unchanged, both measured on the real CRP problem
+(`evidence/amr-driver/proto2_*.log`), both taken from the paper. THEY APPLY TO
+`hierarchy = :derived` ONLY: under the default `:history` the levels are supplied, so
+`coarse_levels`, `coarse_orders` and `shrink` are not consulted.
 
 **`coarse_levels`.** At `step == 0` the yaml's own `InitialCoarseLevels: L` (yaml:188), which
 at the production `L = 0` makes the hierarchy a SINGLE level whose bottom solve IS the whole
@@ -302,7 +316,8 @@ anisotropic meshes" is therefore not active on the CRP's own AMR sequence — me
 assumed — and `shrink` stays a keyword. The full table is in
 `evidence/amr-driver/shrink_ab_afterA.md`.
 """
-function amr_level_options(config::RunConfig, step::Integer;
+function amr_level_options(config::RunConfig, step::Integer,
+                           mesh::Union{Nothing,Mesh2D} = nothing;
                            coarse_orders::Union{Nothing,Integer} =
                                _amrd_initial_order(config),
                            shrink::Real = 0.5)
@@ -310,7 +325,39 @@ function amr_level_options(config::RunConfig, step::Integer;
     return solver_options(config;
                           coarse_levels = step == 0 ?
                               config.multigrid.initial_coarse_levels : nothing,
-                          coarse_orders = coarse_orders, shrink = shrink)
+                          coarse_orders = coarse_orders, shrink = shrink,
+                          overlap = mesh === nothing ? resolve_max_overlap(config) :
+                                    resolve_max_overlap(config, mesh))
+end
+
+# the level-policy protocol accepts BOTH arities, so a caller's own two-argument callable keeps
+# working while the shipped one is handed this level's mesh
+_amrd_options(f, config::RunConfig, step::Integer, mesh::Mesh2D) =
+    (applicable(f, config, step, mesh) ? f(config, step, mesh) :
+     f(config, step))::SolverStackOptions
+
+# per-step options for `amr_step!`: a fixed record, nothing, or a callable of the NEW mesh
+# (the mesh is not known until `hp_refine` has run, and the overlap policy depends on it)
+_amrd_step_options(::Nothing, ::Mesh2D) = nothing
+_amrd_step_options(o::SolverStackOptions, ::Mesh2D) = o
+_amrd_step_options(f, mesh::Mesh2D) = f(mesh)::SolverStackOptions
+
+# the coarser-than-initial grids of `InitialCoarseLevels` (spectre
+# `Multigrid/ElementsAllocator.hpp:128-136` bounds the INITIAL hierarchy only), finest first.
+# `nothing` coarsens to the irreducible block structure; the CRP production `L = 0` seeds none.
+function _amrd_seed_chain!(chain::AbstractVector, mesh::Mesh2D, config::RunConfig)
+    L = config.multigrid.initial_coarse_levels
+    P = _amrd_initial_order(config)
+    cur = mesh
+    k = 0
+    while L === nothing || k < Int(L)
+        co = coarsen_mesh(cur; coarse_orders = P)
+        co === nothing && break
+        cur = co[1]
+        push!(chain, cur)
+        k += 1
+    end
+    return chain
 end
 
 function _amrd_initial_order(config::RunConfig)
@@ -341,16 +388,17 @@ stopping rule (that is [`solve_mode_amr`](@ref)).
 
 ELEMENT IDS CHANGE AT EVERY STEP, so `flags` must be recomputed against `sol.mesh` before each
 call and never cached across steps (the sealed row-22/23 contract). `options` replaces the
-stack's options — pass `amr_level_options(sol.config, step)` to move the multigrid level policy
-with the sweep; omitted, the current options are kept. Returns `sol` and the level's
+stack's options and may be a [`SolverStackOptions`](@ref), `nothing` (keep the current ones), or
+a CALLABLE of the new mesh — the mesh is not known until `hp_refine` has run, and the overlap
+policy depends on it, so [`solve_mode_amr`](@ref) passes
+`mh -> amr_level_options(config, step, mh)`. Returns `sol` and the level's
 [`SolveRecord`](@ref) (also `sol.record`, and appended to `sol.monitor`).
 """
 function amr_step!(sol::ModeSolution; flags = amr_flags(sol),
-                   options::Union{Nothing,SolverStackOptions} = nothing,
-                   increment::Integer = 1)
+                   options = nothing, increment::Integer = 1)
     mesh = hp_refine(sol.mesh, flags; increment = increment)
     u = transfer_solution(sol.mesh, mesh, sol.u)
-    rebuild_for_mesh!(sol, mesh; u = u, options = options)
+    rebuild_for_mesh!(sol, mesh; u = u, options = _amrd_step_options(options, mesh))
     solve_mode!(sol; x0 = sol.u)
     return sol, sol.record
 end
@@ -445,6 +493,7 @@ end
                    iterations = config.amr.iterations, T = ComplexF64,
                    dom = block_domain(orbit, config), phi_p = 0,
                    criterion = amr_flags, level_options = amr_level_options,
+                   hierarchy = :history,
                    monitor = ResidualMonitor(real(T))) -> AmrHistory
 
 THE hp-AMR SWEEP of arXiv:2606.04998 for one m-mode: solve on the initial lattice, then run
@@ -471,11 +520,41 @@ option `Amr.Iterations` itself is absent from the pinned spectre mirror (version
 mapping is reasoned from the trigger semantics and the yaml's comment, not read off the
 consumer.]
 
-MEASURED ITERATION COUNTS ARE CONFIGURATION-SCOPED. main.tex:720's "less than 10 iterations per
-AMR level" holds strictly at the paper's own exemplar `a = 0.5`, `m = 2` (`1, 8, 9, 9, 9, 9, 9,
-9, 9` over eight levels, and still ≤ 9 out to thirteen levels and 14381 dofs — main.tex:722's
-scale independence). It is not universal: MEASURED 10 at level 3 of `a = 0, m = 2` and 10 at
-levels 2-4 of `m = 5`. Quote the claim with its configuration. One `ModeSolution`, one stack, one epoch, one pair of caches,
+# THE MULTIGRID HIERARCHY IS THE AMR HISTORY (`hierarchy = :history`, the default)
+
+arXiv:2606.04998 does not derive its coarse grids from the current mesh. Its executable KEEPS
+the coarse grids (`Elliptic/Executables/SelfForce/Scalar/SolveScalarSelfForce.hpp:173`,
+`amr::keep_coarse_grids = true`); every AMR step creates a NEW FINEST GRID at `grid_index + 1`
+— split children where the flag is `Split` (`Amr/Actions/AdjustDomain.hpp:157-163`), one
+same-shape child carrying the p increment everywhere else (`:203-212`) — and the parent is
+re-registered as a coarser grid rather than destroyed
+(`Amr/Actions/SendDataToChildren.hpp:43-70`); and the V-cycle walks exactly those grids
+(`Multigrid/ElementActions.hpp:96-135` sets the `amr::Tags::{ParentId, ChildIds, ParentMesh}`
+triple traversed by `Multigrid.hpp:160-186`, and `Multigrid.hpp:56-58` says so in words).
+
+So at AMR level `k` the hierarchy has `k+1` levels and they ARE this sweep's mesh history:
+consecutive levels one AMR step apart, and the coarsest the INITIAL lattice, which never moves —
+main.tex:674 ("the LU decomposition of A^bottom is cached and reused in all multigrid V-cycles
+across AMR iterations … the bottom grid remains the same even when AMR adds finer levels") is
+then literally true, ONE factorization for the whole sweep. This driver keeps the chain and
+hands it to [`multigrid_chain_preconditioner`](@ref), with a per-grid overlap so the frozen
+coarse levels keep their subdomain factorizations too (main.tex:676).
+
+`hierarchy = :derived` keeps the h-coarsening of the current mesh reachable for the A/B.
+MEASURED at the paper's own exemplar (`a = 0.5`, `r₀ = 10 M`, `m = 2`), eight levels:
+
+| hierarchy | iterations | total | reduction per iteration | bottom LU |
+|---|---|---|---|---|
+| `:history` | 1, 7, 6, 5, 5, 4, 4, 4 | 36 | 29.8 → 135.4, RISING | 1 build, 7 hits |
+| `:derived` | 1, 8, 8, 8, 8, 7, 7, 7 | 54 | 16.9 → 12.7 | 2 builds, 6 hits |
+| `:derived`, overlap pinned at `P` | 1, 8, 9, 9, 9, 9, 9, 9 | 63 | 16.4 → 6.0, FALLING | 2 builds |
+| published `fig:linsolv` | 1, 7, 6, 5, 4, 3, 3, 2 | 31 | 27 → 567 | one |
+
+(the third row is the pre-adoption behaviour, reachable as
+`level_options = (c, s, mh) -> amr_level_options(c, s)`). main.tex:720's "less than 10
+iterations per AMR level" now holds with room to spare at this configuration; it was measured
+at 10 for `a = 0, m = 2` level 3 and `m = 5` levels 2-4 under the pre-adoption stack and those
+configurations have not been re-measured. One `ModeSolution`, one stack, one epoch, one pair of caches,
 carried through every level; the previous level's solution is transferred and warm-starts the
 next solve (main.tex:714).
 
@@ -532,13 +611,29 @@ function solve_mode_amr(orbit::CircularOrbit, config::RunConfig{RT},
                         phi_p::Real = 0,
                         criterion = amr_flags,
                         level_options = amr_level_options,
+                        hierarchy::Symbol = :history,
                         monitor::ResidualMonitor = ResidualMonitor(real(T))) where {RT}
     iterations >= 0 || throw(ArgumentError(
         "solve_mode_amr: iterations must be ≥ 0, got $iterations"))
+    hierarchy in (:history, :derived) || throw(ArgumentError(
+        "solve_mode_amr: hierarchy must be :history (the reference's own — every AMR step " *
+        "adds a finer grid and the old ones are kept) or :derived (h-coarsen the current " *
+        "mesh), got $(repr(hierarchy))"))
     xp = puncture_chart_position(dom, orbit)
+    chain = Mesh2D{RT}[]
+    precond = multigrid_preconditioner
+    if hierarchy === :history
+        _amrd_seed_chain!(chain, dom.mesh, config)
+        # PER-LEVEL overlap: the reference resolves `MaxOverlap: Auto` from each grid's own
+        # extents and freezes the coarse grids, so a coarse level keeps the overlap it had when
+        # it was the finest and its Schwarz factorizations stay cache HITS (main.tex:676).
+        precond = multigrid_chain_preconditioner(
+            chain; overlap = mh -> resolve_max_overlap(config, mh))
+    end
     t = time()
     sol = solve_mode(orbit, config, m; T = T, dom = dom, phi_p = phi_p,
-                     options = level_options(config, 0), monitor = monitor)
+                     options = _amrd_options(level_options, config, 0, dom.mesh),
+                     preconditioner = precond, monitor = monitor)
     wall = time() - t
     levels = AmrLevel{T,RT}[]
     for k in 0:Int(iterations)
@@ -546,7 +641,10 @@ function solve_mode_amr(orbit::CircularOrbit, config::RunConfig{RT},
         push!(levels, _amrd_level(k, sol, flags, xp, wall))
         k == iterations && break
         t = time()
-        amr_step!(sol; flags = flags, options = level_options(config, k + 1))
+        # the mesh this level leaves behind BECOMES the next-coarser multigrid grid
+        hierarchy === :history && pushfirst!(chain, sol.mesh)
+        amr_step!(sol; flags = flags,
+                  options = mh -> _amrd_options(level_options, config, k + 1, mh))
         wall = time() - t
     end
     return AmrHistory{T,RT}(orbit, config, Int(m), xp, levels, sol)
