@@ -271,6 +271,17 @@ end
         end
     end
 
+    # p = 0 also zeroes the equatorial denominator p(p−2), but it is NOT a removable root — the
+    # numerator does not vanish there, and the ring singularity is no orbit's radius. It must keep
+    # the generic form's NaN rather than gain a spurious finite value from the Bardeen branch
+    # (which would return Lz = Inf, Q = 0 at a ≠ 0).
+    @testset "p = 0 is excluded: the other root of p(p−2) is not removable" begin
+        for a in (0.0, 0.9, -0.9), p in (0.0, -0.0), x in (1.0, -1.0)
+            c = constants_of_motion(a, p, 0.0, x)
+            @test isnan(c.E) && isnan(c.Lz) && isnan(c.Q)
+        end
+    end
+
     # Float64 continuity through p = 2 from both sides. NOTE the generic Schmidt form loses about
     # log10|p−2|⁻¹ digits in a NEIGHBOURHOOD of the singularity (measured relative error in Lz vs
     # a 256-bit evaluation, a = 0.998: 1.1e−14 at |p−2| = 1e−2, 6.2e−11 at 1e−6, 1.5e−6 at 1e−10)

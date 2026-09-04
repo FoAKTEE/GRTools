@@ -84,7 +84,11 @@
 #     Closing that would mean re-evaluating every equatorial radius through the pair above.
 @inline _circular_lz_denominator(a, p, x) = (p - 2) * p - a^2 * (x^2 - 1)
 
-@inline _circeq_removable(a, p, x) = isone(abs(x)) && iszero(_circular_lz_denominator(a, p, x))
+# Only the p = 2 root of the equatorial denominator p(p-2) is REMOVABLE: at p = 0 - the ring
+# singularity, which is no orbit's radius - the numerator does not vanish with it, so that root
+# is excluded and keeps the Schmidt form's NaN rather than gaining a spurious finite/Inf value.
+@inline _circeq_removable(a, p, x) =
+    isone(abs(x)) && !iszero(p) && iszero(_circular_lz_denominator(a, p, x))
 
 # Bardeen-Press-Teukolsky equatorial circular (E, Lz) at SIGNED spin `a` (M = 1); u = sqrt(p).
 @inline function _bpt_circeq(a, p)
