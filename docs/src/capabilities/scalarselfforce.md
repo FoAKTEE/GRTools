@@ -311,20 +311,34 @@ formulation and consumes the physics-free hp-DG solver stack from
   pin is applied inside every worker rather than inherited.
   The owner's compute policy is enforced mechanically and stated once, in the
   `solve_modes_parallel` docstring: `mode_pool_size` keeps
-  ``n_{\rm workers} \times n_{\rm threads} \le`` `PARALLEL_CPU_BUDGET` = 24
-  for every input and reports every clamp, `system_load` reads the live
-  whole-system usage so the pre-launch guard can refuse with the numbers when
-  `live + planned` would cross `PARALLEL_LOAD_GUARD` = 0.90, and a monitor
-  task samples the machine into `run.samples` (and an optional log file) for
-  the whole run, `run.max_load` being the gate. `mode_pool` is the reusable
-  pool: a fresh worker pays a measured 166 s of JIT for its first solve and
-  45 s more for its first AMR step, against 15.9 s for a warm 8-level sweep,
-  so several sweeps must share one pool — the 21-mode ``\times`` 8-level run
-  takes 237 s on 21 workers against 544 s in one process (2.3``\times``,
-  JIT-bound), and the speed-up only approaches the worker count when there
-  are many more modes than workers or the pool is reused. A mode that throws
-  is reported by id in `set.failures`, warned with its remote backtrace, and
-  never swallowed; the other modes still return.
+  ``n_{\rm workers} \times \max(n_{\rm threads}, n_{\rm BLAS}) \le``
+  `PARALLEL_CPU_BUDGET` = 24 for every input and reports every clamp (a CPU
+  spent inside OpenBLAS is a CPU the owner lent us), and `system_load` reads
+  the live whole-system usage — the worst of `PARALLEL_LOAD_PROBES` = 3
+  ``/``proc``/``stat windows — so the pre-launch guard can refuse with the
+  numbers when `live + planned` would reach `PARALLEL_LOAD_GUARD` = 0.90.
+  **The guard governs the launch decision only.** A monitor task samples the
+  machine into `run.samples` (and an optional log file) for the whole run, and
+  `run.max_load` is a *record* of what the shared box then did: a crossing is
+  warned when the run ends, never silently gated, because nothing in this
+  package can stop another user of a shared host once we have launched.
+  `mode_pool` is the reusable pool: a fresh worker pays a measured 166 s of
+  JIT for its first solve and 45 s more for its first AMR step, against
+  15.9 s for a warm 8-level sweep, so several sweeps must share one pool.
+  The fan-out is **JIT-bound, not solve-bound**, so its cost has three
+  regimes and only the third one is a win: *cold* (a fresh pool per sweep),
+  *warm-serial* (one process that has already compiled), and *reused pool*.
+  The measured numbers are being re-established on this tree by the 21-mode
+  artefact of `evidence/mmode-parallel-driver/` and are quoted there.
+  A mode that throws is reported by id in `set.failures`, warned with its
+  remote backtrace, and never swallowed; the other modes still return. So is a
+  worker that **dies** — `pmap`'s `on_error` does not catch a
+  `ProcessExitedException` (measured: it escapes and takes the whole sweep
+  down), so the fan-out schedules its own modes, attributes a death to its
+  mode and its worker id, and prunes the corpse from the pool; `isopen(pool)`
+  asks the cluster, not a flag. `timeout_s` bounds a hung sweep, cancelling
+  the outstanding modes the only way a remote call can be cancelled — by
+  removing their workers.
 
 Planned, each landing written test-first once it is grounded: the rest of
 `Extraction` (the mode sum itself).
@@ -347,8 +361,12 @@ Planned, each landing written test-first once it is grounded: the rest of
 ## Dependencies and poison-axis declaration
 
 Binding dependency budget, enforced by `test/hygiene.jl`: exactly
-`{LinearAlgebra, Printf, NumericsCore, BigSpecial, Spacetime, EllipticCore,
-Data}`. Special functions come only through BigSpecial (no direct
+`{LinearAlgebra, Printf, Distributed, NumericsCore, BigSpecial, Spacetime,
+EllipticCore, Data}`. `Distributed` is a **stdlib**, widened into the budget by
+the wave-12 orchestrator decision as the IPC of the row-47 m-mode process
+fan-out (`src/Solve/parallel.jl`) — stdlib only, no registry package, the same
+rule that admitted SparseArrays/SuiteSparse into EllipticCore.
+Special functions come only through BigSpecial (no direct
 SpecialFunctions / HypergeometricFunctions); the EffectiveSource C oracles are
 baked test fixtures, never live deps (no GSL/ccall channel); GPU stacks are
 banned.

@@ -5,13 +5,13 @@
 #
 # WHAT THE NODE DELIVERS (`Solve/parallel.jl`):
 #   * `solve_modes_parallel(orbit, config, ms)` → `ModeSet` — the process fan-out: a pool of
-#     `min(budget ÷ threads_per_worker, length(ms))` worker processes, each with pinned BLAS
-#     and its own stack/caches, one `solve_mode_amr` per mode, results collected in `ms` order.
+#     `min(budget ÷ cpus_per_worker, length(ms))` worker processes, each with pinned BLAS and
+#     its own stack/caches, one `solve_mode_amr` per mode, results collected in `ms` order.
 #   * `solve_modes_serial(orbit, config, ms)` → `ModeSet` — the SAME loop in-process. It is the
 #     BITWISE ORACLE of the parallel path and the only thing gate (b) can compare against.
-#   * `ModeSet` / `ModeResult` / `ModeFailure` / `ModeRunRecord` / `LoadSample` — the F-ready
-#     per-mode payload (the `AmrLevel` record of every level + the final `sol.u`) plus the run
-#     record rows 50/51/53 need to size their own pools.
+#   * `ModeSet` / `ModeResult` / `ModeFailure` / `ModeRunRecord` / `ModeStamp` / `LoadSample` —
+#     the F-ready per-mode payload (the `AmrLevel` record of every level + the final `sol.u`)
+#     plus the run record rows 50/51/53 need to size their own pools.
 #   * `ModePool` / `mode_pool` — a guarded, REUSABLE pool of worker processes, because a fresh
 #     process pays ~200 s of JIT before it can solve anything (MEASURED below).
 #   * `system_load`, `mode_pool_size`, `mode_config` — the three policy pieces: the live
@@ -36,16 +36,23 @@
 # PREDECESSOR SCOPE (sealed; consumed, never re-derived here): `amr-driver` (`solve_mode_amr`,
 # `AmrHistory`, `AmrLevel`, `amr_flags`, `amr_level_options`), `solver-stack-ssf`
 # (`ModeSolution`), `runtime-config-fixture` (`crp_paper_config`, `CRP_PAPER_MMODES`,
-# `RunConfig`), `orbits-adapters` (`CircularOrbit`).
+# `RunConfig`), `orbits-adapters` (`CircularOrbit`), `NumericsCore` (`with_blas_threads`).
 #
 # GATE CONSTANTS — every one calibrated on the throwaway prototypes
-# `evidence/mmode-parallel-driver/proto1_fanout.jl` and `proto2_threads.jl` BEFORE this file
-# was written, never tuned afterwards to pass. The measured value is quoted beside each gate.
+# `evidence/mmode-parallel-driver/proto1_fanout.jl`, `proto2_threads.jl` and (wave-12
+# follow-up) `proto_death.jl` / `proto_sched.jl`, BEFORE this file was written, never tuned
+# afterwards to pass. The measured value is quoted beside each gate.
 #
 # WALL-TIME POLICY OF THIS FILE: the test itself must obey the compute policy it gates. Every
 # pool it starts is sized from the LIVE load through the same `mode_pool_size` + guard the
 # production path uses, the AMR sweeps are 0-2 levels (not the paper's 8), and the full
 # 21 × 8 run is the EVIDENCE ARTEFACT, not a unit test.
+#
+# WAVE-12 FOLLOW-UP (validator MERGE_AFTER_FIXES + codex NEEDS_REWORK on lifecycle/policy):
+# testsets (8)-(10) below are new — worker DEATH (which `pmap(on_error = identity)` does NOT
+# catch: MEASURED in proto_death.jl, a `ProcessExitedException` escapes pmap and kills the
+# whole sweep), the `timeout_s` cancellation, and the pool lifecycle (`close` retry, `isopen`
+# liveness, dead-pid pruning). They run LAST because they deliberately destroy the pool.
 
 using Test
 using LinearAlgebra
@@ -97,18 +104,24 @@ pa_nprocs0 = Distributed.nprocs()
 
 # ============================ (0) the policy arithmetic ===================================
 # Pure, launch-free gates on the pool sizing: the owner policy is `min(24, modes)` and
-# `nworkers × threads_per_worker ≤ 24`, ALWAYS, with every clamp reported (never silent).
+# `nworkers × cpus_per_worker ≤ 24`, ALWAYS, with every clamp reported (never silent).
+# WAVE-12 FIX (codex 1): a worker that runs `blas_threads` BLAS threads occupies
+# `max(threads_per_worker, blas_threads)` CPUs, so the budget arithmetic must see the BLAS
+# count — a 24-worker pool at `blas_threads = 2` is 48 CPUs, not 24.
 @testset "(0) pool sizing obeys the compute budget" begin
     @test PARALLEL_CPU_BUDGET == 24
     @test PARALLEL_MAX_THREADS_PER_WORKER == 4
     @test PARALLEL_LOAD_GUARD == 0.90
+    @test PARALLEL_LOAD_PROBES >= 3          # the launch heuristic takes the MAX of >= 3 probes
 
     # the paper's own sweep: 21 modes, one single-threaded process each
     p = mode_pool_size(21)
     @test p.nworkers == 21
     @test p.threads_per_worker == 1
+    @test p.blas_threads == 1
+    @test p.cpus_per_worker == 1
     @test !p.clamped
-    @test p.nworkers * p.threads_per_worker <= PARALLEL_CPU_BUDGET
+    @test p.nworkers * p.cpus_per_worker <= PARALLEL_CPU_BUDGET
 
     # more modes than the budget: the pool stops at the budget, it never auto-scales up
     @test mode_pool_size(100).nworkers == 24
@@ -119,9 +132,17 @@ pa_nprocs0 = Distributed.nprocs()
     # threads per worker divide the budget
     @test mode_pool_size(100; threads_per_worker = 4).nworkers == 6
     @test mode_pool_size(100; threads_per_worker = 3).nworkers == 8
-    for nth in 1:4, nm in (1, 5, 21, 100)
-        q = mode_pool_size(nm; threads_per_worker = nth)
-        @test q.nworkers * q.threads_per_worker <= PARALLEL_CPU_BUDGET
+    # …and so do BLAS threads, which is the wave-12 fix: a CPU spent in OpenBLAS is a CPU.
+    @test mode_pool_size(100; blas_threads = 2).nworkers == 12
+    @test mode_pool_size(100; blas_threads = 4).nworkers == 6
+    @test mode_pool_size(100; threads_per_worker = 2, blas_threads = 2).nworkers == 12
+    # the two counts do not ADD (BLAS runs inside the worker's own threads): the cost is the max
+    @test mode_pool_size(100; threads_per_worker = 4, blas_threads = 2).cpus_per_worker == 4
+    @test mode_pool_size(100; threads_per_worker = 2, blas_threads = 4).cpus_per_worker == 4
+    for nth in 1:4, nb in 1:4, nm in (1, 5, 21, 100)
+        q = mode_pool_size(nm; threads_per_worker = nth, blas_threads = nb)
+        @test q.cpus_per_worker == max(nth, nb)
+        @test q.nworkers * q.cpus_per_worker <= PARALLEL_CPU_BUDGET
         @test q.nworkers >= 1
     end
 
@@ -129,10 +150,13 @@ pa_nprocs0 = Distributed.nprocs()
     q = mode_pool_size(100; nworkers = 64)
     @test q.nworkers == 24 && q.requested == 64 && q.clamped
     q = mode_pool_size(21; nworkers = 40, threads_per_worker = 2)
-    @test q.nworkers == 12 && q.clamped && q.nworkers * q.threads_per_worker <= 24
+    @test q.nworkers == 12 && q.clamped && q.nworkers * q.cpus_per_worker <= 24
     # a thread count beyond the owner's 4-per-process limit is clamped and reported
     q = mode_pool_size(21; threads_per_worker = 16)
     @test q.threads_per_worker == 4 && q.clamped
+    # so is a BLAS count beyond it
+    q = mode_pool_size(21; blas_threads = 16)
+    @test q.blas_threads == 4 && q.cpus_per_worker == 4 && q.clamped
     # a budget beyond the owner's 24 is clamped and reported
     q = mode_pool_size(100; budget = 128)
     @test q.budget == 24 && q.nworkers == 24 && q.clamped
@@ -163,6 +187,24 @@ end
     @test 0.0 <= s.cpu_fraction <= 1.0
     @test s.source !== :procstat || s.ps_fraction >= 0.0     # recorded beside it
     @test isfinite(s.ps_fraction)
+
+    # WAVE-12 FIX (codex 12): the bound must hold on EVERY source path, not only the
+    # /proc/stat one — `/proc/stat` exists on Linux alone, and the two fallbacks feed the same
+    # guard. The pure constructor is exercised directly with hostile readings.
+    nc = 8
+    a = ScalarSelfForce._pf_load_sample(0.0, nc, 0.3, 100 * nc * 0.4, 3.7)   # procstat, absurd
+    @test a.source === :procstat && 0.0 <= a.cpu_fraction <= 1.0 && a.cpu_fraction == 1.0
+    b = ScalarSelfForce._pf_load_sample(0.0, nc, 0.3, 100 * nc * 2.9, nothing)  # ps fallback
+    @test b.source === :ps && 0.0 <= b.cpu_fraction <= 1.0 && b.cpu_fraction == 1.0
+    @test b.ps_fraction ≈ 2.9            # RECORDED unclamped: it is the skill's shell number
+    c = ScalarSelfForce._pf_load_sample(0.0, nc, 4.2, nothing, nothing)      # loadavg fallback
+    @test c.source === :loadavg && 0.0 <= c.cpu_fraction <= 1.0 && c.cpu_fraction == 1.0
+    d = ScalarSelfForce._pf_load_sample(0.0, nc, 0.1, 100 * nc * 0.25, 0.125)
+    @test d.source === :procstat && d.cpu_fraction == 0.125 && d.ps_fraction ≈ 0.25
+    for x in (a, b, c, d)
+        @test 0.0 <= x.cpu_fraction <= 1.0
+        @test x.ncpu == nc
+    end
 end
 
 # ============================ (2) the per-mode config =====================================
@@ -189,6 +231,27 @@ end
     @test c.domain.initial_grid_points == (6, 6)
     @test c.multigrid.initial_coarse_levels == other.multigrid.initial_coarse_levels
     @test_throws ArgumentError mode_config(cfg, -1)
+
+    # the STAMP a worker reports back: the m-dependent solver knobs, so a caller can prove the
+    # process fan-out and the in-process oracle solved the SAME problem (codex 17).
+    orb = pa_orb(cfg)
+    st = ScalarSelfForce.mode_stamp(orb, cfg, 3)
+    @test st isa ModeStamp
+    @test st.m == 3
+    @test st.spin == orb.a && st.orbital_radius == orb.r0
+    @test st.outer_bc_m == 3 && st.outer_bc_order == 2
+    @test ScalarSelfForce.mode_stamp(orb, cfg, 0).outer_bc_m == -1     # the m = 0 branch
+    # THE SHIFT. The CRP's shipped vtu config sets ComplexShift 0 (yaml:194,203) and the
+    # policy value under piecewise-null slicing is exactly 0 (main.tex:680) — an m-agnostic
+    # preconditioner against an m²-scaled Helmholtz term, which is WHY the GMRES count grows
+    # with m in the artefact. Recorded per mode so the claim is auditable, never re-derived.
+    @test st.subdomain_complex_shift == 0
+    @test st.multigrid_complex_shift == 0
+    @test st.helmholtz_shift_policy == 0                    # helmholtz_shift(m, Ω; :vtu)
+    @test ScalarSelfForce.mode_stamp(orb, cfg, 10).helmholtz_shift_policy == 0
+    # two stamps of the same mode are equal, of different modes are not
+    @test ScalarSelfForce.mode_stamp(orb, cfg, 5) == ScalarSelfForce.mode_stamp(orb, cfg, 5)
+    @test ScalarSelfForce.mode_stamp(orb, cfg, 5) != ScalarSelfForce.mode_stamp(orb, cfg, 6)
 end
 
 # ========================== (3) the pre-launch load guard ==================================
@@ -221,6 +284,29 @@ end
     @test_throws ArgumentError mode_pool(4; load_guard = 1.0e-6)
     @test_throws ArgumentError mode_pool(4; load_guard = 1.5)
     @test_throws ArgumentError mode_pool(0)
+    # THE DECISION LOGIC IS TESTED HERMETICALLY, on INJECTED readings, never on the live host
+    # (orchestrator addendum, wave 12: another worker's suite failed these on a busy box —
+    # a test that asserts "the machine is idle" is not a test of this code). Every row below
+    # is a `LoadSample` the driver could have read, and the question is only what the guard
+    # DECIDES. The comparison is STRICT: the owner's sentence is "must stay BELOW 90 %", so a
+    # plan that lands EXACTLY on the guard is refused, not admitted (codex 9).
+    pa_sample(f) = ScalarSelfForce._pf_load_sample(0.0, 256, f, 100 * 256 * f, f)
+    pa_admits(f, planned; guard = PARALLEL_LOAD_GUARD) =
+        ScalarSelfForce._pf_admits(pa_sample(f).cpu_fraction, planned, guard)
+    @test pa_admits(0.05, 21 / 256)          # a quiet host, the paper's 21-worker sweep
+    @test pa_admits(0.80, 0.09)              # just below
+    @test !pa_admits(0.80, 0.10)             # EXACTLY on the guard: refused, not admitted
+    @test !pa_admits(0.80, 0.11)             # above
+    @test !pa_admits(0.90, 0.0)              # already at the guard with nothing planned
+    @test !pa_admits(0.95, 0.0)              # already past it
+    @test !pa_admits(1.0, 0.0)               # a full machine
+    @test pa_admits(0.0, 0.0)                # an idle one
+    @test pa_admits(0.40, 0.49) && !pa_admits(0.40, 0.50)
+    # a tighter guard is honoured, and a hostile (unbounded) reading still refuses because the
+    # sample constructor clamps it to a full machine before the comparison is made
+    @test !pa_admits(0.20, 0.10; guard = 0.25)
+    @test pa_admits(0.20, 0.04; guard = 0.25)
+    @test !pa_admits(2.868, 0.0)             # the ps-sum reading that started all this
     # nothing above may leak a worker process
     @test Distributed.nprocs() == pa_nprocs0
 end
@@ -234,10 +320,14 @@ end
 #
 # The pool is sized from the OWNER POLICY, not from a wish: 4 worker processes, each with the
 # SAME Julia thread count as this process (so gate (5) compares like with like), and a budget
-# that makes the over-request visible. 4 × 4 = 16 ≤ 24 CPUs in the worst case.
+# that makes the over-request visible. It DECLARES `blas_threads = 2` because gate (6) runs a
+# 2-BLAS-thread falsifier on this very pool, and after the wave-12 fix the budget counts that
+# CPU: 4 × max(nth, 2) ≤ 16 ≤ 24 in the worst case.
 pa_nth = min(Threads.nthreads(), PARALLEL_MAX_THREADS_PER_WORKER)
+pa_cpw = max(pa_nth, 2)
 pa_pool = @test_logs (:warn,) match_mode = :any mode_pool(64; threads_per_worker = pa_nth,
-                                                          budget = 4 * pa_nth)
+                                                          blas_threads = 2,
+                                                          budget = 4 * pa_cpw)
 try
 
 @testset "(4) the fan-out completes, in order, isolated, inside the budget" begin
@@ -263,16 +353,23 @@ try
     # the per-mode config really was rebuilt per mode: m = 0 has no outer BC, m = 20 does
     @test mode_config(cfg, 0).domain.outer_radial_bc === nothing
     @test mode_config(cfg, 20).domain.outer_radial_bc.m_mode_number == 20
+    # …and every worker REPORTS the per-mode knobs it used, which must be the ones the master
+    # would have computed for that mode (codex 17).
+    @test all(r.stamp == ScalarSelfForce.mode_stamp(orb, cfg, r.m) for r in set.results)
+    @test all(r.stamp.subdomain_complex_shift == 0 for r in set.results)
 
     # (c) the budget is ENFORCED, and the over-request was clamped and logged
     @test set.run.nworkers == 4
     @test set.run.requested_workers == 64
     @test set.run.clamped
     @test set.run.threads_per_worker == pa_nth
-    @test set.run.nworkers * set.run.threads_per_worker <= PARALLEL_CPU_BUDGET
+    @test set.run.cpus_per_worker == pa_cpw
+    @test set.run.nworkers * set.run.cpus_per_worker <= PARALLEL_CPU_BUDGET
     @test set.run.budget <= PARALLEL_CPU_BUDGET
     @test !set.run.owned_pool
     @test set.run.blas_threads == 1
+    @test set.run.timeout_s === nothing
+    @test !set.run.timed_out
 
     # (f) NO SHARED STATE. 5 modes on 4 processes: every mode built its own Schwarz subdomain
     # matrices and its own bottom LU from scratch, and no mode's level-0 solve reused a cache
@@ -289,23 +386,29 @@ try
 
     # (d) the load monitor sampled the LIVE system during the run and it stayed under the
     # guard. Sound because `cpu_fraction` is the BOUNDED /proc/stat busy fraction: the ps sum
-    # this replaced spiked to 2.868 on a 256-core host and tripped this very assertion. The
-    # assertion is still environmental — it asserts the machine really was quiet enough — and
-    # that is deliberate: if it fails, the host was too loaded to have run this test at all,
-    # which is exactly what the pre-launch guard would have said.
+    # this replaced spiked to 2.868 on a 256-core host and tripped this very assertion.
+    # NOTE the wave-12 honesty fix (codex 10): `max_load` is RECORDED, not enforced — the
+    # guard controls LAUNCH only, and a crossing is `@warn`ed by the driver, never gated.
+    # THE ASSERTIONS HERE ARE HERMETIC: shape and boundedness of what was recorded, never
+    # "the host was idle" — this box is shared, and a busy neighbour is not a bug in this
+    # code (orchestrator addendum, wave 12). The DECISION logic is gated in testset (3).
     @test length(set.run.samples) >= 2
     @test all(0.0 <= s.cpu_fraction <= 1.0 for s in set.run.samples)
-    @test all(s.cpu_fraction < PARALLEL_LOAD_GUARD for s in set.run.samples)
+    @test all(isfinite(s.cpu_fraction) && isfinite(s.loadavg1) for s in set.run.samples)
+    @test all(s.ncpu == Sys.CPU_THREADS for s in set.run.samples)
+    @test all(s.source in (:procstat, :ps, :loadavg) for s in set.run.samples)
+    @test issorted([s.time for s in set.run.samples])
     @test set.run.max_load == maximum(s.cpu_fraction for s in set.run.samples)
-    @test set.run.max_load < PARALLEL_LOAD_GUARD
+    @test 0.0 <= set.run.max_load <= 1.0
     @test set.run.guard_before isa LoadSample && set.run.guard_after isa LoadSample
     @test set.run.guard_before.ncpu == Sys.CPU_THREADS
-    @test set.run.planned_share ≈ set.run.nworkers * set.run.threads_per_worker / Sys.CPU_THREADS
+    @test set.run.planned_share ≈ set.run.nworkers * set.run.cpus_per_worker / Sys.CPU_THREADS
     @test isfile(logfile)
     txt = read(logfile, String)
     @test occursin("cpu_fraction", txt)
     @test occursin(string(PARALLEL_CPU_BUDGET), txt)
     @test occursin("ps_fraction", txt)
+    @test occursin("LAUNCH", txt)          # the log states what the guard does and does not do
     @test count(==('\n'), txt) >= length(set.run.samples) + 3   # 3 header lines
 
     # (e) the cost record exists and is coherent
@@ -337,11 +440,16 @@ end
     @test all(r.julia_threads == Threads.nthreads() for r in ser.results)
     for (p, s) in zip(par.results, ser.results)
         @test pa_bitwise(p, s)
+        # …and both solved the SAME per-mode problem, by their own report (codex 17)
+        @test p.stamp == s.stamp
+        @test p.stamp == ScalarSelfForce.mode_stamp(orb, cfg, p.m)
     end
     # the serial oracle also records the load it caused, through the same guard and monitor
     @test !isempty(ser.run.samples)
-    @test ser.run.max_load < PARALLEL_LOAD_GUARD
+    @test 0.0 <= ser.run.max_load <= 1.0        # bounded, not asserted to be an idle host
+    @test ser.run.max_load == maximum(s.cpu_fraction for s in ser.run.samples)
     @test ser.run.guard_before isa LoadSample && ser.run.guard_after isa LoadSample
+    @test ser.run.cpus_per_worker == 1
 end
 
 # ====================== (6) the BLAS thread count is the determinism knob ==================
@@ -349,7 +457,8 @@ end
 # the answer at ROUNDOFF only. MEASURED on the prototype at 2 AMR levels: `u` not bitwise,
 # max relative Δu 3.2e-12, ΔΨ^R 7.5e-13, Δ∂_rΨ^R 2.1e-13 (the row-43 node measured 4.2e-12 on
 # the 8-level sweep). This is why the pin is normative and why every worker sets it EXPLICITLY
-# instead of trusting the environment.
+# instead of trusting the environment. The pool above DECLARED `blas_threads = 2`, so this
+# falsifier runs INSIDE the budget it was sized for (the wave-12 fix, codex 1).
 @testset "(6) a different BLAS thread count breaks bitwise identity at roundoff only" begin
     cfg = pa_cfg(; m = 1)
     orb = pa_orb(cfg)
@@ -362,6 +471,7 @@ end
     @test a.blas_threads == 1
     @test b.blas_threads == 2
     @test one_thread.run.blas_threads == 1 && two_thread.run.blas_threads == 2
+    @test two_thread.run.cpus_per_worker == pa_cpw       # the 2 BLAS threads are BUDGETED
     # not bitwise …
     @test !all(a.u .=== b.u)
     # … but the difference is roundoff, three orders below the level-to-level AMR change
@@ -369,10 +479,16 @@ end
     @test pa_rel(a.levels[end].dpsi_r, b.levels[end].dpsi_r) < 1.0e-9
     @test pa_rel(a.levels[end].psi, b.levels[end].psi) < 1.0e-9
     @test a.levels[end].record.iterations == b.levels[end].record.iterations
+    # … the two runs still solved the same PROBLEM: only the arithmetic order moved
+    @test a.stamp == b.stamp
     # … and the same pinned count reproduces itself bitwise, which is the point of the pin
     again = solve_modes_parallel(orb, cfg, [1]; iterations = 2, pool = pa_pool,
                                  blas_threads = 1)
     @test pa_bitwise(a, again.results[1])
+    # a BLAS request the pool was NOT budgeted for is REFUSED, not silently honoured: the pool
+    # holds 4 workers budgeted at `pa_cpw` CPUs each, and 4 × 8 would be 32 > 24.
+    @test_throws ArgumentError solve_modes_parallel(orb, cfg, [1]; iterations = 0,
+                                                    pool = pa_pool, blas_threads = 8)
 end
 
 # ============================== (7) the failure path =======================================
@@ -389,10 +505,13 @@ end
     @test set.failures[1].m == 1
     @test occursin("injected failure", set.failures[1].message)
     @test set.failures[1].worker != 1
+    @test set.failures[1].worker in pa_pool.pids
     @test [r.m for r in set.results] == [0, 2]
     @test set[0].m == 0 && set[2].m == 2
     @test_throws KeyError set[1]
     @test occursin("FAILED", sprint(show, MIME"text/plain"(), set))
+    # a throw does NOT cost the pool a worker: the process is still there afterwards
+    @test length(pa_pool) == 4 && isopen(pa_pool)
     # the serial oracle reports the same failure the same way, by id, and keeps going
     sset = @test_logs (:warn,) match_mode = :any solve_modes_serial(
         orb, cfg, [0, 1, 2]; iterations = 0, criterion = boom)
@@ -401,11 +520,122 @@ end
     @test [r.m for r in sset.results] == [0, 2]
 end
 
+# ===================== (8) a worker that DIES mid-solve ====================================
+# THE WAVE-12 LIFECYCLE GATE (validator F6, codex 3/4). A throw inside a mode is one thing; a
+# worker PROCESS that disappears is another, and MEASURED in `proto_death.jl` the landed
+# `pmap(…; on_error = identity)` did NOT handle it: `ProcessExitedException` escapes pmap and
+# takes the WHOLE sweep down, so a single dead worker lost all 21 modes. The driver now
+# schedules the modes itself, so a death is attributed to its mode and its worker id, every
+# other mode still returns, and the corpse is pruned from the pool instead of being handed out
+# again. This testset DESTROYS one of the four workers, so it runs after every gate above.
+@testset "(8) a dead worker is reported by id; the other modes still return" begin
+    cfg = pa_cfg(; m = 0)
+    orb = pa_orb(cfg)
+    n0 = length(pa_pool)
+    @test n0 == 4
+    # `exit(1)` inside the row-43 criterion seam: the process is gone mid-solve, deterministically.
+    die = sol -> sol.m == 1 ? exit(1) : amr_flags(sol)
+    set = @test_logs (:warn,) match_mode = :any solve_modes_parallel(
+        orb, cfg, [0, 1, 2]; iterations = 0, pool = pa_pool, criterion = die)
+    @test length(set.failures) == 1
+    @test set.failures[1].m == 1                       # attributed to the MODE …
+    @test set.failures[1].worker != 0                  # … and to the worker, by id (codex 4)
+    @test set.failures[1].worker != 1
+    @test occursin("exited", lowercase(set.failures[1].message)) ||
+          occursin("processexited", lowercase(set.failures[1].message))
+    @test [r.m for r in set.results] == [0, 2]         # the other modes STILL RETURN
+    @test all(isfinite(abs(r.levels[end].psi)) for r in set.results)
+    # the pool pruned the corpse and is still usable
+    @test length(pa_pool) == n0 - 1
+    @test !(set.failures[1].worker in pa_pool.pids)
+    @test isopen(pa_pool)
+    @test Distributed.nprocs() == pa_nprocs0 + n0 - 1
+    again = solve_modes_parallel(orb, cfg, [0]; iterations = 0, pool = pa_pool)
+    @test isempty(again.failures) && again.results[1].m == 0
+    @test again.run.nworkers == n0 - 1                 # the record tells the truth about size
+end
+
+# ===================== (9) the timeout, and a pool with no live worker =====================
+# `pmap`/`remotecall_fetch` block INDEFINITELY by default — a mode that hangs hangs the sweep
+# and the CPUs stay taken. `timeout_s` bounds it: the run is cancelled by REMOVING the workers
+# (the only way to stop a remote call), every unfinished mode is reported by id, and the pool
+# is left with no live worker — after which the driver must REFUSE cleanly rather than block.
+# This testset destroys the rest of the pool, so it is the last one that uses it.
+@testset "(9) timeout_s cancels a hung sweep and reports every unfinished mode" begin
+    cfg = pa_cfg(; m = 0)
+    orb = pa_orb(cfg)
+    live = length(pa_pool)
+    @test live == 3
+    hang = sol -> (sleep(300); amr_flags(sol))
+    t = time()
+    set = @test_logs (:warn,) match_mode = :any solve_modes_parallel(
+        orb, cfg, [0, 1, 2]; iterations = 0, pool = pa_pool, criterion = hang,
+        timeout_s = 20.0)
+    dt = time() - t
+    @test dt < 180.0                                   # bounded: nowhere near the 300 s hang
+    @test set.run.timed_out
+    @test set.run.timeout_s == 20.0
+    @test length(set.failures) == 3                    # every unfinished mode, by id
+    @test sort([f.m for f in set.failures]) == [0, 1, 2]
+    @test isempty(set.results)
+    @test all(occursin("timed out", lowercase(f.message)) ||
+              occursin("exited", lowercase(f.message)) for f in set.failures)
+    # cancellation removed the workers: the pool now has none, and says so
+    @test length(pa_pool) == 0
+    @test !isopen(pa_pool)
+    @test Distributed.nprocs() == pa_nprocs0
+    # …and a further call REFUSES cleanly instead of blocking on an empty pool
+    @test_throws ArgumentError solve_modes_parallel(orb, cfg, [0]; iterations = 0,
+                                                    pool = pa_pool)
+end
+
 finally
     close(pa_pool)
 end
-@test !isopen(pa_pool)
-@test length(pa_pool) == 0
+
+# ============================ (10) the pool lifecycle ======================================
+# `close` must give the processes back FIRST and clear its bookkeeping only then, so a failed
+# teardown leaves the pids for a retry instead of forgetting them (codex 3); `isopen` must ask
+# the CLUSTER whether the workers are alive, not a stale flag (codex 4).
+@testset "(10) pool lifecycle: close is retryable, isopen asks the cluster" begin
+    @test !isopen(pa_pool)
+    @test length(pa_pool) == 0
+    @test Distributed.nprocs() == pa_nprocs0          # no worker process leaked
+    @test close(pa_pool) === pa_pool                  # closing twice is a no-op, never a throw
+    @test !isopen(pa_pool)
+
+    # a small pool, closed the ordinary way
+    p = mode_pool(2)
+    @test isopen(p) && length(p) == 2
+    @test Distributed.nprocs() == pa_nprocs0 + 2
+    pids = copy(p.pids)
+    close(p)
+    @test !isopen(p) && isempty(p.pids)
+    @test Distributed.nprocs() == pa_nprocs0
+    @test all(!(w in Distributed.procs()) for w in pids)
+
+    # isopen is LIVENESS, not a flag: kill the workers behind the pool's back and it must say so
+    q = mode_pool(2)
+    @test isopen(q)
+    Distributed.rmprocs(copy(q.pids); waitfor = 60)
+    @test !isopen(q)                                   # the flag is still true; the cluster is not
+    @test close(q) === q                               # and closing a pool of corpses is clean
+    @test isempty(q.pids)
+    @test Distributed.nprocs() == pa_nprocs0
+
+    # the do-block form gives the pool back even when the body throws
+    leaked = try
+        mode_pool(2) do pool
+            error("boom inside the do-block")
+        end
+        nothing
+    catch e
+        e
+    end
+    @test leaked isa ErrorException
+    @test Distributed.nprocs() == pa_nprocs0
+end
+
 @test Distributed.nprocs() == pa_nprocs0          # no worker process leaked
 
 end # testset mmode-parallel-driver

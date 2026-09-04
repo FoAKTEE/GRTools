@@ -366,15 +366,23 @@ include("Solve/parallel.jl")                 # mmode-parallel-driver (the row-47
 # solve_modes_serial is the same loop in-process and is the BITWISE ORACLE of the fan-out.
 # THE COMPUTE POLICY of the compute-usage skill is stated once, normatively, in the
 # solve_modes_parallel docstring and enforced mechanically: mode_pool_size caps
-# nworkers x threads_per_worker at PARALLEL_CPU_BUDGET = 24 (a bigger request is clamped AND
-# logged), system_load reads the LIVE whole-system usage so the pre-launch guard can REFUSE
-# with the numbers when live + planned would cross PARALLEL_LOAD_GUARD = 0.90, and a monitor
-# task samples the machine into the run record (and a log file) for the whole run. mode_pool
-# is the REUSABLE pool the figure drivers need: a fresh process pays ~200 s of JIT before its
-# first solve, so several sweeps must share one pool. mode_config is the per-m RunConfig (only
-# MModeNumber and the m = 0 no-outer-BC yaml branch move). NO extraction, NO figure, NO GPU.
+# nworkers x max(threads_per_worker, blas_threads) at PARALLEL_CPU_BUDGET = 24 (a bigger
+# request is clamped AND logged; a CPU spent inside OpenBLAS is a CPU), system_load reads the
+# LIVE whole-system usage so the pre-launch guard can REFUSE with the numbers when
+# live + planned would reach PARALLEL_LOAD_GUARD = 0.90, and a monitor task samples the machine
+# into the run record (and a log file) for the whole run. THE GUARD GOVERNS LAUNCH ONLY:
+# run.max_load is a record of what the shared box then did, warned but never enforced.
+# mode_pool is the REUSABLE pool the figure drivers need: a fresh process pays ~200 s of JIT
+# before its first solve, so several sweeps must share one pool; isopen asks the cluster
+# whether the workers are alive, a dead worker is reported by id and pruned, and timeout_s
+# bounds a hung sweep by removing its workers. mode_config is the per-m RunConfig (only
+# MModeNumber and the m = 0 no-outer-BC yaml branch move) and mode_stamp is the per-mode record
+# of the knobs used (the shift is 0 for every m: main.tex:680 / yaml:194,203).
+# NO extraction, NO figure, NO GPU.
 export PARALLEL_CPU_BUDGET, PARALLEL_MAX_THREADS_PER_WORKER, PARALLEL_LOAD_GUARD
+export PARALLEL_LOAD_PROBES
 export LoadSample, system_load, mode_pool_size, mode_config
+export ModeStamp, mode_stamp
 export ModePool, mode_pool
 export ModeResult, ModeFailure, ModeRunRecord, ModeSet
 export solve_modes_serial, solve_modes_parallel
