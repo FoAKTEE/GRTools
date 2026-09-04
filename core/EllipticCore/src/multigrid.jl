@@ -498,13 +498,21 @@ _mg_overlap_at(ov, ::Int, mesh::Mesh2D) = Int(ov(mesh))
 # (or closes over a stale mesh) otherwise preconditions with an operator that has nothing to do
 # with this level, and the residual never reveals it under right preconditioning.
 function _mg_chain_check_op(cur::MeshOperator, cmesh::Mesh2D, ℓ::Int)
+    # the COMPLETE structural identity, geometry included: two meshes can carry the same
+    # element ids, orders and offsets on entirely different blocks (different coordinate maps,
+    # different connections), and a factory that returned an operator on those would
+    # precondition every level below the finest with an unrelated problem — which right
+    # preconditioning hides, because the ANSWER stays correct and only the count moves.
     ok = cur.mesh.ndofs == cmesh.ndofs && cur.mesh.elements == cmesh.elements &&
-         cur.mesh.orders == cmesh.orders && cur.mesh.offsets == cmesh.offsets
+         cur.mesh.orders == cmesh.orders && cur.mesh.offsets == cmesh.offsets &&
+         cur.mesh.blocks == cmesh.blocks && cur.mesh.blockindex == cmesh.blockindex &&
+         cur.mesh.connections == cmesh.connections
     ok || throw(ArgumentError(
         "MultigridHierarchy: build_op returned an operator on a DIFFERENT mesh than chain " *
-        "level $ℓ ($(cur.mesh.ndofs) dofs / $(length(cur.mesh.elements)) elements against " *
-        "$(cmesh.ndofs) / $(length(cmesh.elements))) — the factory must rediscretize the same " *
-        "problem on the mesh it is handed"))
+        "level $ℓ ($(cur.mesh.ndofs) dofs / $(length(cur.mesh.elements)) elements on " *
+        "$(length(cur.mesh.blocks)) block(s) against $(cmesh.ndofs) / " *
+        "$(length(cmesh.elements)) on $(length(cmesh.blocks))) — the factory must rediscretize " *
+        "the same problem on the mesh it is handed, block maps and connections included"))
     return nothing
 end
 

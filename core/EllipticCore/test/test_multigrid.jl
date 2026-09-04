@@ -1086,16 +1086,43 @@ const MGC_RHO_PONLY = 0.05      # calibrated 0.0045, 2-level p-only chain
         # preconditioning keeps the ANSWER correct, so the residual never reveals it
         wrong = _ -> mk(m2)                                   # ignores its argument
         @test_throws ArgumentError MultigridHierarchy(mk(m1), wrong, [m0])
+        # ... and the check is the COMPLETE structural identity, geometry included: a factory
+        # that returns an operator with the same element ids, orders and offsets on DIFFERENT
+        # block maps is caught too. Nothing but the coordinate maps differs here, so a check on
+        # elements/orders/offsets alone would pass it and precondition every level below the
+        # finest with an unrelated problem.
+        function stretched(mesh)
+            blks = [Block(b.id, LinearMap1D(2 * b.maps[1].a, 2 * b.maps[1].b), b.maps[2])
+                    for b in mesh.blocks]
+            return Mesh2D(blks, mesh.elements,
+                          Dict(el => mesh.orders[mesh.index[el]] for el in mesh.elements);
+                          connections = mesh.connections)
+        end
+        m0s = stretched(m0)
+        @test m0s.elements == m0.elements && m0s.orders == m0.orders
+        @test m0s.offsets == m0.offsets && m0s.ndofs == m0.ndofs
+        @test m0s.blocks != m0.blocks
+        @test_throws ArgumentError MultigridHierarchy(mk(m1), _ -> mk(m0s), [m0])
         # an overlap vector shorter than the hierarchy
         @test_throws ArgumentError MultigridHierarchy(mk(m1), mk, [m0]; overlap = [2])
-        # DEFENSIVE, and unreachable through `Mesh2D`'s own validation, so asserted by
-        # inspection rather than by construction: an EMPTY level and a level with a REPEATED
-        # element id (`Mesh2D` rejects duplicates at matrixfree.jl:202) and a chain level with
-        # an element covering nothing (`Mesh2D` rejects tiling holes at matrixfree.jl:271-276,
-        # so two meshes over the same block set always tile the same region). The guards stay
-        # because a caller may build a `Mesh2D` by other means than `coarsen_mesh`/`hp_refine`.
-        @test occursin("has no elements", string(@doc MultigridHierarchy)) ||
-              occursin("not empty", string(@doc MultigridHierarchy))
+        # an EMPTY chain level: `Mesh2D` accepts an empty element set, the hierarchy does not
+        empty_mesh = Mesh2D(m0.blocks, ElementId[], Dict{ElementId,NTuple{2,Int}}();
+                            connections = m0.connections)
+        @test isempty(empty_mesh.elements)
+        @test_throws ArgumentError MultigridHierarchy(mk(m0), mk, [empty_mesh])
+        # a NON-ONTO chain level: a coarse mesh that is a valid `Mesh2D` on its own but carries
+        # elements no element of the level above it maps into (here a whole extra block row).
+        # Each mesh tiles its own blocks, so `Mesh2D` cannot see it; the hierarchy must.
+        wide = mg_uniform_mesh(Float64, 1, 4)              # blocks 1 and 2, level 1
+        narrow_els = [el for el in wide.elements if el.block == 1]
+        narrow = Mesh2D(wide.blocks[1:1], narrow_els,
+                        Dict(el => (4, 4) for el in narrow_els))
+        @test length(narrow.elements) < length(wide.elements)
+        @test_throws ArgumentError MultigridHierarchy(mk(narrow), _ -> mk(wide), [wide])
+        # DEAD CODE, kept as a guard and stated as such: a REPEATED element id (`Mesh2D`
+        # rejects duplicates at matrixfree.jl:202) and a NEGATIVE level gap (`_amr_ancestor`
+        # only ever walks upward, so the ancestor is never finer than the element) cannot be
+        # reached through the public constructors.
     end
 
     # ---- (5) the overlap policy: three forms, one hierarchy ------------------------------
