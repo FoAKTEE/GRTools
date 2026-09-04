@@ -126,7 +126,11 @@ level, in any precision.
 `Policies.Limits` (yaml:148-150) is `{RefinementLevel: Auto, NumGridPoints: Auto,
 ErrorBeyondLimits: True}`, i.e. spectre's defaults 15 and 20 and an ERROR — not a silent clip —
 when a decision would cross them (`Limits.cpp:16-19`, `EnforcePolicies.cpp:47-71`). This
-function throws an `ArgumentError` naming the element and the limit. The CRP sweep never gets
+function throws an `ArgumentError` naming the element and the limit. It checks BOTH the raw
+criterion (the reference's own path: `enforce_policies` runs inside
+`EvaluateRefinementCriteria`, before `update_amr_decision` raises anything for the 2:1 rule)
+AND the closed set — the second pass is a DELIBERATE STRICTENING beyond the reference, which
+never limit-checks a balance-added split. The CRP sweep never gets
 there: 8 iterations from the initial `(L+1, L+1) = (1, 1)` levels and `P = 4` reach h-level 9
 and `N = 12`.
 
@@ -172,29 +176,44 @@ function amr_flags(mesh::Mesh2D{RT}, dom::BlockDomain, orbit::CircularOrbit,
         "Check that `orbit` and `dom` describe the same problem (r₀ must lie inside the " *
         "block lattice $(dom.bounds_r[1]) … $(dom.bounds_r[end]))"))
 
-    # THE LIMITS APPLY TO THE CLOSED DECISION SET, not to the raw criterion: an element the
-    # 2:1 rule forces to split is Split for spectre too (UpdateAmrDecision.cpp:82-87), so it is
-    # the closure that must respect `RefinementLevel`, and only the elements OUTSIDE the
-    # closure are p-refined and bound by `NumGridPoints`.
+    # THE LIMITS ARE CHECKED ON BOTH SETS, and that is a DELIBERATE STRICTENING, not parity.
+    # The reference runs `enforce_policies` on the RAW criterion inside
+    # `EvaluateRefinementCriteria` (EvaluateRefinementCriteria.hpp:159-189,
+    # Policies/EnforcePolicies.cpp:38-70) and only THEN lets `update_amr_decision` raise flags
+    # to Split for the 2:1 rule — so a balance-added split is never limit-checked there. Here
+    # the raw criterion is checked first (the parity path) and the CLOSED set second (the
+    # strictening): an element the balancer pushes past `RefinementLevel` is refused rather
+    # than silently admitted, which is what `ErrorBeyondLimits: True` asks for in spirit even
+    # though the reference's own check cannot see it. Both passes are O(elements).
+    _amrd_check_limits(mesh, flags, max_refinement_level, max_resolution, "the criterion")
     closed = balanced_flags(mesh, flags)
+    _amrd_check_limits(mesh, closed, max_refinement_level, max_resolution,
+                       "the criterion or the two-to-one closure")
+    return flags
+end
+
+# the yaml Limits on one decision set: a dimension that splits must stay under
+# `RefinementLevel`, a dimension that does not is p-refined and must stay under
+# `NumGridPoints`. `ErrorBeyondLimits: True` (yaml:150) means THROW, never clamp.
+function _amrd_check_limits(mesh::Mesh2D, decisions::AbstractDict, maxlevel::Integer,
+                            maxres::Integer, what::AbstractString)
     for (e, id) in enumerate(mesh.elements)
-        c = get(closed, id, (false, false))
+        c = get(decisions, id, (false, false))
         for d in 1:2
             if c[d]
-                id.segments[d].level < max_refinement_level || throw(ArgumentError(
-                    "amr_flags: element $(id) is split in dimension $d by the criterion or " *
-                    "by the two-to-one closure, but is already at refinement level " *
-                    "$(id.segments[d].level), the AMR limit " *
+                id.segments[d].level < maxlevel || throw(ArgumentError(
+                    "amr_flags: element $(id) is split in dimension $d by $what, but is " *
+                    "already at refinement level $(id.segments[d].level), the AMR limit " *
                     "(Amr.Policies.Limits.RefinementLevel, ErrorBeyondLimits: True)"))
             else
-                mesh.orders[e][d] < max_resolution || throw(ArgumentError(
+                mesh.orders[e][d] < maxres || throw(ArgumentError(
                     "amr_flags: element $(id) would be p-refined past $(mesh.orders[e][d]) " *
                     "grid points in dimension $d, the AMR limit " *
                     "(Amr.Policies.Limits.NumGridPoints, ErrorBeyondLimits: True)"))
             end
         end
     end
-    return flags
+    return nothing
 end
 
 # `Amr.Policies` + `Amr.Criteria` (anc/ScalarSelfForce.yaml:131-151) — the production values
@@ -432,6 +451,26 @@ THE hp-AMR SWEEP of arXiv:2606.04998 for one m-mode: solve on the initial lattic
 `iterations` levels of [`amr_step!`](@ref) — the paper's `Amr: Iterations: 8` (yaml:153) — and
 return the [`AmrHistory`](@ref).
 
+# WHAT `iterations` COUNTS, AND HOW IT MAPS ONTO THE yaml (normative)
+
+`iterations` is the number of REFINEMENT STEPS, so the sweep produces `iterations + 1` grids:
+`levels[1]` is the initial lattice and `levels[end]` the finest. The yaml's `Amr: Iterations:
+8` (yaml:153) is NOT that number. Its AMR phase is driven by the trigger
+`EveryNIterations{N: 1, Offset: 1}` (yaml:157-160), which fires when `iteration_id >= 1`
+(`elliptic/Triggers/EveryNIterations.hpp:48-51`) — the yaml says so in its own comment, "Run
+AMR in every iteration, but not on the initial guess". Eight solver iterations therefore carry
+SEVEN refinements and produce EIGHT grids, and the faithful call is
+
+    solve_mode_amr(orbit, config, m; iterations = config.amr.iterations - 1)   # 8 grids
+
+while the default `iterations = config.amr.iterations` produces NINE grids — one refinement
+more than the paper. The default is kept because it is a strict superset (the paper's grid set
+is `levels[1:8]`, bitwise) and because every number recorded for this node was measured on it;
+a caller reproducing the paper's own resolution should say so explicitly. [PRELIMINARY: the
+option `Amr.Iterations` itself is absent from the pinned spectre mirror (version skew), so this
+mapping is reasoned from the trigger semantics and the yaml's comment, not read off the
+consumer.]
+
 MEASURED ITERATION COUNTS ARE CONFIGURATION-SCOPED. main.tex:720's "less than 10 iterations per
 AMR level" holds strictly at the paper's own exemplar `a = 0.5`, `m = 2` (`1, 8, 9, 9, 9, 9, 9,
 9, 9` over eight levels, and still ≤ 9 out to thirteen levels and 14381 dofs — main.tex:722's
@@ -477,11 +516,13 @@ honest measure is a TWO-STEP GEOMETRIC ENVELOPE — successive differences fall 
 every two levels, which tolerates the occasional plateau a per-step ratio bound does not (one
 ratio of 0.687 measured at `a = 0.5, m = 1`). At the paper's 8 iterations the relative change
 between the last two levels is ~3e-6 (`Ψ^ℛ`) and ~2e-6 (`∂_rΨ^ℛ`); [`resolution_error`](@ref)
-is that quantity, and it IS the error budget's resolution estimate (main.tex:730).
+is that quantity, and it IS the error budget's resolution estimate (main.tex:722).
 
 Pushed further the sequence reaches a FLOOR at level ~12 (a few times 1e-11 on `Ψ^ℛ` and
-1e-12 on `∂_rΨ^ℛ`). That floor is NOT the GMRES tolerance: tightening `abstol` from 1e-12 to
-1e-14 leaves it unchanged (measured), so it is discretization/round-off limited.
+1e-12 on `∂_rΨ^ℛ`). MEASURED: that floor is INSENSITIVE to the GMRES `abstol` over
+`[1e-14, 1e-12]` — tightening the tolerance moves it by ~15 % while the iteration counts rise
+from 9 to 11-18 — so it is not set by the linear-solver tolerance. Its MECHANISM IS NOT
+ESTABLISHED; do not attribute it.
 """
 function solve_mode_amr(orbit::CircularOrbit, config::RunConfig{RT},
                         m::Integer = config.orbit.m_mode_number;
@@ -513,7 +554,7 @@ end
 
 function _amrd_level(step::Int, sol::ModeSolution{T,RT}, flags::AbstractDict, xp,
                      wall::Float64) where {T,RT}
-    es = _dr_containing(sol.mesh, xp[1], xp[2])       # the ONE locator, from Solve/driver.jl
+    es = _dr_containing(sol.mesh, xp[1], xp[2])       # Solve/'s one locator (driver.jl)
     isempty(es) && throw(ArgumentError(
         "amr-driver: the puncture ($(xp[1]), $(xp[2])) lies in no element of this mesh"))
     e = first(es)
@@ -558,7 +599,7 @@ end
 
 THE numerical-resolution error of an AMR sweep, as arXiv:2606.04998 measures it: "We measure
 the error due to numerical resolution by the difference between the highest and second-highest
-AMR level" (main.tex:730). `resolution_error` is that absolute difference,
+AMR level" (main.tex:722). `resolution_error` is that absolute difference,
 `relative_resolution_error` divides it by `|value at the highest level|`.
 
     resolution_error(hist) == abs(hist.levels[end].dpsi_r - hist.levels[end-1].dpsi_r)
@@ -573,7 +614,7 @@ A sweep with fewer than two levels has no such estimate and is an `ArgumentError
 function resolution_error(hist::AmrHistory; field::Symbol = :dpsi_r)
     length(hist.levels) >= 2 || throw(ArgumentError(
         "resolution_error: needs at least two AMR levels, got $(length(hist.levels)) — the " *
-        "estimate IS the difference between the highest and second-highest (main.tex:730)"))
+        "estimate IS the difference between the highest and second-highest (main.tex:722)"))
     field in (:psi, :dpsi_r, :dpsi_w) || throw(ArgumentError(
         "resolution_error: field must be one of :psi, :dpsi_r, :dpsi_w, got $(repr(field))"))
     a = getfield(hist.levels[end], field)

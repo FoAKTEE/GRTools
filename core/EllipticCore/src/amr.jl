@@ -295,6 +295,14 @@ OFFENDING dimension is raised, so an element quartered by the balancer is one th
 violates the rule in both dimensions. [`balance_two_to_one`](@ref) marks exactly that
 dimension (`_amr_ask!`), so this function inherits the policy rather than restating it.
 
+SCOPE — THIS IS FAITHFUL FOR THE CRP POLICY, NOT A GENERAL TRANSCRIPTION of
+`amr::update_amr_decision`. It implements the refinement-only, normal-direction-enabled case
+the paper runs: there is no `Flag::Join` branch (the CRP never coarsens), no
+difference-of-three or potential-sibling reasoning, and no
+`EnforceTwoToOneBalanceInNormalDirection = false` path. A configuration asking for any of
+those is refused upstream by the criterion's own policy check rather than silently
+approximated here.
+
 # HOW IT IS COMPUTED
 
 A fixpoint over the SPLIT LEAF SET, which is the same algorithm [`balance_two_to_one`](@ref)
@@ -308,6 +316,12 @@ must halve twice in one step (the decision container holds one bit per dimension
 split is still applied, and its children still inherit the parent's held order).
 
 `flags` accepts every form [`h_split`](@ref) documents.
+
+COST: the 2:1 fixpoint is run TWICE per step — once here to obtain the closure and once inside
+[`h_refine`](@ref), which balances the split leaf set again. The second pass is a no-op except
+for the rare element the balancer must halve twice in one step, so the redundancy is correct
+and cheap at the CRP's few-hundred-element meshes; a driver pushing past ~10⁴ elements should
+hand `h_refine` the closure's own leaf set instead.
 """
 function balanced_flags(mesh::Mesh2D, flags; maxsweeps::Integer = 128)
     ids = mesh.elements
@@ -463,7 +477,10 @@ the caller's.
 THE CLOSURE IS NOT OPTIONAL. An element the 2:1 rule forces to split must NOT also gain a
 polynomial order in the split dimension: spectre replaces the per-dimension flag by
 `Flag::Split` (`Domain/Amr/UpdateAmrDecision.cpp:82-87`) and grows extents only where the FINAL
-flag is `IncreaseResolution` (`ParallelAlgorithms/Amr/Projectors/Mesh.cpp:30-34`). Passing the
+flag is `IncreaseResolution` (`ParallelAlgorithms/Amr/Projectors/Mesh.cpp:30-34`). This follows
+the reference IMPLEMENTATION where the paper's prose does not settle the case: main.tex:554's
+"increase the polynomial order in all elements that do not contain the puncture" would, read
+literally, include the elements the balance rule splits. Passing the
 caller's RAW flags to the p half instead — as this function did before — p-increments the
 offenders and their children inherit that order, which moves the order map, the dof count, the
 Schwarz cache keys and the iteration counts away from the reference. The decision stays

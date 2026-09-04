@@ -333,7 +333,7 @@ include("Solve/amr.jl")                      # amr-driver (the row-43 production
 # reaches it in a handful of levels). ScalarSelfForce.amr_step! is one level (not exported).
 # The particle diagnostics are read through the SEALED row-42 field_at / field_grad_at - this
 # node adds no read-out of its own - and resolution_error / relative_resolution_error are THE
-# one definition of the paper's numerical-resolution error (main.tex:730) that rows 44/50/53
+# one definition of the paper's numerical-resolution error (main.tex:722) that rows 44/50/53
 # share: the difference between the highest and second-highest AMR level.
 # NO self-force extraction (row 44), NO process fan-out (row 47), NO figure.
 export puncture_chart_position, amr_flags, amr_level_options

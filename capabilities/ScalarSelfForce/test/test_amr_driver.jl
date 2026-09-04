@@ -117,6 +117,12 @@ end
 # "converges exponentially" for a sequence that has plateaus
 da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
 
+# WHAT `iterations` COUNTS: refinement STEPS, so a sweep has `iterations + 1` grids. The
+# yaml's `Amr: Iterations: 8` counts SOLVER iterations and its AMR trigger skips the first
+# (`EveryNIterations{N: 1, Offset: 1}`, yaml:157-160, "not on the initial guess"), so the
+# paper's eight grids are SEVEN refinements — `iterations = config.amr.iterations - 1` here.
+# The default keeps `config.amr.iterations` (nine grids, a strict superset whose first eight
+# ARE the paper's); the gates below fix the sequences either way.
 @testset "hp-AMR driver (amr-driver)" begin
 
     # ======================================================================================
@@ -213,9 +219,11 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
             dom = block_domain(orb, cfg)
             mesh = dom.mesh
             nel = Int[]
+            ndofs = Int[]
             for k in 0:8
                 flags = amr_flags(mesh, dom, orb, cfg)
                 push!(nel, length(mesh.elements))
+                push!(ndofs, mesh.ndofs)
                 punct = collect(keys(flags))
                 # (a1) the puncture pair is at h-level L+1+k in BOTH dimensions, order 4
                 @test length(punct) == 2
@@ -247,6 +255,28 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
                 mesh = hp_refine(mesh, flags)
             end
             @test nel == [20, 27, 33, 39, 45, 51, 57, 63, 69]
+            @test ndofs == [320, 593, 950, 1411, 1988, 2693, 3538, 4535, 5696]
+        end
+    end
+
+    @testset "(a) the order map through step 8, structurally (no solve)" begin
+        # The nine-level DOF sequence the production sweep produces, and the ONE anisotropic
+        # order family the two-to-one closure creates, asserted without solving anything —
+        # this is what the heavy verify script re-measures WITH solves.
+        cfg = da_cfg()
+        orb = da_orb(cfg)
+        dom = block_domain(orb, cfg)
+        mesh = dom.mesh
+        for k in 0:8
+            @test mesh.ndofs == [320, 593, 950, 1411, 1988, 2693, 3538, 4535, 5696][k+1]
+            @test minimum(minimum.(mesh.orders)) == 4
+            @test maximum(maximum.(mesh.orders)) == 4 + k
+            # every order pair is either isotropic (n, n) or the closure's (n, n-1): the ONE
+            # element the balancer splits at step 0 is split in dimension 2 only
+            @test all(o -> o[1] == o[2] || o[1] == o[2] + 1, mesh.orders)
+            @test (k == 0) == all(o -> o[1] == o[2], mesh.orders)
+            k == 8 && break
+            mesh = hp_refine(mesh, amr_flags(mesh, dom, orb, cfg))
         end
     end
 
@@ -340,7 +370,9 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
         @test sum(l.record.bottom_builds for l in hist.levels) == 2
         @test sum(l.record.bottom_hits for l in hist.levels) == length(hist.levels) - 2
         @test all(l -> l.record.bottom_builds + l.record.bottom_hits >= 1, hist.levels[2:end])
-        # the EXACT per-level cache sequence, re-measured — not a wall-clock share
+        # the EXACT per-level cache sequence of the canonical SIX-iteration sweep, re-measured
+        # — not a wall-clock share. The nine-level pairs, the level-12 floor and the abstol
+        # comparison are MEASURED BY THE HEAVY VERIFY SCRIPT (gated there), not by this suite.
         @test [(l.record.bottom_builds, l.record.bottom_hits) for l in hist.levels] ==
               [(1, 0), (1, 0), (0, 1), (0, 1), (0, 1), (0, 1), (0, 1)]
         @test [(l.record.subdomain_builds, l.record.subdomain_hits) for l in hist.levels] ==
@@ -349,7 +381,8 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
         # NOT MOVE: 10 elements at order 4 = 160 dofs at every level from 1 on, which is why
         # its LU is a hit. With the policy's `shrink = 0.5` the hierarchy reaches it in a
         # handful of levels instead of one ring at a time (measured 4 levels at AMR level 8
-        # against 18 at `shrink = 1`, for one extra GMRES iteration over the whole sweep).
+        # against 18 at `shrink = 1`, with IDENTICAL iteration, dof and cache sequences and a
+        # ~5 % build-time difference — see evidence/amr-driver/shrink_ab_afterA.md).
         @test all(l -> l.record.level_ndofs[end] == 160, hist.levels[2:end])
         @test all(l -> length(l.record.level_ndofs) <= 6, hist.levels)
         # Schwarz subdomain factorizations are reused on the levels AMR did not touch
@@ -381,7 +414,7 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
         @test dpsi[end] < dpsi[1] / 100
         @test ddps[end] < ddps[1] / 100
         # THE resolution error of the sweep — the one definition rows 44/50/53 share
-        # (main.tex:730). MEASURED on this canonical 6-iteration sweep: 6.2059e-9 absolute,
+        # (main.tex:722). MEASURED on this canonical 6-iteration sweep: 6.2059e-9 absolute,
         # 3.3883e-5 relative; the gate is 3x the measured value.
         @test resolution_error(hist) == ddps[end]
         @test resolution_error(hist; field = :psi) == dpsi[end]
@@ -408,7 +441,7 @@ da_georatio(r) = exp(sum(log, r[2:end]) / length(r[2:end]))
     # (f) DETERMINISM — the same sweep twice is bitwise identical
     # ======================================================================================
     @testset "(f) same-process repeatability of a repeated sweep" begin
-        # NARROWED (Codex 2.2): this gates REPEATABILITY inside one process at one BLAS
+        # NARROWED after review: this gates REPEATABILITY inside one process at one BLAS
         # configuration. Thread parity (-t1 vs -t4) is measured OFF-SUITE — no subprocess is
         # launched from inside the test file — and reported in the evidence as a measurement,
         # not as a gate (det_t1_afterA.log vs det_t4_afterA.log).

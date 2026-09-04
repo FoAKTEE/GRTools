@@ -206,8 +206,13 @@ formulation and consumes the physics-free hp-DG solver stack from
   grow (9, 8, 9, 10, 11 and 9, 9, 11, 12, 18), so the refinement criterion, not
   the solver, is what decides.
 
-  hp-AMR driver: `solve_mode_amr(orbit, config, m)` runs the paper's
-  `Amr: Iterations` levels of "``h``-refine every element that contains the
+  hp-AMR driver: `solve_mode_amr(orbit, config, m)` runs `iterations`
+  refinement steps — so `iterations + 1` grids, and note the mapping: the yaml's
+  `Amr: Iterations: 8` counts *solver* iterations whose AMR trigger skips the
+  first, i.e. seven refinements and eight grids, so the paper-faithful call is
+  `iterations = config.amr.iterations - 1`; the default keeps
+  `config.amr.iterations`, a strict superset whose first eight grids are the
+  paper's. Each step is "``h``-refine every element that contains the
   puncture, ``p``-refine everything else" (main.tex:552-560) over ONE
   `ModeSolution` — one stack, one epoch, one pair of caches, each level
   warm-started from the transferred previous solution — and returns an
