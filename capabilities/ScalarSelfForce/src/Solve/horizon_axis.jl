@@ -6,6 +6,12 @@
 # data because "the polynomial trial space … inherently selects regular solutions"
 # (main.tex:396-401 + 614-615).
 #
+# THE LAYER IS A CONJUNCTION of this radial branch and the polar `(1−z²)^{−|m|}` branch, both
+# of which only the trial space rejects: suppressing EITHER alone removes it (measured both
+# ways). No corner asymptotic analysis exists, so the file claims a conjunction, never a
+# direction. `horizon_hold` DEFAULTS TO `false`; the rule is to gate the MEASURED
+# `layer_ratio` and switch the hold on when it fails — never by spin, never by `ν`.
+#
 # WHAT REGULARITY MEANS FOR THIS VARIABLE. The mode ansatz factors `sin^{|m|}θ` OUT of the
 # field (`ansatz.jl`: Φ = Σ_m Ψ_m sin^{|m|}θ e^{im(φ̄−Ωt)} / r), so `Ψ_m` is the variable that
 # is ANALYTIC at the axis and approaches a finite, generically non-zero limit there — it is
@@ -22,9 +28,11 @@
 #     `c = dA^rr/dr|_{r₊} = (r₊−r₋)/(r₊²+a²)`, whose indicial roots are `0` (the physical,
 #     analytic, ingoing branch) and `γ^r_m(r₊)/c`. With the vtu boost `H = −1`,
 #     `γ^r_m(r₊) = 2im(Ω − Ω_H)` is PURELY IMAGINARY (`Ω_H = a/(r₊²+a²)` is the horizon
-#     angular velocity), so the second branch is `x^{iν}` with
-#     `ν = 2m|Ω − Ω_H|(r₊²+a²)/(r₊−r₋)`: unit modulus, infinitely oscillatory at `r₊`, and
-#     excluded ONLY by smoothness. It is the quantity the layer tracks.
+#     angular velocity), so the second branch is `x^{p}` with the SIGNED root
+#     `p = 2im(Ω − Ω_H)(r₊²+a²)/(r₊−r₋)` — sign = sign(Ω − Ω_H) — of unit modulus,
+#     infinitely oscillatory at `r₊`, and excluded ONLY by smoothness. The function returns
+#     `ν = |p|`, and it is valid at `H = −1` alone (it throws otherwise: off the v-domain
+#     boost `β_m` diverges like `1/Δ` and enters the indicial polynomial).
 #   * [`horizon_axis_profile`](@ref) — the measured profile of `|Ψ_m|` along the innermost
 #     radial node line, its axis:equator ratio, its regularity exponent, and the amplitude of
 #     the near-horizon layer relative to the rest of the plane.
@@ -39,42 +47,53 @@
 # drivers do. No coefficient, no boundary condition and no solver setting is defined or
 # changed here; `horizon_order_hold` only NAMES elements.
 
-export horizon_branch_index, horizon_axis_profile
+export horizon_branch_index, horizon_axis_profile, horizon_order_hold
 
 """
     horizon_branch_index(orbit::CircularOrbit, m; H = -1) -> Real
 
-The dimensionless exponent `ν` of the SECOND (non-analytic) radial branch of the m-mode
-operator at the horizon, `Ψ_m ∼ (r − r₊)^{iν}`:
+`ν = |p|`, the MODULUS of the exponent of the SECOND (non-analytic) radial branch of the
+m-mode operator at the horizon. The branch itself is `Ψ_m ∼ (r − r₊)^{p}` with the SIGNED,
+purely imaginary
 
-    ν = |γ^r_m(r₊, H)| · (r₊² + a²) / (r₊ − r₋) = 2|m| |Ω − Ω_H| (r₊²+a²)/(r₊−r₋) ,
+    p = γ^r_m(r₊, H = −1) / c = 2im(Ω − Ω_H) (r₊²+a²)/(r₊−r₋) ,    ν = |p| ,
 
-with `Ω_H = a/(r₊²+a²)` the horizon angular velocity (`H = −1`, the vtu v-domain boost of
-the production slicing). DERIVATION, from the SEALED coefficients only: near `r₊` the flux
-coefficient is `A^rr = Δ/(r²+a²) = c x + O(x²)`, `x = r − r₊`,
-`c = (r₊−r₋)/(r₊²+a²) = dA^rr/dr|_{r₊}`, so
+`c = (r₊−r₋)/(r₊²+a²) = dA^rr/dr|_{r₊}` and `Ω_H = a/(r₊²+a²)` the horizon angular velocity.
+The sign is that of `Ω − Ω_H` and is physical (it is the sense in which the spurious mode
+winds as `x → 0`): at `a = 0.998`, `r₀ = 2 M`, `m = 17` the root is `p = −118.94 i`, i.e.
+`x^{−iν}` with `ν = 118.94`. This function returns `ν`; the sign is
+`sign(Ω − Ω_H) = sign(imag(gamma_r_m(orbit, m, r₊, -1)))`.
+
+DERIVATION, from the SEALED coefficients only: near `r₊` the flux coefficient is
+`A^rr = Δ/(r²+a²) = c x + O(x²)` with `x = r − r₊`, so
 
     −∂_r(A^rr ∂_r Ψ) + γ^r_m ∂_r Ψ + … = −c x Ψ'' + (γ^r_m(r₊) − c) Ψ' + …
 
-whose indicial equation `p(p − 1)c = p(γ^r_m(r₊) − c)` has roots `p = 0` and
-`p = γ^r_m(r₊)/c`. At `H = −1` the real part of `γ^r_m` vanishes at the horizon
-(`2a²Δ/(r(r²+a²)²) → 0`), leaving `γ^r_m(r₊) = 2im(Ω − Ω_H)` — purely imaginary — so the
-second root is `iν`: `|x^{iν}| ≡ 1`, BOUNDED but infinitely oscillatory as `x → 0`, and
-excluded from the solution only by SMOOTHNESS, never by boundedness and never by the
-horizon face (where `𝔄^rr = 0` makes every DG boundary term vanish identically,
-main.tex:614-615 and [`NoneGhost`](@ref)).
+whose indicial equation `p(p − 1)c = p(γ^r_m(r₊) − c)` has roots `0` and `γ^r_m(r₊)/c`. At
+`H = −1` the real part of `γ^r_m` vanishes at the horizon (`2a²Δ/(r(r²+a²)²) → 0`), leaving
+`γ^r_m(r₊) = 2im(Ω − Ω_H)` — purely imaginary — so `|x^p| ≡ 1`: BOUNDED but infinitely
+oscillatory as `x → 0`, and excluded from the solution only by SMOOTHNESS, never by
+boundedness and never by the horizon face (where `𝔄^rr = 0` makes every DG boundary term
+vanish identically, main.tex:614-615 and [`NoneGhost`](@ref)).
 
-`ν` is the control parameter of the spurious horizon–axis layer this node measures: it is a
-property of `(a, r₀, m)` alone — no mesh, no worldtube radius and no penalty enters — and it
-grows linearly with `m` and diverges as `r₊ → r₋` (extremal spin). MEASURED at the CRP's own
-`m = 17` (a = 0.5 ISCO 1.86, a = 0 ISCO 4.63, a = 0.9 ISCO 9.85, a = −0.5 ISCO 13.4,
-a = +0.998 ISCO 27.5, a = −0.998 ISCO 290); the layer is worst in the middle of that range —
-see [`horizon_axis_profile`](@ref).
+`ν` is a property of `(a, r₀, m)` alone — no mesh, no worldtube radius, no penalty — and it
+grows linearly with `m` and diverges as `r₊ → r₋`. It orders the layer AT A FIXED
+CONFIGURATION only; across configurations it does not (see [`horizon_order_hold`](@ref)), so
+it is a diagnostic, never a switch.
 
-Type-generic (a `BigFloat` orbit gives a `BigFloat` index). `H` is the caller's boost slot,
-exactly as in [`gamma_r_m`](@ref); the production v domain is `H = −1`.
+`H` IS ACCEPTED ONLY AS `−1`, the vtu v-domain boost of the production slicing, and any other
+value throws. The derivation above drops `β_m`, which is legitimate only there: at `H = −1`
+the `1/Δ` terms of `β_m` cancel (main.tex:386, `beta_m`'s docstring), while at `H = 0` `β_m`
+genuinely diverges like `1/Δ`, contributes at the SAME order as the two kept terms and changes
+the indicial polynomial. The keyword is kept so the restriction is explicit rather than
+implied. Type-generic (a `BigFloat` orbit gives a `BigFloat` index).
 """
 function horizon_branch_index(orbit::CircularOrbit, m::Integer; H = -1)
+    H == -1 || throw(ArgumentError(
+        "horizon_branch_index: H = $H — the indicial roots 0 and γ^r_m(r₊)/c are derived " *
+        "with β_m dropped, which holds ONLY for the vtu v-domain boost H = −1 where the " *
+        "1/Δ terms of β_m cancel (main.tex:386). Off that slicing β_m ~ b/x enters at the " *
+        "same order and the polynomial is a different one; this function does not model it"))
     rp, rm = orbit.rp, orbit.rm
     w = rp^2 + orbit.a^2
     c = (rp - rm) / w                       # dA^rr/dr at r₊ (flux_coeff_r factored form)
@@ -184,58 +203,66 @@ end
 """
     horizon_order_hold(dom::BlockDomain, mesh::Mesh2D) -> Dict{ElementId,NTuple{2,Bool}}
 
-The elements of `mesh` whose lower radial face IS the horizon `r = r₊` — the elements on which
-the hp-AMR loop must NOT raise the polynomial order (`(true, true)`, both dimensions). It is the
-`hold` half of [`amr_step!`](@ref)`(…; horizon_hold = true)`; that keyword DEFAULTS TO `false`,
-which is the pre-row-58 sweep bitwise, so nothing sealed moves until a caller opts in (see
-`amr_step!` for what flipping the default costs).
+The elements of `mesh` whose lower radial face IS the horizon `r = r₊`, each mapped to
+`(true, true)` — the elements on which the hp-AMR loop must NOT raise the polynomial order.
+It is the `hold` half of [`amr_step!`](@ref)`(…; horizon_hold = true)`.
 
-WHY. The horizon face is the one place in the CRP domain where the elliptic operator has TWO
-bounded local solutions and the boundary imposes nothing on either. Writing `x = r − r₊` and
-`c = dA^rr/dr|_{r₊}`, the radial part degenerates to `−c x Ψ'' + (γ^r_m(r₊) − c) Ψ' + … = 0`
-with indicial roots `0` and `γ^r_m(r₊)/c = iν` ([`horizon_branch_index`](@ref)): the second
-root is PURELY IMAGINARY under the vtu boost `H = −1`, so `x^{iν}` has unit modulus — bounded,
-infinitely oscillatory, and NOT the retarded solution. The horizon face cannot reject it,
-because every DG boundary term there carries `n_i𝔄^{ij}` and `𝔄^rr(r₊) = 0` exactly
-(main.tex:614-615): the face is inert for ANY choice of `Ψ_ext` and `(n·F)_ext`, and the
-discrete `n·F` computed from a polynomial is identically zero whichever branch the polynomial
-approximates. The ONLY thing that rejects `x^{iν}` is the paper's own argument — "they expand
-fields in a polynomial series that inherently selects regular solutions" (main.tex:399-401) —
-and that argument is a statement about the SIZE of the trial space. Raising the order of the
-element that touches `r₊` enlarges exactly the space in which `x^{iν}` becomes representable,
-and the discrete solution then slides onto it.
+WHY. At `r₊` the operator has TWO bounded local solutions and the boundary imposes nothing on
+either: the indicial roots are `0` (analytic, retarded) and `p = γ^r_m(r₊)/c`, purely
+imaginary under the vtu boost, so `|x^p| ≡ 1` ([`horizon_branch_index`](@ref)). The face
+cannot reject `x^p`, because every DG boundary term there carries `n_i𝔄^{ij}` and
+`𝔄^rr(r₊) = 0` exactly (main.tex:614-615), and the discrete `n·F` of a polynomial is
+identically zero whichever branch it approximates. The only rejection is the paper's own
+"they expand fields in a polynomial series that inherently selects regular solutions"
+(main.tex:399-401) — a statement about the SIZE of the trial space. Raising the order of the
+element that touches `r₊` enlarges exactly the space in which `x^p` is representable.
 
-MEASURED (a = 0.998, r₀ = r_ISCO, m = 17, `ν` = 27.5, uniform mesh, no AMR, `L = 0`), the
-axis:equator ratio on the innermost radial line and the near-horizon layer amplitude relative
-to the rest of the plane, WITHOUT this hold and WITH it:
+WHY MESH REFINEMENT CANNOT DO IT AND ORDER CAN. On an element `(0, h)` the substitution
+`x = h s` gives `x^p = h^p s^p` with `|h^p| = 1`: the branch's SHAPE on the horizon element is
+scale-invariant, so h-refinement reproduces it unchanged and cannot reject it, while the
+trial-space size is not scale-invariant.
 
-| P | without: ratio / layer | with: ratio / layer |
-|---|---|---|
-| 4 | 9.5 / 1.00 | 9.5 / 1.00 |
-| 6 | 3.9e1 / 1.00 | 8.4 / 1.00 |
-| 8 | 2.8e3 / 1.62 | 7.7 / 1.00 |
-| 10 | 1.9e4 / 118.6 | 7.4 / 1.00 |
-| 12 | 1.5e5 / 45.0 | 5.5 / 1.00 |
+BOTH DEGENERATE FACES ARE NECESSARY, NEITHER SUFFICIENT — an evidence-backed CONJUNCTION, not
+a direction: no corner asymptotic analysis exists, and suppressing EITHER the radial `x^p`
+branch or the polar `(1−z²)^{−|m|}` branch alone removes the layer (measured both ways). The
+hold is on both dimensions for the same reason: holding only the radial order leaves it.
 
-Without the hold the plane's maximum migrates to the horizon–axis corner and grows without
-bound; with it the ratio converges to its physical `O(1)` value and the maximum over the rest
-of the plane is UNCHANGED to every printed digit (6.072e-3 at P = 10, 8.848e-3 at P = 12).
-Holding only the radial order is not enough (ratio 5.6e2 at P = 10): the corner mode is
-two-dimensional — the `x^{iν}` radial branch drives the polar `(1−z²)^{−|m|}` branch, whose
-representation needs the angular order too.
+MEASURED, in one line (a = 0.998, r₀ = r_ISCO, m = 17, uniform mesh p-refined from P = 4): the
+axis:equator ratio on the innermost radial line DIVERGES 9.5 → 1.5e5 over P = 4…12 without the
+hold and CONVERGES 9.5 → 5.5 with it, while the maximum over the rest of the plane is
+unchanged to every printed digit. Every table — that sweep, the uniform-h and hp-AMR sweeps,
+the six-spin `ν` list, the coefficient variations, the blast radius — is in the node's
+evidence, `evidence/fix-horizon-axis-layer/ab_table.md`.
+
+THE SWITCH RULE IS MEASURED, NEVER INFERRED. `horizon_hold` DEFAULTS TO `false` and stays
+there: the reference has no counterpart to this hold, the paper's own observables are
+insensitive to the layer (`F_r` moves 2.6e-5 relative when it is switched on), the flip would
+move sealed AMR bookkeeping, and the hold's own truncation cost on the held layer is not
+separately bounded. `ν` does not order the layer across configurations either. So a node that
+publishes a PLANE calls [`horizon_axis_profile`](@ref), gates its `layer_ratio ≤ 1.05`, and
+enables `horizon_hold` when that fails — never by spin, never by `ν`. This function is the
+documented cure for axis-contaminated planes, not a default the solver takes on its own.
 
 The hold costs the elements it names their p-convergence, which is why it is confined to the
-single element layer that touches `r₊`: there the retarded field is smooth and featureless
-(the whole point of the horizon-penetrating chart), and `P = 4` resolves it. Elements one
-layer out keep every order the sweep gives them.
+single element layer that touches `r₊`, where the retarded field is smooth and featureless in
+the horizon-penetrating chart.
 
-The returned dictionary is in exactly the shape [`p_refine`](@ref)'s `hold` and
-[`h_refine`](@ref)'s `flags` consume; it is EMPTY for a mesh with no element on the inner
-lattice column's inner edge. `mesh` may be any mesh of `dom`'s block lattice (a coarsened
-multigrid level or an AMR-refined one); a block outside the lattice raises `ArgumentError`
-through [`block_lattice_index`](@ref).
+PRECONDITIONS AND SHAPE. The named elements are the horizon layer only because
+[`block_domain`](@ref) REFUSES a lattice whose inner radial bound is not the outer horizon
+(`blocks.jl`, 8 ulp relative); `crp_paper_config` takes `inner_radius` freely, so the
+`BlockDomain` is what pins it. `mesh` must be a mesh OF THAT DOMAIN's lattice — the block-map
+endpoints are checked against `dom`'s own bounds, so a same-shaped mesh from a different
+`BlockDomain` is refused rather than silently held (the same guard
+[`boundary_conditions`](@ref) uses). It may be any such mesh: a coarsened multigrid level or
+an AMR-refined one. Under refinement only the INNER radial child keeps the horizon face, and
+only it is named; the two clauses `block_lattice_index(dom, block)[1] == 0` (inner lattice
+column) and `segments[1].index == 0` (inner radial child) are independent. Angular splits and
+2:1-balance-induced splits produce several held children, each inheriting its parent's order.
+The result is exactly the shape [`p_refine`](@ref)'s `hold` and [`h_refine`](@ref)'s `flags`
+consume, and is EMPTY for a mesh with no element on that edge.
 """
 function horizon_order_hold(dom::BlockDomain, mesh::Mesh2D)
+    _bc_require_same_lattice(dom, mesh)     # block-map endpoints, not merely id range
     hold = Dict{ElementId,NTuple{2,Bool}}()
     for el in mesh.elements
         i, _ = block_lattice_index(dom, el.block)      # throws off-lattice

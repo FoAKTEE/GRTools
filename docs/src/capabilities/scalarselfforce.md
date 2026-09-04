@@ -565,11 +565,14 @@ Planned, each landing written test-first once it is grounded: the rest of
   paper's regularity conditions are enforced by the trial space alone —
   "they expand fields in a polynomial series that inherently selects regular
   solutions" (main.tex:399-401). `horizon_branch_index(orbit, m)` is the
-  exponent of the branch that selection has to reject,
-  ``\Psi_m \sim (r-r_+)^{i\nu}`` with
-  ``\nu = 2m|\Omega - \Omega_H|(r_+^2+a^2)/(r_+-r_-)``: purely imaginary under
+  MODULUS of the exponent of the branch that selection has to reject: the root
+  itself is SIGNED, ``p = 2i m (\Omega - \Omega_H)(r_+^2+a^2)/(r_+-r_-)`` with
+  the sign of ``\Omega - \Omega_H``, so the branch is
+  ``\Psi_m \sim (r-r_+)^{p}`` and ``\nu = |p|`` (at ``a = 0.998``,
+  ``r_0 = 2M``, ``m = 17``: ``p = -118.94\,i``). It is purely imaginary under
   the ``vtu`` boost ``H = -1``, hence unit modulus, bounded, and NOT the
-  retarded solution. `horizon_axis_profile(sol)` measures the consequence on
+  retarded solution; the derivation drops ``\beta_m``, which is legitimate only
+  at ``H = -1``, so any other ``H`` throws. `horizon_axis_profile(sol)` measures the consequence on
   the innermost radial collocation line — the axis:equator ratio, the fitted
   ``(1-z^2)`` exponent and the near-horizon layer amplitude relative to the rest
   of the plane. Because the ansatz factors ``\sin^{|m|}\theta`` OUT of the
@@ -577,16 +580,29 @@ Planned, each landing written test-first once it is grounded: the rest of
   ``\approx 0``; a plane that falls like ``(1-z^2)^{m/2}`` would be the mode of
   ``\Phi``, not of ``\Psi_m``. `horizon_order_hold` is the refinement rule the
   measurement forced: the element layer touching ``r_+`` keeps its polynomial
-  order under hp-AMR (`amr_step!`'s `horizon_hold`). That keyword **defaults to
-  `false`**, which is the earlier composition bitwise, so no sealed AMR number
-  moves until a caller opts in; `horizon_hold = true` is the cure, and it is
-  what every near-extremal m-mode plane needs. Measured at ``a = 0.998``,
-  ``r_0 = r_\mathrm{ISCO}``, ``m = 17``
-  (``\nu = 27.5``) on a uniform mesh, the axis:equator ratio and the layer
-  amplitude relative to the rest of the plane go 9.5/1.0, 3.9e1/1.0, 2.8e3/1.6,
-  1.9e4/1.2e2, 1.5e5/45 at ``P = 4, 6, 8, 10, 12`` without the hold and
-  9.5/1.0, 8.4/1.0, 7.7/1.0, 7.4/1.0, 5.5/1.0 with it, while the maximum over
-  the rest of the plane is unchanged to every printed digit.
+  order under hp-AMR (`amr_step!`'s `horizon_hold`). Mesh refinement cannot do
+  the same job: on an element ``(0, h)`` the substitution ``x = h s`` gives
+  ``x^{p} = h^{p} s^{p}`` with ``|h^{p}| = 1``, so the branch's shape on the
+  horizon element is scale-invariant and only the trial-space SIZE is a lever.
+  The layer is a CONJUNCTION of that radial branch with the polar
+  ``(1-z^2)^{-|m|}`` one — suppressing either alone removes it, and no corner
+  asymptotic analysis exists, so neither is called the cause of the other.
+  `horizon_hold` **defaults to `false` and stays there**: the reference has no
+  counterpart, the paper's own observables are insensitive to the layer
+  (``F_r`` moves 2.6e-5 relative when it is switched on), the flip would move
+  sealed AMR bookkeeping, and the hold's truncation cost on the held layer is
+  not separately bounded. ``\nu`` orders the layer at a fixed configuration but
+  NOT across configurations (``\nu`` = 251 at ``a = +0.998, r_0 = 10M`` and 290
+  at ``a = -0.998`` at its ISCO are benign, while 118.9 at ``a = 0.998,
+  r_0 = 2M`` exceeds the 27.5 of that spin's ISCO, where the layer is worst), so
+  the switch rule is MEASURED: a node that publishes a PLANE gates
+  `horizon_axis_profile(sol).layer_ratio <= 1.05` and enables `horizon_hold`
+  when that fails — never by spin, never by ``\nu``. Measured at ``a = 0.998``,
+  ``r_0 = r_\mathrm{ISCO}``, ``m = 17`` on a uniform mesh p-refined from
+  ``P = 4``, the axis:equator ratio DIVERGES 9.5 → 1.5e5 over ``P = 4 \ldots 12``
+  without the hold and CONVERGES 9.5 → 5.5 with it, while the maximum over the
+  rest of the plane is unchanged to every printed digit; the full tables are in
+  the node's evidence.
 
 ## Conventions (locked package-wide)
 

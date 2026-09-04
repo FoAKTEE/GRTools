@@ -128,4 +128,112 @@ using Spacetime: kerr_isco
         @test po.layer_ratio > 10
         @test po.ratio > 1e3
     end
+    # ---- (e) the refinement rule: structure, neutrality, preconditions --------------------
+    #
+    # No solve here: everything below is a MESH transformation, so it is cheap and it isolates
+    # the rule from the physics. The default branch of `amr_step!` is literally
+    # `h_refine(p_refine(mesh; hold = closed, increment), closed)` with
+    # `closed = balanced_flags(mesh, flags)`, which is the DEFINITION of `hp_refine`; gate (e1)
+    # pins that identity on the objects the sweep carries.
+    @testset "horizon_order_hold + the default path" begin
+        a, r0 = 0.5, 10.0
+        orb = CircularOrbit(a, r0)
+        mkcfg(; kw...) = crp_paper_config(; spin = a, orbital_radius = r0, m_mode = 2,
+                                          inner_radius = orb.rp, outer_radius = 1.0e4,
+                                          worldtube_radius = 4.8, worldtube_dz2 = 0.25,
+                                          P = 4, L = 0, kw...)
+        dom = block_domain(orb, mkcfg())
+        mesh = dom.mesh
+        isinner(el) = block_lattice_index(dom, el.block)[1] == 0 && el.segments[1].index == 0
+
+        # (e0) on the initial lattice: exactly the inner radial column, both angular rows
+        hold0 = horizon_order_hold(dom, mesh)
+        @test length(hold0) == 2                       # 5 x 2 lattice, L = 0
+        @test all(isinner, keys(hold0))
+        @test all(==((true, true)), values(hold0))
+
+        # the FULL-z lattice has three angular rows, hence three horizon elements
+        domz = block_domain(orb, mkcfg(equatorial_symmetry = false))
+        @test domz.chart === :z
+        holdz = horizon_order_hold(domz, domz.mesh)
+        @test length(holdz) == 3
+        @test all(el -> block_lattice_index(domz, el.block)[1] == 0, keys(holdz))
+
+        # (e1) THE BITWISE-NEUTRALITY GATE — the default path IS `hp_refine`, for raw flags and
+        # for flags the 2:1 balance expands, at two increments
+        punct = amr_flags(mesh, dom, orb, mkcfg())
+        for flags in (punct, Dict(mesh.elements[end] => (true, true))), inc in (1, 2)
+            closed = balanced_flags(mesh, flags)
+            got = h_refine(p_refine(mesh; hold = closed, increment = inc), closed)
+            ref = hp_refine(mesh, flags; increment = inc)
+            @test got.elements == ref.elements
+            @test got.orders == ref.orders
+            @test got.offsets == ref.offsets
+            @test got.ndofs == ref.ndofs
+        end
+
+        # (e2) under a RADIAL split of a horizon element only the INNER child keeps the horizon
+        # face — the discriminating clause, which the unrefined lattice cannot exercise
+        hel = first(sort(collect(keys(hold0)); by = el -> el.block))
+        for dims in ((true, false), (false, true), (true, true))
+            closed = balanced_flags(mesh, Dict(hel => dims))
+            m2 = h_refine(p_refine(mesh; hold = closed, increment = 1), closed)
+            h2 = horizon_order_hold(dom, m2)
+            @test !isempty(h2)
+            @test all(isinner, keys(h2))               # never an outer child, never column > 0
+            @test all(==((true, true)), values(h2))
+            kids = [el for el in m2.elements if el.block == hel.block]
+            heldhere = [el for el in keys(h2) if el.block == hel.block]
+            # the held set of that block IS its inner-radial-index set — balance-proof, and
+            # strictly stronger than a count
+            @test Set(heldhere) == Set(el for el in kids if isinner(el))
+            # a RADIAL split makes an OUTER child, and that child is NOT held: this is the
+            # clause the unrefined lattice cannot exercise, because there the two conditions
+            # (inner lattice column, inner radial segment) are satisfied by the same element
+            dims[1] && @test any(el -> !isinner(el), kids)
+            # order inheritance, spectre's rule (UpdateAmrDecision.cpp:82-87): a split
+            # dimension HOLDS its order, an unsplit one takes the p step, and every child of
+            # this parent carries that same pair
+            po = mesh.orders[mesh.index[hel]]
+            want = (dims[1] ? po[1] : po[1] + 1, dims[2] ? po[2] : po[2] + 1)
+            @test all(el -> m2.orders[m2.index[el]] == want, heldhere)
+        end
+
+        # (e3) a BALANCE-INDUCED split: flag the inner column's radial neighbour twice, so the
+        # 2:1 closure splits the horizon element itself
+        nb = first(el for el in mesh.elements if block_lattice_index(dom, el.block)[1] == 1)
+        c1 = balanced_flags(mesh, Dict(nb => (true, true)))
+        m3 = h_refine(p_refine(mesh; hold = c1, increment = 1), c1)
+        nb2 = first(el for el in m3.elements
+                    if block_lattice_index(dom, el.block)[1] == 1 && el.segments[1].index == 0)
+        c2 = balanced_flags(m3, Dict(nb2 => (true, true)))
+        m4 = h_refine(p_refine(m3; hold = c2, increment = 1), c2)
+        h4 = horizon_order_hold(dom, m4)
+        @test all(isinner, keys(h4))
+        @test all(==((true, true)), values(h4))
+        @test length(h4) >= length(hold0)
+
+        # (e4) PRECONDITIONS. The horizon layer is the horizon layer only because the domain
+        # pins its inner bound; `crp_paper_config` does not.
+        @test_throws ArgumentError block_domain(orb, mkcfg(inner_radius = orb.rp * 1.05))
+        # and a same-SHAPED mesh from a different BlockDomain is refused, not silently held
+        orb2 = CircularOrbit(a, 12.0)
+        dom2 = block_domain(orb2, crp_paper_config(; spin = a, orbital_radius = 12.0,
+                                                   m_mode = 2, inner_radius = orb2.rp,
+                                                   outer_radius = 1.0e4, worldtube_radius = 4.8,
+                                                   worldtube_dz2 = 0.25, P = 4, L = 0))
+        @test length(dom2.mesh.elements) == length(mesh.elements)
+        @test_throws ArgumentError horizon_order_hold(dom, dom2.mesh)
+
+        # (e5) the branch index is derived with `β_m` dropped, which holds only at H = −1
+        @test_throws ArgumentError horizon_branch_index(orb, 17; H = 0)
+        @test_throws ArgumentError horizon_branch_index(orb, 17; H = 1)
+        @test horizon_branch_index(orb, 17; H = -1) == horizon_branch_index(orb, 17)
+        # the SIGNED root: purely imaginary, sign = sign(Ω − Ω_H), modulus = the index
+        g = ScalarSelfForce.gamma_r_m(orb, 17, orb.rp, -1)
+        c = (orb.rp - orb.rm) / (orb.rp^2 + orb.a^2)
+        @test real(g) == 0
+        @test sign(imag(g / c)) == sign(orb.Omega - orb.a / (orb.rp^2 + orb.a^2))
+        @test abs(g / c) ≈ horizon_branch_index(orb, 17) rtol = 1e-14
+    end
 end

@@ -391,17 +391,22 @@ stopping rule (that is [`solve_mode_amr`](@ref)).
 `horizon_hold` adds [`horizon_order_hold`](@ref)`(sol.dom, sol.mesh)` to the `hold` half — the
 elements that touch `r = r₊` keep their polynomial order, while the flagged (puncture) elements
 are split exactly as before. It is the CURE for the spurious horizon–axis layer of GLOBAL_DAG
-row 58 (`horizon_order_hold` carries the mechanism, the indicial roots and the measured table):
-raising the order of the element that touches the horizon is what lets the bounded, non-analytic
-`(r−r₊)^{iν}` branch into the trial space, and nothing else rejects it.
+row 58 (`horizon_order_hold` carries the mechanism and the indicial roots): raising the order of
+the element that touches the horizon is what lets the bounded, non-analytic `(r−r₊)^p` branch
+(`p = γ^r_m(r₊)/c`, purely imaginary) into the trial space, and nothing else rejects it.
 
 **It defaults to `false`, and `false` is the composition `hp_refine(sol.mesh, flags; increment)`
 BITWISE** — every sealed AMR number (the dof and element sequences of rows 43/50/52, the
 `fig:linsolv` staircase, the reproduction goldens) is untouched by this node. Turning it on is a
 mesh change: it removes the horizon layer's elements from p-refinement, so those sequences move
 (MEASURED at `a = 0.5`, `r₀ = 10M`, `m = 2` over the paper's eight grids: see the node's
-evidence). Flipping the default is therefore a wave-level decision with the owning nodes'
-goldens regenerated, not a silent one — but every near-extremal m-mode plane needs it.
+evidence). The DEFAULT STAYS `false` (recorded decision): the reference has no
+counterpart to the hold,
+the paper's own observables are insensitive to the layer (`F_r` moves 2.6e-5 relative), the
+flip would move sealed AMR bookkeeping, and the hold's truncation cost on the held layer is not
+separately bounded. The rule is MEASURED instead: an entry point that publishes a PLANE gates
+[`horizon_axis_profile`](@ref)'s `layer_ratio ≤ 1.05` and sets `horizon_hold = true` when that
+fails — never by spin, never by the branch index.
 
 ELEMENT IDS CHANGE AT EVERY STEP, so `flags` must be recomputed against `sol.mesh` before each
 call and never cached across steps (the sealed row-22/23 contract). `options` replaces the
