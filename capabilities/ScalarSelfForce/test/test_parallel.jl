@@ -48,7 +48,7 @@
 # production path uses, the AMR sweeps are 0-2 levels (not the paper's 8), and the full
 # 21 × 8 run is the EVIDENCE ARTEFACT, not a unit test.
 #
-# WAVE-12 FOLLOW-UP (validator MERGE_AFTER_FIXES + codex NEEDS_REWORK on lifecycle/policy):
+# WAVE-12 FOLLOW-UP (second-pass review, lifecycle and policy findings):
 # testsets (8)-(10) below are new — worker DEATH (which `pmap(on_error = identity)` does NOT
 # catch: MEASURED in proto_death.jl, a `ProcessExitedException` escapes pmap and kills the
 # whole sweep), the `timeout_s` cancellation, and the pool lifecycle (`close` retry, `isopen`
@@ -105,7 +105,7 @@ pa_nprocs0 = Distributed.nprocs()
 # ============================ (0) the policy arithmetic ===================================
 # Pure, launch-free gates on the pool sizing: the owner policy is `min(24, modes)` and
 # `nworkers × cpus_per_worker ≤ 24`, ALWAYS, with every clamp reported (never silent).
-# WAVE-12 FIX (codex 1): a worker that runs `blas_threads` BLAS threads occupies
+# WAVE-12 FIX (review finding 1): a worker that runs `blas_threads` BLAS threads occupies
 # `max(threads_per_worker, blas_threads)` CPUs, so the budget arithmetic must see the BLAS
 # count — a 24-worker pool at `blas_threads = 2` is 48 CPUs, not 24.
 @testset "(0) pool sizing obeys the compute budget" begin
@@ -188,7 +188,7 @@ end
     @test s.source !== :procstat || s.ps_fraction >= 0.0     # recorded beside it
     @test isfinite(s.ps_fraction)
 
-    # WAVE-12 FIX (codex 12): the bound must hold on EVERY source path, not only the
+    # WAVE-12 FIX (review finding 12): the bound must hold on EVERY source path, not only the
     # /proc/stat one — `/proc/stat` exists on Linux alone, and the two fallbacks feed the same
     # guard. The pure constructor is exercised directly with hostile readings.
     nc = 8
@@ -233,7 +233,7 @@ end
     @test_throws ArgumentError mode_config(cfg, -1)
 
     # the STAMP a worker reports back: the m-dependent solver knobs, so a caller can prove the
-    # process fan-out and the in-process oracle solved the SAME problem (codex 17).
+    # process fan-out and the in-process oracle solved the SAME problem (review finding 17).
     orb = pa_orb(cfg)
     st = ScalarSelfForce.mode_stamp(orb, cfg, 3)
     @test st isa ModeStamp
@@ -285,11 +285,11 @@ end
     @test_throws ArgumentError mode_pool(4; load_guard = 1.5)
     @test_throws ArgumentError mode_pool(0)
     # THE DECISION LOGIC IS TESTED HERMETICALLY, on INJECTED readings, never on the live host
-    # (orchestrator addendum, wave 12: another worker's suite failed these on a busy box —
+    # (wave-12 policy addendum: a sibling suite failed these on a busy box —
     # a test that asserts "the machine is idle" is not a test of this code). Every row below
     # is a `LoadSample` the driver could have read, and the question is only what the guard
     # DECIDES. The comparison is STRICT: the owner's sentence is "must stay BELOW 90 %", so a
-    # plan that lands EXACTLY on the guard is refused, not admitted (codex 9).
+    # plan that lands EXACTLY on the guard is refused, not admitted (review finding 9).
     pa_sample(f) = ScalarSelfForce._pf_load_sample(0.0, 256, f, 100 * 256 * f, f)
     pa_admits(f, planned; guard = PARALLEL_LOAD_GUARD) =
         ScalarSelfForce._pf_admits(pa_sample(f).cpu_fraction, planned, guard)
@@ -354,7 +354,7 @@ try
     @test mode_config(cfg, 0).domain.outer_radial_bc === nothing
     @test mode_config(cfg, 20).domain.outer_radial_bc.m_mode_number == 20
     # …and every worker REPORTS the per-mode knobs it used, which must be the ones the master
-    # would have computed for that mode (codex 17).
+    # would have computed for that mode (review finding 17).
     @test all(r.stamp == ScalarSelfForce.mode_stamp(orb, cfg, r.m) for r in set.results)
     @test all(r.stamp.subdomain_complex_shift == 0 for r in set.results)
 
@@ -387,11 +387,11 @@ try
     # (d) the load monitor sampled the LIVE system during the run and it stayed under the
     # guard. Sound because `cpu_fraction` is the BOUNDED /proc/stat busy fraction: the ps sum
     # this replaced spiked to 2.868 on a 256-core host and tripped this very assertion.
-    # NOTE the wave-12 honesty fix (codex 10): `max_load` is RECORDED, not enforced — the
+    # NOTE the wave-12 honesty fix (review finding 10): `max_load` is RECORDED, not enforced — the
     # guard controls LAUNCH only, and a crossing is `@warn`ed by the driver, never gated.
     # THE ASSERTIONS HERE ARE HERMETIC: shape and boundedness of what was recorded, never
     # "the host was idle" — this box is shared, and a busy neighbour is not a bug in this
-    # code (orchestrator addendum, wave 12). The DECISION logic is gated in testset (3).
+    # code (wave-12 policy addendum). The DECISION logic is gated in testset (3).
     @test length(set.run.samples) >= 2
     @test all(0.0 <= s.cpu_fraction <= 1.0 for s in set.run.samples)
     @test all(isfinite(s.cpu_fraction) && isfinite(s.loadavg1) for s in set.run.samples)
@@ -440,7 +440,7 @@ end
     @test all(r.julia_threads == Threads.nthreads() for r in ser.results)
     for (p, s) in zip(par.results, ser.results)
         @test pa_bitwise(p, s)
-        # …and both solved the SAME per-mode problem, by their own report (codex 17)
+        # …and both solved the SAME per-mode problem, by their own report (review finding 17)
         @test p.stamp == s.stamp
         @test p.stamp == ScalarSelfForce.mode_stamp(orb, cfg, p.m)
     end
@@ -458,7 +458,7 @@ end
 # max relative Δu 3.2e-12, ΔΨ^R 7.5e-13, Δ∂_rΨ^R 2.1e-13 (the row-43 node measured 4.2e-12 on
 # the 8-level sweep). This is why the pin is normative and why every worker sets it EXPLICITLY
 # instead of trusting the environment. The pool above DECLARED `blas_threads = 2`, so this
-# falsifier runs INSIDE the budget it was sized for (the wave-12 fix, codex 1).
+# falsifier runs INSIDE the budget it was sized for (the wave-12 fix, review finding 1).
 @testset "(6) a different BLAS thread count breaks bitwise identity at roundoff only" begin
     cfg = pa_cfg(; m = 1)
     orb = pa_orb(cfg)
@@ -521,7 +521,7 @@ end
 end
 
 # ===================== (8) a worker that DIES mid-solve ====================================
-# THE WAVE-12 LIFECYCLE GATE (validator F6, codex 3/4). A throw inside a mode is one thing; a
+# THE WAVE-12 LIFECYCLE GATE (review findings F6, 3, 4). A throw inside a mode is one thing; a
 # worker PROCESS that disappears is another, and MEASURED in `proto_death.jl` the landed
 # `pmap(…; on_error = identity)` did NOT handle it: `ProcessExitedException` escapes pmap and
 # takes the WHOLE sweep down, so a single dead worker lost all 21 modes. The driver now
@@ -539,7 +539,7 @@ end
         orb, cfg, [0, 1, 2]; iterations = 0, pool = pa_pool, criterion = die)
     @test length(set.failures) == 1
     @test set.failures[1].m == 1                       # attributed to the MODE …
-    @test set.failures[1].worker != 0                  # … and to the worker, by id (codex 4)
+    @test set.failures[1].worker != 0                  # … and to the worker, by id (review finding 4)
     @test set.failures[1].worker != 1
     @test occursin("exited", lowercase(set.failures[1].message)) ||
           occursin("processexited", lowercase(set.failures[1].message))
@@ -595,8 +595,8 @@ end
 
 # ============================ (10) the pool lifecycle ======================================
 # `close` must give the processes back FIRST and clear its bookkeeping only then, so a failed
-# teardown leaves the pids for a retry instead of forgetting them (codex 3); `isopen` must ask
-# the CLUSTER whether the workers are alive, not a stale flag (codex 4).
+# teardown leaves the pids for a retry instead of forgetting them (review finding 3); `isopen` must ask
+# the CLUSTER whether the workers are alive, not a stale flag (review finding 4).
 @testset "(10) pool lifecycle: close is retryable, isopen asks the cluster" begin
     @test !isopen(pa_pool)
     @test length(pa_pool) == 0

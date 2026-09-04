@@ -9,7 +9,7 @@ formulation and consumes the physics-free hp-DG solver stack from `core/Elliptic
 Dependency budget (binding, enforced by `test/hygiene.jl` §7.7 gates): EXACTLY
 `{LinearAlgebra, Printf, Distributed, NumericsCore, BigSpecial, Spacetime, EllipticCore,
 Data}` — `Distributed` is the stdlib IPC of the row-47 m-mode process fan-out, admitted by
-the wave-12 orchestrator decision (stdlib only, mirroring the SparseArrays decision).
+the wave-12 mission decision (stdlib only, mirroring the SparseArrays decision).
 Special functions come ONLY through BigSpecial (no direct SpecialFunctions /
 HypergeometricFunctions); the EffectiveSource C oracles are baked test fixtures, NEVER
 live deps (no GSL/ccall channel); GPU stacks are banned (CUDA/KernelAbstractions).

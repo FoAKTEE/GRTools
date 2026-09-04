@@ -352,11 +352,44 @@ formulation and consumes the physics-free hp-DG solver stack from
   `mode_pool` is the reusable pool: a fresh worker pays a measured 166 s of
   JIT for its first solve and 45 s more for its first AMR step, against
   15.9 s for a warm 8-level sweep, so several sweeps must share one pool.
-  The fan-out is **JIT-bound, not solve-bound**, so its cost has three
-  regimes and only the third one is a win: *cold* (a fresh pool per sweep),
-  *warm-serial* (one process that has already compiled), and *reused pool*.
-  The measured numbers are being re-established on this tree by the 21-mode
-  artefact of `evidence/mmode-parallel-driver/` and are quoted there.
+  The fan-out is **JIT-bound, not solve-bound**, and its cost has three
+  regimes — only the third is a win. Measured on this tree for the paper's
+  full ``m = 0\ldots20`` sweep at ``a = 0.5``, ``r_0 = 10M`` through 8 AMR
+  levels (single run, 256-core shared host, **[PRELIMINARY]**):
+
+  | regime | wall | vs. serial |
+  |---|---|---|
+  | cold: a fresh 21-worker pool per sweep | 747 s (19 s pool start + 728 s) | **0.75``\times`` — a net loss** |
+  | serial, one process, all 21 modes | 563 s (mode 0 alone 130 s) | 1 |
+  | serial, warm (modes 1--20 only) | 342 s | — |
+  | **reused pool**, a second sweep on the same workers | **66 s** | **5.2``\times``** vs. warm serial, 8.5``\times`` vs. cold serial |
+
+  A fresh worker pays its whole JIT before its first solve, so 21 of them pay
+  it 21 times in parallel and the cold fan-out loses to one warm process. The
+  win comes from *reuse*: hold one `mode_pool` across every ``(a, r_0)`` point
+  of a figure. Even reused it is 5.2``\times``, not 21``\times`` — the warm
+  per-mode cost is 15.7--19.0 s in one process against 49--65 s when 21
+  processes run at once, so the fan-out is bandwidth- and residual-JIT-bound
+  well before it is core-bound. (An earlier estimate of ``\sim 18\times`` was
+  *inferred* from warm single-process timings and is superseded by this
+  measurement.) The per-mode cost is m-independent to **1.21``\times``** over
+  the whole sweep.
+
+  The same artefact records the GMRES count per mode. At the paper's own
+  configuration the count at the finest AMR level **grows with** ``m``: 9, 9,
+  9, 9, 11, 11, 10, 10, 11, 11, 12, 13, 14, 14, 16, 17, 19, 20, 20, 20, 20 for
+  ``m = 0\ldots20``. This is not a discrepancy with main.tex:720 ("less than
+  10 iterations per AMR level"), which is stated for one exemplary mode
+  (``m = 2``, ``a = 0.5``, ``r_0 = 10M``) — and that mode measures 9 here, in
+  agreement. The growth is **new information**, and its cause is in the
+  configuration rather than the solver: the shipped vtu config sets
+  `ComplexShift: 0` (yaml:194,203; main.tex:680), so the preconditioner is
+  ``m``-agnostic while the operator's Helmholtz term scales as ``(m\Omega)^2``.
+  Turning the shift on at the policy value ``s = (m\Omega)^2`` makes it far
+  worse on this massive-Gauss formulation — measured 13 → 92 iterations at
+  ``m = 10`` and 16 → 215 at ``m = 20`` — which is the round-1 `helmholtz_shift`
+  calibration falsifier again. Every mode's shift is recorded in its
+  `ModeStamp`, so the claim is auditable rather than remembered.
   A mode that throws is reported by id in `set.failures`, warned with its
   remote backtrace, and never swallowed; the other modes still return. So is a
   worker that **dies** — `pmap`'s `on_error` does not catch a
@@ -390,7 +423,7 @@ Planned, each landing written test-first once it is grounded: the rest of
 Binding dependency budget, enforced by `test/hygiene.jl`: exactly
 `{LinearAlgebra, Printf, Distributed, NumericsCore, BigSpecial, Spacetime,
 EllipticCore, Data}`. `Distributed` is a **stdlib**, widened into the budget by
-the wave-12 orchestrator decision as the IPC of the row-47 m-mode process
+the wave-12 mission decision as the IPC of the row-47 m-mode process
 fan-out (`src/Solve/parallel.jl`) — stdlib only, no registry package, the same
 rule that admitted SparseArrays/SuiteSparse into EllipticCore.
 Special functions come only through BigSpecial (no direct

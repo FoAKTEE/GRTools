@@ -18,7 +18,7 @@
 # reusable across modes, BigFloat GC contention makes `-t16` net slower than `-t4`, and each
 # mode fits comfortably in one core.
 #
-# WAVE-12 FOLLOW-UP (validator MERGE_AFTER_FIXES + codex NEEDS_REWORK). Five things changed
+# WAVE-12 FOLLOW-UP (second-pass review). Five things changed
 # and every one of them is a CORRECTNESS fix, not a polish pass:
 #   * `pmap(…; on_error = identity)` does NOT catch a worker DEATH — MEASURED in
 #     `evidence/mmode-parallel-driver/proto_death.jl`, a `ProcessExitedException` escapes pmap
@@ -38,7 +38,7 @@
 #     (docs/src/topics/gpu-parallel.md §"The BLAS-guard rule"), not a hand-rolled
 #     get/set/restore that races with any other task in the process.
 #
-# DEPENDENCY-BUDGET DECISION (orchestrator-approved, wave 12; mirrors adopted decision 3 on
+# DEPENDENCY-BUDGET DECISION (mission-approved, wave 12; mirrors adopted decision 3 on
 # SparseArrays): the STDLIB `Distributed` is added to the ScalarSelfForce budget, and
 # `test/hygiene.jl` is widened in the same commit. It is a stdlib, not a registry package, and
 # it is the KISS choice: the alternative — spawning `julia --project` children with `Base.run`
@@ -383,7 +383,7 @@ WHY THE SHIFT IS RECORDED PER MODE. The preconditioner this sweep runs is m-AGNO
 zero — while the operator's Helmholtz term scales as `(mΩ)²`. That is the paper's own
 configuration, and it is the reason the measured GMRES count GROWS with `m` (see
 [`solve_modes_parallel`](@ref)). Turning the shift on makes it far worse on this formulation
-(MEASURED by the row-47 validator at `s = (mΩ)²`: m = 10 goes 13 → 92 iterations, m = 20 goes
+(MEASURED in the row-47 review at `s = (mΩ)²`: m = 10 goes 13 → 92 iterations, m = 20 goes
 16 → 215), which is the round-1 calibration falsifier of [`helmholtz_shift`](@ref) showing up
 again. Recording the value per mode keeps that claim auditable instead of remembered.
 """
@@ -866,7 +866,7 @@ _pf_msg(e) = try
 
 # Who to blame for a failure. A remote THROW carries its worker id in the RemoteException; a
 # remote DEATH carries it in `ProcessExitedException.worker_id` — unwrapping that is what turns
-# "worker = 0" into an actionable pid (codex 4).
+# "worker = 0" into an actionable pid (review finding 4).
 function _pf_failed_pid(e)
     e isa Distributed.RemoteException && return e.pid
     e isa Distributed.ProcessExitedException && return e.worker_id
@@ -1145,6 +1145,40 @@ identical iteration counts). It is also what makes the fan-out reproducible: res
 bitwise identical to [`solve_modes_serial`](@ref) only at the SAME `blas_threads` and the same
 Julia thread count (between BLAS thread counts the diagnostics move by ~4e-12 relative —
 roundoff, but not bitwise).
+
+# COST — THREE REGIMES, AND ONLY ONE OF THEM IS A WIN
+
+MEASURED on this tree for the paper's whole `m = 0…20` sweep at `a = 0.5`, `r₀ = 10M` through
+8 AMR levels (`evidence/mmode-parallel-driver/artefact_21modes_v2.json`; ONE run on a 256-core
+SHARED host, so treat the wall times as PRELIMINARY):
+
+| regime | wall | against the serial oracle |
+|---|---|---|
+| COLD — a fresh 21-worker pool for this sweep | 747.3 s (19.2 s pool start + 728.1 s) | **0.75× — a NET LOSS** |
+| SERIAL — one process, all 21 modes | 562.6 s (mode 0 alone 129.9 s) | 1 |
+| SERIAL, WARM — modes 1…20 only | 342.1 s | — |
+| **REUSED POOL** — a second sweep on the same workers | **66.5 s** | **5.15×** warm, 8.46× cold |
+
+A fresh worker pays the whole solver stack's JIT before its first solve, so 21 of them pay it
+21 times over and the COLD fan-out loses to a single warm process. The win is REUSE: hold ONE
+[`ModePool`](@ref) across every `(a, r₀)` point of a figure and pass it as `pool`. Even reused
+it is 5.15×, NOT 21×: the warm per-mode cost is 15.7–19.0 s in one process against 49.3–65.2 s
+when 21 processes run at once, so the sweep is memory-bandwidth- and residual-compilation-bound
+long before it is core-bound. An earlier `~18×` figure was INFERRED from warm single-process
+timings and is superseded by this measurement. The per-mode cost is m-INDEPENDENT to 1.21×.
+
+# THE GMRES COUNT GROWS WITH m (measured, and it is not a discrepancy)
+
+The same artefact records, at the finest AMR level, 9, 9, 9, 9, 11, 11, 10, 10, 11, 11, 12, 13,
+14, 14, 16, 17, 19, 20, 20, 20, 20 iterations for `m = 0…20`. main.tex:720's "less than 10
+iterations per AMR level" is stated for ONE exemplary mode (`m = 2`, `a = 0.5`, `r₀ = 10M`),
+which measures 9 here — the paper's claim HOLDS where the paper makes it. The growth with `m`
+is NEW information, and it comes from the CONFIGURATION, not the solver: the shipped vtu config
+sets `ComplexShift: 0` (yaml:194,203; main.tex:680), so the preconditioner is m-AGNOSTIC while
+the operator's Helmholtz term scales as `(mΩ)²`. Turning the shift on at the policy value
+`s = (mΩ)²` makes it far worse on this massive-Gauss formulation (MEASURED: 13 → 92 iterations
+at `m = 10`, 16 → 215 at `m = 20`) — the round-1 [`helmholtz_shift`](@ref) calibration
+falsifier again. Each result's [`ModeStamp`](@ref) carries the shift it used.
 
 # FAILURES, DEATHS AND DEADLINES
 
