@@ -648,7 +648,7 @@ end
 
 The CHART GRADIENT `(∂f/∂x1, ∂f/∂x2)` of a nodal field at `(x1, x2)`, from the same sealed
 machinery [`field_at`](@ref) uses: the element's own tensor-product Lagrange interpolant
-differentiated with [`RefElement`](@ref)`.D` and divided by the chart Jacobian
+differentiated with `RefElement.D` (EllipticCore) and divided by the chart Jacobian
 `dx_d/dξ_d = map_jacobian(blockmap(blk, d), ζ) · (hi − lo)/2`.
 
 NOTE the interpolated-derivative row is `Py·D`, NOT `D·Pyᵀ`: the derivative of the

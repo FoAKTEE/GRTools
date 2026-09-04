@@ -100,7 +100,7 @@ phase, and NO sin^{|m|}θ/r ansatz factors. This is exactly the C oracle's
 in test/fixtures/effsource/).
 
 Evaluation (main.tex:459-473): with the numerator regrouped as Σ_q A_q Q^{2q}
-([`_puncture_A_groups`](@ref)), `Q² = (R² − ϱ²)/z_c²` (eq:s2) turns each term into a
+(`_puncture_A_groups`, this module's own helper), `Q² = (R² − ϱ²)/z_c²` (eq:s2) turns each
 binomial combination of [`mode_integral_Rn`](@ref) values with n odd ∈ {−7,…,1}:
 
     I_m = z_c^{−8} Σ_{j=0}^{4} c_j ∫R^{2j−7}e^{−imΔφ}dΔφ,
