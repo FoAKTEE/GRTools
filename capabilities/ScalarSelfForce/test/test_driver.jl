@@ -655,7 +655,9 @@ end
     bot0 = sol2.stack.bottom_cache.builds
     flags = [el for el in sol2.mesh.elements if inside_worldtube(sol2.dom, el)]
     newmesh = hp_refine(sol2.mesh, flags)
-    @test newmesh.ndofs == 681 && length(newmesh.elements) == 33
+    # RE-PINNED after EllipticCore 6df9f51 (hp_refine no longer p-increments the elements the
+    # 2:1 closure splits, so the one closure element and its children lose one order): 681 → 671
+    @test newmesh.ndofs == 671 && length(newmesh.elements) == 33
     u = transfer_solution(sol2.mesh, newmesh, sol2.u)
     rebuild_for_mesh!(sol2, newmesh; u = u)
     @test sol2.mesh === newmesh
@@ -698,7 +700,10 @@ end
     # "the bottom grid remains the same even when AMR adds finer levels"), so its cached LU
     # is a HIT; the MIN rule raises the coarsest order, changing the grid and rebuilding the
     # LU. MEASURED over FIVE levels of UNIFORM in-tube refinement (320 → 681 → 1924 → 6252 →
-    # 21632 dofs) at overlap 2 — MIN 10, 9, 10, 12, 14 (coarsest 160 → 241 → 340 → 457 → 592,
+    # 21632 dofs) at overlap 2 BEFORE EllipticCore 6df9f51 — that fix moves every dof and
+    # coarsest-grid sequence (the first step is now 671, not 681); the ASSERTIONS below are
+    # structural (which grid moves, which LU is rebuilt) and do not depend on those numbers —
+    # MIN 10, 9, 10, 12, 14 (coarsest 160 → 241 → 340 → 457 → 592,
     # bottom builds 1/1/1/1/1); parity 10, 10, 12, 15, 32 (coarsest 160 throughout, builds
     # 1/0/0/0/0). Parity's cost here is 0, +1, +2, +3, +18 — it GROWS, it is not "≤ 2"; the
     # ≤ 2 figure belongs to the RefineAtPuncture sweep of (e5).
@@ -732,7 +737,9 @@ end
     # with main.tex:722 (scale independence). It must be measured under the paper's OWN
     # refinement criterion; (e3)/(e4) refine the whole worldtube and are a different sweep.
     cfg = dv_cfg(; spin = 0.5, m = 2)
-    for (co, expect) in ((nothing, [9, 8, 8, 7, 6]), (4, [9, 8, 9, 9, 9]))
+    # RE-PINNED after EllipticCore 6df9f51: the MIN rule's coarse grids changed with the order
+    # map, moving two of its counts (8, 7 → 7, 8); spectre parity is unaffected.
+    for (co, expect) in ((nothing, [9, 8, 7, 8, 6]), (4, [9, 8, 9, 9, 9]))
         s = solve_mode(dv_orb(cfg), cfg, 2;
                        options = solver_options(cfg; coarse_levels = nothing,
                                                 coarse_orders = co))
@@ -752,13 +759,16 @@ end
             push!(bot, s.stack.bottom_cache.builds)
             @test s.result.residual <= cfg.gmres.absolute_residual
         end
-        @test nd == [320, 603, 962, 1425, 2004]
+        # RE-PINNED after EllipticCore 6df9f51 (the balance-split element and its descendants
+        # no longer carry the p increment in the split dimension)
+        @test nd == [320, 593, 950, 1411, 1988]
         @test its == expect                       # the WHOLE sequence, not one step
         # main.tex:720 HOLDS under the paper's criterion, at every level
         @test all(<=(10), its)
         if co === nothing
             @test its[end] < its[1]               # main.tex:722: the count DECREASES with depth
-            @test coarsest == [160, 241, 340, 457, 592]
+            # RE-PINNED after EllipticCore 6df9f51 (the coarse order map follows the fine one)
+            @test coarsest == [160, 236, 334, 450, 584]
             @test bot == [1, 2, 3, 4, 5]          # MIN rule rebuilds the bottom LU every step
         else
             @test coarsest == fill(160, 5)        # main.tex:674: the bottom grid does NOT move
