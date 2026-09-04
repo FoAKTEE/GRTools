@@ -266,33 +266,58 @@ formulation and consumes the physics-free hp-DG solver stack from
     `mmode_reg_tail_Fr(order, orbit, mstart)` — the closed-form analytic tail
     ``\sum_{m \ge m_{\rm start}} F^m_{r[order]}`` that completes a truncated
     mode sum.
+  - `mmode_reg_term_Fr(order, orbit, m)` — THE one helper for the
+    folded/unfolded bookkeeping: the term to subtract from an
+    Osburn–Nishimura Eq. (3.10) force mode, i.e. ``F^m_{r[order]}`` for
+    ``m \ge 1`` and half of it at ``m = 0`` (Eq. (3.10)'s ``m = 0`` branch is
+    unfolded while the parameter carries the ×2 at every ``m``). Gated against
+    the vanishing of the doubly-infinite parameter sum.
   - `mode_self_force(orbit, m, psi, dpsi_r, dpsi_z)` /
     `mode_self_force(sol::ModeSolution)` /
-    `mode_self_force(hist::AmrHistory; level)` — ``F_r^m`` extraction at the
-    particle, Osburn–Nishimura Eq. (3.10) (arXiv:2206.07031) in the locked
-    ansatz conventions: unfolded at ``m = 0``, and for ``m > 0`` the ×2 real
-    part of ``e^{+im(\bar\varphi_p - \Omega t)}
+    `mode_self_force(hist::AmrHistory; level, reduction)` — ``F_r^m``
+    extraction at the particle, Osburn–Nishimura Eq. (3.10) (arXiv:2206.07031)
+    in the locked ansatz conventions, in the normalized ``(M^2/q^2)F_\alpha``
+    of main.tex:428-430 (``q = M = 1``): unfolded at ``m = 0``, and for
+    ``m > 0`` the ×2 real part of ``e^{+im(\bar\varphi_p - \Omega t)}
     [\partial_r\Psi^{\mathcal R}_m/r_0 - \Psi^{\mathcal R}_m/r_0^2
     + i m (a/\Delta)\Psi^{\mathcal R}_m/r_0]`` — the last term is the
     dephasing derivative the horizon-regular azimuth contributes to
-    ``\partial_r``. ``F_t^m = -\Omega F_\varphi^m`` mode by mode, and
-    ``F_\theta^m`` is a bitwise zero in the production ``z^2`` chart. The
-    ingredients are read through the sealed `field_at` / `field_grad_at`.
-    Returns the real components, the complex pre-real-part quantities (what
-    spectre's `ObserveSelfForce` regression rows print) and the ingredients.
+    ``\partial_r``. The radial chart is horizon-penetrating Boyer–Lindquist
+    ``r``, so spectre's ``\alpha = \Delta/(r^2+a^2)`` tortoise factor is
+    deliberately absent and a configuration declaring
+    `PenetratingHorizon = false` throws. Beyond spectre's radial observable,
+    ``F_t^m = -\Omega F_\varphi^m`` mode by mode and ``F_\theta^m`` follows
+    from ``\partial_\theta = -\sin\theta\,\partial_z`` (a bitwise zero in the
+    production ``z^2`` chart). Ingredients are read through the sealed
+    `field_at` / `field_grad_at`. The `ModeSolution` method reduces by the
+    **mean over every element containing the puncture** — spectre parity
+    (`ObserveSelfForce.hpp:89-107`) — and `element = e` selects one one-sided
+    trace instead; the `AmrHistory` method uses `:trace` at every level so a
+    convergence sequence is homogeneous.
   - `mode_self_force_history(hist)` / `mode_force_convergence(hist)` — the
     per-AMR-level ``F_r^m`` sequence and its successive-difference table,
-    including `resolution_error`, the error budget's numerical-resolution floor
-    (main.tex:723). Measured at ``a = 0.5``, ``r_0 = 10M``, ``m = 1`` over the
-    paper's 8 AMR levels: ``F_r^m`` converges to
-    ``-1.365170814\times10^{-4} + 9.138086647\times10^{-5}\,i`` with a
+    including `resolution_error`, the error budget's numerical-resolution
+    floor (main.tex:722), with the same definition as the `Solve`
+    `resolution_error(hist; field)` helper. Observed at ``a = 0.5``,
+    ``r_0 = 10M``, ``m = 1`` over the paper's 8 AMR levels: ``F_r^m``
+    converges to ``-1.3652\times10^{-4} + 9.1381\times10^{-5}\,i`` with a
     resolution error of ``4.6\times10^{-11}`` (``3.4\times10^{-7}``
     relative), reproducing spectre's own regression row
     ``[2, 975, 4, -1.365\times10^{-4}, 9.138\times10^{-5}, 0, 0]`` to
-    ``1.7\times10^{-8}``, inside its ``2\times10^{-7}`` tolerance.
+    ``1.7\times10^{-8}``, inside its ``2\times10^{-7}`` tolerance
+    *[PRELIMINARY: mesh-dependent, re-measured after 6df9f51; per-level values
+    move with the hp-AMR order map, so gate on tolerances and on the shape of
+    the sequence, never on a golden value]*.
   - `regularized_mode_force(x, m; order = 4)` — ``F_r^m - F^m_{r[order]}``
-    with the ``m = 0`` halving rule, the per-mode term the mode sum adds up;
-    measured log-log slope ``-6.13`` over ``m \in \{2, 5, 10\}``.
+    through `mmode_reg_term_Fr`, the per-mode term the mode sum adds up.
+    Observed decay of the residual at ``a = 0.5``, ``r_0 = 10M``, 6 AMR
+    levels: log-log slope ``-6.007 \pm 0.002`` over the resolved pair
+    ``m \in \{2, 5\}`` *[PRELIMINARY]*; the ``m = 10`` residual is only
+    ``2.8\times`` its own level-to-level difference at that depth, so fits
+    that include it (``-6.32 \pm 0.52`` over ``\{5, 10\}``) are
+    resolution-limited. A discharge of the ``m^{-6}`` claim is *[FUTURE]*:
+    it needs the process fan-out's 8 levels with ``m`` up to 20 and the same
+    propagated uncertainty.
 
 - **Solve — the process-parallel m fan-out** (`solve_modes_parallel`,
   `solve_modes_serial`, `mode_pool`, `mode_config`, `mode_pool_size`,

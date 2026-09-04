@@ -35,23 +35,6 @@
 export mode_self_force, mode_self_force_history, mode_force_convergence,
        regularized_mode_force
 
-# NOTE (dedupe pending): every element containing a point, in mesh order — the same 16 eps
-# logical test the sealed `field_at` locator uses. `Solve/driver.jl` owns the SINGULAR locator
-# (`_dr_locate`) and is being refactored around a plural one; this file keeps its own copy so
-# the node is self-contained at its own commit. Collapse the two when the plural accessor is
-# public.
-function _sf_containing(mesh::Mesh2D{RT}, x1::Real, x2::Real) where {RT}
-    tol = 16 * eps(RT)
-    out = Int[]
-    for e in eachindex(mesh.elements)
-        ξ = _dr_logical(mesh, e, x1, x2)
-        (-1 - tol <= ξ[1] <= 1 + tol && -1 - tol <= ξ[2] <= 1 + tol) && push!(out, e)
-    end
-    isempty(out) && throw(ArgumentError(
-        "mode_self_force: ($x1, $x2) lies in no element of this mesh"))
-    return out
-end
-
 # `∂_z Ψ` from the domain's own angular chart: `w = z²` under equatorial symmetry (so
 # `∂_z = 2z ∂_w`, an EXACT zero at the equator) and `z = cosθ` without it (row 39's charts).
 # `x2` is clamped at 0 first: a chart coordinate that is a round-off-negative `w` is still the
@@ -217,7 +200,12 @@ function mode_self_force(sol::ModeSolution, m::Integer = sol.m; element = nothin
         "mode is a different problem (a different RunConfig), never a keyword"))
     _sf_check_chart(sol.config)
     xp = puncture_chart_position(sol.dom, sol.orbit)
-    es = _sf_containing(sol.mesh, xp[1], xp[2])
+    # `Solve/driver.jl`'s `_dr_containing` is the ONE containment locator of the package
+    # (`_dr_locate` is its first entry, which is what `field_at` uses by default); it returns
+    # an empty list rather than throwing, so the emptiness check belongs to the caller.
+    es = _dr_containing(sol.mesh, xp[1], xp[2])
+    isempty(es) && throw(ArgumentError(
+        "mode_self_force: the puncture $(xp) lies in no element of this mesh"))
     if element === nothing
         n = length(es)
         psi = sum(field_at(sol, xp[1], xp[2]; element = e) for e in es) / n
@@ -287,7 +275,7 @@ The successive-difference convergence table of one force component over an hp-AM
 numbers `resolution_error = diffs[end]` and `relative_resolution_error`.
 
 `resolution_error` is the CRP's own "error due to numerical resolution ... the difference
-between the highest and second-highest AMR level" (`main.tex:723`), applied to `F_r^m` rather
+between the highest and second-highest AMR level" (`main.tex:722`), applied to `F_r^m` rather
 than to a raw field diagnostic. The DEFINITION is the row-43 one — the last successive
 difference, relative denominator `|values[end]|` — so it is the `F_r^m` analogue of that
 node's `resolution_error(hist; field)` helper and the two are directly comparable. It is a
@@ -333,11 +321,11 @@ end
 `F_r^m − F^m_{r[order]}`: the extracted radial force mode with the Heffernan large-m
 regularization parameter subtracted. The subtracted term is [`mmode_reg_term_Fr`](@ref),
 which owns the `m = 0` halving rule (`Extraction/regularization.jl`, row 45) — a caller must
-never re-apply it. `order ∈ HEFFERNAN_MMODE_ORDERS`; the CRP uses 4 (`main.tex:723`).
+never re-apply it. `order ∈ HEFFERNAN_MMODE_ORDERS`; the CRP uses 4 (`main.tex:722`).
 
 THIS IS THE PER-m TERM THE MODE SUM ADDS UP. Because the doubly-infinite parameter sum
 vanishes (`F^0/2 + Σ_{m≥1} F^m = 0`, gated in `test_regularization.jl`), the accelerated mode
-sum of `main.tex:723` is literally
+sum of `main.tex:722` is literally
 
     F_r ≈ Σ_{m=0}^{m_max} regularized_mode_force(…, m) ,
 

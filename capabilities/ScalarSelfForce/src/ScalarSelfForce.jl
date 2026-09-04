@@ -187,7 +187,7 @@ include("Extraction/regularization.jl")      # heffernan-regularization
 # mode_term statement) — a < 0 is retrograde, and the closed form at m = 0 carries the ×2
 # unconditionally. Extraction of F_r^m and the sum itself are LATER nodes.
 export HEFFERNAN_MMODE_ORDERS, HEFFERNAN_CIRCULAR_FR_ORDERS
-export reg_param_Fr, mmode_reg_Fr, mmode_reg_tail_Fr
+export reg_param_Fr, mmode_reg_Fr, mmode_reg_tail_Fr, mmode_reg_term_Fr
 export mmode_reg_factor, mmode_reg_factor_over_pi
 export mmode_reg_factor_tail, mmode_reg_factor_tail_over_pi
 
