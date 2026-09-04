@@ -1,9 +1,9 @@
 {
-  "generated_at_commit": "f74067c9b8f0dedcdb9b4671567b7ea4244b8a18",
+  "generated_at_commit": "cba9b7b686fa29d5ec769e892e92344815682225",
   "id": "fig_modes",
   "julia": "1.12.6",
   "paper": "2606.04998",
-  "script_sha256": "10394421b41c115746ad9dd236a35ea6bc4717da6007198f1d56ad08df19b8e1",
+  "script_sha256": "534bdb72545dbb4a2680be398ac67883a465ac0ab66056f7dcf457be3d46c50b",
   "values": {
     "amr_grids": 8,
     "gates_pass": true,

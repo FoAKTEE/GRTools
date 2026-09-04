@@ -43,17 +43,44 @@
 # follows the CAPTION (and the node's own brief) rather than the titles, and every panel title
 # it draws carries the radius actually solved.
 #
-# [HOLE] r0 = 2 M IS NOT CONSTRUCTIBLE IN THIS PACKAGE AT ANY SPIN, so the published third panel
-# could not be reproduced literally even if we chose to. `CircularOrbit(a, 2.0).Lz` is `NaN` for
-# every spin: Spacetime's `_angular_momentum_circular` (capabilities/Spacetime/src/Geodesics/
-# constants.jl:13, the generic Schmidt closed form) carries an explicit
-# `1 / ((p - 2) p - a^2 (x^2 - 1))` factor which is 0/0 at p = 2, x = 1 — the same removable
-# endpoint singularity the file already special-cases for the polar orbits x = 0 (`_polar_zero`,
-# constants.jl:20-30), only in the OTHER coordinate. `CircularOrbit.zc2 = 4 (Lz^2 + ...)`
-# (main.tex:453) inherits the NaN and the puncture dies in `legendre_P3` with
-# `DomainError with NaN`. MEASURED: NaN at (a, r0) = (0.9, 2.0) and (0.998, 2.0), finite at
-# (0.998, 1.9), (0.998, 2.5), (0.998, 3.0). Escalated to the Spacetime owner (a `fix(spacetime)`
-# node of the shape of ESSF::fix-kerr-frequencies-isco); NOT worked around here.
+# WHY r0 = 2 M WAS NOT CONSTRUCTIBLE WHEN THIS FIGURE FIRST LANDED — FIXED UPSTREAM SINCE.
+# `CircularOrbit(a, 2.0).Lz` was `NaN`: Spacetime's `_angular_momentum_circular`
+# (capabilities/Spacetime/src/Geodesics/constants.jl:13, the generic Schmidt closed form) divides
+# by `((p - 2) p - a^2 (x^2 - 1))`, which on the EQUATOR (x^2 = 1) is exactly `p (p - 2)` and
+# vanishes at `p = 2` together with its numerator, and `_carter_circular` (constants.jl:17)
+# inherits it as `0 * NaN`, so `Lz` AND `Q` were 0/0 while `E` — which carries no such factor —
+# was already right. `CircularOrbit.zc2 = 4 (Lz^2 + ...)` (main.tex:453) took the NaN and the
+# puncture died in `legendre_P3`. The NaN only bit where `r = 2 M` actually carries a circular
+# geodesic, i.e. outside the prograde photon orbit, `a > 1/sqrt(2) = 0.70710678`; below that the
+# radicand is negative and the `DomainError` those spins raise is physically CORRECT (at a = 0,
+# `p = 2` is the horizon, where the pre-fix code returned a silent `E = 0.0`). ESSF::row-57
+# removed it at 47f0ec0 (`_circeq_removable` + the Bardeen-Press-Teukolsky equatorial pair,
+# bitwise-neutral away from the endpoint over 165 `===` rows) with 7082f9a pinning the orbit and
+# the puncture at r0 = 2 M and 12b43bd excluding p = 0; a conditioning band survives around the
+# endpoint (the Schmidt form loses about `log10|p - 2|^-1` digits, ~7 at |p - 2| ~ 1e-8) and is
+# that row's measured envelope, not this figure's business.
+# THIS DRIVER STILL PLOTS THE ISCO, deliberately: it follows the caption, and regenerating the
+# third panel at the published r0 = 2 M waits on ESSF::fix-horizon-axis-layer (row 58, below),
+# because the layer that spoils the ISCO panel is a property of the inner boundary, not of r0.
+#
+# [HOLE] THE THIRD PANEL CARRIES A SPURIOUS HORIZON-AXIS BOUNDARY LAYER (row 58).
+# What breaks the m-decay of the a = +0.998 panel beyond m ~ 13 is NOT a failure to converge: it
+# is a layer on the INNERMOST radial node line -- the first Legendre-Gauss collocation line
+# inside the horizon-adjacent element, r - r_+ = 1.9e-4 M at this ISCO -- growing toward the
+# axis, where the discretization has no business supporting anything. The mode variable carries `sin^|m| theta`
+# factored out, so axis regularity requires the plane to fall like `(1 - z^2)^(m/2)` as
+# `z^2 -> 1`; MEASURED at m = 17 along `r = r_+` the field instead RISES, |u| = 1.6e-5 at
+# z^2 = 0.003 to 1.05 at z^2 = 0.9918, where regularity asks for 0.98 down to 1.8e-18 — a
+# 23-decade violation. One node in from the boundary (r > r_+ + 0.02) the same modes decay
+# physically (-0.107 decades per mode over m = 13..20, re-measured here from the figure's own
+# surface cache) and GMRES converges in 10-11 iterations, so the solver is fine and the interior
+# is fine. The layer is present at every spin and is a question of SCALE:
+# the inner-boundary axis:equator ratio at m = 17 / 20 is 1.14 / 1.14 at a = 0 (absent),
+# 4.5e3 / 8.9e3 at a = -0.998 but at an absolute 3.70e-8, four decades below that panel's
+# maximum and therefore invisible, and 6.57e4 / 4.08e4 at O(1) for a = +0.998 (|u| = 1.05 at
+# m = 17), where it dominates the plane from m ~ 14. Independently re-measured from this
+# figure's own surface cache (evidence/fig-modes/layer_check_at_cba9b7b.log). Owned by ESSF::fix-horizon-axis-layer (row 58: the horizon boundary condition and axis
+# regularity); NOT worked around here, and the third panel says so on the figure.
 #
 # THE WORLDTUBE RADIUS IS A DOCUMENTED CHOICE, NOT A PAPER NUMBER. The yaml is templated in
 # `worldtube_radius` (anc/ScalarSelfForce.yaml:12) and the paper publishes a value only for its
@@ -314,9 +341,11 @@ for (k, (mt, tb)) in enumerate(zip(metas, tables))
     # measured on the PLOTTED quantity: the largest |Ψ_m| of the drawn plane.
     A = tb.maxpsi
     mono2 = all(A[i+1] < A[i] for i in 3:length(A)-1)      # m ≥ 2 (A is 1-based in m)
-    lastbreak  = something(findlast(i  -> !(A[i+1] < A[i]), 1:length(A)-1), 0) - 1
-    firstbreak = something(findfirst(i -> !(A[i+1] < A[i]), 3:length(A)-1), 0)
-    firstbreak = firstbreak == 0 ? -1 : firstbreak + 1        # ... as an m, -1 = no break
+    # the m values (not indices) where the decay breaks, over the CLAIMED range m >= 2; -1 = none.
+    # `A` is 1-based in m, so index i is mode m = i - 1 and a break at i means A[i+1] >= A[i].
+    breaks = [i - 1 for i in 3:length(A)-1 if !(A[i+1] < A[i])]
+    firstbreak = isempty(breaks) ? -1 : first(breaks)
+    lastbreak  = isempty(breaks) ? -1 : last(breaks)
     # ---- CLAIM B: "regular zero crossings … display as sharp drops … particularly for the
     #      m = 0 mode" (main.tex:718) — the in-worldtube dynamic range of each plane, against
     #      the same range OUTSIDE the tube where the field is smooth.  A hard zero at a node
@@ -549,7 +578,7 @@ for (k, surf) in enumerate(surfaces)
     # a panel whose measured claim fails says so ON the figure, from the measurement itself
     if !claims[k].mono2
         annotate!(plt, sx(cam, (cam.rlo + cam.rhi) / 2, 0.5), sy(cam, cam.rlo, 1.0, ZHI) + 0.075,
-                  text("PRELIMINARY: not converged for \$m > $(claims[k].firstbreak)\$",
+                  text("PRELIMINARY: spurious horizon-axis layer for \$m > $(claims[k].firstbreak)\$",
                        FS(8), RGB(0.35, 0.35, 0.35), :center))
     end
 end
