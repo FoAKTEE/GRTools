@@ -543,14 +543,16 @@ end
     plain = solve_modes_parallel(orb, cfg, [2]; iterations = 1, pool = pa_pool)
     @test isempty(plain.failures)
     @test plain.results[1].stamp.solve_kwargs == ""
-    @test plain.results[1].levels[end].mesh.ndofs == 593
+    # RE-PINNED after the all-dimension 2:1 closure (GRTools 13ea24c): the closure splits
+    # more elements, so every hp-AMR dof count moves. 593 -> 632.
+    @test plain.results[1].levels[end].mesh.ndofs == 632
     @test plain.results[1].stamp == ScalarSelfForce.mode_stamp(orb, cfg, 2)
 
     # (b) THE KEYWORD REACHES THE WORKER AND CHANGES THE MESH.
     held = solve_modes_parallel(orb, cfg, [2]; iterations = 1, pool = pa_pool,
                                 solve_kwargs = (; horizon_hold = true))
     @test isempty(held.failures)
-    @test held.results[1].levels[end].mesh.ndofs == 575        # != 593: it really ran
+    @test held.results[1].levels[end].mesh.ndofs == 614        # != 632: it really ran
     @test held.results[1].levels[end].mesh.ndofs != plain.results[1].levels[end].mesh.ndofs
     @test held.results[1].stamp.solve_kwargs == "(horizon_hold = true,)"
     @test held.results[1].stamp != plain.results[1].stamp      # the QUESTION differs, and says so
@@ -563,7 +565,7 @@ end
     @test isempty(held_ser.failures)
     @test pa_bitwise(held.results[1], held_ser.results[1])
     @test held.results[1].stamp == held_ser.results[1].stamp
-    @test held_ser.results[1].levels[end].mesh.ndofs == 575
+    @test held_ser.results[1].levels[end].mesh.ndofs == 614
 
     # (c) AN UNKNOWN KEYWORD THROWS ON THE CALLER SIDE, BEFORE ANY WORKER STARTS. A bad
     # keyword that only surfaced inside a worker would cost a pool start and come back as 21
