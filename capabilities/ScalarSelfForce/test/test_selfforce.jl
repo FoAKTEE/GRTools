@@ -515,82 +515,139 @@ end
     @test abs(frs[1]) > abs(frs[3]) && abs(frs[2]) > abs(frs[3])
 end
 
-# ================= (h) THE FULL-Z LATTICE against spectre's regression rows ==================
-# `crp_paper_config(; equatorial_symmetry = false)` builds the 5x3 full-z lattice, which
-# reproduces the DISCRETE SIZE of spectre's ScalarCircularOrbit.yaml exactly: 30 elements,
-# 480 grid points, and 4 elements touching the puncture — its `NumContributingElements`. That
-# makes the matching-iteration comparison the production z^2 half-domain could not support.
+# ============ (i) the `radial_bounds` override: spectre's own lattice, exactly ===============
+# spectre's tests/InputFiles/SelfForce/ScalarCircularOrbit.yaml puts its radial block bounds at
+# [r+, 5, 6, 14, 25, 1e4] with `HyperboloidalSlicingTransitions: [5., 5., 25., 25.]`. Those
+# transitions are NOT the paper's Jinja2 rule (`r0 - 1.5 wr`, `r0 + 3 wr`), so no combination of
+# `orbital_radius` and `worldtube_radius` can express that lattice; `radial_bounds` gives the six
+# bounds directly and reads the transitions off them, exactly as the yaml's anchors do.
+const SF_SPECTRE_BOUNDS = [1.8660254037844386, 5.0, 6.0, 14.0, 25.0, 1.0e4]
+
+@testset "(i) radial_bounds overrides the derivation and nothing else" begin
+    rp = SF_ORB.rp
+    base = crp_paper_config(; spin = 0.5, orbital_radius = 10.0, m_mode = 1,
+                            inner_radius = rp, P = 4, L = 0)
+    # (1) THE DEFAULT IS UNCHANGED, BIT FOR BIT: passing the six bounds the Jinja2 rule derives
+    # reproduces the omitted-keyword config exactly, field by field.
+    derived = [rp, 10.0 - 4.8 * 1.5, 10.0 - 4.8, 10.0 + 4.8, 10.0 + 4.8 * 3, 1.0e4]
+    same = crp_paper_config(; spin = 0.5, orbital_radius = 10.0, m_mode = 1,
+                            inner_radius = rp, P = 4, L = 0, radial_bounds = derived)
+    @test same.domain.block_bounds_r == base.domain.block_bounds_r
+    @test same.orbit.hyperboloidal_slicing_transitions ==
+          base.orbit.hyperboloidal_slicing_transitions
+    @test same.observers.rcc_inner_radius == base.observers.rcc_inner_radius
+    # (2) THE OVERRIDE REPRODUCES THE YAML: bounds and both transition pairs
+    spec = crp_paper_config(; spin = 0.5, orbital_radius = 10.0, m_mode = 1,
+                            inner_radius = rp, outer_radius = 1.0e4,
+                            worldtube_radius = 4.0, P = 4, L = 0,
+                            equatorial_symmetry = false, radial_bounds = SF_SPECTRE_BOUNDS)
+    @test spec.domain.block_bounds_r == SF_SPECTRE_BOUNDS
+    @test spec.orbit.hyperboloidal_slicing_transitions == (5.0, 5.0, 25.0, 25.0)
+    # the yaml's angular bounds [-1, -0.5, 0.5, 1] are the SIGNED SQUARE ROOTS of the stored
+    # z² rows, which `block_lattice_bounds` produces for the full-z chart (row-39 contract)
+    @test spec.domain.block_bounds_z2 == [0.0, 0.25, 1.0]
+    @test block_lattice_bounds(spec)[2] == [-1.0, -0.5, 0.5, 1.0]
+    # (3) NOTHING IS SILENTLY IGNORED: every other keyword is checked against the bounds
+    bad(; kw...) = crp_paper_config(; spin = 0.5, orbital_radius = 10.0, m_mode = 1,
+                                  inner_radius = rp, P = 4, L = 0, kw...)
+    @test_throws ArgumentError bad(radial_bounds = SF_SPECTRE_BOUNDS)          # wrong wr
+    @test_throws ArgumentError bad(radial_bounds = [rp, 5.0, 6.0, 14.0, 25.0]) # 5 bounds
+    @test_throws ArgumentError bad(radial_bounds = [rp, 6.0, 5.0, 14.0, 25.0, 1.0e4])
+    @test_throws ArgumentError bad(worldtube_radius = 4.0,
+                                   radial_bounds = [2.0, 5.0, 6.0, 14.0, 25.0, 1.0e4])
+    @test_throws ArgumentError bad(worldtube_radius = 4.0,
+                                   radial_bounds = [rp, 5.0, 6.0, 14.0, 25.0, 9.0e3])
+end
+
+# ============ (h) THE LIKE-FOR-LIKE COMPARISON against spectre's regression rows =============
+# With `equatorial_symmetry = false` AND `radial_bounds = SF_SPECTRE_BOUNDS` the lattice is
+# spectre's ScalarCircularOrbit.yaml one: 5x3 blocks, per-row element pattern [1,1,4,2,2],
+# 30 elements, 480 grid points, 4 elements touching the puncture (its NumContributingElements),
+# angular bounds [-1, -0.5, 0.5, 1], P = 4, L = 0, the same Sommerfeld outer BC and the same
+# DG/solver settings. That makes the FIRST grid an identical discrete problem, which is where
+# the comparison is gated.
 #
-# WHICH VALUE IS COMPARED: the MEAN over all 4 containing elements, taken from the LIVE
-# `ModeSolution` at each grid (spectre's reduction, `ObserveSelfForce.hpp:89-107`). The
-# per-level `AmrLevel` route is NOT used here — it records one one-sided trace per level, and a
-# one-sided value must never be frozen as the spectre comparison.
+# WHICH VALUE: the MEAN over all 4 containing elements from the LIVE `ModeSolution` (spectre's
+# reduction, ObserveSelfForce.hpp:89-107). Never the per-level one-sided trace.
 #
-# GRID CORRESPONDENCE: spectre's iteration 0 row is its un-solved initial guess (all zeros);
-# its iteration 1 is the FIRST solve on the initial 480-point mesh (our AMR level 0) and its
-# iteration 2 is the mesh after one AMR step (our AMR level 1).
-#
-# WHAT IS *NOT* THE SAME, and why the level-0 real part is a FINDING rather than a gate: the
-# radial BLOCK BOUNDS differ. Ours are the CRP production ones
-# [r+, 2.8, 5.2, 14.8, 24.4, 1e4] (worldtube r in [5.2, 14.8], vtu transitions at 2.8/24.4);
-# spectre's regression yaml uses [r+, 5, 6, 14, 25, 1e4] (worldtube r in [6, 14]). The matching
-# 30/480/4 is a TOPOLOGY coincidence, not an identical discrete problem. At 480 points the
-# conservative Re(F_r) is nowhere near its limit and is therefore strongly lattice-dependent,
-# while the exponentially convergent Im(F_r) has already reached it — which is exactly the
-# pattern measured below. Nothing here is tuned to close that gap.
+# GRID CORRESPONDENCE: spectre's iteration 0 is its un-solved initial guess; its iteration 1 is
+# the first solve on the 480-point mesh (our AMR level 0); its iteration 2 is the mesh after one
+# AMR step (our AMR level 1) — where the two grids DIVERGE, 921 points against 975, so spectre's
+# own tolerance is not the right criterion there and that grid is reported, not gated.
 const SF_FULLZ_ITER1 = (-9.183e-5, 9.451e-5)      # spectre [1, 480, 4]
 const SF_FULLZ_ITER2 = (-1.365e-4, 9.138e-5)      # spectre [2, 975, 4]
+const SF_LIKE4LIKE_ATOL = 5.0e-8   # OUR band on the identical discrete problem, 4x tighter
+                                   # than spectre's 2e-7 (which is also asserted)
 
-@testset "(h) the full-z lattice against spectre's regression rows at matching grids" begin
-    cfg = crp_paper_config(; spin = 0.5, orbital_radius = 10.0, m_mode = 1,
-                           inner_radius = SF_ORB.rp, P = 4, L = 0,
-                           equatorial_symmetry = false)
+sf_fullz(bounds) = crp_paper_config(; spin = 0.5, orbital_radius = 10.0, m_mode = 1,
+                                    inner_radius = SF_ORB.rp, outer_radius = 1.0e4,
+                                    worldtube_radius = bounds === nothing ? 4.8 : 4.0,
+                                    P = 4, L = 0, equatorial_symmetry = false,
+                                    radial_bounds = bounds)
+
+@testset "(h) the identical spectre lattice, like for like" begin
+    cfg = sf_fullz(SF_SPECTRE_BOUNDS)
     dom = block_domain(SF_ORB, cfg)
     xp = puncture_chart_position(dom, SF_ORB)
-    # (i) STRUCTURAL: we reproduce spectre's lattice topology and its NumContributingElements
+    # (i) STRUCTURAL: spectre's lattice, element for element
     @test dom.chart === :z
     @test (dom.nr, dom.nz) == (5, 3)
+    @test cfg.domain.block_bounds_r == SF_SPECTRE_BOUNDS
     @test length(dom.mesh.elements) == 30
     @test dom.mesh.ndofs == 480
     @test length(ScalarSelfForce._dr_containing(dom.mesh, xp[1], xp[2])) == 4
-    @test xp == (10.0, 0.0)
+    per_block = Dict{Int,Int}()
+    for el in dom.mesh.elements
+        per_block[el.block] = get(per_block, el.block, 0) + 1
+    end
+    for j in 0:dom.nz-1                       # the yaml's 15 RefinedLevels patches, per row
+        @test [get(per_block, i + dom.nr * j, 0) for i in 0:dom.nr-1] == [1, 1, 4, 2, 2]
+    end
 
-    # (ii) AMR level 0 == spectre iteration 1, on 480 points with 4 contributing elements
+    # (ii) GRID 0 == spectre iteration 1, on the IDENTICAL discrete problem
     sol = solve_mode(SF_ORB, cfg, 1; dom = dom)
     f0 = mode_self_force(sol)
     @test f0.reduction === :mean && length(f0.elements) == 4
     d0re = abs(real(f0.Fr_complex) - SF_FULLZ_ITER1[1])
     d0im = abs(imag(f0.Fr_complex) - SF_FULLZ_ITER1[2])
-    @printf("mode-self-force (h) observed level 0 (%d pts, %d elements, mean of %d): \
-             %+.12e %+.12e im ; spectre iter 1 %+.4e %+.4e ; dRe %.5e dIm %.5e (their atol %.1e)\n",
+    per = [mode_self_force(sol; element = e).Fr for e in f0.elements]
+    @printf("mode-self-force (h) observed LIKE-FOR-LIKE grid 0 (%d pts, %d elements, mean of %d): \
+             %+.12e %+.12e im ; spectre iter 1 %+.4e %+.4e ; dRe %.5e dIm %.5e \
+             (our band %.1e, their atol %.1e)\n",
             sol.mesh.ndofs, length(sol.mesh.elements), length(f0.elements),
-            real(f0.Fr_complex), imag(f0.Fr_complex), SF_FULLZ_ITER1...,
-            d0re, d0im, SF_SPECTRE_ATOL)
+            real(f0.Fr_complex), imag(f0.Fr_complex), SF_FULLZ_ITER1..., d0re, d0im,
+            SF_LIKE4LIKE_ATOL, SF_SPECTRE_ATOL)
+    @printf("mode-self-force (h) observed per-element traces Re(F_r): %s ; spread %.4e — the \
+             reduction is what makes the mean meet spectre, a single trace would not\n",
+            join((@sprintf("%+.9e", v) for v in per), " "), maximum(per) - minimum(per))
+    @test d0re <= SF_SPECTRE_ATOL && d0im <= SF_SPECTRE_ATOL   # spectre's own tolerance
+    @test d0re <= SF_LIKE4LIKE_ATOL                            # and 4x tighter
+    @test d0im <= SF_LIKE4LIKE_ATOL
+    # the +z and -z traces coincide: the solution is equatorially symmetric even though the
+    # domain does not impose it, so the 4-element mean is really a 2-value mean
+    @test length(unique(round.(per; sigdigits = 12))) == 2
 
-    # (iii) AMR level 1 == spectre iteration 2 (ours 921 points against their 975 — the
-    # m-dependent-grid difference), and here BOTH components land inside spectre's tolerance
+    # (iii) GRID 1: ours 921 points against spectre's 975 — the grids DIVERGE here (spectre
+    # allows AMR coarsening, we do not), so this is REPORTED, not gated.
     ScalarSelfForce.amr_step!(sol; flags = amr_flags(sol),
                               options = amr_level_options(cfg, 1))
     f1 = mode_self_force(sol)
-    @test f1.reduction === :mean && length(f1.elements) == 4
     d1re = abs(real(f1.Fr_complex) - SF_FULLZ_ITER2[1])
     d1im = abs(imag(f1.Fr_complex) - SF_FULLZ_ITER2[2])
-    @printf("mode-self-force (h) observed level 1 (%d pts, %d elements, mean of %d): \
-             %+.12e %+.12e im ; spectre iter 2 %+.4e %+.4e ; dRe %.5e dIm %.5e (their atol %.1e)\n",
-            sol.mesh.ndofs, length(sol.mesh.elements), length(f1.elements),
-            real(f1.Fr_complex), imag(f1.Fr_complex), SF_FULLZ_ITER2...,
-            d1re, d1im, SF_SPECTRE_ATOL)
-    # GATED: at the second grid both components reproduce spectre's row inside ITS OWN
-    # tolerance. Margins are 2.4x (Re) and 1.2x (Im) — the imaginary margin is thin, and a
-    # future mesh change that moves it past 2e-7 is a re-measurement to record, not a
-    # regression to hide: the two grids are 921 against 975 points.
-    @test d1re <= SF_SPECTRE_ATOL
-    @test d1im <= SF_SPECTRE_ATOL
-    # ... and the level-0 real-part gap is REPORTED, never asserted away (see the header).
-    @printf("mode-self-force (h) FINDING: at the 480-point grid Im(F_r) agrees within \
-             spectre's tolerance (%.5e) while Re(F_r) does not (%.5e) — the block bounds \
-             differ, so 30/480/4 is a topology match, not an identical discrete problem\n",
-            d0im, d0re)
+    @printf("mode-self-force (h) observed grid 1 (%d pts against spectre's 975, %d elements): \
+             %+.12e %+.12e im ; spectre iter 2 %+.4e %+.4e ; dRe %.5e dIm %.5e — DIFFERENT \
+             grids, reported not gated\n", sol.mesh.ndofs, length(sol.mesh.elements),
+            real(f1.Fr_complex), imag(f1.Fr_complex), SF_FULLZ_ITER2..., d1re, d1im)
+    @test sol.mesh.ndofs > 480 && f1.reduction === :mean
+
+    # (iv) THE CONTRAST that isolates the cause: the same code on the CRP production bounds
+    solc = solve_mode(SF_ORB, sf_fullz(nothing), 1)
+    fc = mode_self_force(solc)
+    @printf("mode-self-force (h) observed CRP-bounds grid 0 (%d pts): dRe %.5e dIm %.5e — only \
+             the radial block bounds differ, and only the conservative part notices\n",
+            solc.mesh.ndofs, abs(real(fc.Fr_complex) - SF_FULLZ_ITER1[1]),
+            abs(imag(fc.Fr_complex) - SF_FULLZ_ITER1[2]))
+    @test solc.mesh.ndofs == 480 && length(fc.elements) == 4
 end
 
 # =========================== API surface: guards and equivalences ============================

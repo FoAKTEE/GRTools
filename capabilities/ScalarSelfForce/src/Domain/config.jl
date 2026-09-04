@@ -192,6 +192,35 @@ decomp-crp §2). NOT a yaml key: the yaml holds a single `MModeNumber` per run.
 """
 const CRP_PAPER_MMODES = 0:20
 
+# The six radial block bounds {inner, v→t, r0−wr, r0+wr, t→u, R}. Without `radial_bounds`
+# these are the yaml's own Jinja2 derivation (`v→t = r0 − 1.5·wr`, `t→u = r0 + 3·wr`); with it
+# they are given directly, which is how a lattice that the Jinja2 rules cannot express — such
+# as spectre's own regression yaml `tests/InputFiles/SelfForce/ScalarCircularOrbit.yaml`,
+# `[r₊, 5, 6, 14, 25, 1e4]` — is built. The override REPLACES the derivation, never the
+# meaning of the other keywords: `inner_radius`, `outer_radius`, `orbital_radius` and
+# `worldtube_radius` must agree with it, and a mismatch is an `ArgumentError` naming the
+# offending pair rather than a silently ignored argument.
+function _crp_radial_bounds(::Type{T}, radial_bounds, rin, rout, r0, wr) where {T}
+    radial_bounds === nothing &&
+        return T[rin, r0 - wr * T(1.5), r0 - wr, r0 + wr, r0 + wr * 3, rout]
+    b = collect(T, radial_bounds)
+    length(b) == 6 || throw(ArgumentError(
+        "crp_paper_config: radial_bounds needs the 6 block bounds " *
+        "{inner, v→t, r0−wr, r0+wr, t→u, R}, got $(length(b))"))
+    all(b[k] < b[k + 1] for k in 1:5) || throw(ArgumentError(
+        "crp_paper_config: radial_bounds must be strictly increasing, got $b"))
+    b[1] == T(rin) || throw(ArgumentError(
+        "crp_paper_config: radial_bounds[1] = $(b[1]) but inner_radius = $rin — the inner " *
+        "bound must BE the horizon (block_domain enforces bounds_r[1] == r₊)"))
+    b[6] == T(rout) || throw(ArgumentError(
+        "crp_paper_config: radial_bounds[6] = $(b[6]) but outer_radius = $rout"))
+    b[3] == T(r0 - wr) && b[4] == T(r0 + wr) || throw(ArgumentError(
+        "crp_paper_config: radial_bounds[3:4] = $(b[3:4]) is not the worldtube " *
+        "[r0 − wr, r0 + wr] = $([r0 - wr, r0 + wr]) — pass worldtube_radius = " *
+        "$((b[4] - b[3]) / 2) and orbital_radius = $((b[3] + b[4]) / 2)"))
+    return b
+end
+
 """
     crp_paper_config(; spin=0.0, orbital_radius=10.0, m_mode=2, inner_radius=2.0,
                        outer_radius=1.0e4, worldtube_radius=4.8, worldtube_dz2=0.25,
@@ -201,6 +230,16 @@ Literal transcription of anc/ScalarSelfForce.yaml. Keywords = the yaml's Jinja2 
 parameters; defaults = the production example of the yaml header (yaml:9-12). Numeric type
 `T = float(promote_type(...))` of the six real parameters (BigFloat inherited); `m_mode`,
 `P` (points per element per dimension) and `L` (initial refinement level) are `Int`s.
+
+`radial_bounds` (optional) REPLACES the Jinja2 radial derivation with six explicit block
+bounds `{inner, v→t, r0−wr, r0+wr, t→u, R}` and reads the two hyperboloidal transitions off
+them (`v→t = bounds[2]`, `t→u = bounds[5]`), exactly as the yaml's anchors do. It exists for
+lattices the Jinja2 rules cannot express — spectre's own regression yaml
+`tests/InputFiles/SelfForce/ScalarCircularOrbit.yaml` uses `[r₊, 5, 6, 14, 25, 1e4]`, whose
+transitions are not `r0 ∓ 1.5wr / r0 + 3wr`. It overrides the DERIVATION only: `inner_radius`,
+`outer_radius`, `orbital_radius` and `worldtube_radius` keep their meaning and are CHECKED
+against it, so a mismatch is an `ArgumentError` naming the offending pair, never a silently
+ignored argument. Omitted (the default) nothing changes, bit for bit.
 
 Jinja2 derivations reproduced exactly (yaml:31-33, 54-61, 79-110, 115-125, 188):
   * `v→t = orbital_radius − worldtube_radius·1.5`, `t→u = orbital_radius + worldtube_radius·3`;
@@ -218,7 +257,8 @@ function crp_paper_config(; spin::Real=0.0,            # -p spin            (yam
                             worldtube_dz2::Real=0.25,     # -p worldtube_dz2    (yaml:12)
                             P::Integer=4,              # -p P               (yaml:12)
                             L::Integer=0,              # -p L               (yaml:12)
-                            equatorial_symmetry::Bool=true)  # …ImposeEquatorialSymmetry (yaml:36)
+                            equatorial_symmetry::Bool=true,  # …ImposeEquatorialSymmetry (yaml:36)
+                            radial_bounds::Union{Nothing,AbstractVector{<:Real}}=nothing)
     T = float(promote_type(typeof(spin), typeof(orbital_radius), typeof(inner_radius),
                            typeof(outer_radius), typeof(worldtube_radius),
                            typeof(worldtube_dz2)))
@@ -229,9 +269,14 @@ function crp_paper_config(; spin::Real=0.0,            # -p spin            (yam
 
     # Jinja2 derivations (yaml:31-33); computed ONCE and aliased exactly like the yaml anchors,
     # with the yaml's own literals (1.5 and 3 are exact in binary FP, so for T = Float64 these
-    # reproduce the rendered doubles bit-for-bit, e.g. 10.0 − 4.8·1.5 = 2.8000000000000007)
-    v_to_t = r0 - wr * T(1.5)        # &v_to_t_transition: orbital_radius − worldtube_radius·1.5
-    t_to_u = r0 + wr * 3             # &t_to_u_transition: orbital_radius + worldtube_radius·3
+    # reproduce the rendered doubles bit-for-bit, e.g. 10.0 − 4.8·1.5 = 2.8000000000000007).
+    # `radial_bounds` overrides the DERIVATION only (see the docstring): the six bounds are then
+    # given directly and the two hyperboloidal transitions are read off them, exactly as the
+    # yaml's anchors do. Every other keyword keeps its meaning and is CHECKED against them —
+    # nothing is silently ignored.
+    bounds_r = _crp_radial_bounds(T, radial_bounds, rin, rout, r0, wr)
+    v_to_t = bounds_r[2]             # &v_to_t_transition
+    t_to_u = bounds_r[5]             # &t_to_u_transition
 
     orbit = OrbitConfig{T}(
         one(T),                      # Background.CircularOrbit.BlackHoleMass (yaml:26)
@@ -247,7 +292,7 @@ function crp_paper_config(; spin::Real=0.0,            # -p spin            (yam
         SommerfeldBC{T}(one(T), a, r0, m, true, 2)   # yaml:118-124
 
     domain = DomainConfig{T}(
-        [rin, v_to_t, r0 - wr, r0 + wr, t_to_u, rout],  # …BlockBounds[r] (yaml:55-61)
+        bounds_r,                                       # …BlockBounds[r] (yaml:55-61)
         [zero(T), dz2, one(T)],                         # …BlockBounds[z²] (yaml:63)
         [:Linear, :Linear, :Linear, :Linear, :Inverse], # …Distributions[r] (yaml:66)
         [:Linear, :Linear],                             # …Distributions[z²] (yaml:68)
