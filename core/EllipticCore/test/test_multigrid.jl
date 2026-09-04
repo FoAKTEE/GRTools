@@ -961,3 +961,118 @@ end
         end
     end
 end
+
+# ============================================================================================
+# The EXPLICIT COARSE-MESH CHAIN form of MultigridHierarchy (DAG row 56, linsolv-depth-gap).
+#
+# Written BEFORE the implementation; the red run is captured in
+# emri-disk results/elliptic-ssf/paper_ELLIPTIC-SSF/evidence/linsolv-depth-gap/tests_red.log.
+#
+# WHY THE FORM EXISTS. The automatic constructor derives every coarse level by h-coarsening the
+# CURRENT mesh, which can only ever express an h-hierarchy at a fixed (or MIN-rule) order. The
+# reference's own hierarchy is not of that shape: `SolveScalarSelfForce.hpp:173` sets
+# `amr::keep_coarse_grids = true`, `Amr/Actions/AdjustDomain.hpp:157-212` gives EVERY element a
+# child at `grid_index + 1` on every AMR step (split children where the flag is `Split`, one
+# same-shape child carrying the p increment otherwise) and
+# `Amr/Actions/SendDataToChildren.hpp:43-70` keeps the parent alive as a coarser grid, so the
+# grids the V-cycle walks (`Multigrid/ElementActions.hpp:96-135` sets the very
+# `amr::Tags::{ParentId, ChildIds, ParentMesh}` triple `Multigrid.hpp:160-186` traverses) ARE the
+# AMR history — consecutive levels differing by one h split AND one p increment. That chain
+# cannot be recovered from the finest mesh alone; it has to be supplied.
+#
+# GATES: (1) handed the automatic hierarchy's own meshes the explicit form reproduces it
+# BITWISE, level for level, transfer for transfer, and its V-cycle is bitwise the same map;
+# (2) a p-ONLY link (identical elements, lower order) — the link h-coarsening cannot express —
+# builds and passes the sealed transfer trio; (3) an hp chain of `hp_refine` steps (the
+# reference's own shape) builds, passes the trio and contracts; (4) every way a chain can fail
+# to be a coarsening is REFUSED with an ArgumentError rather than silently mis-transferred.
+#
+# GATE CONSTANTS calibrated PRE-RED on the throwaway prototype
+# `evidence/linsolv-depth-gap/calibrate_chain.jl` (log `calibrate_chain.log`), which composes
+# the sealed pieces the implementation will compose without being the implementation.
+const MGC_TRIO_TOL = 1e-12      # calibrated 6.7e-16 … 1.7e-15 over the p-only and hp chains
+const MGC_RHO_HP = 0.25         # calibrated 0.1708, 3-level hp chain (cf. MG_RHO_NC = 0.25)
+const MGC_RHO_PONLY = 0.05      # calibrated 0.0045, 2-level p-only chain
+@testset "explicit coarse-mesh chain (linsolv-depth-gap)" begin
+    mk = mg_factory(ComplexF64, MG_BETA_DEF)
+
+    # ---- (1) the automatic hierarchy's own chain reproduces it bitwise ------------------
+    @testset "the automatic chain, supplied explicitly, is bitwise the same hierarchy" begin
+        mesh = mg_uniform_mesh(Float64, 3, 4)
+        op = mk(mesh)
+        auto = MultigridHierarchy(op, mk)
+        @test length(auto.levels) >= 3
+        chain = [l.mesh for l in auto.levels[2:end]]
+        expl = MultigridHierarchy(op, mk, chain)
+        @test length(expl.levels) == length(auto.levels)
+        for ℓ in eachindex(auto.levels)
+            @test expl.levels[ℓ].mesh.elements == auto.levels[ℓ].mesh.elements
+            @test expl.levels[ℓ].mesh.orders == auto.levels[ℓ].mesh.orders
+            @test expl.levels[ℓ].parent == auto.levels[ℓ].parent
+            @test expl.levels[ℓ].P == auto.levels[ℓ].P
+            @test expl.levels[ℓ].R == auto.levels[ℓ].R
+        end
+        rng = MGRNG(0x5601)
+        b = mg_cvec!(rng, mesh.ndofs)
+        za = zeros(ComplexF64, mesh.ndofs)
+        ze = zeros(ComplexF64, mesh.ndofs)
+        vcycle!(za, MultigridV(auto), b)
+        vcycle!(ze, MultigridV(expl), b)
+        @test za == ze                                        # BITWISE the same V-cycle
+        # an EMPTY chain is the single-level hierarchy (the bottom solve is the whole problem)
+        one = MultigridHierarchy(op, mk, typeof(mesh)[])
+        @test length(one.levels) == 1
+        @test isempty(one.levels[1].parent)
+    end
+
+    # ---- (2) a p-only link: the link h-coarsening cannot express ------------------------
+    @testset "p-only link (same elements, lower order) transfers correctly" begin
+        fine = mg_uniform_mesh(Float64, 2, 5)
+        coarse = mg_uniform_mesh(Float64, 2, 4)
+        @test fine.elements == coarse.elements                # same h, different p
+        @test fine.orders != coarse.orders
+        hier = MultigridHierarchy(mk(fine), mk, [coarse])
+        @test length(hier.levels) == 2
+        @test hier.levels[1].parent == collect(1:length(fine.elements))
+        chk = mg_transfer_check(hier)
+        @test chk.prolong_exact < MGC_TRIO_TOL
+        @test chk.restrict_identity < MGC_TRIO_TOL
+        @test chk.adjointness < MGC_TRIO_TOL
+        @test mg_contraction(MultigridV(hier), fine.ndofs)[end] < MGC_RHO_PONLY
+    end
+
+    # ---- (3) an hp chain of hp_refine steps: the reference's own shape ------------------
+    @testset "hp chain of hp_refine steps builds, transfers and contracts" begin
+        m0 = mg_uniform_mesh(Float64, 2, 4)
+        # one corner element split, every other element p-incremented — the CRP criterion
+        flags1 = Dict(m0.elements[1] => (true, true))
+        m1 = hp_refine(m0, flags1)
+        flags2 = Dict(m1.elements[1] => (true, true))
+        m2 = hp_refine(m1, flags2)
+        @test m2.ndofs > m1.ndofs > m0.ndofs
+        hier = MultigridHierarchy(mk(m2), mk, [m1, m0])
+        @test length(hier.levels) == 3
+        @test [l.mesh.ndofs for l in hier.levels] == [m2.ndofs, m1.ndofs, m0.ndofs]
+        chk = mg_transfer_check(hier)
+        @test chk.prolong_exact < MGC_TRIO_TOL
+        @test chk.restrict_identity < MGC_TRIO_TOL
+        @test chk.adjointness < MGC_TRIO_TOL
+        mg = MultigridV(hier)
+        rho = mg_contraction(mg, m2.ndofs)
+        @test rho[end] < MGC_RHO_HP
+    end
+
+    # ---- (4) every non-coarsening chain is refused --------------------------------------
+    @testset "a chain that is not a coarsening is refused" begin
+        m0 = mg_uniform_mesh(Float64, 2, 4)
+        m1 = mg_uniform_mesh(Float64, 3, 4)                   # FINER than m0
+        m2 = mg_uniform_mesh(Float64, 1, 4)                   # two levels coarser than m1
+        # a "coarse" mesh that is finer: no ancestor of a fine element is present
+        @test_throws ArgumentError MultigridHierarchy(mk(m0), mk, [m1])
+        # a level gap of 2 per dimension: the transfers admit 0 or 1
+        @test_throws ArgumentError MultigridHierarchy(mk(m1), mk, [m2])
+        # a chain mesh from a different block lattice
+        other = mg_curved_mesh(Float64, 2)
+        @test_throws ArgumentError MultigridHierarchy(mk(m0), mk, [other])
+    end
+end

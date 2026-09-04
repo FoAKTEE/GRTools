@@ -411,6 +411,106 @@ function MultigridHierarchy(op::MeshOperator{S,RT}, build_op;
     return MultigridHierarchy{eltype(levels)}(levels)
 end
 
+"""
+    MultigridHierarchy(op::MeshOperator, build_op, meshes::AbstractVector{<:Mesh2D};
+                       overlap = 2, shift = 0, epoch = 0, caches = nothing)
+
+THE EXPLICIT-CHAIN FORM: level 1 is `op` on its own mesh and level `ℓ+1` is `meshes[ℓ]` with
+`build_op(meshes[ℓ])`, in the order given (finest first, `op.mesh` NOT repeated). The keywords
+mean exactly what they mean for the automatic form above; `maxlevels`, `shrink` and
+`coarse_orders` have no meaning here because the caller supplies the levels.
+
+Each `meshes[ℓ]` must be a COARSENING of the level above it in the same sense
+[`coarsen_mesh`](@ref) produces: every element of the finer mesh has an ancestor-or-equal in it,
+at a per-dimension refinement-level gap of 0 or 1. Orders are free — a link may coarsen `h`
+only, `p` only, or both. Anything else is an `ArgumentError`; a chain that is not a coarsening
+cannot be transferred and would otherwise be silently mis-projected.
+
+An EMPTY chain gives the single-level hierarchy whose bottom solve is the whole problem.
+
+# WHY THE FORM EXISTS (the reference's own hierarchy is not an h-coarsening of the fine mesh)
+
+The automatic constructor derives every coarse level from the CURRENT mesh, so it can only
+express an h-hierarchy at a fixed (or MIN-rule) order. arXiv:2606.04998 does not run that
+hierarchy under AMR. Its executable sets `amr::keep_coarse_grids = true`
+(`Elliptic/Executables/SelfForce/Scalar/SolveScalarSelfForce.hpp:173`), and then every AMR step
+creates a NEW FINEST GRID and keeps the old one: `ParallelAlgorithms/Amr/Actions/AdjustDomain.hpp:157-163`
+gives a `Split` element children at `grid_index + 1`, `:203-212` gives every element that is
+NOT split a same-shape child at `grid_index + 1` carrying the p increment, and
+`Amr/Actions/SendDataToChildren.hpp:43-70` re-registers the parent as a coarser grid instead of
+destroying it. The V-cycle then walks exactly those grids —
+`LinearSolver/Multigrid/ElementActions.hpp:96-135` sets the same
+`amr::Tags::{ParentId, ChildIds, ParentMesh}` triple that `Multigrid.hpp:160-186` traverses, and
+`Multigrid.hpp:56-58` says it in words: "Once the initial grids are created, AMR steps can
+create incrementally finer grids."
+
+So under the paper's `Amr.Iterations: 8` the hierarchy at AMR level `k` has `k+1` levels and they
+ARE the AMR history: consecutive levels differ by ONE AMR step (one puncture split and one p
+increment elsewhere), and the coarsest is the invariant initial lattice — which is what makes
+main.tex:674 ("the bottom grid remains the same even when AMR adds finer levels") literally true.
+That chain is not recoverable from the finest mesh alone; the caller keeps it and passes it here.
+
+MEASURED on the CRP exemplar (a = 0.5 M, r₀ = 10 M, m = 2, P = 4, L = 0, 8 AMR levels), through
+the [`SolverStack`](@ref) `preconditioner` seam and changing nothing else: GMRES iterations
+`1, 8, 9, 9, 9, 9, 9, 9` (63) with the automatic hierarchy against `1, 7, 7, 6, 5, 5, 5, 4` (40)
+with this one — the counts FALL with depth as the published `fig:linsolv` staircase does instead
+of flattening, the per-iteration residual reduction RISES (27.8 → 60.8 against 16.4 → 6.0), and
+the bottom LU is factorized ONCE and hit at all seven later levels (against two factorizations).
+"""
+function MultigridHierarchy(op::MeshOperator{S,RT}, build_op,
+                            meshes::AbstractVector;
+                            overlap::Integer = 2, shift::Real = 0,
+                            epoch::Integer = 0, caches = nothing) where {S,RT}
+    built = Any[]
+    mesh = op.mesh
+    cur = op
+    n = length(meshes)
+    for ℓ in 0:n
+        sm = SchwarzSmoother(cur; overlap = overlap, shift = shift, epoch = epoch,
+                             cache = _mg_cache(caches, ℓ + 1))
+        if ℓ == n
+            push!(built, MultigridLevel(mesh, cur, sm, Int[],
+                                        NTuple{2,Matrix{RT}}[], NTuple{2,Matrix{RT}}[]))
+            break
+        end
+        cmesh = meshes[ℓ+1]::Mesh2D
+        parent = _mg_chain_parent(mesh, cmesh, ℓ + 1)
+        P, R = _mg_transfer_matrices(RT, mesh, cmesh, parent)
+        push!(built, MultigridLevel(mesh, cur, sm, parent, P, R))
+        mesh = cmesh
+        cur = build_op(cmesh)::MeshOperator
+    end
+    levels = identity.(built)
+    return MultigridHierarchy{eltype(levels)}(levels)
+end
+
+# fine element -> its index in the supplied coarse mesh, with the two conditions the transfers
+# need stated as refusals: the coarse mesh must COVER the fine one (an ancestor-or-equal of every
+# fine element is present) at a per-dimension level gap of 0 or 1.
+function _mg_chain_parent(mesh::Mesh2D, cmesh::Mesh2D, ℓ::Int)
+    isempty(cmesh.elements) && throw(ArgumentError(
+        "MultigridHierarchy: chain level $ℓ has no elements"))
+    lookup = Dict{ElementId,Int}(id => k for (k, id) in enumerate(cmesh.elements))
+    length(lookup) == length(cmesh.elements) || throw(ArgumentError(
+        "MultigridHierarchy: chain level $ℓ repeats an element id"))
+    parent = Vector{Int}(undef, length(mesh.elements))
+    for (e, el) in enumerate(mesh.elements)
+        anc = _amr_ancestor(lookup, el)
+        anc === nothing && throw(ArgumentError(
+            "MultigridHierarchy: chain level $ℓ does not cover element $el of the level " *
+            "above it — every supplied mesh must be a coarsening (an ancestor-or-equal of " *
+            "every finer element, same block lattice), as `coarsen_mesh` produces"))
+        for d in 1:2
+            Δ = el.segments[d].level - anc.segments[d].level
+            Δ <= 1 || throw(ArgumentError(
+                "MultigridHierarchy: chain level $ℓ is $Δ refinement levels below $el in " *
+                "dimension $d (the transfers require 0 or 1) — supply the intermediate mesh"))
+        end
+        parent[e] = lookup[anc]
+    end
+    return parent
+end
+
 # the cache for level ℓ: a fresh one per level (default), one shared cache, or the ℓ-th
 # entry of a caller-owned vector (extended in place as levels are built)
 _mg_cache(::Nothing, ::Int) = SubdomainCache()

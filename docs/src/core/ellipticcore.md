@@ -57,6 +57,19 @@ The solver stack, bottom to top:
   AMR steps (rebuilding on identical meshes costs zero new factorizations), and
   `shrink` trades levels for coarse-space quality by composing the transfers of
   steps that do not shrink the problem enough.
+  The hierarchy also accepts an **explicit chain** of coarse meshes,
+  `MultigridHierarchy(op, build_op, meshes)`, instead of deriving them: level
+  `ℓ+1` is `meshes[ℓ]` with its own rediscretized operator, each supplied mesh
+  having to be a coarsening of the one above it (an ancestor-or-equal of every
+  finer element at a per-dimension level gap of 0 or 1, orders free — a link may
+  coarsen `h` only, `p` only, or both), anything else refused. That is the form
+  arXiv:2606.04998 runs: its executable keeps the coarse grids across AMR, so
+  every AMR step adds a new finest grid and the multigrid levels **are** the AMR
+  history — consecutive levels one AMR step apart (one puncture split and one
+  polynomial increment) and the coarsest the invariant initial lattice, which is
+  what keeps the bottom `LU` factorized once. On the paper's own exemplar the
+  supplied chain takes the GMRES counts from `1, 8, 9, 9, 9, 9, 9, 9` to
+  `1, 7, 7, 6, 5, 5, 5, 4`, i.e. from flat to the published falling staircase.
   The transfers are the sealed mortar projections:
   [`mg_prolong!`](@ref) is the nodal Lagrange interpolation onto the children;
   [`mg_restrict_residual!`](@ref) is the Galerkin restriction `Pᵀ` of the
