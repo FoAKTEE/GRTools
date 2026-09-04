@@ -37,6 +37,10 @@ The figures split cleanly into two families:
   appropriate ("1 s", "10 s"; "Walltime: 0:00:06").
 - Figure widths: single-column (`0.5\textwidth`) for Figs 4, 6; full
   two-column width (`\textwidth`) for Figs 1, 3, 5, 7.
+- **Plots.jl gotcha when scaling type with the canvas:** `Plots.font` reads an
+  INTEGER positional argument as the point size and any other `Real` as a
+  ROTATION IN DEGREES, so `text(str, 14*scale, …)` tilts the label by 8.9° and
+  leaves it at the default 14 pt. Round every scaled size to an `Int`.
 
 **B. Schematics / 3D renders (Figs 1, 2, 3, 5)**:
 - Fig 1 is a rendered 3D surface schematic, Fig 3 a pastel flowchart, Fig 2

@@ -486,6 +486,12 @@ const PX_PER_UNIT = 272         # raster resolution of the frame; the golden-siz
 # knob (429 px/unit is the size the annotation offsets were laid out at). Without it, lowering
 # the resolution to meet the golden budget silently enlarges every label until they collide.
 const SC = PX_PER_UNIT / 429
+# `Plots.font` reads an INTEGER positional argument as the point size and ANY OTHER Real as a
+# ROTATION IN DEGREES, silently leaving the size at its default. `text(str, 14SC, …)` therefore
+# does not shrink a label — it TILTS it by 8.9° and draws it at 14 pt. Every scaled size must be
+# rounded to an Int before it reaches `text`, which is what `fs` is for. (Line widths, marker
+# sizes and the `rotation` keyword are ordinary Floats and are unaffected.)
+fs(pt::Real) = max(1, round(Int, pt * SC))
 const AMBIENT = 0.62
 const LIGHT = (-0.42, -0.28, 0.86)
 const RED = RGB(0.90, 0.09, 0.09)          # the paper's reserved worldtube accent
@@ -594,7 +600,7 @@ end
 plot!(plt, hx, hy; linecolor = :black, linewidth = 5.0SC, label = "")
 hang = atand(hy[end]-hy[1], hx[end]-hx[1])
 annotate!(plt, (hx[1]+hx[end])/2-0.115, (hy[1]+hy[end])/2-0.105,
-          text("Kerr horizon \$r_+\$", 14SC, :black, :center, rotation = hang))
+          text("Kerr horizon \$r_+\$", fs(14), :black, :center, rotation = hang))
 
 # the v | t | u slicing arc along the pole edge (a quadratic Bézier above the surface)
 pv = P2(dom.bounds_r[1], 1.0, 0.0); pu = P2(38.0, 1.0, 0.0)
@@ -606,8 +612,8 @@ plot!(plt, [p[1] for p in BP], [p[2] for p in BP]; linecolor = :black, linewidth
       label = "", arrow = Plots.arrow(:closed, :head, 1.0, 1.0))
 for (t, lab, hl) in ((0.02, "v", "\$H=-1\$"), (0.5, "t", ""), (0.97, "u", "\$H=+1\$"))
     p = bez(t)
-    annotate!(plt, p[1]-0.055, p[2]+0.045, text("\$\\mathbf{$(lab)}\$", 18SC, :black, :center))
-    isempty(hl) || annotate!(plt, p[1]-0.075, p[2]+0.175, text(hl, 11SC, :black, :right))
+    annotate!(plt, p[1]-0.055, p[2]+0.045, text("\$\\mathbf{$(lab)}\$", fs(18), :black, :center))
+    isempty(hl) || annotate!(plt, p[1]-0.075, p[2]+0.175, text(hl, fs(11), :black, :right))
 end
 
 # the (z², r) direction arrows under the near corner
@@ -617,8 +623,8 @@ plot!(plt, [c0[1], cz[1]], [c0[2]+aoy, cz[2]+aoy]; linecolor = :black, linewidth
       label = "", arrow = Plots.arrow(:closed, :both, 0.8, 0.8))
 plot!(plt, [c0[1], cr[1]], [c0[2]+aoy, cr[2]+aoy]; linecolor = :black, linewidth = 2.4SC,
       label = "", arrow = Plots.arrow(:closed, :head, 0.8, 0.8))
-annotate!(plt, cz[1]-0.03, cz[2]+aoy-0.10, text("\$z^2 \\equiv \\cos(\\theta)^2\$", 13SC, :right))
-annotate!(plt, cr[1]+0.05, cr[2]+aoy-0.02, text("\$r\$", 14SC, :left))
+annotate!(plt, cz[1]-0.03, cz[2]+aoy-0.10, text("\$z^2 \\equiv \\cos(\\theta)^2\$", fs(13), :right))
+annotate!(plt, cr[1]+0.05, cr[2]+aoy-0.02, text("\$r\$", fs(14), :left))
 
 # the red worldtube rectangle, its label, and x_p
 zrect = 0.10 * UMAX
@@ -630,13 +636,13 @@ plot!(plt, [p[1] for p in rcorn[[1,2,3,4,1]]], [p[2] for p in rcorn[[1,2,3,4,1]]
 # so it stays in the white band between the surface and the rectangle whatever the frame does
 tmid = ((rcorn[3][1] + rcorn[4][1]) / 2, (rcorn[3][2] + rcorn[4][2]) / 2)
 annotate!(plt, tmid[1] + 0.52, tmid[2] + 0.17,
-          text("Regularized field \$\\Psi^{R}_{m} = \\Psi_{m} - \\Psi^{P}_{m}\$", 14SC, RED, :center))
+          text("Regularized field \$\\Psi^{R}_{m} = \\Psi_{m} - \\Psi^{P}_{m}\$", fs(14), RED, :center))
 epx = findfirst(e -> inside_wt[e] && grids[e].r[end] ≈ R0 && grids[e].w[1] ≈ 0.0,
                 eachindex(grids))
 pxp = P2(R0, 0.0, grids[epx].v[end, 1])
 scatter!(plt, [pxp[1]], [pxp[2]]; markercolor = :black, markersize = 6.5SC,
          markerstrokewidth = 0, label = "")
-annotate!(plt, pxp[1]+0.045, pxp[2]-0.045, text("\$\\mathbf{x}_p\$", 15SC, :black, :left))
+annotate!(plt, pxp[1]+0.045, pxp[2]-0.045, text("\$\\mathbf{x}_p\$", fs(15), :black, :left))
 
 # the inset: the puncture cascade, magnified (same camera, a window around x_p)
 const IN_R = (9.0, 11.4); const IN_W = (0.0, 0.055)
