@@ -26,11 +26,11 @@ number from a paper) lives here as a **thin driver** plus a **golden** (`expecte
 | **arXiv:2601.19123**<br>`arXiv-2601.19123/` | hybrid EMRI waveform generation | 3 | 2 fig · 1 chk | 3 fast | 2 solid · 1 prelim |
 | **arXiv:2603.12189**<br>`arXiv-2603.12189/` | post-Newtonian self-force comparison | 2 | 2 fig | 2 fast | 2 solid |
 | **arXiv:2603.13482**<br>`arXiv-2603.13482/` | elliptic scalar self-force | 2 | 2 fig | 2 fast | 2 solid |
-| **arXiv:2606.04998**<br>`arXiv-2606.04998/` | Vu et al. — self-force with NR methods (mission paper) | 5 | 5 fig | 0 fast · 5 heavy | 2 solid · 3 prelim |
+| **arXiv:2606.04998**<br>`arXiv-2606.04998/` | Vu et al. — self-force with NR methods (mission paper) | 5 | 5 fig | 0 fast · 5 heavy | 3 solid · 2 prelim |
 | **arXiv:2608.17003**<br>`arXiv-2608.17003/` | EMRI in a gas disc — spiral-wave torque (mission paper) | 15 | 14 fig · 1 chk | 1 fast · 14 heavy | 13 solid · 2 prelim |
 | **arXiv:gr-qc-0703028**<br>`arXiv-gr-qc-0703028/` | Berti, Cardoso & Starinets — QNM tables | 1 | 1 tab | 1 fast | 1 solid |
 | **_selftest**<br>`_selftest/` | harness self-test (not a paper) | 1 | 1 chk | 1 fast | 1 solid |
-| **total** | 13 papers | **60** | 44 fig · 8 tab · 8 chk | 32 fast · 28 heavy | 50 solid · 8 prelim · 2 future |
+| **total** | 13 papers | **60** | 44 fig · 8 tab · 8 chk | 32 fast · 28 heavy | 51 solid · 7 prelim · 2 future |
 
 ### By result
 
@@ -80,7 +80,7 @@ The **golden** column is measured on the file, not declared: `n values / size`,
 | arXiv:2603.13482 | `fig_delta_Omega` | figure | fast | solid | `arXiv-2603.13482/fig_delta_Omega.jl` | 18 / 17 KB | `Spacetime` |
 | arXiv:2606.04998 | `fig_convergence` | figure | heavy | prelim | `arXiv-2606.04998/fig_convergence.jl` | 86 / 34 KB | `ScalarSelfForce` `EllipticCore` |
 | arXiv:2606.04998 | `fig_domain` | figure | heavy | solid | `arXiv-2606.04998/fig_domain.jl` | 53 / 12 KB | `ScalarSelfForce` `EllipticCore` |
-| arXiv:2606.04998 | `fig_linsolv` | figure | heavy | prelim | `arXiv-2606.04998/fig_linsolv.jl` | 69 / 7 KB | `ScalarSelfForce` `EllipticCore` |
+| arXiv:2606.04998 | `fig_linsolv` | figure | heavy | solid | `arXiv-2606.04998/fig_linsolv.jl` | 69 / 7 KB | `ScalarSelfForce` `EllipticCore` |
 | arXiv:2606.04998 | `fig_matrix` | figure | heavy | solid | `arXiv-2606.04998/fig_matrix.jl` | 59 / 4 KB | `ScalarSelfForce` `EllipticCore` |
 | arXiv:2606.04998 | `fig_modes` | figure | heavy | prelim | `arXiv-2606.04998/fig_modes.jl` | 99 / 18 KB | `ScalarSelfForce` `EllipticCore` |
 | arXiv:2608.17003 | `check-printed-numbers` | check | fast | prelim | `arXiv-2608.17003/check_printed_numbers.jl` | (none) | `AccretionDisc` |
@@ -101,7 +101,7 @@ The **golden** column is measured on the file, not declared: `n values / size`,
 | arXiv:gr-qc-0703028 | `skh_tables` | table | fast | solid | `arXiv-gr-qc-0703028/check_skh_tables.jl` | 11 / 1 KB | `Perturbation` `Harmonics` `Spacetime` |
 | _selftest | `harness-selftest` | check | fast | solid | `_selftest/selftest.jl` | 13 / 1 KB | `Spacetime` |
 
-**60 registered results** across 13 papers (+ the harness self-test): 50 solid · 8 prelim · 2 future.
+**60 registered results** across 13 papers (+ the harness self-test): 51 solid · 7 prelim · 2 future.
 32 run at the default `--tier fast` ceiling; 57 goldens on disk, 892 KB total (cap 200 KB each).
 
 > **Not yet reproduced (2)** — declared open, not a defect: `2303.16798::tableI_full` (future, heavy, no golden yet), `2303.16798::fig_comparison_spherical` (future, heavy, no golden yet). 2 of them are `heavy`, so the default `--tier fast` sweep does not select them.
