@@ -89,6 +89,18 @@ using Spacetime: kerr_isco
         @test 1e-2 < p.ratio < 1e2             # O(1): the mode variable is regular at the axis
         @test abs(p.exponent) < 1              # no (1−z²)^{−|m|} branch
         @test p.layer_ratio <= 1.05            # the horizon strip never dominates the plane
+
+        # the POOLED-RESULTS seam: a process fan-out keeps a mesh and a nodal vector but no
+        # live ModeSolution, so the four-argument method must give the SAME numbers, bitwise
+        sol = hist.solution
+        q = horizon_axis_profile(sol.dom, sol.orbit, hist.levels[end].mesh, sol.u)
+        @test q.r === p.r && q.ratio === p.ratio && q.exponent === p.exponent
+        @test q.layer_max === p.layer_max && q.bulk_max === p.bulk_max
+        @test q.layer_ratio === p.layer_ratio
+        @test q.zeta == p.zeta && q.absu == p.absu && q.x2 == p.x2
+        # and it validates its arguments the same way
+        @test_throws ArgumentError horizon_axis_profile(sol.dom, sol.orbit, sol.mesh,
+                                                        sol.u[1:end-1])
     end
 
     # ---- (d) the node's gate, with its falsifier ------------------------------------------

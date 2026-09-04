@@ -101,7 +101,8 @@ function horizon_branch_index(orbit::CircularOrbit, m::Integer; H = -1)
 end
 
 """
-    horizon_axis_profile(sol; line = 1, margin = 0.02) -> NamedTuple
+    horizon_axis_profile(sol::ModeSolution; line = 1, margin = 0.02) -> NamedTuple
+    horizon_axis_profile(dom, orbit, mesh, u; line = 1, margin = 0.02) -> NamedTuple
 
 The axis-regularity instrument of GLOBAL_DAG row 58, measured on a solved m-mode: the
 profile of `|Ψ_m|` along the `line`-th distinct radial collocation line counted OUTWARD from
@@ -109,7 +110,15 @@ the inner boundary (`line = 1` is the innermost, the one that samples the horizo
 function of the angular chart coordinate.
 
 `sol` is a [`ModeSolution`](@ref); an hp-AMR caller passes its sweep's final one,
-`horizon_axis_profile(hist.solution)`. Returned fields:
+`horizon_axis_profile(hist.solution)`.
+
+THE FOUR-ARGUMENT METHOD IS THE SEAM FOR POOLED RESULTS. A process fan-out
+([`solve_modes_parallel`](@ref)) returns per-mode records that carry a mesh and a nodal vector
+but NO live `ModeSolution` — the operator, the stack and the caches do not survive the worker.
+Such a caller measures the layer directly from what it has,
+`horizon_axis_profile(dom, orbit, res.levels[end].mesh, res.u)`, with the SAME arithmetic: the
+one-argument method delegates to it, so the two agree bitwise (gated). `dom` and `orbit` supply
+only the angular chart, the lattice check and `r₊`; nothing is re-solved. Returned fields:
 
   - `r` — the radius of the sampled node line, and `x2` / `zeta` — the angular collocation
     coordinates of that line in the mesh's own chart and as `z²` (they coincide in the
@@ -133,9 +142,13 @@ The instrument makes no claim about WHY a profile is unhealthy; the mechanism an
 controlled variations live in the node's evidence, and the control parameter is
 [`horizon_branch_index`](@ref).
 """
-function horizon_axis_profile(sol::ModeSolution; line::Integer = 1, margin::Real = 0.02)
-    return _hax_profile(sol.mesh, sol.u, sol.dom, sol.orbit, Int(line), margin)
+function horizon_axis_profile(dom::BlockDomain, orbit::CircularOrbit, mesh::Mesh2D,
+                              u::AbstractVector; line::Integer = 1, margin::Real = 0.02)
+    return _hax_profile(mesh, u, dom, orbit, Int(line), margin)
 end
+
+horizon_axis_profile(sol::ModeSolution; line::Integer = 1, margin::Real = 0.02) =
+    horizon_axis_profile(sol.dom, sol.orbit, sol.mesh, sol.u; line = line, margin = margin)
 
 function _hax_nodal(mesh::Mesh2D{RT}, u::AbstractVector, chart::Symbol) where {RT}
     n = mesh.ndofs

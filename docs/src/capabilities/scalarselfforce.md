@@ -583,7 +583,11 @@ Planned, each landing written test-first once it is grounded: the rest of
   ``r_0 = 2M``, ``m = 17``: ``p = -118.94\,i``). It is purely imaginary under
   the ``vtu`` boost ``H = -1``, hence unit modulus, bounded, and NOT the
   retarded solution; the derivation drops ``\beta_m``, which is legitimate only
-  at ``H = -1``, so any other ``H`` throws. `horizon_axis_profile(sol)` measures the consequence on
+  at ``H = -1``, so any other ``H`` throws. `horizon_axis_profile(sol)` — and its four-argument form
+  `horizon_axis_profile(dom, orbit, mesh, u)`, the seam for POOLED results, which a
+  process fan-out needs because its records carry a mesh and a nodal vector but
+  no live `ModeSolution` (the one-argument method delegates to it, so the two
+  agree bitwise) — measures the consequence on
   the innermost radial collocation line — the axis:equator ratio, the fitted
   ``(1-z^2)`` exponent and the near-horizon layer amplitude relative to the rest
   of the plane. Because the ansatz factors ``\sin^{|m|}\theta`` OUT of the
