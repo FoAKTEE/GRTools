@@ -42,6 +42,15 @@ precision. Retrograde ``a < 0`` orbits route through the generic branch instead 
 ``|\Omega_r| \lesssim 3\times10^{-9}``. Radii more than a few ulp inside the ISCO keep raising
 a `DomainError` — they are unstable circular orbits.
 
+The circular ``(E, L_z, Q)`` closed forms have a second exact endpoint. On the equator
+(``|x| = 1``) the Schmidt expression for ``L_z`` divides by ``(p-2)p - a^2(x^2-1) = p(p-2)``,
+whose numerator vanishes with it at ``p = 2``: a removable ``0/0`` that Float64 returns as `NaN`
+(and ``Q = (1-x^2)(\cdot)^2`` as ``0\cdot`` `NaN`). `geodesic_angular_momentum` and
+`carter_constant` return the Bardeen–Press–Teukolsky pair there instead — the measured two-sided
+limit — while every other radius keeps the Schmidt evaluation bitwise. ``r = 2M`` is a circular
+geodesic only for ``a > 1/\sqrt{2}`` (it IS the prograde photon orbit at that spin), and below
+it the call raises the same `DomainError` as its neighbours rather than returning a silent `NaN`.
+
 ## Dependencies and poison-axis budget
 
 Runtime `[deps]` are exactly `LinearAlgebra` + `NumericsCore` (Carlson/elliptic/Jacobi for

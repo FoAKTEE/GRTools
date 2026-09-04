@@ -3,6 +3,9 @@
 # Schmidt closed forms — a faithful transcription of the BHPToolkit/KerrGeodesics symbolic
 # output (oracle-verified to ~1e-12 vs Mathematica). Arithmetic only, so BigFloat is inherited.
 # The public bundle `constants_of_motion` also serves the KerrBackwards delegating-wrapper alias.
+# Two endpoints of the (e = 0) circular forms are exact closed forms instead of the Schmidt
+# expression, which is a 0/0 there: the polar x = 0 one (BHPToolkit, below) and the equatorial
+# |x| = 1 one at p = 2 (Bardeen-Press-Teukolsky, `_circeq_removable`).
 
 @inline _energy_generic(a, p, e, x) = sqrt((2*((2*a*p*(a^2 - (2*p)/(1 - e) + p^2/(1 - e)^2)*(p^2/(1 - e)^2 + a^2*(1 - x^2)))/(1 + e) - (2*a*p*(a^2 - (2*p)/(1 + e) + p^2/(1 + e)^2)*(p^2/(1 + e)^2 + a^2*(1 - x^2)))/(1 - e))*((-2*a*p*((p*(-2 + p/(1 - e)))/(1 - e) + ((a^2 - (2*p)/(1 - e) + p^2/(1 - e)^2)*(1 - x^2))/x^2))/(1 + e) + (2*a*p*((p*(-2 + p/(1 + e)))/(1 + e) + ((a^2 - (2*p)/(1 + e) + p^2/(1 + e)^2)*(1 - x^2))/x^2))/(1 - e)) + (-((a^2 - (2*p)/(1 + e) + p^2/(1 + e)^2)*(p^2/(1 + e)^2 + a^2*(1 - x^2))*((p*(-2 + p/(1 - e)))/(1 - e) + ((a^2 - (2*p)/(1 - e) + p^2/(1 - e)^2)*(1 - x^2))/x^2)) + (a^2 - (2*p)/(1 - e) + p^2/(1 - e)^2)*(p^2/(1 - e)^2 + a^2*(1 - x^2))*((p*(-2 + p/(1 + e)))/(1 + e) + ((a^2 - (2*p)/(1 + e) + p^2/(1 + e)^2)*(1 - x^2))/x^2))*(((p*(-2 + p/(1 + e)))/(1 + e) + ((a^2 - (2*p)/(1 + e) + p^2/(1 + e)^2)*(1 - x^2))/x^2)*(p^4/(1 - e)^4 + a^2*((p*(2 + p/(1 - e)))/(1 - e) + (a^2 - (2*p)/(1 - e) + p^2/(1 - e)^2)*(1 - x^2))) - ((p*(-2 + p/(1 - e)))/(1 - e) + ((a^2 - (2*p)/(1 - e) + p^2/(1 - e)^2)*(1 - x^2))/x^2)*(p^4/(1 + e)^4 + a^2*((p*(2 + p/(1 + e)))/(1 + e) + (a^2 - (2*p)/(1 + e) + p^2/(1 + e)^2)*(1 - x^2)))) - 2*x*sqrt((((-2*a*p*((p*(-2 + p/(1 - e)))/(1 - e) + ((a^2 - (2*p)/(1 - e) + p^2/(1 - e)^2)*(1 - x^2))/x^2))/(1 + e) + (2*a*p*((p*(-2 + p/(1 + e)))/(1 + e) + ((a^2 - (2*p)/(1 + e) + p^2/(1 + e)^2)*(1 - x^2))/x^2))/(1 - e))*(((2*a*p*(a^2 - (2*p)/(1 - e) + p^2/(1 - e)^2)*(p^2/(1 - e)^2 + a^2*(1 - x^2)))/(1 + e) - (2*a*p*(a^2 - (2*p)/(1 + e) + p^2/(1 + e)^2)*(p^2/(1 + e)^2 + a^2*(1 - x^2)))/(1 - e))^2*((-2*a*p*((p*(-2 + p/(1 - e)))/(1 - e) + ((a^2 - (2*p)/(1 - e) + p^2/(1 - e)^2)*(1 - x^2))/x^2))/(1 + e) + (2*a*p*((p*(-2 + p/(1 + e)))/(1 + e) + ((a^2 - (2*p)/(1 + e) + p^2/(1 + e)^2)*(1 - x^2))/x^2))/(1 - e)) - (-((a^2 - (2*p)/(1 + e) + p^2/(1 + e)^2)*(p^2/(1 + e)^2 + a^2*(1 - x^2))*((p*(-2 + p/(1 - e)))/(1 - e) + ((a^2 - (2*p)/(1 - e) + p^2/(1 - e)^2)*(1 - x^2))/x^2)) + (a^2 - (2*p)/(1 - e) + p^2/(1 - e)^2)*(p^2/(1 - e)^2 + a^2*(1 - x^2))*((p*(-2 + p/(1 + e)))/(1 + e) + ((a^2 - (2*p)/(1 + e) + p^2/(1 + e)^2)*(1 - x^2))/x^2))^2*((2*a*p*(p^4/(1 - e)^4 + a^2*((p*(2 + p/(1 - e)))/(1 - e) + (a^2 - (2*p)/(1 - e) + p^2/(1 - e)^2)*(1 - x^2))))/(1 + e) - (2*a*p*(p^4/(1 + e)^4 + a^2*((p*(2 + p/(1 + e)))/(1 + e) + (a^2 - (2*p)/(1 + e) + p^2/(1 + e)^2)*(1 - x^2))))/(1 - e)) + ((2*a*p*(a^2 - (2*p)/(1 - e) + p^2/(1 - e)^2)*(p^2/(1 - e)^2 + a^2*(1 - x^2)))/(1 + e) - (2*a*p*(a^2 - (2*p)/(1 + e) + p^2/(1 + e)^2)*(p^2/(1 + e)^2 + a^2*(1 - x^2)))/(1 - e))*(-((a^2 - (2*p)/(1 + e) + p^2/(1 + e)^2)*(p^2/(1 + e)^2 + a^2*(1 - x^2))*((p*(-2 + p/(1 - e)))/(1 - e) + ((a^2 - (2*p)/(1 - e) + p^2/(1 - e)^2)*(1 - x^2))/x^2)) + (a^2 - (2*p)/(1 - e) + p^2/(1 - e)^2)*(p^2/(1 - e)^2 + a^2*(1 - x^2))*((p*(-2 + p/(1 + e)))/(1 + e) + ((a^2 - (2*p)/(1 + e) + p^2/(1 + e)^2)*(1 - x^2))/x^2))*(((p*(-2 + p/(1 + e)))/(1 + e) + ((a^2 - (2*p)/(1 + e) + p^2/(1 + e)^2)*(1 - x^2))/x^2)*(p^4/(1 - e)^4 + a^2*((p*(2 + p/(1 - e)))/(1 - e) + (a^2 - (2*p)/(1 - e) + p^2/(1 - e)^2)*(1 - x^2))) - ((p*(-2 + p/(1 - e)))/(1 - e) + ((a^2 - (2*p)/(1 - e) + p^2/(1 - e)^2)*(1 - x^2))/x^2)*(p^4/(1 + e)^4 + a^2*((p*(2 + p/(1 + e)))/(1 + e) + (a^2 - (2*p)/(1 + e) + p^2/(1 + e)^2)*(1 - x^2))))))/x^2))/(4*((-2*a*p*((p*(-2 + p/(1 - e)))/(1 - e) + ((a^2 - (2*p)/(1 - e) + p^2/(1 - e)^2)*(1 - x^2))/x^2))/(1 + e) + (2*a*p*((p*(-2 + p/(1 + e)))/(1 + e) + ((a^2 - (2*p)/(1 + e) + p^2/(1 + e)^2)*(1 - x^2))/x^2))/(1 - e))*((2*a*p*(p^4/(1 - e)^4 + a^2*((p*(2 + p/(1 - e)))/(1 - e) + (a^2 - (2*p)/(1 - e) + p^2/(1 - e)^2)*(1 - x^2))))/(1 + e) - (2*a*p*(p^4/(1 + e)^4 + a^2*((p*(2 + p/(1 + e)))/(1 + e) + (a^2 - (2*p)/(1 + e) + p^2/(1 + e)^2)*(1 - x^2))))/(1 - e)) + (((p*(-2 + p/(1 + e)))/(1 + e) + ((a^2 - (2*p)/(1 + e) + p^2/(1 + e)^2)*(1 - x^2))/x^2)*(p^4/(1 - e)^4 + a^2*((p*(2 + p/(1 - e)))/(1 - e) + (a^2 - (2*p)/(1 - e) + p^2/(1 - e)^2)*(1 - x^2))) - ((p*(-2 + p/(1 - e)))/(1 - e) + ((a^2 - (2*p)/(1 - e) + p^2/(1 - e)^2)*(1 - x^2))/x^2)*(p^4/(1 + e)^4 + a^2*((p*(2 + p/(1 + e)))/(1 + e) + (a^2 - (2*p)/(1 + e) + p^2/(1 + e)^2)*(1 - x^2))))^2))
 
@@ -43,7 +46,61 @@
              2a^2 * p * (p - 2 + e^2 * (2 + p))) /
     _polar_eccentric_denominator(a, p, e)
 
-@inline _polar_zero(a, p, e, x) = zero(float(promote_type(typeof(a), typeof(p), typeof(e), typeof(x))))
+@inline _constants_zero(a, p, e, x) = zero(float(promote_type(typeof(a), typeof(p), typeof(e), typeof(x))))
+
+# --- the equatorial (|x| = 1) removable singularity of the circular closed forms ---------------
+#
+# `_angular_momentum_circular` carries the factor 1/((p-2)p - a^2(x^2-1)) and `_carter_circular`
+# its square. On the equator x^2 = 1 that denominator is exactly p(p-2); at p = 2 the numerator
+# vanishes with it, so the ratio is a REMOVABLE 0/0 that Float64 resolves as NaN - and Q, which is
+# (1-x^2)*(...)^2, inherits it as 0*NaN. `_energy_circular` carries no such factor and is regular
+# there (it agrees with the value below to 1e-77 at 256 bits), so only Lz and Q are repaired.
+#
+# The removed value is the Bardeen-Press-Teukolsky (1972, ApJ 178 347, Eqs. 2.12-2.13) equatorial
+# circular pair, which with u = sqrt(p) and this package's SIGNED spin (a > 0 prograde, a < 0
+# retrograde, x = +1 always; arXiv:2606.04998 main.tex:196-198) is
+#
+#     E = (u^3 - 2u + a)/(u^(3/2) sqrt(u^3 - 3u + 2a)),
+#     Lz = (p^2 - 2au + a^2)/(u^(3/2) sqrt(u^3 - 3u + 2a)),      Q = 0,
+#
+# the x = -1 branch being its mirror E(a,p,-1) = E(-a,p,+1), Lz(a,p,-1) = -Lz(-a,p,+1). That this
+# IS the limit and not merely a plausible substitute is measured, not asserted: at 256 bits the
+# untouched Schmidt form approaches it LINEARLY from both sides - |dLz|/Lz = 2.6e-21 (a = 0.9) and
+# 2.3e-21 (a = 0.998) at |p - 2| = 1e-20, and 1e-31 at 1e-30.
+#
+# The trigger is the EXACT vanishing of that denominator at |x| = 1, never a tolerance, so it is
+# precision-independent and every other radius keeps its pre-fix Schmidt evaluation BITWISE (the
+# two forms otherwise differ by up to 10 ulp, which is why the whole branch is not simply
+# replaced). Two consequences, both gated in test_geodesics_constants.jl:
+#
+#  1. r = 2M carries a circular geodesic only for a > 1/sqrt(2) = 0.70710678..., since the shared
+#     radicand is u^3 - 3u + 2a = 2a - sqrt(2) at p = 2 - r = 2M IS the prograde photon orbit at
+#     a = 1/sqrt(2). Below that spin the pair raises the ordinary `DomainError` of a negative
+#     radicand, which is what every neighbouring radius already does; pre-fix, a = 0 silently
+#     returned E = 0.0 with Lz = Q = NaN at what is its own horizon.
+#  2. This repairs the singularity, NOT the conditioning of the generic form around it: the
+#     Schmidt Lz loses about log10|p-2|^-1 digits in a NEIGHBOURHOOD of p = 2 (relative error vs a
+#     256-bit evaluation at a = 0.998: 1.1e-14 at |p-2| = 1e-2, 6.2e-11 at 1e-6, 1.5e-6 at 1e-10).
+#     Closing that would mean re-evaluating every equatorial radius through the pair above.
+@inline _circular_lz_denominator(a, p, x) = (p - 2) * p - a^2 * (x^2 - 1)
+
+@inline _circeq_removable(a, p, x) = isone(abs(x)) && iszero(_circular_lz_denominator(a, p, x))
+
+# Bardeen-Press-Teukolsky equatorial circular (E, Lz) at SIGNED spin `a` (M = 1); u = sqrt(p).
+@inline function _bpt_circeq(a, p)
+    u = sqrt(p)
+    den = u * sqrt(u) * sqrt(u * p - 3 * u + 2 * a)   # r^(3/4) sqrt(r^(3/2) - 3 r^(1/2) + 2a)
+    ((u * p - 2 * u + a) / den, (p^2 - 2 * a * u + a^2) / den)
+end
+
+# Circular Lz and Q with the equatorial 0/0 removed; the Schmidt forms verbatim everywhere else.
+@inline _angular_momentum_circular_sel(a, p, x) =
+    _circeq_removable(a, p, x) ?
+        (x > 0 ? last(_bpt_circeq(a, p)) : -last(_bpt_circeq(-a, p))) :
+        _angular_momentum_circular(a, p, x)
+
+@inline _carter_circular_sel(a, p, e, x) =
+    _circeq_removable(a, p, x) ? _constants_zero(a, p, e, x) : _carter_circular(a, p, x)
 
 """
     geodesic_energy(a, p, e, x) -> E
@@ -60,20 +117,29 @@ circular (e = 0) or generic (e > 0) closed form.
 
 Axial angular momentum `Lz` of a generic bound Kerr geodesic (M = 1). A passed `E` is ignored
 (present for the legacy delegating-wrapper signature).
+
+Equatorial circular endpoint: at `e = 0`, `|x| = 1`, `p = 2` the Schmidt closed form is a
+removable `0/0` (its `1/((p-2)p - a^2(x^2-1))` factor), and `Lz` is instead the exact
+Bardeen-Press-Teukolsky value `(p^2 - 2a sqrt(p) + a^2)/(p^(3/4) sqrt(p^(3/2) - 3 sqrt(p) + 2a))`
+- the two-sided limit, and the paper's own `r0 = 2M` configuration. Every other `p` is the
+Schmidt evaluation bitwise. `r = 2M` is a circular geodesic only for `a > 1/sqrt(2)`; below that
+spin the radicand is negative and the call raises `DomainError`, as it already does at every
+neighbouring radius.
 """
-@inline geodesic_angular_momentum(a, p, e, x) = iszero(x) ? _polar_zero(a, p, e, x) :
-    (iszero(e) ? _angular_momentum_circular(a, p, x) : _angular_momentum_generic(a, p, e, x))
+@inline geodesic_angular_momentum(a, p, e, x) = iszero(x) ? _constants_zero(a, p, e, x) :
+    (iszero(e) ? _angular_momentum_circular_sel(a, p, x) : _angular_momentum_generic(a, p, e, x))
 @inline geodesic_angular_momentum(a, p, e, x, _E) = geodesic_angular_momentum(a, p, e, x)
 
 """
     carter_constant(a, p, e, x[, E[, Lz]]) -> Q
 
 Carter constant `Q` of a generic bound Kerr geodesic (M = 1). Passed `E`/`Lz` are ignored
-(present for the legacy delegating-wrapper signature).
+(present for the legacy delegating-wrapper signature). `Q` is exactly zero on the equator, the
+`p = 2` endpoint included (there the Schmidt form is `0*NaN`; see `geodesic_angular_momentum`).
 """
 @inline carter_constant(a, p, e, x) = iszero(x) ?
     (iszero(e) ? _carter_polar_circular(a, p) : _carter_polar_generic(a, p, e)) :
-    (iszero(e) ? _carter_circular(a, p, x) : _carter_generic(a, p, e, x))
+    (iszero(e) ? _carter_circular_sel(a, p, e, x) : _carter_generic(a, p, e, x))
 @inline carter_constant(a, p, e, x, _E) = carter_constant(a, p, e, x)
 @inline carter_constant(a, p, e, x, _E, _Lz) = carter_constant(a, p, e, x)
 
