@@ -66,12 +66,14 @@
 # refines the horizon element away, that exclusion weakens and the branch appears as a layer on
 # the innermost radial node line, growing toward the axis. It is present at EVERY spin and is a
 # question of SCALE, so the driver does not key on the spin: it MEASURES.
-# THE RULE: sweep the panel with the package default (`horizon_hold = false`, reference
-# parity), read `horizon_axis_profile(dom, orbit, mesh, u).layer_ratio` — the near-horizon
-# strip's maximum over the rest of the plane's — for EVERY mode, and re-sweep with
-# `solve_kwargs = (; horizon_hold = true)` only when the MAXIMUM OVER m exceeds
-# LAYER_GATE = 1.05. The maximum, not the top mode: `layer_ratio` is not monotone in m
-# (MEASURED at a = +0.998, r0 = 2: it peaks at 3.889 at m = 12 and falls to 3.6e-3 by m = 20). The plotted run's own
+# THE RULE IS THE PACKAGE'S, not this driver's: sweep the panel with the default
+# (`horizon_hold = false`, reference parity), read `horizon_axis_profile(dom, orbit, mesh,
+# u).layer_ratio` for EVERY mode, and hand both sweeps to the sealed `select_hold_sweep`
+# (`Solve/horizon_axis.jl`, shared with the error-budget figure). It publishes the held sweep
+# exactly when the default's MAXIMUM OVER m crosses LAYER_GATE = 1.05 and the hold strictly
+# reduces it, refuses a hold that does not, and reports a hole rather than substituting
+# silently. The maximum, not the top mode: `layer_ratio` is not monotone in m (MEASURED at
+# a = +0.998, r0 = 2: it peaks at 3.889 at m = 12 and falls to 3.6e-3 by m = 20). The plotted run's own
 # `layer_ratio` is then GATED (GATE 7) and both numbers, with the setting, are stated on the
 # panel and registered (`pK_layer_ratio`, `pK_layer_ratio_default_max`, `pK_horizon_hold`).
 #
@@ -231,24 +233,34 @@ if !PLOT_ONLY
             # at m = 12 and falls back to 3.6e-3 by m = 20, so a top-mode probe reads the panel
             # as healthy when it is not.
             t = time()
-            s = solve_modes_parallel(p.orb, p.cfg, MMS; pool = pool, iterations = ITER,
-                                     log = monitor_log)
-            lay = layer_ratios(p, s)
-            hold = maximum(lay) > LAYER_GATE
-            @printf("[fig_modes] a = %+.4f: %d/%d modes in %.1f s (%d workers, default); layer_ratio max %.4g at m = %d (gate %.2f) ⇒ horizon_hold = %s\n",
-                    p.a, length(s.results), length(MMS), time() - t, s.run.nworkers,
-                    maximum(lay), argmax(lay) - 1, LAYER_GATE, string(hold))
+            sdef = solve_modes_parallel(p.orb, p.cfg, MMS; pool = pool, iterations = ITER,
+                                        log = monitor_log)
+            laydef = layer_ratios(p, sdef)
+            @printf("[fig_modes] a = %+.4f: %d/%d modes in %.1f s (%d workers, default); layer_ratio max %.4g at m = %d\n",
+                    p.a, length(sdef.results), length(MMS), time() - t, sdef.run.nworkers,
+                    maximum(laydef), argmax(laydef) - 1)
             flush(stdout)
-            lay_default = maximum(lay)
-            if hold
+            # The DECISION is the sealed `select_hold_sweep` (row 58 / Solve/horizon_axis.jl),
+            # not arithmetic this driver owns: called once against the default alone — which
+            # publishes it when the ratio is inside the gate and otherwise reports the hole —
+            # and, when that says a held sweep is needed, once more with both, so the helper
+            # also refuses a hold that fails to reduce the ratio.
+            sel = select_hold_sweep(sdef => laydef; gate = LAYER_GATE)
+            if sel.hole
                 t = time()
-                s = solve_modes_parallel(p.orb, p.cfg, MMS; pool = pool, iterations = ITER,
-                                         solve_kwargs = (; horizon_hold = true), log = monitor_log)
-                @printf("[fig_modes] a = %+.4f: re-swept %d/%d modes in %.1f s with horizon_hold = true; layer_ratio max %.4g\n",
-                        p.a, length(s.results), length(MMS), time() - t, maximum(layer_ratios(p, s)))
-                flush(stdout)
+                sheld = solve_modes_parallel(p.orb, p.cfg, MMS; pool = pool, iterations = ITER,
+                                             solve_kwargs = (; horizon_hold = true),
+                                             log = monitor_log)
+                @printf("[fig_modes] a = %+.4f: re-swept %d/%d modes in %.1f s with horizon_hold = true\n",
+                        p.a, length(sheld.results), length(MMS), time() - t)
+                sel = select_hold_sweep(sdef => laydef, sheld => layer_ratios(p, sheld);
+                                        gate = LAYER_GATE)
             end
-            (set = s, hold = hold, probe_ratio = lay_default)
+            println("[fig_modes] a = ", p.a, ": ", sel.reason,
+                    " ⇒ horizon_hold = ", sel.hold)
+            sel.hole && push!(gatefails, "GATE 7: a = $(p.a) — $(sel.reason)")
+            flush(stdout)
+            (set = sel.sweep, hold = sel.hold, probe_ratio = sel.default_ratio)
         end
     end
     sets = [q.set for q in sweeps]
