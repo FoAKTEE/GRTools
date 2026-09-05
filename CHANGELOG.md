@@ -45,16 +45,44 @@ the suite version.
   `horizon_axis_profile` / `horizon_order_hold`, the instrument and the opt-in cure for the
   near-horizon non-analytic branch (default off, for reference parity).
 
-- **`reproduce/arXiv-2606.04998/` — five of the paper's seven figures.** Thin drivers and
-  JSON goldens for `fig:domain`, `fig:matrix`, `fig:convergence`, `fig:modes` and
-  `fig:linsolv`, registered in `reproduce/MANIFEST.toml` (all `heavy` tier) and re-checked by
+- **`reproduce/arXiv-2606.04998/` — six of the paper's seven figures.** Thin drivers and
+  JSON goldens for `fig:domain`, `fig:matrix`, `fig:convergence`, `fig:modes`, `fig:linsolv`
+  and `fig:ssf_error_budget`, registered in `reproduce/MANIFEST.toml` (all `heavy` tier) and
+  re-checked by
   `julia --project=reproduce reproduce/run_all.jl --check --paper 2606.04998`. The hp-AMR
   sweep reproduces the paper's published grid sequence exactly, level by level — 480, 975,
   1604, 2427, 3468, 4751, 6300 points in 30, 47, 59, 71, 83, 95, 107 elements — with no fitted
   constant, and the summed `(M²/q²)F_r` at `r₀ = 10M` matches the printed Warburton–Barack
   Table III at `a/M = 0, ±0.5, ±0.9` to a worst relative deviation of 6.4e-6 (their Table II
-  `F_t`, which needs no regularization and no tail, to 3.1e-8). `fig:ssf_error_budget` and
-  `fig:precond` are not claimed.
+  `F_t`, which needs no regularization and no tail, to 3.1e-8). `fig:precond`, the
+  preconditioner schematic, is not claimed.
+
+- **`fig:ssf_error_budget` (Fig. 7) — the `F_r` error budget over spin, landed
+  `preliminary` with its failures pinned.** Reading the published figure's own vector paths
+  established that it samples nine spins rather than the five it labels, and that its
+  reference curve carries only the seven with `|a| ≤ 0.9` — Warburton–Barack's tables stop
+  there at every radius. Reproduced: the published truncation curve to 0.3–3.6 % at 17 of 18
+  configurations, the reference curve to within 23 % at all 8 printed comparison points,
+  `|F_r|` to ≤ 0.19 % across the strip, and `F_t` against the printed nine-figure Table II to
+  2.91e-8. Not reproduced, and pinned configuration by configuration in `gate_failure_ids`
+  rather than scoped away: the relative truncation error at `a = +0.998` at its ISCO (121× the
+  published curve) and the relative resolution error at four configurations (more than a decade
+  above it). `gates_pass` is a REGISTERED value, so a gate that starts failing — or a known
+  failure that disappears — is a golden mismatch that fails `--check`. The figure also narrows
+  the error-budget ordering finding: on the paper's own full-z lattice the resolution error
+  falls below truncation at 15 of 18 configurations (published 18/18) against 0 of 9 on the
+  shipped half domain, with the 1.69× dof difference disclosed as a confound rather than
+  argued away.
+
+- **The GMRES count does NOT grow with the mode number** — a `[SOLID]` claim of an earlier
+  wave, retracted after re-measurement. The whole `m = 0…20` sweep was re-run at the paper's
+  own nine AMR grids on the current tree: at the finest grid the counts are 3, 3, 3, 3, 3, 3,
+  2, 2, 2, 2, 2, 2, 3, 3, 4, 3, 3, 3, 3, 4, 4 on the production half domain and 2 … 3 on the
+  full-z lattice, and **the maximum over every level and every mode is 7 on both**. So
+  main.tex:720's "less than 10 preconditioned iterations per AMR level" holds for *every* mode
+  of the sweep, not merely for the paper's one exemplary mode, and the count falls with
+  refinement depth at every `m`. The earlier 9 … 20 growth was measured before the
+  all-dimension 2:1 closure moved the iteration counts along with the meshes.
 
 - **Two source errata located in arXiv:2606.04998, both diagnosed rather than absorbed.**
   (1) The last term of the printed radial effective potential (main.tex:190) has the wrong

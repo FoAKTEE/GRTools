@@ -15,7 +15,7 @@ boundary tables, the solve drivers, the extraction and the mode sum). The driver
 
 ## What is reproduced
 
-Five of the paper's seven figures have landed drivers and goldens. Everything below is
+Six of the paper's seven figures have landed drivers and goldens. Everything below is
 registered in `reproduce/MANIFEST.toml`, with the per-figure evidence, gates, VLM verdicts and
 holes written up at length in `reproduce/arXiv-2606.04998/README.md` — that file is the
 normative record, this page is the map to it.
@@ -27,6 +27,7 @@ normative record, this page is the map to it.
 | Fig. 4 `fig:convergence` — the hp-AMR convergence of every ``F_r^m`` | `fig_convergence` | `reproduce/arXiv-2606.04998/fig_convergence.jl` | `expected/fig_convergence.json` | heavy |
 | Fig. 5 `fig:modes` — 21 stacked ``\log_{10}\|\Psi_m\|`` planes at three spins | `fig_modes` | `reproduce/arXiv-2606.04998/fig_modes.jl` | `expected/fig_modes.json` | heavy |
 | Fig. 6 `fig:linsolv` — the GMRES residual staircase over AMR grids | `fig_linsolv` | `reproduce/arXiv-2606.04998/fig_linsolv.jl` | `expected/fig_linsolv.json` | heavy |
+| Fig. 7 `fig:ssf_error_budget` — the ``F_r`` error budget over spin, at ``r_0 = r_\mathrm{ISCO}`` and ``r_0 = 10M`` | `fig_error_budget` | `reproduce/arXiv-2606.04998/fig_error_budget.jl` | `expected/fig_error_budget.json` | heavy |
 
 Beyond the figures, the mode sum itself is gated against an **external** table nothing in this
 suite feeds: the summed ``(M^2/q^2)F_r`` at ``r_0 = 10M`` against the printed Warburton–Barack
@@ -35,9 +36,38 @@ Table III at ``a/M = 0, \pm0.5, \pm0.9`` (worst relative deviation ``6.4\times10
 their error budget and their provenance live on the
 [ScalarSelfForce page](../capabilities/scalarselfforce.md).
 
-*[FUTURE]* Fig. 7 `fig:ssf_error_budget` — the ``F_r`` error budget against Warburton–Barack —
-is a later node; its driver, golden and README/`MANIFEST.toml` rows land with it. Fig. 3
-`fig:precond` is not claimed at all. Nothing on this page should be read as covering either.
+Fig. 3 `fig:precond`, the preconditioner schematic, is not claimed at all; nothing on this page
+should be read as covering it.
+
+### Fig. 7 is `preliminary`, and its failures are pinned rather than scoped away
+
+The error-budget figure is worth reading with its `[[result]]` row open, because it is the one
+row here whose registered verdict is a FAILURE. Its three curves per column are main.tex:722's:
+the solid reference error against Warburton–Barack, the dashed finite-``m`` truncation estimator
+and the dotted numerical-resolution estimator. Reading the published figure's own vector paths
+established two facts the raster cannot give: it samples **nine** spins, not the five it labels,
+and its solid curve carries only the seven with ``|a| \le 0.9`` — Warburton–Barack's tables stop
+there, at every radius.
+
+What reproduces: the published truncation curve to 0.3–3.6 % at 17 of 18 configurations, the
+reference curve to within 23 % at all 8 printed comparison points, ``|F_r|`` to ``\le 0.19`` %
+across the strip, and ``F_t`` against the printed nine-figure Table II to
+``2.91\times10^{-8}``.
+
+What does not, stated as the row states it — **every gate runs on all 18 configurations, so
+`gates_pass` is `false` and `gate_failure_ids` names the exact five**: GATE 3 (relative
+truncation within a factor 2 of the published curve) fails at ``a = +0.998`` at its ISCO, at
+121×, and GATE 8 (the resolution curve bounded a decade from above) fails at four
+configurations. GATES 2, 2H, 4, 5, 6 and 7 pass everywhere. `--check` verifies
+REPRODUCIBILITY, not the verdict: the verdict is a registered value pinned by the golden, so a
+gate that starts failing — or a known failure that quietly disappears — is a golden MISMATCH.
+
+One interpretive choice governs the plotted solid curve and is flagged as such: the published
+``F_r`` appears to carry **no fitted tail** (its reference/truncation ratio, 2.81–4.63, is the
+``m_\mathrm{max}/(p-1)`` factor between the true remainder and the omit-the-largest-``m``
+estimator). The paper does not say so; the driver plots that reading, registers the
+Heffernan-tail ``F_r`` beside it from the same solved modes, and says that if the reading is
+wrong the plotted solid curve is the wrong estimator.
 
 ## Re-checking it
 
@@ -47,10 +77,11 @@ Every row is deterministic and re-checked from its golden by `reproduce/run_all.
 JULIA_PKG_OFFLINE=true julia --project=reproduce -e 'using Pkg; Pkg.instantiate()'
 julia --project=reproduce reproduce/run_all.jl --check --paper 2606.04998
 julia --project=reproduce reproduce/run_all.jl --check --only fig_linsolv   # one row
+julia --project=reproduce reproduce/run_all.jl --check --only fig_error_budget
 julia --project=reproduce reproduce/run_all.jl --regen --only fig_linsolv   # rewrite a golden
 ```
 
-All five rows are **heavy tier**, so they are outside the fast set CI runs — re-check them
+All six rows are **heavy tier**, so they are outside the fast set CI runs — re-check them
 manually. Determinism rules are the suite's own (see [Reproducibility](reproducibility.md)):
 `OPENBLAS_NUM_THREADS=1`, results bit-identical at `-t1` and `-t4`, the pinned
 `reproduce/Manifest.toml` and Julia 1.12.6. A golden is rewritten only with `--regen`, after
@@ -105,10 +136,27 @@ Stated from the ledgers, not from optimism; each is visible in a `[[result]]` ro
 - **GMRES stagnates at ``m = 19, 20`` for ``a = 0.998``, ``r_0 = 2M``** — the published
   panel 3 of `fig:modes`. Those two planes are drawn dashed, named on the figure, and carry
   their own residual; every other mode of every panel converged.
-- **The error budget orders the other way from the paper's.** Our total's numerical-resolution
-  error is a few times LARGER than the finite-``m`` truncation estimator, where main.tex:723
-  reports resolution pushed well below truncation. The measurement is solid; the cause is not
-  established.
+- **The error budget orders the other way from the paper's — but the lattice is now
+  implicated.** Our total's numerical-resolution error is a few times LARGER than the
+  finite-``m`` truncation estimator, where main.tex:723 reports resolution pushed well below
+  truncation. Fig. 7 NARROWS that, without closing it: on the paper's own full-``z`` lattice
+  the ordering comes out the paper's way at 15 of 18 configurations (published 18/18), against
+  0 of 9 on the shipped half domain at the same AMR settings *[PRELIMINARY]*. The two are not
+  the same grids — 8139 against 4814 dofs, a 1.69× confound that is disclosed rather than
+  argued away — but size and rate make the confound an implausible explanation of the whole
+  effect: the half domain's absolute resolution error at ``r_0 = 10M`` is a spin-INDEPENDENT
+  floor of ``5.7``–``5.9\times10^{-10}``, roughly four further AMR steps from closing the
+  measured gap, not 1.69× in dofs. Settling it needs the two lattices at MATCHED ndofs, which
+  has not been run.
+- **The compressed prograde ISCO has three members, not one.** The absolute resolution error
+  runs ``2.9\times10^{-10}`` at ``a = +0.7``, ``6.0\times10^{-7}`` at ``+0.9`` and
+  ``2.4\times10^{-2}`` at ``+0.998``; at ``+0.998`` the mode sum has not converged at
+  ``m = 20`` either (the last retained term is 2.4 % of the total). ``a = +0.9`` is the member
+  a first pass missed. Both this family and the two ``|a| = 0.998``, ``r_0 = 10M``
+  configurations whose ordering also inverts are RING-MARKED on the figure by a measured rule,
+  never dropped — and the layer-ratio instrument reads 0.098 at the latter two, so the honest
+  statement is that the instrument does not detect the cause, not that the near-horizon layer
+  is uninvolved.
 - **The asymptotic ``m^{-6}`` decay of the regularized residual is not discharged.** The
   ``m \in \{2, 5\}`` slope sits on ``-6``; the now-resolved ``\{5, 10\}`` slope does not.
 - **The near-horizon layer.** At high ``\nu`` the horizon element's growing polynomial order

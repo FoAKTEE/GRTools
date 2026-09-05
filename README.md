@@ -185,7 +185,7 @@ Julia 1.12.6), the golden-size rule, and how to add a result (drivers stay thin 
 physics lives in a capability package with tests).
 
 The largest reproduction in the tree is **arXiv:2606.04998** (Vu et al., the m-mode elliptic
-Kerr scalar self-force), which `EllipticCore` and `ScalarSelfForce` were written for: five of
+Kerr scalar self-force), which `EllipticCore` and `ScalarSelfForce` were written for: six of
 its seven figures have drivers and goldens, the hp-AMR sweep reproduces the paper's published
 grid sequence exactly, and the summed radial self-force is gated against the printed
 Warburton–Barack tables at five spins. Its map, its two source errata and its open holes are on
