@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/src/assets/logo.png" alt="GRTools" width="560">
+</p>
+
 # GRTools
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
