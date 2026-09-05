@@ -27,6 +27,17 @@ using Hybrid
 using AccretionDisc
 using ScalarSelfForce
 
+# Doctests are evaluated in `Main`, so a `jldoctest` block inside a package docstring sees
+# nothing of its own module unless a `DocTestSetup` is registered for it. Register `using <Pkg>`
+# once for every module the site documents — inert for a package with no doctest yet, and the
+# reason the first one that landed (`ScalarSelfForce.select_hold_sweep`) can run at all.
+for m in (NumericsCore, BigSpecial, Wigner, Data, Kernels, TestKit, EllipticCore,
+          Spacetime, Harmonics, Perturbation, MetricReconstruction,
+          SelfForce, ScalarSelfForce, PostNewtonian, ModifiedGravity,
+          EMRIWaveforms, Hybrid, AccretionDisc)
+    DocMeta.setdocmeta!(m, :DocTestSetup, :(using $(nameof(m))); recursive = true)
+end
+
 makedocs(
     sitename = "GrTools",
     # Local/standalone site: no remote-repository detection (restore a Remotes.GitHub
