@@ -249,3 +249,87 @@ using Spacetime: kerr_isco
         @test abs(g / c) ≈ horizon_branch_index(orb, 17) rtol = 1e-14
     end
 end
+
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+# `select_hold_sweep` — the SHARED hold-selection rule (added for the figure nodes that publish
+# a plane or a curve: `fig_modes` and `fig_error_budget` had grown two different policies).
+#
+# fig_modes' policy was "hold iff the default's max-over-m `layer_ratio` exceeds 1.05, then plot
+# the held sweep" — correct on its three panels, where the hold always reduced the ratio, but
+# that is an EMPIRICAL fact about those panels and not a property of the hold. fig_error_budget
+# spans a compressed near-extremal ISCO and cannot assume it. The shared rule keeps fig_modes'
+# trigger and adds the assertion: the held sweep is taken only when it actually MEASURES
+# smaller, and a hold that does not reduce the ratio is a [HOLE], not a silent substitution.
+#
+# The rule is pure bookkeeping over two already-measured ratio vectors, so it is tested without
+# any solve: the "sweeps" here are sentinels, and the test asserts the SAME OBJECT comes back.
+@testset "select_hold_sweep — the shared hold-selection rule" begin
+    D, H = :default_sweep, :held_sweep
+
+    # (a) the default is inside the gate: the held sweep is NOT consulted, even when supplied
+    s = select_hold_sweep(D => [0.1, 0.9, 0.4])
+    @test s.sweep === D
+    @test s.hold === false
+    @test s.cleared === true
+    @test s.hole === false
+    @test s.default_ratio == 0.9
+    @test isnan(s.held_ratio)
+    s2 = select_hold_sweep(D => [0.1, 0.9, 0.4], H => [0.01, 0.02])
+    @test s2.sweep === D && s2.hold === false && isnan(s2.held_ratio)
+
+    # (b) the gate is crossed and the hold reduces the ratio below it: take the held sweep
+    s = select_hold_sweep(D => [0.5, 23.94, 3.2], H => [0.83, 0.03, 0.0002])
+    @test s.sweep === H
+    @test s.hold === true
+    @test s.cleared === true
+    @test s.hole === false
+    @test s.default_ratio == 23.94
+    @test s.held_ratio == 0.83
+
+    # (c) the hold reduces the ratio but does not clear the gate: still taken, still a [HOLE]
+    s = select_hold_sweep(D => [10.0], H => [2.0])
+    @test s.sweep === H && s.hold === true
+    @test s.cleared === false
+    @test s.hole === true
+
+    # (d) THE ASSERTION: a hold that does not reduce the ratio is refused, and flagged
+    s = select_hold_sweep(D => [10.0], H => [12.0])
+    @test s.sweep === D
+    @test s.hold === false
+    @test s.cleared === false
+    @test s.hole === true
+    @test occursin("did not reduce", s.reason)
+    # ... including the degenerate tie
+    @test select_hold_sweep(D => [10.0], H => [10.0]).hold === false
+
+    # (e) the gate is crossed and no held sweep was measured at all
+    s = select_hold_sweep(D => [10.0])
+    @test s.sweep === D && s.hold === false && s.cleared === false && s.hole === true
+    @test occursin("no held sweep", s.reason)
+
+    # (f) THE MAXIMUM OVER m IS THE INPUT, not the last mode: `layer_ratio` is not monotone in m
+    #     (measured at a = +0.998, r0 = 2: it peaks at m = 12 and falls back by m = 20)
+    @test select_hold_sweep(D => [0.58, 1.2, 3.889, 0.0036]).default_ratio == 3.889
+    @test select_hold_sweep(D => [0.58, 1.2, 3.889, 0.0036], H => [0.5, 0.5, 0.5, 0.5]).hold
+
+    # (g) NaN entries (a mode that failed) are skipped, never propagated
+    s = select_hold_sweep(D => [NaN, 0.4, NaN])
+    @test s.default_ratio == 0.4 && s.cleared === true
+    @test select_hold_sweep(D => [NaN, 9.0], H => [NaN, 0.2]).sweep === H
+
+    # (h) the gate is a keyword, and the default is the landed 1.05
+    @test select_hold_sweep(D => [1.04]).cleared === true
+    @test select_hold_sweep(D => [1.06]).cleared === false
+    @test select_hold_sweep(D => [1.06]; gate = 2.0).cleared === true
+    @test select_hold_sweep(D => [0.5]).gate == 1.05
+
+    # (i) refusals: nothing to reduce over, and a gate that cannot decide
+    @test_throws ArgumentError select_hold_sweep(D => Float64[])
+    @test_throws ArgumentError select_hold_sweep(D => [NaN, NaN])
+    @test_throws ArgumentError select_hold_sweep(D => [1.0]; gate = -1)
+    @test_throws ArgumentError select_hold_sweep(D => [10.0], H => Float64[])
+
+    # (j) the record shows what it decided
+    @test occursin("23.94", sprint(show, MIME"text/plain"(),
+                                   select_hold_sweep(D => [23.94], H => [0.83])))
+end

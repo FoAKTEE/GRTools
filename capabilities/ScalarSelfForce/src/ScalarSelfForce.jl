@@ -336,6 +336,7 @@ include("Solve/horizon_axis.jl")             # fix-horizon-axis-layer (row 58)
 # the elements touching r = r_+ keep their polynomial order under hp-AMR (amr_step!'s
 # horizon_hold; the default false IS the pre-row-58 sweep, bitwise).
 export horizon_branch_index, horizon_axis_profile, horizon_order_hold
+export HoldSelection, select_hold_sweep
 
 include("Solve/amr.jl")                      # amr-driver (the row-43 production loop)
 # THE hp-AMR SWEEP: solve_mode_amr(orbit, config, m) runs the paper's Amr.Iterations levels of

@@ -43,7 +43,7 @@ alone, VLM-compare against the reference PDF, decide script-vs-structure, iterat
 | 4 | `fig:convergence` — the DG convergence of every `F_r^m` up to m = 20 over the hp-AMR sequence, + the cumulative walltime | `fig_convergence.jl` | `expected/fig_convergence.json` | heavy | **preliminary** | **match** | Two panels for all 21 modes at a = 0.5 M, r₀ = 10 M: `\|F_r^m − F^m_{r,ref}\|` against `sqrt(N_points)` with each mode's own highest-resolution level as its reference, and the cumulative walltime below. Presentation reproduces item by item (2 panels 3:1 sharing x, 21 grayscale lines at the published ramp `m/23` with no markers, log y over ~8 decades, the framed upper-right `m=0`/`m=20` legend, the dashed "Solver tolerance" line with its inside label, "1 s"/"10 s" ticks, light-gray grid, CM serif) and every mode converges exponentially. The **abscissa reproduces exactly**: the driver runs two lattices from one pool and plots the published one — full-z, `ImposeEquatorialSymmetry: False`, as spectre's own `ScalarCircularOrbit.yaml` regression sets it and NOT as the shipped `anc/ScalarSelfForce.yaml:36` does — whose grid-point sequence `480, 975, 1604, 2427, 3468, 4751, 6300` equals the published vertices level for level (GATE 5, all seven). The half-domain lattice (`true`, 320 → 3762) is kept as a registered and gated secondary series, never drawn. Against the published envelope: rates [−0.1395, −0.1020] (published [−0.1421, −0.1043]), R² ∈ [0.9143, 0.9932] median 0.9781 with 10/21 ≥ 0.98 (published 0.7996 … 0.9929, median 0.9833, 9/21), 6.02 … 8.38 decades dropped (published 6.06 … 8.12), last plotted error 5.6e-14 … 7.6e-13 (published 8.9e-14 … 7.9e-13). One STRUCTURAL deviation remains, escalated: the published grids **depend on m** (975 for m ≤ 4 against 970 for m ≥ 5) while ours are gated m-independent, which the shipped criteria (`RefineAtPuncture` ∘ `IncreaseResolution`) cannot produce — now a 0.5 % effect rather than the 50–78 % lattice mismatch it was hiding behind. See the Fig. 4 section for the evidence and the `TruncationError` hypothesis. `--check` 86/86; 760 s at -t4 on a 5-worker pool — **heavy**. |
 | 6 | `fig:linsolv` — GMRES residual staircase over AMR grids + walltime per iteration | `fig_linsolv.jl` | `expected/fig_linsolv.json` | heavy | **solid** | **partial** | Two panels for the m = 2 mode at a = 0.5 M, r0 = 10 M on the **full-z** lattice (the published one; the yaml says otherwise — see below). Eight AMR grids, 30 → 119 elements, 480 → 8139 dofs. The grid sequence reproduces the paper's own convergence-figure abscissa — 480, 975, 1604, 2427, 3468, 4751, 6300 — **exactly, all seven, zero deviation**. Iterations `1, 7, 6, 5, 4, 3, 3, 3` (32 cumulative) against the published `1, 7, 6, 5, 4, 3, 3, 2` (31), **seven of eight grids exact**; ‖b‖₀ 1.39146 against 1.39401 (−0.18 %); per-iteration reduction 28.3, 44.5, 51.3, 82.6, 260.4, 192.2, 234.3 against 26.0, 42.7, 48.0, 82.3, 244.6, 191.9, 567.0. All eight gates pass. Remaining holes: the last grid takes 3 iterations against 2, and the walltime panel's amplitude (eager vs lazy build). |
 | 5 | `fig:modes` — 21 stacked `log₁₀\|Ψ_m\|` planes over the (r, z²) domain, at three spins | `fig_modes.jl` | `expected/fig_modes.json` | heavy | **preliminary** | **match** (3 of 3 panels) | Three 3D panels — `a = −0.998` and `a = 0` at their ISCOs (8.9944, 6 M) and `a = +0.998` at the **published** `r₀ = 2 M` — each carrying 21 semi-transparent wireframe planes of `log₁₀\|Ψ_m\|` over (r, z²), `Ψ^ℛ_m` inside the worldtube and `Ψ_m` outside, clipped at `r = 2 r₀`, m = 0…4 in the paper's categorical colours and m ≥ 5 in the published `m/23` grey ramp. NOT a mode-sum curve: the caption plots the FIELD. All three match item by item, including the tick sets (5/10/15, 2…12, 1.5…4.0), the two m = 0 dives per panel and the grey curtain's cliff at `r₀ + w_r`. The horizon order hold is chosen by a MEASURED rule — sweep with the package default, read `horizon_axis_profile(...).layer_ratio` for every mode, re-sweep held only if the maximum over m exceeds 1.05 — which leaves panels 1-2 on the default (0.1105, 0.3108) and holds panel 3 (3.889 → **0.5776**); GATE 7 gates the plotted value and the panel states both numbers and the setting. **preliminary** for one measured reason, flagged on the figure: at `a = 0.998, r₀ = 2` GMRES stagnates at m = 19 and 20 (final residual 9.3e-6 against the 1e-12 tolerance), so those two planes are drawn dashed and named, `pK_converged` carries the verdict per mode, and panel 3's decay claim breaks only at 19 → 20. 66 elements and 4814 dofs (4604 held) at the 8th grid from 320 at level 0. Four sweeps (three panels + panel 3's held re-sweep) through ONE `mode_pool` of 5 single-threaded workers: 1286 s — **heavy**. |
-| 7 | `fig:error_budget` — the F_r error budget: value, and resolution / truncation / reference error against Warburton–Barack, over spin at the ISCO and at r₀ = 10 M | `fig_error_budget.jl` | `expected/fig_error_budget.json` | heavy | **preliminary** | **partial** | 2×2: a `\|F_r\|` strip over a budget panel, per column (r₀ = ISCO, r₀ = 10 M), nine spins −0.998 … +0.998 — the published sample set, read off the PDF's own vector paths, not the five tick labels. Three grayscale curves with the layered gray budget fills: solid "Error to reference" (only where WB print a cell — one on the ISCO column, seven on r₀ = 10; the published solid curve stops at \|a\| = 0.9 for the same reason), dashed "Truncation at m ≤ 20", dotted "Numerical resolution". What is plotted is the paper's own quantity, the BARE partial sum with no fitted tail (three independent confirmations in the section below); the Heffernan-tail F_r is registered beside it. MEASURED: the published dashed curve is reproduced to **0.3–3.6 %** at 17 of 18 configurations, the published solid curve to **within 23 %** at all 8 printed WB points (ratios 0.775–0.988), the main.tex:726 offset lands at 2.28–3.75 against the published 2.81–4.63, and the unregularized F_t matches the printed Table II to ≤ 1e−6 at all 8. **main.tex:723's ordering is a LATTICE property**: resolution below truncation at 15/18 on the paper's full-z lattice against 0/9 on the shipped half domain at the same 8 AMR grids — the controlled variation that closes the row-46 finding. **preliminary** for two measured reasons, both ring-marked or named: at a = +0.998 at its ISCO the mode sum has not converged at m = 20 (last term 2.4 % of the total), and at \|a\| = 0.998, r₀ = 10 the resolution error is 74–100× the published one with the layer_ratio instrument reading only 0.098. 27 sweeps (18 + 9 secondary, plus one horizon-hold re-sweep) through ONE `mode_pool` of 6 single-threaded workers: 4342 s — **heavy**. |
+| 7 | `fig:error_budget` — the F_r error budget: value, and resolution / truncation / reference error against Warburton–Barack, over spin at the ISCO and at r₀ = 10 M | `fig_error_budget.jl` | `expected/fig_error_budget.json` | heavy | **preliminary** | **partial** | 2×2: a `\|F_r\|` strip over a budget panel, per column (r₀ = ISCO, r₀ = 10 M), nine spins −0.998 … +0.998 — the published sample set, read off the PDF's own vector paths, not the five tick labels. Three grayscale curves with the layered gray budget fills: solid "Error to reference" (only where WB print a cell — one on the ISCO column, seven on r₀ = 10; the published solid curve stops at \|a\| = 0.9 because **WB's tables stop at \|a\| ≤ 0.9 at every radius**), dashed "Truncation at m ≤ 20", dotted "Numerical resolution". What is plotted is the **no-fitted-tail interpretation** of the paper's own quantity [PRELIMINARY — inferred, see below]; the Heffernan-tail F_r is registered beside it. MEASURED: the published dashed curve is reproduced to **0.3–3.6 %** at 17 of 18 configurations, the published solid curve to **within 23 %** at all 8 printed WB points (ratios 0.775–0.988), the main.tex:724 offset lands at 2.276–3.748 against the published 2.81–4.63, and the unregularized F_t matches the printed Table II to **≤ 2.91e−8** at all 8. **main.tex:723's ordering is ASSOCIATED with the lattice** [PRELIMINARY]: resolution below truncation at 15/18 on the paper's full-z lattice against 0/9 on the shipped half domain at the same 8 AMR **levels** (not the same grids — 8139 vs 4814 dofs, a 1.69× confound, disclosed; the half domain's spin-independent floor and its ~3.6×-per-step rate put the 88–2370× gap at ~4 further steps). It **narrows** the row-46 finding rather than closing it. **`gates_pass` is FALSE**, with the failures pinned per configuration in `gate_failure_ids`: GATE 3 at a = +0.998 at its ISCO (121× the published truncation) and GATE 8 at four configurations (the resolution curve, gated a decade from above — until that gate existed nothing constrained the dotted curve, and a = +0.9 at its ISCO passed everything at 389×). Two [HOLE] families, all ring-marked on the figure: the compressed prograde ISCO (+0.7 → +0.9 → +0.998, absolute resolution 2.9e−10 → 6.0e−7 → 2.4e−2) and \|a\| = 0.998 at r₀ = 10 (74×/100×, with the lead that their absolute 7.9e−10/8.2e−10 IS the half domain's floor). 27 configurations, 28 production sweeps plus one warm-up, through ONE `mode_pool` of 6 single-threaded workers — **heavy**. |
 
 ### What "the coarsest grid level" is
 
@@ -621,40 +621,62 @@ Three structural facts follow, none of them guessable from the rendered image:
 
 1. **Nine spins are sampled, not five.** The five tick labels (−0.998, −0.5, 0, 0.5, 0.998)
    are not the sample set: markers sit at `a = −0.998, −0.9, −0.7, −0.5, 0, +0.5, +0.7, +0.9,
-   +0.998`. The four extra spins are exactly the ones that carry a printed WB cell. This
-   driver runs the published nine.
-2. **The solid curve stops at |a| = 0.9.** The dashed (truncation) and dotted (resolution)
-   curves carry all nine points; the solid "Error to reference" curve and the `|F_r|` strip
-   carry only seven, `|a| ≤ 0.9`. The marker count settles it — 2×7 + 2×7 + 2×9 + 2×9 + 3
-   legend = **67** filled circles, and the PDF contains exactly 67. So the published figure
-   has **no reference point at |a| = 0.998 either**: its reference stops where
-   Warburton–Barack's printed range stops. Our blank column there is the paper's own blank,
-   not a gap of this reproduction.
-3. **The published `F_r` is the BARE partial sum — no fitted tail.** The published
-   reference/truncation ratio is 2.81–4.63 at `r₀ = 10` and 3.09–3.61 at the ISCO, i.e. the
-   "constant offset" of main.tex:726. That constant is not free: for a `C m^{-p}` tail the
-   omit-the-largest-`m` estimator is smaller than the true remainder `Σ_{m>m_max}` by
-   `≈ m_max/(p−1)`, which `ESSF::mode-sum-total-force` measured as 3.57–3.65 on this very
-   data. If a tail had been added the remainder would have been removed and the offset could
-   not be 3.6. Two direct confirmations from that node's sealed table: our **no-tail**
-   `|F_r − F_r^WB|` is 3.6e−6 at `a = −0.9` against the published 3.53e−6, and 3.4e−5 at
-   `a = +0.5` against the published 3.42e−5 — 2 % and 0.6 %.
+   +0.998`. This driver runs the published nine.
+2. **The solid curve stops at |a| = 0.9, and the reason is Warburton–Barack's SPIN coverage.**
+   The dashed (truncation) and dotted (resolution) curves carry all nine points; the solid
+   "Error to reference" curve and the `|F_r|` strip carry only seven, `|a| ≤ 0.9`. The marker
+   count settles it — 2×7 + 2×7 + 2×9 + 2×9 + 3 legend = **67** filled circles, and the PDF
+   contains exactly 67. WB's tables stop at `|a| ≤ 0.9` **at every radius**, which is a
+   different statement from "no printed cell": the published ISCO column has **seven**
+   reference points while the printed tables carry exactly **one** cell at an ISCO radius
+   (`a = 0`, `r₀ = 6 M`), because the printed `r₀` grid {4, 5, 6, 7, 8, 10, 14, 20, 30, 50, 70,
+   100} meets an ISCO radius only there. So the paper had WB data at six ISCO radii its own
+   tables do not print, and it had none beyond `|a| = 0.9`. Our blank at `|a| = 0.998` is the
+   paper's own blank; our six blanks on the ISCO column are ours.
+3. **[PRELIMINARY — an inferred hypothesis] the published `F_r` carries no fitted tail.** The
+   published reference/truncation ratio is 2.81–4.63 at `r₀ = 10` and 3.09–3.61 at the ISCO,
+   i.e. the "constant offset" of main.tex:724. That constant is not free: for a `C m^{-p}` tail
+   the omit-the-largest-`m` estimator is smaller than the true remainder `Σ_{m>m_max}` by
+   `≈ m_max/(p−1)`, which `ESSF::mode-sum-total-force` measured as 3.57–3.65 on this very data.
+   A fitted tail would have removed the remainder and the offset could not then be ≈ 3.6.
+   **The paper does not say this in so many words.** What it says is consistent with it in two
+   places: main.tex:722 names exactly one acceleration, *"the `F_{r,[4]}` regularization
+   parameter from [Heffernan 2014] to accelerate the sum over m-modes in our solution"*, and
+   main.tex:724 puts higher-order fits in the conditional — *"Fits for higher-order
+   regularization parameters have shown to increase accuracy in previous work and **could be
+   applied** to our solutions as well"*. Neither sentence excludes a tail treatment this
+   reproduction has not thought of. Two quantitative supports, both from row 46's sealed table:
+   our no-tail `|F_r − F_r^WB|` is 3.6e−6 at `a = −0.9` against the published 3.53e−6, and
+   3.4e−5 at `a = +0.5` against the published 3.42e−5 — 2 % and 0.6 %.
 
-The driver therefore plots the paper's own quantity, `total_self_force(set; tail = :none)`,
-and registers the Heffernan-tail number beside it (`Fr_heffernan_tail_flat`,
-`rel_ref_error_tail_flat`) — the same solved modes, one extra call to the sealed mode sum,
-no extra solve. The tail-corrected `F_r` is this reproduction's more accurate number and its
-reference error is roughly 5–10× smaller than the plotted one.
+The driver therefore plots the **no-fitted-tail interpretation**,
+`total_self_force(set; tail = :none)`, and registers the Heffernan-tail number beside it
+(`Fr_heffernan_tail_flat`, `rel_ref_error_tail_flat`) — the same solved modes, one extra call
+to the sealed mode sum, no extra solve. If the interpretation is wrong, the plotted solid curve
+is the wrong estimator and every gate that reads it moves with it.
 
-### The lattice is what sets the ordering — the row-46 finding, resolved
+### The lattice and the ordering — the row-46 finding, narrowed
 
 `ESSF::mode-sum-total-force` measured, on the shipped `ImposeEquatorialSymmetry: True` half
 domain, a coherent resolution error 3–6× **above** the truncation estimator — the opposite of
 main.tex:723 — and left the cause open. `fig_convergence.jl` had already gated that the
 published convergence figure's abscissa is the **full-z 5×3 lattice** (480, 975, 1604, 2427,
-3468, 4751, 6300 grid points, level for level), so the published figures were not run with the
-shipped file's own setting of `yaml:36`. This node ran the same configurations on both
-lattices from one pool and measured the consequence on the TOTAL.
+3468, 4751, 6300 grid points, level for level). This node ran the same nine `r₀ = 10`
+configurations on both lattices from one pool, at the same eight AMR levels and settings.
+
+**What the variation controls, and what it does not.** The two runs share the same eight AMR
+**levels** and solver settings; they do **not** share their grids — the full-z lattice reaches
+8139 dofs at the last level against the half domain's 4814, a factor **1.69**. That ndof
+difference is a confound and is disclosed rather than argued away. What makes it an implausible
+explanation of the whole effect is the size and the convergence rate: the half domain's
+absolute resolution error at `r₀ = 10` is a spin-**independent** floor, 5.67e−10 … 5.89e−10
+across `|a| ≤ 0.9`, against row 46's 1.56e−10 … 1.64e−10 for the same configurations at **nine**
+levels — one further AMR step divides it by about 3.6 — so closing the measured 88–2370× gap
+would take roughly **four** more steps, not the 1.69× in dofs that one level of the other
+lattice buys. The honest statement is therefore **association, not causation**: the ordering of
+main.tex:723 is *associated with the lattice at the tested `r₀ = 10` configurations*
+[PRELIMINARY]. It **narrows** the row-46 finding; it does not close it. Closing it needs the two
+lattices at matched ndofs, which this node did not run.
 
 ### The worldtube radius
 
@@ -668,83 +690,106 @@ paper's own 4.8 exactly at its own point and keeps the v block at a fixed 10 % o
 at every spin. It is an assumption where the paper prints nothing, it applies to the ISCO
 column only, and every ISCO number registered here depends on it.
 
-### The horizon order hold, measured — with one strengthening
+### The horizon order hold — now one shared helper
 
-The rule is `fig_modes.jl`'s: sweep with the package default (`horizon_hold = false`,
-reference parity), read `horizon_axis_profile(dom, orbit, mesh, u).layer_ratio` on **every**
-mode, and re-sweep with `solve_kwargs = (; horizon_hold = true)` only when the **maximum over
-m** exceeds 1.05. This figure adds one thing that node could assume and this one cannot: when
-the default probe crosses the gate the driver re-sweeps held **and keeps whichever setting
-measures smaller**. Both maxima are registered (`layer_ratio_default_max_flat`,
-`layer_ratio_held_max_flat`, `horizon_hold_flat`).
+`select_hold_sweep(default, held; gate = 1.05)` in
+`capabilities/ScalarSelfForce/src/Solve/horizon_axis.jl` is the rule both figure nodes use.
+Each argument is a `sweep => layer_ratios` pair; the **maximum over m** is the trigger's input
+(`layer_ratio` is not monotone in `m` — measured at `a = +0.998`, `r₀ = 2 M` it peaks at
+`m = 12` and falls back by `m = 20`); the held sweep is published only when it **measures
+smaller**; and a hold that does not reduce the ratio returns the default and sets `hole`
+instead of being substituted silently. `fig_modes.jl` could assume the hold always wins on its
+three panels — that is an empirical fact about those panels, not a property of the hold — and a
+figure spanning a compressed near-extremal ISCO cannot. One configuration of 18 is held here
+(`a = +0.998` at its ISCO, 23.94 → 0.8374), and the setting and both ratios are stated **on the
+figure**.
 
-The hold is not free everywhere: measured in this node's calibration prototype, at
-`a = −0.998` at its ISCO the held sweep changes `F_r^{m=0}` by 0.4 % relative
-(4.0308e−4 → 4.0144e−4) while its default `layer_ratio` is only 0.110 — which is exactly why
-the rule is a measured switch and not a default.
+The hold is not free everywhere: measured in this node's calibration prototype, at `a = −0.998`
+at its ISCO the held sweep changes `F_r^{m=0}` by 0.4 % relative (4.0308e−4 → 4.0144e−4) while
+its default `layer_ratio` is only 0.110 — which is exactly why the rule is a measured switch and
+not a default.
 
 ### What reproduces, measured
 
 | claim | ours | published | verdict |
 |---|---|---|---|
-| relative truncation error, all 18 configurations | see the golden | read off the PDF | **0.3–3.6 %** at 17 of 18 (the exception is the compressed near-extremal ISCO below) |
+| relative truncation error, all 18 configurations | see the golden | read off the PDF | **0.3–3.6 %** at 17 of 18; **121×** at the compressed near-extremal ISCO (GATE 3 FAILS there) |
 | relative reference error, all 8 printed WB points | 3.06e−6 … 3.50e−5 | 3.53e−6 … 3.54e−5 | **ratio 0.775–0.988** — slightly more accurate than the paper at every point |
-| reference/truncation offset (main.tex:726) | 2.28–3.75 | 2.81–4.63 | analytic `m_max/(p−1) ≈ 3.6`; row 46 measured 3.57–3.65 |
-| `\|F_r\|` against the printed WB table, r₀ = 10 | 7 points | 7 points | all 7 to **≤ 1.2e−5 relative** |
-| unregularized `F_t` against Table II (9 printed digits) | 8 points | — | all inside 1e−6 relative, the second external gate |
-| main.tex:723 ordering, resolution below truncation | **15 of 18** on the paper's lattice | 18 of 18 | **0 of 9** on the shipped half domain at the same 8 grids |
+| reference/truncation offset (main.tex:724) | 2.276–3.748 | 2.81–4.63 | analytic `m_max/(p−1) ≈ 3.6`; row 46 measured 3.57–3.65. **The band is [2, 6] and the low end clears by only 1.14× — this gate is fragile** |
+| `\|F_r\|` against the published strip | 14 published points | 14 | all to **≤ 0.19 %**, i.e. at the PDF read-back's own precision |
+| unregularized `F_t` against Table II (9 printed digits) | 8 points | — | **measured ≤ 2.91e−8 relative** (the gate's own constant is 1e−6, 30× above row 46's nine-level envelope) |
+| relative RESOLUTION error vs the published dotted curve | 18 configurations | read off the PDF | **0.0155 … 5.3e5** — gated only from above (GATE 8, a decade), and **4 configurations fail** |
+| main.tex:723 ordering, resolution below truncation | **15 of 18** on the paper's lattice | 18 of 18 | **0 of 9** on the shipped half domain at the same 8 AMR levels |
 
-**The row-46 finding is closed as a lattice effect.** `ESSF::mode-sum-total-force` measured, on
-the half domain, a resolution error 3–6× ABOVE the truncation estimator and left the cause open.
-Running the same nine `r₀ = 10` configurations on both lattices from one pool, at the same eight
-AMR grids, gives the controlled variation: the two lattices agree on `F_r` to 1.18–1.26e−10
-absolute (the equatorial-symmetry reduction is exact, so they must) while their resolution
-errors differ by 88–2370× at `|a| ≤ 0.9`. On the paper's own lattice the ordering of
-main.tex:723 holds; on the shipped one it does not, at every single configuration.
+### The gates, the failures, and the diagnostic that decides nothing
 
-### The gates, and the one that was replaced after measurement
+Every gate runs on **all 18 configurations**. There is no scope: a criterion introduced after a
+run, which removes exactly the configuration that failed, cannot be what makes the verdict
+pass. So **`gates_pass` is FALSE**, `gate_failure_ids` pins the exact set of failures
+configuration by configuration, and this figure lands **preliminary** with them explicit.
 
-GLOBAL_DAG row 53 planned "the reference error within 3× the coherent resolution error". On the
-paper's lattice that is unreachable BY CONSTRUCTION, and its failing is the paper's headline
-claim rather than a defect: with the resolution floor two to three decades below the mode-sum
-remainder, `|F_r − F_r^WB|` IS the remainder. **Measured: 0 of the 8 WB-referenced
-configurations satisfy it**, registered as `n_wb_configurations_within_dag_factor`, reported
-and never gated. What replaced it is the published figure's own envelope — the same discipline
-`fig_convergence.jl` landed for its R² floor:
-
-* **GATE 3** relative truncation within a factor 2 of the published dashed curve (measured
-  worst 1.036);
+* **GATE 2** the plotted `layer_ratio` ≤ 1.05 (worst 0.8374), and **GATE 2H** the hold-selection
+  rule's own `hole` flag;
+* **GATE 3** relative truncation within a factor 2 of the published dashed curve — **fails at
+  `a = +0.998` at its ISCO** (121×), and passes at 1.036 or better everywhere else;
 * **GATE 4** relative reference error within a factor 3 of the published solid curve at every
-  printed WB point (measured worst 1/0.775 = 1.29);
-* **GATE 5** the reference/truncation offset inside [2, 6] (measured 2.28–3.75);
-* **GATE 6** the unregularized `F_t` within 1e−6 relative of the printed Table II — no
-  regularization and no tail, so it separates a solve/extraction error from a
-  regularization/tail one (row 46 §3b);
-* **GATE 2** the plotted `layer_ratio` at or below 1.05;
+  printed WB point (worst 1/0.775 = 1.29);
+* **GATE 5** the reference/truncation offset inside [2, 6] — passes, **fragile** (1.14× margin);
+* **GATE 6** the unregularized `F_t` within 1e−6 relative of the printed Table II (measured
+  ≤ 2.91e−8);
+* **GATE 8** the relative resolution error not more than a decade **above** the published dotted
+  curve — added after the first review, because until it existed **nothing constrained that
+  curve at all**: its ratio to the published one spans 0.0155 … 5.3e5 and `a = +0.9` at its ISCO
+  sat at **389×** with every other gate passing. The bound is one-sided on purpose: exceeding the
+  published estimator means our sweep is *less* converged than the paper's at the same nominal
+  AMR depth, which is a deficiency, while undershooting means it is more converged, which is not,
+  and is reported rather than gated. It **fails at four configurations** — the two hole families;
 * **GATE 7** the tracked PNG inside the shared 200 KB budget.
 
-GATES 2–6 are scoped to the configurations whose mode sum has actually CONVERGED at `m_max`,
-by two measured criteria: the sealed tail estimator refusing to fit, and the last retained
-regularized term reaching 1 % of the total. **The second criterion was added after the first
-production run** and is recorded as such here and in the driver: the first criterion alone does
-not fire at the one configuration that needs it, and its threshold is calibrated on the
-PUBLISHED dashed curve (whose largest value anywhere is 2.93e−4, 34× below the bound), never on
-ours. Exactly one configuration is excluded, and it is ring-marked on the figure.
+`--check` verifies **reproducibility**, not the physics verdict: the verdict is a registered
+value (`gates_pass`, `gate_failure_ids`) pinned by the golden, so a gate that starts failing or a
+known failure that disappears is a golden **mismatch**. The driver's exit code therefore reports
+the golden comparison and the artifact budget only.
 
-### [HOLE] the compressed near-extremal prograde ISCO, and the `|a| = 0.998` resolution error
+**The exploratory converged-mode-sum diagnostic.** `|T_{m_max}|` is a truncation estimate only
+while the m-sum has begun to converge. Two measured criteria speak to that: the sealed tail
+estimator refusing to fit (it fires nowhere here), and the last retained regularized term staying
+below 1 % of the total (`rel_trunc < 1e−2`). The second was written **after** the first
+production run and fires at exactly the one configuration that failed GATE 3, so it is recorded
+as an **exploratory diagnostic**, pre-registered for future runs of this driver, and it scopes
+**nothing**. Its sensitivity is registered: it excludes exactly that configuration for any
+threshold strictly between 2.934e−4 and 2.411e−2, and a threshold of 1e−1 would exclude nothing
+at all. A criterion whose verdict is that sensitive to a constant nobody derived is a lead.
 
-At `a = +0.998`, `r₀ = r_ISCO = 1.2370 M` the mode sum has not converged at `m = 20`: the last
-retained term is 2.4 % of the total and the resolution error 9.5 % of it, against a published
-truncation of 1.99e−4. Every mode still reaches the 1e−12 GMRES tolerance and the horizon order
-hold fires (default `layer_ratio` 23.94 at `m = 17`; the rule keeps whichever setting measures
-smaller). The point stays in the figure, ring-marked.
+**GLOBAL_DAG row 53's planned metric** — the reference error within 3× the coherent resolution
+error — measures **0 of 8** at `m_max = 20` and stays registered as a **failed diagnostic**. The
+reading is an inference, not an identity: the reference error is dominated by the mode-sum
+remainder rather than by resolution, the two being two to three decades apart at this `m_max`.
+It is *not* unreachable by construction — at infinite `m_max` the remainder vanishes and
+`|F_r − F_r^WB|` falls to the reference's own floor, the ~1e−7 relative that WB's printed digits
+carry, not to zero.
 
-Separately, at `|a| = 0.998`, `r₀ = 10 M` the relative RESOLUTION error is 1.48e−5 and 3.92e−5
-against a published 1.99e−7 and 3.92e−7 — 74× and 100× too large — and those are the only two
-other configurations where our ordering inverts. Every other spin at `r₀ = 10` sits between
-1.4e−8 and 1.0e−6. The `layer_ratio` instrument reads only 0.098 at both, so whatever costs the
-resolution there is NOT the near-horizon layer that instrument measures. Cause not established;
-handed to `ESSF::fix-horizon-axis-layer`.
+### [HOLE 1] the compressed prograde ISCO — three members, not one
+
+The absolute resolution error runs **2.9e−10** at `a = +0.7`, **6.0e−7** at `+0.9` and
+**2.4e−2** at `+0.998` — three orders per spin step — and at `+0.998` the mode sum has not
+converged at `m = 20` either (last retained term 2.4 % of the total, resolution error 9.5 % of
+it, against a published truncation of 1.99e−4). `a = +0.9` is the member the first pass **missed**:
+every gate it had passed there while its resolution estimator sat 389× above the published one.
+Every mode still reaches the 1e−12 GMRES tolerance at all three, and the hold fires at `+0.998`
+(23.94 → 0.8374). All three are ring-marked on the figure, never dropped.
+
+### [HOLE 2] `|a| = 0.998` at `r₀ = 10`, with a lead
+
+The relative resolution error is 1.48e−5 and 3.92e−5 against a published 1.99e−7 and 3.92e−7 —
+74× and 100× — and these are the only two other configurations where our ordering inverts. **The
+lead**, measured here: in *absolute* terms those two are **7.9e−10** and **8.2e−10**, the same
+magnitude as the half domain's spin-independent floor at `r₀ = 10` (5.67e−10 … 5.89e−10), while
+the full-z lattice's other seven spins reach 2.5e−13 … 6.7e−12 there. The near-extremal points
+look as if they are sitting on a floor the rest of the lattice has already left behind. The
+`layer_ratio` instrument reads 0.098 at both, so the honest statement is that **the `layer_ratio`
+instrument does not detect** whatever costs the resolution there — not that the near-horizon
+layer is uninvolved. Handed to `ESSF::fix-horizon-axis-layer` with the lead.
 
 ## Not yet reproduced
 

@@ -26,6 +26,12 @@
 #   julia --project=reproduce reproduce/arXiv-2606.04998/fig_error_budget.jl --check
 #   julia --project=reproduce reproduce/arXiv-2606.04998/fig_error_budget.jl --plot-only  # redraw
 #
+# `--plot-only` REDRAWS THE TRACKED PNG from the golden, in place, with no solve — that is its
+# purpose (a cosmetic iteration costs seconds instead of 73 minutes) and its hazard: it changes
+# a tracked artifact while leaving the golden's `script_sha256` at whatever produced the golden,
+# so `--check` then prints "driver script changed since the golden was generated". Use it while
+# iterating; the artifact a commit ships should come from the same `--regen` as its golden.
+#
 # ─────────────────────────────────────────────────────────────────────────────────────────────
 # THE PUBLISHED FIGURE, READ OFF ITS OWN VECTOR PATHS (never plotted as ours; the extraction
 # script and its calibration are in this node's evidence). Eleven polylines, calibrated on the
@@ -39,9 +45,14 @@
 #   * The dashed (truncation) and dotted (resolution) curves carry all NINE points. The solid
 #     ("Error to reference") curve and the |F_r| strip carry only SEVEN: |a| <= 0.9. The marker
 #     count confirms it exactly - 2x7 + 2x7 + 2x9 + 2x9 + 3 legend = 67 filled circles, and the
-#     PDF has 67. So the published figure has NO reference point at |a| = 0.998 either: its own
-#     reference stops where Warburton-Barack's does. Our |a| = 0.998 columns are the paper's own
-#     blank, not a gap of ours [SOLID, measured].
+#     PDF has 67. So the published figure has NO reference point at |a| = 0.998 either, and the
+#     reason is WARBURTON-BARACK'S SPIN COVERAGE: their tables stop at |a| <= 0.9 AT EVERY
+#     RADIUS. That is a different statement from "no printed cell": the published ISCO column
+#     has SEVEN reference points while the printed tables carry exactly ONE cell at an ISCO
+#     radius (a = 0, r0 = 6 M), because the printed r0 grid {4, 5, 6, 7, 8, 10, 14, 20, 30, 50,
+#     70, 100} meets an ISCO radius only there. So the paper had WB data at six ISCO radii its
+#     own tables do not print, and had none beyond |a| = 0.9 - our blank at |a| = 0.998 is the
+#     paper's own blank, while our six blanks on the ISCO column are ours [SOLID, measured].
 #   * The published |F_r| strip at r0 = 10 reproduces the WB printed table to 0.10 % at all seven
 #     spins - which is what calibrates the read-back, and is why the numbers below are quoted.
 #
@@ -52,40 +63,75 @@
 #   truncation/resolution     3.13 - 5.40           10.3 - 1857
 #
 # The reference/truncation band is the paper's "our finite-m truncation error models the true
-# error well up to a constant offset" (main.tex:726). That constant is NOT free: for a `C m^-p`
+# error well up to a constant offset" (main.tex:724). That constant is not free: for a `C m^-p`
 # tail the omit-the-largest-m estimator is smaller than the true remainder `sum_{m>m_max}` by
-# `~ m_max/(p-1)`, which row 46 MEASURED as 3.57-3.65 on this very data. The published offset IS
-# that factor. It follows that the published `F_r` is the BARE partial sum
-# `sum_{m<=20}[F_r^m - F^m_{r[4]}]` with NO fitted tail - if a tail had been added, the remainder
-# would have been removed and the offset would not be 3.6. Two independent confirmations, both
-# from row 46's own table: our no-tail |F_r - F_r^WB| is 3.6e-6 at a = -0.9 against the published
-# 3.53e-6, and 3.4e-5 at a = +0.5 against the published 3.42e-5 - 2 % and 0.6 %.
+# `~ m_max/(p-1)`, which row 46 MEASURED as 3.57-3.65 on this very data, and the published
+# offset IS that factor.
 #
-# THIS DRIVER THEREFORE PLOTS THE PAPER'S OWN QUANTITY: the bare partial sum (`tail = :none`),
-# and registers the tail-corrected number beside it. Both come from the SAME solved modes - one
-# extra call to the sealed `total_self_force`, no extra solve - so nothing is thrown away: the
-# Heffernan-tail `F_r` is this reproduction's more accurate number and its reference error is
-# registered as `ref_error_tail_*`, roughly 5-10x smaller than the plotted one.
+# [PRELIMINARY - AN INFERRED HYPOTHESIS, NOT A STATEMENT OF THE PAPER'S] From that, the natural
+# reading is that the published `F_r` carries NO FITTED TAIL beyond the regularization
+# parameters - i.e. that it is `sum_{m<=20}[F_r^m - F^m_{r[4]}]` - because a fitted tail would
+# have removed the remainder and the offset could not then be ~3.6. THE PAPER DOES NOT SAY THIS
+# in so many words. What it says is consistent with it in two places: main.tex:722 names exactly
+# ONE acceleration, "the F_{r,[4]} regularization parameter from [Heffernan 2014] to accelerate
+# the sum over m-modes in our solution", and main.tex:724 puts higher-order fits in the
+# conditional - "Fits for higher-order regularization parameters have shown to increase accuracy
+# in previous work and COULD BE APPLIED to our solutions as well". Neither sentence excludes a
+# tail treatment this reproduction has not thought of. Two quantitative supports, both from
+# row 46's own sealed table: our no-tail |F_r - F_r^WB| is 3.6e-6 at a = -0.9 against the
+# published 3.53e-6, and 3.4e-5 at a = +0.5 against the published 3.42e-5 - 2 % and 0.6 %.
+#
+# THIS DRIVER THEREFORE PLOTS THE NO-FITTED-TAIL INTERPRETATION (`tail = :none`) and registers
+# the tail-corrected number beside it. Both come from the SAME solved modes - one extra call to
+# the sealed `total_self_force`, no extra solve - so nothing is thrown away: the Heffernan-tail
+# `F_r` is this reproduction's more accurate number and its reference error is registered as
+# `ref_error_tail_*`, roughly 5-10x smaller than the plotted one. If the interpretation is wrong,
+# the plotted solid curve is the wrong estimator and every gate that reads it moves with it.
 #
 # ─────────────────────────────────────────────────────────────────────────────────────────────
 # THE GATES, AND THE ONE THAT WAS RE-PLANNED BEFORE IT WAS EVER RUN.
 #
 # GLOBAL_DAG row 53 planned "the reference-error curve |F_r - WB| within 3x the coherent
 # resolution error". That gate was calibrated on row 46's HALF-DOMAIN, tail-corrected numbers,
-# where the ratio is O(1). On the PAPER'S OWN LATTICE it is unreachable BY CONSTRUCTION, and its
-# failing is the paper's headline claim rather than a defect: with the resolution floor two to
-# three decades below the mode-sum remainder, |F_r - WB| IS the remainder and cannot be within
-# 3x of the resolution error. MEASURED: 0 of the 8 WB-referenced configurations satisfy it, and
-# `n_wb_configurations_within_dag_factor` registers exactly that. It is REPORTED, never gated.
+# where the ratio is O(1). MEASURED HERE: 0 of the 8 WB-referenced configurations satisfy it at
+# m_max = 20, registered as `n_wb_configurations_within_dag_factor`. The reading - an INFERENCE,
+# not an identity - is that the reference error is DOMINATED BY THE MODE-SUM REMAINDER rather
+# than by resolution, the two being two to three decades apart at this m_max. It is NOT true
+# that the inequality is unreachable by construction: at infinite m_max the remainder vanishes
+# and |F_r - F_r^WB| falls to the REFERENCE's own floor - the ~1e-7 relative that
+# Warburton-Barack's printed digits carry - not to zero, and the planned inequality would then
+# be a statement about that floor against our resolution error. The planned metric therefore
+# stays REGISTERED, as a FAILED DIAGNOSTIC (0 of 8), rather than being retired.
 #
-# What replaces it is the PUBLISHED FIGURE'S OWN ENVELOPE, the same discipline
-# `fig_convergence.jl` landed for its R2 floor - the paper's curves are the yardstick, read off
-# the paper's own PDF, and our curves must sit inside a stated factor of them (GATES 3, 4, 5),
-# with the unregularized F_t against the printed Table II as the second external gate (GATE 6).
-# All of them are scoped to the configurations whose mode sum has CONVERGED at m_max - see the
-# gate block for the two criteria and for which of them was added after the first run.
+# What it does not do is decide this figure. That is the PUBLISHED FIGURE'S OWN ENVELOPE, the
+# discipline `fig_convergence.jl` landed for its R2 floor - the paper's curves are the yardstick,
+# read off the paper's own PDF, and our curves must sit inside a stated factor of them (GATES 3,
+# 4, 5), with the unregularized F_t against the printed Table II as the second external gate
+# (GATE 6) and the resolution curve gated FROM ABOVE (GATE 8, added after the first review:
+# until it existed nothing constrained the dotted curve at all, and a 389x departure passed).
+# EVERY GATE RUNS ON ALL 18 CONFIGURATIONS - there is no scope, and the converged-mode-sum
+# criterion is an EXPLORATORY diagnostic that decides nothing here. See the gate block.
 #
 # ─────────────────────────────────────────────────────────────────────────────────────────────
+# THE NODE'S TWO OPEN HOLES, both ring-marked on the figure and both in the formal verdict.
+#
+# [HOLE 1] THE COMPRESSED PROGRADE ISCO. The absolute resolution error runs 2.9e-10 at a = +0.7,
+# 6.0e-7 at +0.9 and 2.4e-2 at +0.998 - three orders per spin step - and at +0.998 the mode sum
+# has not converged at m = 20 either (the last retained term is 2.4 % of the total). a = +0.9 is
+# the member the first pass MISSED: every gate it had passed there while its resolution
+# estimator sat 389x above the published one, which is why GATE 8 exists.
+#
+# [HOLE 2] |a| = 0.998 AT r0 = 10. The relative resolution error is 1.48e-5 and 3.92e-5 against
+# a published 1.99e-7 and 3.92e-7 - 74x and 100x - and these are the only two other
+# configurations where our ordering inverts. THE LEAD, measured here: in ABSOLUTE terms those
+# two are 7.9e-10 and 8.2e-10, which is the SAME MAGNITUDE as the half domain's spin-independent
+# floor at r0 = 10 (5.67e-10 ... 5.89e-10, registered) - while the full-z lattice's other seven
+# spins reach 2.5e-13 ... 6.7e-12 there. So the near-extremal points look as if they are sitting
+# on a floor the rest of the lattice has already left behind. The `layer_ratio` instrument reads
+# 0.098 at both: the honest statement is that THE `layer_ratio` INSTRUMENT DOES NOT DETECT
+# whatever costs the resolution there - not that the near-horizon layer is uninvolved. Handed to
+# ESSF::fix-horizon-axis-layer with the lead.
+#
 # THE WORLDTUBE RADIUS. `anc/ScalarSelfForce.yaml:12` templates it and the paper publishes a
 # value only for its header example (r0 = 10 M, r_in = 2 M: `worldtube_radius = 4.8`). At r0 = 10
 # that published value is legal at every spin (v->t = 10 - 1.5*4.8 = 2.8 > r+ <= 2) and IS used
@@ -155,14 +201,20 @@ const REF_ENVELOPE   = 3.0   # our reference-error curve within this factor of t
 const OFFSET_BAND    = (2.0, 6.0)  # reference/truncation; published 2.81-4.63, the analytic
                                    # m_max/(p-1) model 3.77-3.83, row 46 measured 3.57-3.65
 const LAYER_GATE     = 1.05  # the measured `layer_ratio` a plotted configuration may not pass
-# THE PRECONDITION OF THE TRUNCATION ESTIMATOR, added after the first production run and
-# recorded as such (see the gate block). `|T_{m_max}|` is a TRUNCATION estimate only while the
-# m-sum has begun to converge; where the last retained term is a tenth of the total it measures
-# the series' failure to converge instead. Calibrated on the PUBLISHED dashed curve, whose
-# largest value anywhere in the figure is 2.93e-4 — this bound sits 34x above it, so it excludes
-# nothing the paper itself plots.
+# THE EXPLORATORY CONVERGED-MODE-SUM DIAGNOSTIC. `|T_{m_max}|` is a TRUNCATION estimate only
+# while the m-sum has begun to converge; where the last retained term is a tenth of the total it
+# measures the series' failure to converge instead. The criterion is the SMALLNESS of that term,
+# `rel_trunc < MODE_SUM_CONVERGED`. It was written AFTER the first production run, it fires at
+# exactly the one configuration that failed a gate there, and it is therefore EXPLORATORY: it is
+# registered, its sensitivity is registered, and it scopes NOTHING (see the gate block).
 const MODE_SUM_CONVERGED = 1.0e-2
 const DAG_RES_FACTOR = 3.0   # GLOBAL_DAG row 53's planned factor - REPORTED, not gated
+const RES_ENVELOPE_UP = 10.0 # the resolution curve, gated FROM ABOVE ONLY (see GATE 8): our
+                             # estimator may not exceed the published one by more than a decade
+const FT_GATE = 1.0e-6       # the F_t envelope. Row 46 measured 3.1e-9 ... 3.4e-8 at nine grids;
+                             # this carries 30x of headroom for the one coarser AMR step. The
+                             # MEASURED deviations of this figure are quoted with the numbers,
+                             # never with this constant (see `Ft_relative_deviation_max`).
 
 # ───────────────────────────── the figure (presentation only) ────────────────────────────────
 
@@ -199,7 +251,7 @@ carrying the spins, `absfr`, the three relative-error curves and the reference-e
 function draw(cols, out_png; publish::Bool)
     tops = Any[]; bots = Any[]
     allerr = vcat([vcat(c.rel_ref[c.refmask], c.rel_trunc, c.rel_res) for c in cols]...)
-    elo = minimum(allerr) / 10^0.45
+    elo = minimum(allerr) / 10^0.95   # floor room for the per-column note (drawn on it)
     ehi = maximum(allerr) * 10^0.45
     allfr = vcat([c.absfr for c in cols]...)
     flo, fhi = minimum(allfr) / 10^0.45, maximum(allfr) * 10^0.45
@@ -264,9 +316,12 @@ function draw(cols, out_png; publish::Bool)
         # solid curve stops at |a| = 0.9 as well
         # under the panel tag, where both columns have clear sky: on the floor it ran into the
         # neighbouring panel, and over the fills it ran into the curves
-        c.note == "" || annotate!(bot, xlim[1] + 0.045 * (xlim[2] - xlim[1]), ehi / 10^1.0,
-                                  text(wrap(c.note, 46), 6, :left, :top, RGB(0.32, 0.32, 0.32),
-                                       "Computer Modern"))
+        # on the FLOOR of the panel: the published figure draws nothing there, the darker budget
+        # fill gives the text a background, and it stays clear of the legend
+        note = c.note * (isempty(c.holdnote) ? "" : " " * c.holdnote)
+        note == "" || annotate!(bot, xlim[1] + 0.030 * (xlim[2] - xlim[1]), elo * 10^0.06,
+                                text(wrap(note, 52), 5, :left, :bottom, RGB(0.10, 0.10, 0.10),
+                                     "Computer Modern"))
         push!(bots, bot)
     end
     # the published canvas is 484.5 x 239.6 pt (aspect 2.02) with the strip 1/5 of the panel
@@ -293,7 +348,8 @@ if PLOT_ONLY
          rel_trunc = Float64.(v["rel_truncation_flat"][rng]),
          rel_res = Float64.(v["rel_resolution_flat"][rng]),
          refmask = Bool.(v["has_wb_reference_flat"][rng]),
-         okmask = Bool.(v["in_asymptotic_regime_flat"][rng]),
+         okmask = .!Bool.(v["flagged_hole_flat"][rng]),
+         holdnote = String(v["column_hold_notes"][k]),
          m_max = Int(v["m_max"]), tag = String(v["column_tags"][k]),
          note = String(v["column_notes"][k]))
     end
@@ -302,7 +358,10 @@ if PLOT_ONLY
     exit(saved.ok ? 0 : 1)
 end
 
-ReproHarness.require_tier(opts, :heavy)   # 18 configurations x 21 modes x 8 AMR grids
+ReproHarness.require_tier(opts, :heavy)   # 27 configurations (18 plotted + 9 secondary), 21
+                                          # modes x 8 AMR grids each: 28 production sweeps (one
+                                          # configuration is swept twice for the horizon hold)
+                                          # plus one warm-up sweep
 
 using LinearAlgebra
 using GrTools
@@ -311,7 +370,7 @@ using GrTools.EllipticCore
 using GrTools.Spacetime: kerr_isco
 
 for f in (:solve_modes_parallel, :mode_pool, :total_self_force, :crp_paper_config,
-          :horizon_axis_profile, :block_domain)
+          :horizon_axis_profile, :select_hold_sweep, :block_domain)
     isdefined(ScalarSelfForce, f) || ReproHarness.hole(
         "ScalarSelfForce.$(f) is not available: Fig. 7 needs the m-mode fan-out " *
         "(ESSF::mmode-parallel-driver) over the hp-AMR driver (ESSF::amr-driver), the mode sum " *
@@ -365,8 +424,8 @@ const SPINS   = PUB_SPINS                 # the nine the published figure actual
 const COLUMNS = ((:isco, "\$r_0 = \$ ISCO"), (10.0, "\$r_0 = 10\$"))
 # the on-figure statement of where the reference-error curve exists at all, per column
 const COLUMN_NOTES = (
-    "WB prints ONE cell on this column (a = 0, r0 = 6 M); ringed point: mode sum not converged [HOLE]",
-    "no printed WB cell at |a| = 0.998 - the published figure has none there either")
+    "WB print one ISCO cell (a = 0, r0 = 6 M), and stop at |a| <= 0.9. Rings: [HOLE].",
+    "WB stop at |a| <= 0.9, as does the published curve. Rings: [HOLE].")
 const MS      = CRP_PAPER_MMODES          # 0:20, main.tex:722 "all m <= 20"
 const PORD    = 4                         # yaml:74
 const LREF    = 0                         # yaml:75
@@ -380,10 +439,23 @@ const NWORKERS = 6                        # compute-usage: 6 processes x 1 threa
 # `fig_convergence.jl` GATED that the published convergence figure's abscissa is the FULL-Z 5x3
 # lattice (480, 975, 1604, 2427, 3468, 4751, 6300 grid points, level for level) - the same hp-AMR
 # sweeps this figure sums over. This driver therefore PLOTS THE PAPER'S, exactly as that node
-# does, and carries the half domain as a CONTROLLED VARIATION on the r0 = 10 column, which is what
-# turns the row-46 ordering finding from an observation into a cause: the equatorial-symmetry
-# reduction is EXACT, so the two lattices must agree on F_r to their own resolution floor while
-# their resolution ERRORS differ by the ratio of the two floors. Both series come from ONE pool.
+# does, and carries the half domain as a CONTROLLED VARIATION on the r0 = 10 column. Both series
+# come from ONE pool.
+#
+# WHAT THE VARIATION CONTROLS, AND WHAT IT DOES NOT [PRELIMINARY]. The two runs share the SAME
+# EIGHT AMR LEVELS and the same solver settings - they do NOT share their grids: the full-z
+# lattice reaches 8139 dofs at the last level against the half domain's 4814, a factor 1.69, and
+# the equatorial-symmetry reduction is exact so the two are solving the same physics over
+# different halves of the sphere. The ndof difference is a CONFOUND and is disclosed rather than
+# argued away. What makes it an implausible explanation of the whole effect is the SIZE and the
+# CONVERGENCE RATE: the half domain's absolute resolution error at r0 = 10 is a spin-INDEPENDENT
+# floor, 5.67e-10 ... 5.89e-10 across |a| <= 0.9 (registered), against row 46's 1.56e-10 ...
+# 1.64e-10 for the SAME configurations at NINE levels - i.e. one further AMR step divides it by
+# about 3.6 - so closing the measured 88-2370x gap would take roughly four more steps, not the
+# 1.69x in dofs that one level of the other lattice buys. The honest statement is therefore
+# ASSOCIATION, not causation: the ordering of main.tex:723 is ASSOCIATED WITH THE LATTICE at the
+# tested r0 = 10 configurations. It NARROWS the row-46 finding; it does not close it. Closing it
+# needs the two lattices at matched ndofs, which this node did not run.
 # The secondary series is the CONTROLLED VARIATION of the lattice, and it runs on the r0 = 10
 # column only: those nine configurations carry every printed WB cell of the r0 = 10 column and
 # are the ones row 46's sealed table measured, so the A/B answers the ordering question where it
@@ -448,22 +520,24 @@ function sweep_one(pool, c, monitor)
     set = solve_modes_parallel(c.orb, c.cfg, MS; pool = pool, iterations = STEPS, log = monitor)
     lay = layer_ratios(c, set)
     probe, kprobe = findmax(map(x -> isnan(x) ? -Inf : x, lay))
-    # THE RULE (ESSF::fix-horizon-axis-layer, as `fig_modes.jl` landed it) with ONE STRENGTHENING
-    # this figure needs: when the default probe crosses the gate we re-sweep held AND KEEP THE
-    # SETTING THAT MEASURES SMALLER. `fig_modes.jl` assumed the hold always wins — true on its
-    # three panels — but that is an empirical claim, and a figure that spans a compressed
-    # near-extremal ISCO cannot assume it. Both maxima are registered either way.
-    hold_max = NaN
-    hold = false
+    # THE RULE (ESSF::fix-horizon-axis-layer, row 58) through the SHARED helper
+    # `select_hold_sweep`, which this node added to `Solve/horizon_axis.jl` so that the two
+    # figure nodes that publish a layer-gated object stop carrying two policies. It keeps
+    # `fig_modes.jl`'s trigger — hold iff the default's MAXIMUM OVER m crosses 1.05 — and adds
+    # the assertion `fig_modes` could assume on its three panels and this figure cannot: the
+    # held sweep is published only when it MEASURES smaller. A hold that does not reduce the
+    # ratio returns the default and sets `hole`; the held sweep is not even run when the
+    # default is already inside the gate.
+    held_pair = nothing
     if probe > LAYER_GATE
         held = solve_modes_parallel(c.orb, c.cfg, MS; pool = pool, iterations = STEPS,
                                     solve_kwargs = (; horizon_hold = true), log = monitor)
-        hlay = layer_ratios(c, held)
-        hold_max = maximum(x -> isnan(x) ? -Inf : x, hlay)
-        if hold_max < probe
-            set, lay, hold = held, hlay, true
-        end
+        held_pair = held => layer_ratios(c, held)
     end
+    sel = select_hold_sweep(set => lay, held_pair; gate = LAYER_GATE)
+    set = sel.sweep
+    lay = sel.hold ? last(held_pair) : lay
+    hold, hold_max = sel.hold, sel.held_ratio
     isempty(set.failures) || error("fig_error_budget: modes failed at a = $(c.a), " *
                                    "r0 = $(c.r0): $([f.m for f in set.failures])")
     none = total_self_force(set; tail = :none)        # THE PAPER'S QUANTITY
@@ -490,7 +564,7 @@ function sweep_one(pool, c, monitor)
             @sprintf("%.3e", abs(Float64(none.Fr) - c.wb.value) / abs(Float64(none.Fr))))
     flush(stdout)
     return (c = c, set = set, none = none, heff = heff, hold = hold, layer_probe = probe,
-            layer_hold_max = hold_max,
+            layer_hold_max = hold_max, sel = sel,
             layer = lay, converged = conv, residual = resid, iterations = iters,
             ndofs = [l.mesh.ndofs for l in lv], nelements = [length(l.mesh.elements) for l in lv],
             wall = w, nworkers = set.run.nworkers, max_load = set.run.max_load,
@@ -609,76 +683,100 @@ end
 # that a stagnating high-m mode at a compressed near-extremal orbit stays in the figure, flagged,
 # with its own final residual registered (`converged_flat`, `final_residual_flat`).
 nonconv = [(r.c.a, r.c.spec, MS[.!r.converged]) for r in plotted_rs if !all(r.converged)]
-# the plotted run’s own layer_ratio maximum, per configuration (GATE 2 is below, with its scope)
 layer_max = [maximum(x -> isnan(x) ? -Inf : x, r.layer) for r in plotted_rs]
-# THE SCOPE OF GATES 2-5: the configurations whose mode sum HAS CONVERGED at m_max.
-# `truncation_error = |T_{m_max}|` only MEASURES truncation while the m-sequence is in its
-# asymptotic `C m^-p` regime, and two independent, measured criteria decide that:
-#   (a) the SEALED tail estimator refuses to fit (`mode_decay_fit` throws unless at least two
-#       modes clear its headroom rule) — declared before the production run;
-#   (b) the last retained regularized term is at least `MODE_SUM_CONVERGED` = 1 % of the total.
-# (b) was ADDED AFTER THE FIRST PRODUCTION RUN and is recorded as such: criterion (a) alone does
-# not fire at `a = +0.998` at its ISCO, where the sum is nevertheless not converged — the last
-# retained term is 2.4 % of the total and the resolution error is 9.5 % of it. That is the
-# compressed near-extremal ISCO [HOLE] (ESSF::fix-horizon-axis-layer, the particle-side stall),
-# and comparing its `|T_20|` with the published dashed curve compares two different things. The
-# threshold is calibrated on the PUBLISHED figure, not on ours: the published dashed curve never
-# exceeds 2.93e-4 anywhere, 34x below this bound, so the bound excludes nothing the paper plots.
-# Excluded configurations are REPORTED with their deviations and carry the node's [HOLE]; nothing
-# is excluded by spin or by radius, and every excluded configuration is named in the golden
-# (`in_asymptotic_regime_flat`, `mode_sum_converged_flat`).
+
+# ── THE FORMAL VERDICT, AND WHAT IS NOT IN IT ────────────────────────────────────────────────
+# GATES 2-6 and 8 run on ALL 18 configurations. There is no scope, and in particular the
+# converged-mode-sum criterion below is NOT applied to them: a criterion introduced after a run,
+# which removes exactly the configuration that failed, cannot be what makes the verdict pass. So
+# `gates_pass` reads FALSE here, the failures are named, and this figure lands PRELIMINARY with
+# them explicit — which is the honest state of a terminal node that has two open holes.
+#
+# EVERY FAILURE IS PINNED. `gate_failure_ids` is a registered, sorted vector, so the golden fixes
+# the EXACT set of failing gates: a new failure, or the disappearance of a known one, is a golden
+# MISMATCH and fails `--check`. That is what lets the driver exit 0 on a known, reproducible
+# failure — see the exit rule at the foot of this file.
+gatefails = String[]
+gate_failure_ids = String[]
+cfgtag(i) = @sprintf("a=%+.3f,%s", plotted_rs[i].c.a, plotted_rs[i].c.spec === :isco ? "ISCO" : "10M")
+function gatefail!(gate::AbstractString, idxs, msg::AbstractString)
+    isempty(idxs) && return nothing
+    for i in idxs
+        push!(gate_failure_ids, i === nothing ? gate : string(gate, "@", cfgtag(i)))
+    end
+    push!(gatefails, string(gate, ": ", msg))
+    return nothing
+end
+
+# ── the EXPLORATORY converged-mode-sum criterion: registered, PRE-REGISTERED for future runs of
+#    this driver, and applied to NOTHING here ---------------------------------------------------
+# `truncation_error = |T_{m_max}|` is a TRUNCATION estimate only while the m-sequence is in its
+# asymptotic `C m^-p` regime. Two measured criteria speak to that: (a) the SEALED tail estimator
+# refusing to fit (`mode_decay_fit` throws unless two modes clear its headroom rule), and (b) the
+# last retained regularized term staying below `MODE_SUM_CONVERGED` of the total, i.e.
+# `rel_trunc < MODE_SUM_CONVERGED` — the criterion is the SMALLNESS of that term. (a) fires
+# nowhere here. (b) was written AFTER the first production run and fires at exactly one
+# configuration — the one that failed GATE 3 — so it is recorded as an EXPLORATORY diagnostic
+# with its sensitivity, never as a gate scope. SENSITIVITY, registered: it excludes exactly that
+# configuration for ANY threshold strictly between the second-largest and the largest
+# `rel_trunc` (`exploratory_scope_sensitivity_*` below, measured 2.93e-4 … 2.41e-2); a threshold
+# of 1e-1 would exclude nothing at all. A criterion whose verdict is that sensitive to a constant
+# nobody derived is a lead, not a gate.
 mode_sum_converged = [P.rel_trunc[i] < MODE_SUM_CONVERGED for i in 1:NCONF]
-asymptotic = [(plotted_rs[i].heff !== nothing) && mode_sum_converged[i] for i in 1:NCONF]
-scoped = findall(asymptotic)
-if !all(asymptotic)
-    println("\n[fig_error_budget] GATES 2-5 SCOPE: ", count(!, asymptotic),
-            " configuration(s) are outside the converged-mode-sum scope — ",
+tail_fit_ok = [plotted_rs[i].heff !== nothing for i in 1:NCONF]
+exploratory_scope = [tail_fit_ok[i] && mode_sum_converged[i] for i in 1:NCONF]
+sorted_rt = sort(P.rel_trunc)
+scope_sens = (sorted_rt[end - 1], sorted_rt[end])   # any threshold strictly inside excludes 1
+if !all(exploratory_scope)
+    println("\n[fig_error_budget] EXPLORATORY converged-mode-sum diagnostic (NOT a gate scope): ",
+            count(!, exploratory_scope), " configuration(s) — ",
             [(plotted_rs[i].c.a, plotted_rs[i].c.spec, P.rel_trunc[i], P.rel_res[i])
-             for i in findall(!, asymptotic)],
-            " (tail refusals: ", [plotted_rs[i].c.a for i in 1:NCONF
-                                  if plotted_rs[i].heff === nothing],
-            "; last term >= $(MODE_SUM_CONVERGED) of the total: ",
-            [plotted_rs[i].c.a for i in findall(!, mode_sum_converged)],
-            ") — their deviations are reported, never gated [HOLE]")
+             for i in findall(!, exploratory_scope)],
+            "; tail-fit refusals ", count(!, tail_fit_ok),
+            "; threshold ", MODE_SUM_CONVERGED, " sensitive over ", scope_sens)
 end
-# GATE 2 — the row-58 rule's own instrument, on the same scope as the envelope gates.
-for i in scoped
-    layer_max[i] <= LAYER_GATE || push!(gatefails,
-        "GATE 2: a = $(plotted_rs[i].c.a), $(plotted_rs[i].c.spec) — plotted layer_ratio max " *
-        "$(layer_max[i]) > $(LAYER_GATE) (horizon_hold = $(plotted_rs[i].hold), default probe " *
-        "$(plotted_rs[i].layer_probe), held probe $(plotted_rs[i].layer_hold_max))")
-end
-if any(i -> layer_max[i] > LAYER_GATE, findall(!, asymptotic))
-    println("[fig_error_budget] REPORTED (not gated): the layer_ratio also exceeds ", LAYER_GATE,
-            " at ", [(plotted_rs[i].c.a, plotted_rs[i].c.spec) for i in findall(!, asymptotic)
-                     if layer_max[i] > LAYER_GATE], " — outside the gated scope [HOLE]")
-end
+
+# GATE 2 — the row-58 rule's own instrument, on the sweep the rule chose to publish.
+gatefail!("GATE2", [i for i in 1:NCONF if !(layer_max[i] <= LAYER_GATE)],
+          "the plotted layer_ratio exceeds $(LAYER_GATE) at " *
+          "$([(plotted_rs[i].c.a, plotted_rs[i].c.spec, layer_max[i]) for i in 1:NCONF
+              if !(layer_max[i] <= LAYER_GATE)])")
+# ... and the rule's own verdict on itself: a hold that did not reduce the ratio, or a gate the
+# hold could not clear, is the helper's `hole` and is a gate failure of the SELECTION, not of the
+# plane (they differ: see `select_hold_sweep`'s docstring).
+gatefail!("GATE2H", [i for i in 1:NCONF if plotted_rs[i].sel.hole],
+          "the hold-selection rule could not clear the gate at " *
+          "$([(plotted_rs[i].c.a, plotted_rs[i].c.spec, plotted_rs[i].sel.reason) for i in 1:NCONF
+              if plotted_rs[i].sel.hole])")
 # GATE 3 — THE PUBLISHED TRUNCATION ENVELOPE. Our estimator is the paper's own (omit the largest
 # m) at the paper's own m_max, so this is the sharpest curve-level comparison the figure admits
 # and it needs no external reference at all.
-bad = [i for i in scoped
+bad = [i for i in 1:NCONF
        if !(1 / TRUNC_ENVELOPE <= P.rel_trunc[i] / pub_trunc[i] <= TRUNC_ENVELOPE)]
-isempty(bad) || push!(gatefails,
-    "GATE 3: the relative truncation error is outside a factor $(TRUNC_ENVELOPE) of the " *
-    "published curve at configuration(s) " *
-    "$([(plotted_rs[i].c.a, plotted_rs[i].c.spec) for i in bad]) " *
-    "(ours $(P.rel_trunc[bad]) against published $(pub_trunc[bad]))")
+gatefail!("GATE3", bad,
+    "the relative truncation error is outside a factor $(TRUNC_ENVELOPE) of the published " *
+    "curve at $([(plotted_rs[i].c.a, plotted_rs[i].c.spec) for i in bad]) " *
+    "(ours $(P.rel_trunc[bad]) against published $(pub_trunc[bad]), " *
+    "ratio $(P.rel_trunc[bad] ./ pub_trunc[bad]))")
 # GATE 4 — THE PUBLISHED REFERENCE ENVELOPE, where Warburton-Barack print a cell
 wbidx = findall(P.has_wb)
-wbscoped = [i for i in wbidx if asymptotic[i]]
-badref = [i for i in wbscoped
+badref = [i for i in wbidx
           if !(1 / REF_ENVELOPE <= P.rel_ref[i] / pub_ref[i] <= REF_ENVELOPE)]
-isempty(badref) || push!(gatefails,
-    "GATE 4: the relative reference error is outside a factor $(REF_ENVELOPE) of the published " *
+gatefail!("GATE4", badref,
+    "the relative reference error is outside a factor $(REF_ENVELOPE) of the published " *
     "curve at $([(plotted_rs[i].c.a, plotted_rs[i].c.spec) for i in badref]) " *
     "(ours $(P.rel_ref[badref]) against published $(pub_ref[badref]))")
-# GATE 5 — main.tex:726, "the truncation error models the true error up to a constant offset"
-offs = [P.rel_ref[i] / P.rel_trunc[i] for i in wbscoped]
-badoff = [k for k in eachindex(offs) if !(OFFSET_BAND[1] <= offs[k] <= OFFSET_BAND[2])]
-isempty(badoff) || push!(gatefails,
-    "GATE 5: the reference/truncation offset leaves the band $(OFFSET_BAND) at " *
-    "$([(plotted_rs[wbscoped[k]].c.a, plotted_rs[wbscoped[k]].c.spec) for k in badoff]) " *
-    "(offsets $(offs[badoff]); published band $(PUB_REF_OVER_TRUNC))")
+# GATE 5 — main.tex:724, "the truncation error models the true error up to a constant offset".
+# NOTE ITS MARGIN: the measured offsets run 2.276 … 3.748 against a band of [2, 6], so the low
+# end clears by only 1.14x. This gate is FRAGILE and would trip on a modest change of the tail
+# treatment or of `m_max`; it is reported as such rather than widened after the fact.
+offs = [P.rel_ref[i] / P.rel_trunc[i] for i in wbidx]
+badoff = [wbidx[k] for k in eachindex(offs)
+          if !(OFFSET_BAND[1] <= offs[k] <= OFFSET_BAND[2])]
+gatefail!("GATE5", badoff,
+    "the reference/truncation offset leaves the band $(OFFSET_BAND) at " *
+    "$([(plotted_rs[i].c.a, plotted_rs[i].c.spec) for i in badoff]) " *
+    "(offsets $(offs); published band $(PUB_REF_OVER_TRUNC))")
 # GATE 6 — the SECOND external gate, F_t, which involves no regularization and no tail and which
 # Warburton-Barack print to NINE significant figures (row 46 §3b).
 ft_dev = fill(NaN, NCONF)
@@ -694,12 +792,37 @@ for (i, r) in enumerate(plotted_rs)
     cell isa WB.WBRefCell || continue
     ft_dev[i] = abs(P.ft[i] - cell.value) / abs(cell.value)
 end
-const FT_GATE = 1.0e-6      # row 46 measured 3.1e-9 … 3.4e-8 at nine grids; this is that
-                            # envelope with 30x of headroom for the one coarser AMR step
-badft = [i for i in scoped if !isnan(ft_dev[i]) && !(ft_dev[i] <= FT_GATE)]
-isempty(badft) || push!(gatefails,
-    "GATE 6: the unregularized F_t leaves $(FT_GATE) relative against the printed Table II at " *
+badft = [i for i in 1:NCONF if !isnan(ft_dev[i]) && !(ft_dev[i] <= FT_GATE)]
+gatefail!("GATE6", badft,
+    "the unregularized F_t leaves $(FT_GATE) relative against the printed Table II at " *
     "$([(plotted_rs[i].c.a, plotted_rs[i].c.spec) for i in badft]) (deviations $(ft_dev[badft]))")
+# GATE 8 — THE RESOLUTION CURVE, gated FROM ABOVE ONLY. Until this gate existed nothing
+# constrained the dotted curve at all: its ratio to the published one spans 0.0155 … 5.3e5 across
+# this figure, and `a = +0.9` at its ISCO sat at 389x with every other gate passing. The
+# asymmetry is physical, not cosmetic: our estimator EXCEEDING the published one means our sweep
+# is LESS converged than the paper's at the same nominal AMR depth, which is a deficiency;
+# undershooting means it is more converged, which is not, and is reported (`resolution_ratio_*`)
+# rather than gated. The bound is one decade — deliberately wide, because the two sides are not
+# computing the same thing on the same lattice depth, and its whole job is that a departure of
+# the size found above cannot pass in silence.
+badres = [i for i in 1:NCONF
+          if !isnan(pub_res[i]) && !(P.rel_res[i] / pub_res[i] <= RES_ENVELOPE_UP)]
+gatefail!("GATE8", badres,
+    "the relative resolution error exceeds the published curve by more than " *
+    "$(RES_ENVELOPE_UP)x at $([(plotted_rs[i].c.a, plotted_rs[i].c.spec) for i in badres]) " *
+    "(ours $(P.rel_res[badres]) against published $(pub_res[badres]), " *
+    "ratio $(P.rel_res[badres] ./ pub_res[badres]))")
+sort!(gate_failure_ids)
+
+# THE RING-MARKED SET, by a measured rule and not by hand: a configuration this node names in a
+# [HOLE] is one whose resolution estimator leaves the envelope (GATE 8) or whose mode sum the
+# exploratory diagnostic finds unconverged. That is exactly the two families —
+#   * the compressed PROGRADE ISCO, whose absolute resolution error runs 2.9e-10 (a = +0.7)
+#     -> 6.0e-7 (+0.9) -> 2.4e-2 (+0.998), three orders per spin step, and
+#   * |a| = 0.998 at r0 = 10, where it sits at 7.9e-10 / 8.2e-10.
+# They are drawn with open rings on the figure, never dropped from it.
+flagged = [(!isnan(pub_res[i]) && P.rel_res[i] / pub_res[i] > RES_ENVELOPE_UP) ||
+           !exploratory_scope[i] for i in 1:NCONF]
 
 # ───────────────────────────── REPORTED, NOT GATED ───────────────────────────────────────────
 # (a) GLOBAL_DAG row 53's PLANNED gate, kept as the row's metric: is the deviation from the
@@ -708,7 +831,10 @@ isempty(badft) || push!(gatefails,
 #     the mode-sum remainder, not by resolution. The count is what the ledger row carries.
 dag_ratio = [P.has_wb[i] ? P.ref[i] / P.res[i] : NaN for i in 1:NCONF]
 dag_pass = [P.has_wb[i] && P.ref[i] <= DAG_RES_FACTOR * P.res[i] for i in 1:NCONF]
-# (b) the ORDERING claim of main.tex:723, as a comparison per configuration
+# (b) the ORDERING claim of main.tex:723, as a comparison per configuration. The two lattices
+#     share their eight AMR LEVELS and settings, NOT their grids (8139 vs 4814 dofs, 1.69x): the
+#     ndof difference is a confound, and the verdict below is an ASSOCIATION with the lattice at
+#     the tested r0 = 10 configurations, not a demonstrated cause.
 ordering = P.rel_trunc ./ P.rel_res
 ordering_sec = S.rel_trunc ./ S.rel_res      # the r0 = 10 column only
 println("\n[fig_error_budget] main.tex:723 ordering (truncation / resolution), per configuration:")
@@ -722,6 +848,11 @@ end
 @printf("[fig_error_budget] resolution below truncation: PLOTTED %d/%d, SECONDARY %d/%d, published %d/%d\n",
         count(>(1), ordering), NCONF, count(>(1), ordering_sec), length(ordering_sec),
         count(k -> pub_trunc[k] > pub_res[k], 1:NCONF), NCONF)
+@printf("[fig_error_budget] the half domain's absolute resolution error at r0 = 10 is a spin-INDEPENDENT floor over |a| <= 0.9: %.3e ... %.3e (row 46 measured %.2e ... %.2e for the same configurations at NINE levels, i.e. ~3.6x per further step)\n",
+        minimum(S.res[2:(end - 1)]), maximum(S.res[2:(end - 1)]), 1.563e-10, 1.637e-10)
+println("[fig_error_budget] so the 88-2370x gap is ~4 further AMR steps, not the 1.69x in dofs ",
+        "the other lattice buys at the same level count: the ordering is ASSOCIATED with the ",
+        "lattice at these configurations [PRELIMINARY], not demonstrated to be caused by it")
 @printf("[fig_error_budget] GLOBAL_DAG row 53 planned metric: %d of %d WB-referenced configurations have |F_r - WB| <= %g x the coherent resolution error\n",
         count(dag_pass), count(P.has_wb), DAG_RES_FACTOR)
 flush(stdout)
@@ -759,8 +890,26 @@ flush(stdout)
 @repro_result "n_tail_refusals" count(r -> r.heff === nothing, plotted_rs)
 @repro_result "mode_sum_converged_threshold" MODE_SUM_CONVERGED
 @repro_result "mode_sum_converged_flat" mode_sum_converged
-@repro_result "in_asymptotic_regime_flat" asymptotic
-@repro_result "n_configurations_gated" count(asymptotic)
+# the EXPLORATORY converged-mode-sum diagnostic: registered, applied to nothing (see the gates)
+@repro_result "exploratory_scope_flat" exploratory_scope
+@repro_result "exploratory_tail_fit_ok_flat" tail_fit_ok
+@repro_result "n_outside_exploratory_scope" count(!, exploratory_scope)
+@repro_result "exploratory_scope_sensitivity_low" scope_sens[1]
+@repro_result "exploratory_scope_sensitivity_high" scope_sens[2]
+@repro_result "n_configurations_gated" NCONF
+@repro_result "flagged_hole_flat" flagged
+@repro_result "n_flagged_holes" count(flagged)
+# the resolution curve's envelope, and the full ratio the gate is drawn from
+@repro_result "resolution_envelope_upper" RES_ENVELOPE_UP
+@repro_result "n_outside_resolution_envelope" length(badres)
+@repro_result "Ft_gate" FT_GATE
+@repro_result "Ft_relative_deviation_max" maximum(x -> isnan(x) ? -Inf : x, ft_dev)
+# the hold-selection rule's own record, per configuration
+@repro_result "hold_cleared_flat" [r.sel.cleared for r in plotted_rs]
+@repro_result "hold_hole_flat" [r.sel.hole for r in plotted_rs]
+@repro_result "hold_reason_held" (k = findfirst(r -> r.hold, plotted_rs);
+                                  k === nothing ? "no configuration was held" :
+                                  plotted_rs[k].sel.reason)
 # the two tail models are independent (the exact printed order-6 m-dependence with one fitted
 # amplitude, and a free-exponent fit summed by Hurwitz zeta); row 46 measured 6-12 % agreement on
 # real data, so their disagreement is a second, sealed asymptotic-regime instrument
@@ -843,6 +992,13 @@ flush(stdout)
 @repro_result "resolution_ratio_secondary_over_plotted" S.res ./ P.res[SEC_IDX]
 @repro_result "resolution_ratio_secondary_over_plotted_min" minimum(S.res ./ P.res[SEC_IDX])
 @repro_result "resolution_ratio_secondary_over_plotted_max" maximum(S.res ./ P.res[SEC_IDX])
+# the half domain's absolute resolution error at r0 = 10 is a spin-INDEPENDENT floor over
+# |a| <= 0.9 — the number the convergence-rate argument of the header rests on, and the LEAD for
+# HOLE 2: the full-z lattice's own |a| = 0.998 values sit AT that floor rather than at the
+# 1e-13..1e-12 its other spins reach.
+@repro_result "secondary_resolution_floor_min" minimum(S.res[2:(end - 1)])
+@repro_result "secondary_resolution_floor_max" maximum(S.res[2:(end - 1)])
+@repro_result "plotted_resolution_at_extremal_r10" [P.res[NSPIN + 1], P.res[2 * NSPIN]]
 
 # THE PUBLISHED FIGURE, measured from its own vector paths — REFERENCE, never plotted as ours
 @repro_result "published_spins" PUB_SPINS
@@ -874,21 +1030,41 @@ flush(stdout)
 @repro_result "reported_max_load" maximum(r.max_load for r in plotted_rs)
 
 # ───────────────────────────── draw ──────────────────────────────────────────────────────────
+# THE HOLD, STATED ON THE FIGURE ITSELF, per column: the setting and BOTH ratios, so a reader
+# never has to take the plotted plane's regularity on trust (row 58's rule, `select_hold_sweep`).
+column_hold_notes = map(1:length(COLUMNS)) do k
+    rng = ((k - 1) * NSPIN + 1):(k * NSPIN)
+    held = [i for i in rng if plotted_rs[i].hold]
+    isempty(held) && return "horizon_hold = false throughout (layer_ratio <= " *
+                            @sprintf("%.2f", maximum(layer_max[rng])) * ")"
+    join([@sprintf("a = %+.3f held: layer_ratio %.4g -> %.4g (gate %.2f)",
+                   plotted_rs[i].c.a, plotted_rs[i].sel.default_ratio,
+                   plotted_rs[i].sel.held_ratio, plotted_rs[i].sel.gate) for i in held], "; ")
+end
+@repro_result "column_hold_notes" column_hold_notes
+
 cols = map(enumerate(COLUMNS)) do (k, (spec, tag))
     rng = ((k - 1) * NSPIN + 1):(k * NSPIN)
     (a = collect(SPINS), absfr = abs.(P.fr[rng]), rel_ref = P.rel_ref[rng],
      rel_trunc = P.rel_trunc[rng], rel_res = P.rel_res[rng], refmask = P.has_wb[rng],
-     okmask = asymptotic[rng], m_max = last(MS), tag = tag, note = COLUMN_NOTES[k])
+     okmask = .!flagged[rng], m_max = last(MS), tag = tag, note = COLUMN_NOTES[k],
+     holdnote = column_hold_notes[k])
 end
 publish = opts.mode === :regen
 out_png = publish ? GOLD_PNG : joinpath(mktempdir(), "fig_error_budget.png")
 saved = draw(cols, out_png; publish = publish)
-saved.ok || push!(gatefails, "GATE 7: " * saved.message)
+saved.ok || gatefail!("GATE7", [nothing], saved.message)   # not per-configuration
 publish || println("[fig_error_budget] --check: rendered to a scratch path, ",
                    relpath(GOLD_PNG, ReproHarness.REPRO_ROOT), " untouched")
 
 @repro_result "png_bytes_within_budget" saved.ok
-@repro_result "gates_pass" isempty(gatefails)
+# THE FORMAL VERDICT, pinned configuration by configuration and registered only HERE, after the
+# artifact gate has had its say: the golden fixes the EXACT set of failing gates, so a new
+# failure or the disappearance of a known one is a golden MISMATCH.
+sort!(gate_failure_ids)
+@repro_result "gate_failure_ids" gate_failure_ids
+@repro_result "n_gate_failures" length(gate_failure_ids)
+@repro_result "gates_pass" isempty(gate_failure_ids)
 if !isempty(nonconv)
     println("\n[fig_error_budget] REPORTED (not gated) — GMRES did not reach ", ABSTOL,
             " on every AMR level:")
@@ -908,4 +1084,12 @@ code = ReproHarness.conclude!(opts; paper = "2606.04998", id = "fig_error_budget
                                                 "reported_secondary_wall_time_flat" => LOOSE,
                                                 "reported_nworkers" => LOOSE,
                                                 "reported_max_load" => LOOSE))
-exit(isempty(gatefails) ? code : max(code, 1))
+# THE EXIT CODE REPORTS REPRODUCIBILITY, NOT THE PHYSICS VERDICT — and the two are separated
+# deliberately. The verdict is a REGISTERED VALUE: `gates_pass` and, configuration by
+# configuration, `gate_failure_ids`, both pinned by the golden. A gate that starts failing, or a
+# known failure that disappears, is therefore a golden MISMATCH and fails `--check` on the
+# comparison, which is the check that matters. Exiting non-zero on a known, pinned, reproducible
+# failure instead would make the node unadmissible to the ledger at all, and the only way to land
+# it would be to hide its holes — the opposite of the discipline. What DOES set a non-zero exit
+# is a golden mismatch (`code`) or an over-budget tracked artifact.
+exit(max(code, saved.ok ? 0 : 1))

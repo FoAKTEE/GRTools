@@ -80,7 +80,7 @@ The **golden** column is measured on the file, not declared: `n values / size`,
 | arXiv:2603.13482 | `fig_delta_Omega` | figure | fast | solid | `arXiv-2603.13482/fig_delta_Omega.jl` | 18 / 17 KB | `Spacetime` |
 | arXiv:2606.04998 | `fig_convergence` | figure | heavy | prelim | `arXiv-2606.04998/fig_convergence.jl` | 86 / 34 KB | `ScalarSelfForce` `EllipticCore` |
 | arXiv:2606.04998 | `fig_domain` | figure | heavy | solid | `arXiv-2606.04998/fig_domain.jl` | 53 / 12 KB | `ScalarSelfForce` `EllipticCore` |
-| arXiv:2606.04998 | `fig_error_budget` | figure | heavy | prelim | `arXiv-2606.04998/fig_error_budget.jl` | 115 / 75 KB | `ScalarSelfForce` `EllipticCore` |
+| arXiv:2606.04998 | `fig_error_budget` | figure | heavy | prelim | `arXiv-2606.04998/fig_error_budget.jl` | 134 / 77 KB | `ScalarSelfForce` `EllipticCore` |
 | arXiv:2606.04998 | `fig_linsolv` | figure | heavy | solid | `arXiv-2606.04998/fig_linsolv.jl` | 69 / 7 KB | `ScalarSelfForce` `EllipticCore` |
 | arXiv:2606.04998 | `fig_matrix` | figure | heavy | solid | `arXiv-2606.04998/fig_matrix.jl` | 59 / 4 KB | `ScalarSelfForce` `EllipticCore` |
 | arXiv:2606.04998 | `fig_modes` | figure | heavy | prelim | `arXiv-2606.04998/fig_modes.jl` | 123 / 25 KB | `ScalarSelfForce` `EllipticCore` |
@@ -103,7 +103,7 @@ The **golden** column is measured on the file, not declared: `n values / size`,
 | _selftest | `harness-selftest` | check | fast | solid | `_selftest/selftest.jl` | 13 / 1 KB | `Spacetime` |
 
 **61 registered results** across 13 papers (+ the harness self-test): 51 solid · 8 prelim · 2 future.
-32 run at the default `--tier fast` ceiling; 58 goldens on disk, 975 KB total (cap 200 KB each).
+32 run at the default `--tier fast` ceiling; 58 goldens on disk, 977 KB total (cap 200 KB each).
 
 > **Not yet reproduced (2)** — declared open, not a defect: `2303.16798::tableI_full` (future, heavy, no golden yet), `2303.16798::fig_comparison_spherical` (future, heavy, no golden yet). 2 of them are `heavy`, so the default `--tier fast` sweep does not select them.
 <!-- END GENERATED INDEX -->

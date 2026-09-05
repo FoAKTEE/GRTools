@@ -283,3 +283,142 @@ function horizon_order_hold(dom::BlockDomain, mesh::Mesh2D)
     end
     return hold
 end
+
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+# THE SHARED HOLD-SELECTION RULE.
+#
+# Two figure nodes publish an object whose regularity this file's `layer_ratio` gates, and they
+# had grown two different policies for turning a measurement into a decision. `fig_modes.jl`
+# holds iff the default sweep's maximum over `m` exceeds 1.05 and then plots the held sweep;
+# that is correct on its three panels, where the hold always measured smaller — but that is an
+# EMPIRICAL fact about those panels, not a property of the hold, and a figure that spans a
+# compressed near-extremal ISCO cannot assume it. `select_hold_sweep` is the one rule both use:
+# the same trigger, plus the assertion that the held sweep actually reduces the ratio.
+
+"""
+    HoldSelection{S}
+
+What [`select_hold_sweep`](@ref) decided, and every number it decided it on.
+
+| field | meaning |
+|---|---|
+| `sweep::S` | the sweep to publish — the very object passed in, never a copy |
+| `hold::Bool` | is that the HELD sweep? |
+| `default_ratio::Float64` | the default sweep's `layer_ratio`, maximised over `m` |
+| `held_ratio::Float64` | the held sweep's, or `NaN` when no held sweep was consulted |
+| `gate::Float64` | the threshold the trigger used |
+| `cleared::Bool` | does the PUBLISHED sweep's ratio sit at or below the gate? |
+| `hole::Bool` | could the rule not do its job? (no held sweep to fall back on, a hold that did not reduce the ratio, or one that reduced it without clearing the gate) |
+| `reason::String` | the sentence to put in the caller's log and on its figure |
+
+`hole` and `!cleared` are different questions: a hold that halves a ratio from 10 to 2 has done
+its job (`hole` is still true because 2 exceeds the gate), while a hold that raises it has not
+(`hole` true, and the DEFAULT is published).
+"""
+struct HoldSelection{S}
+    sweep::S
+    hold::Bool
+    default_ratio::Float64
+    held_ratio::Float64
+    gate::Float64
+    cleared::Bool
+    hole::Bool
+    reason::String
+end
+
+function Base.show(io::IO, ::MIME"text/plain", s::HoldSelection)
+    println(io, "HoldSelection  publish the ", s.hold ? "HELD" : "DEFAULT", " sweep")
+    println(io, "  layer_ratio (max over m): default ", s.default_ratio,
+            isnan(s.held_ratio) ? "" : string("   held ", s.held_ratio))
+    println(io, "  gate ", s.gate, "  cleared ", s.cleared, "  hole ", s.hole)
+    print(io,   "  ", s.reason)
+end
+
+Base.show(io::IO, s::HoldSelection) =
+    print(io, "HoldSelection(", s.hold ? "held" : "default", ", ", s.default_ratio,
+          isnan(s.held_ratio) ? "" : string(" -> ", s.held_ratio), ")")
+
+"maximum of `v` over its finite entries; a mode that failed carries `NaN` and is skipped."
+function _hax_ratio_max(v, what::AbstractString)
+    isempty(v) && throw(ArgumentError(
+        "select_hold_sweep: the $(what) sweep carries no layer_ratio at all; there is nothing " *
+        "to maximise over and the rule cannot decide"))
+    m = -Inf
+    for x in v
+        y = Float64(x)
+        isnan(y) && continue
+        y > m && (m = y)
+    end
+    isfinite(m) || throw(ArgumentError(
+        "select_hold_sweep: every layer_ratio of the $(what) sweep is NaN (no mode of it was " *
+        "measured); the rule cannot decide"))
+    return m
+end
+
+"""
+    select_hold_sweep(default::Pair, held = nothing; gate = 1.05) -> HoldSelection
+
+Decide which of two already-solved sweeps a figure should publish, from their measured
+[`horizon_axis_profile`](@ref) `layer_ratio`s. Each argument is a `sweep => layer_ratios` pair,
+where `layer_ratios` is that sweep's ratio for EVERY mode; `held` may be `nothing` when no held
+sweep was run.
+
+THE RULE, in one sentence: publish the held sweep exactly when the default's ratio crosses the
+`gate` AND the held sweep's ratio is strictly smaller; otherwise publish the default, and say
+so.
+
+  * **The maximum over `m` is the input, never the top mode.** `layer_ratio` is not monotone in
+    `m` — measured at `a = +0.998`, `r₀ = 2 M` it is 0.58 at `m = 0`, crosses one at `m = 6`,
+    peaks at 3.889 at `m = 12` and falls back to 3.6e-3 by `m = 20`, so a top-mode probe reads
+    a contaminated panel as healthy.
+  * **The default is not consulted against the held sweep when it is already inside the gate.**
+    A caller that only runs the held sweep on demand (both figure drivers do) then never pays
+    for it, and `held_ratio` comes back `NaN`.
+  * **A hold that does not reduce the ratio is refused, not silently substituted.** The hold
+    costs the horizon layer its p-convergence; taking it without a measured improvement would
+    spend that for nothing. `hole` is set and `reason` says which case it was.
+  * `NaN` ratios (a mode that failed) are skipped; a sweep whose ratios are all `NaN`, or empty,
+    is refused rather than defaulted.
+
+The gate's landed value is the 1.05 of this file's own switch rule. Nothing here solves, reads a
+mesh or touches the field: it is bookkeeping over two measurements, so a caller can — and both
+callers do — apply it to whatever object it is holding.
+
+```jldoctest
+julia> s = select_hold_sweep(:default => [0.5, 23.94, 3.2], :held => [0.83, 0.03, 2.0e-4]);
+
+julia> s.sweep, s.hold, s.default_ratio, s.held_ratio, s.cleared, s.hole
+(:held, true, 23.94, 0.83, true, false)
+```
+"""
+function select_hold_sweep(default::Pair, held = nothing; gate::Real = 1.05)
+    g = Float64(gate)
+    (isfinite(g) && g > 0) || throw(ArgumentError(
+        "select_hold_sweep: the gate must be a positive finite ratio, got $(gate)"))
+    dsweep, dratios = first(default), last(default)
+    dmax = _hax_ratio_max(dratios, "default")
+    if dmax <= g
+        return HoldSelection(dsweep, false, dmax, NaN, g, true, false,
+                             "the default sweep's layer_ratio $(dmax) is inside the gate " *
+                             "$(g); the held sweep was not consulted")
+    end
+    if held === nothing
+        return HoldSelection(dsweep, false, dmax, NaN, g, false, true,
+                             "the default sweep's layer_ratio $(dmax) crosses the gate $(g) " *
+                             "and no held sweep was measured [HOLE]")
+    end
+    hsweep, hratios = first(held), last(held)
+    hmax = _hax_ratio_max(hratios, "held")
+    if hmax < dmax
+        cleared = hmax <= g
+        return HoldSelection(hsweep, true, dmax, hmax, g, cleared, !cleared,
+                             cleared ?
+                             "the hold takes the layer_ratio from $(dmax) to $(hmax), inside " *
+                             "the gate $(g)" :
+                             "the hold takes the layer_ratio from $(dmax) to $(hmax), which " *
+                             "still crosses the gate $(g) [HOLE]")
+    end
+    return HoldSelection(dsweep, false, dmax, hmax, g, false, true,
+                         "the hold did not reduce the layer_ratio ($(dmax) -> $(hmax)), so the " *
+                         "DEFAULT sweep is published and the gate $(g) stays crossed [HOLE]")
+end

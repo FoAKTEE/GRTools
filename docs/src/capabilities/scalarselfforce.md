@@ -650,7 +650,13 @@ Planned, each landing written test-first once it is grounded: the rest of
   r_0 = 2M`` exceeds the 27.5 of that spin's ISCO, where the layer is worst), so
   the switch rule is MEASURED: a node that publishes a PLANE gates
   `horizon_axis_profile(sol).layer_ratio <= 1.05` and enables `horizon_hold`
-  when that fails — never by spin, never by ``\nu``. Measured at ``a = 0.998``,
+  when that fails — never by spin, never by ``\nu``. `select_hold_sweep(default,
+  held; gate = 1.05)` is that rule as ONE shared helper, returning a
+  `HoldSelection`: each argument is a `sweep => layer_ratios` pair, the MAXIMUM
+  over ``m`` is the trigger's input (`layer_ratio` is not monotone in ``m``), and
+  the held sweep is published only when it MEASURES smaller — a hold that does
+  not reduce the ratio returns the default and sets `hole`, rather than being
+  substituted silently. Measured at ``a = 0.998``,
   ``r_0 = r_\mathrm{ISCO}``, ``m = 17`` on a uniform mesh p-refined from
   ``P = 4``, the axis:equator ratio DIVERGES 9.5 → 1.5e5 over ``P = 4 \ldots 12``
   without the hold and CONVERGES 9.5 → 5.5 with it, while the maximum over the
