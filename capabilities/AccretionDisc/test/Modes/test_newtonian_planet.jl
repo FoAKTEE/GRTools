@@ -21,7 +21,8 @@
 #        (m = 5, 10 only under GRTOOLS_SLOW_TESTS=1 — see `SLOW` below)
 #   (N6) the cooling regime β = 0.1 (MR20 `parameters.py` value)         — 1e-9 relative (SLOW)
 #   (N7) the passive/homogeneous problem of MR19 §passive (Figs. 10-12)  — 1e-9 relative
-#   (N8) `PotentialCache` throughput path == the exact solve             — 1e-6 relative
+#   (N8) `PotentialCache` throughput path vs the exact solve             — 2e-3 relative (mode δh)
+#        (an approximation: the table interpolation of Φ, Φ′, Φ″ is gated at 1e-7, 1e-6, 1e-6)
 
 using Test
 using AccretionDisc
