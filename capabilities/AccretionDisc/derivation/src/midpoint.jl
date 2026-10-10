@@ -10,13 +10,10 @@ using Symbolics
 using LinearAlgebra
 using AccretionDisc.SpiralWaves: midpoint_system, solve_midpoint
 
-# Load the existing verifier and its alphabet without the unrelated fluid
-# reduction or shared registration. The verifier implementation stays single-source.
-module CertificateKernel
-include("symbols.jl")
-include("certify.jl")
-end
-using .CertificateKernel: Certificate, certify_symbolic
+# The R3 verifier itself, from the R3Derivation instance the including module has
+# already loaded (runtests.jl, certify_midpoint.jl, test_midpoint.jl): one alphabet,
+# one Certificate type.
+using ..R3Derivation: Certificate, certify_symbolic
 
 export midpoint_certificates, midpoint_order_check, MIDPOINT_STATEMENT
 

@@ -2,6 +2,7 @@
 # julia --startup-file=no --project=capabilities/AccretionDisc/derivation -t1 capabilities/AccretionDisc/derivation/scripts/certify_midpoint.jl
 using LinearAlgebra
 push!(LOAD_PATH, normpath(joinpath(@__DIR__, "../../../..")))
+isdefined(@__MODULE__, :R3Derivation) || include(joinpath(@__DIR__, "../src/R3Derivation.jl"))
 include(joinpath(@__DIR__, "../src/midpoint.jl"))
 using .MidpointCertificate
 
