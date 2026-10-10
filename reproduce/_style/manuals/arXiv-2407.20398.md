@@ -1,4 +1,4 @@
-# FIGURE STYLE MANUAL — arXiv:2407.20398 (Fairbairn & Rafikov 2024/25, "Torques and orbital evolution of eccentric planets in protoplanetary discs: linear theory", arXiv v1 = submitted text; MNRAS 537, 1779) — FR24
+# FIGURE STYLE MANUAL — arXiv:2407.20398 (Fairbairn & Rafikov 2024/25, "Eccentric planet-disc interactions: orbital migration and eccentricity evolution", arXiv v1 = submitted text; MNRAS 537, 1779) — FR24
 
 VLM-inspected from the source figure PDFs in
 `/data/haiyangw/claude/emri-disk/ref-paper/arXiv-2407.20398/src/Figures/`,
