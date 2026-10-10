@@ -50,6 +50,9 @@ export tortoise_kerr, tortoise_kerr_inverse   # canonical Kerr tortoise + invers
 include("Geodesics/frequencies.jl")
 export kerr_frequencies, radial_roots, polar_roots, proper_frequency_factor
 
+include("Geodesics/turning_point_jacobian.jl")
+export turning_point_jacobian, orbital_params_jacobian
+
 include("Geodesics/trajectory.jl")
 export geodesic_trajectory, geodesic_trajectory_radial, geodesic_trajectory_polar
 export geodesic_trajectory_equatorial, geodesic_proper_time

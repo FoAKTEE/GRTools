@@ -32,7 +32,7 @@ using NumericsCore: ellipK, ellipE, ellipPi, RD    # action-Jacobian elliptic la
 
 using ..Spacetime: constants_of_motion, geodesic_energy, geodesic_angular_momentum, carter_constant,
                    kerr_frequencies, proper_frequency_factor, geodesic_trajectory_equatorial,
-                   geodesic_trajectory_radial, geodesic_trajectory_polar, radial_roots
+                   geodesic_trajectory_radial, geodesic_trajectory_polar, radial_roots, orbital_params_jacobian
 
 export spin_linear_constants, spin_linear_frequencies, spin_mino_time_correction,
        spin_linear_orbital_params,

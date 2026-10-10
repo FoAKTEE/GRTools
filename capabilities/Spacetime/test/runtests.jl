@@ -17,6 +17,7 @@ using Spacetime
     include("test_geometry.jl")
     include("test_geodesics_frequencies.jl")
     include("test_trajectory.jl")
+    include("test_turning_point_jacobian.jl")
     include("test_separatrix.jl")
     include("test_christoffel.jl")
     include("test_schwarzschild_orbit.jl")
