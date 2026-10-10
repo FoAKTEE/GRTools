@@ -4,6 +4,8 @@ using FRDerivation
 
 const FR = FRDerivation
 include("phi_quadrature.jl")
+include("master_background.jl")
+include("reconstruction.jl")
 @testset "FR derivation environment" begin
     @test all(c -> c.pass, FR.certify_environment())
     @test FR.certificate_disc(0.1, 1.0, 0.0).h0 isa Float64

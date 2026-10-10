@@ -9,13 +9,15 @@ groups = Dict("environment" => FRDerivation.certify_environment,
               "fourier" => FRDerivation.certify_fr22_fourier,
               "second-order-averages" => FRDerivation.certify_fr24_second_order_averages,
               "linearised" => FRDerivation.certify_fr22_linearised,
+              "master" => FRDerivation.certify_fr22_master,
               "lindblad" => FRDerivation.certify_fr22_lindblad,
               "phi-factorisation" => FRDerivation.certify_fr22_phi_factorisation)
 all(name -> haskey(groups, name), ARGS) || error("unknown certificate group")
 order = ["environment", "kepler", "background", "normalisation", "fourier", "second-order-averages",
-         "linearised", "fr24-background", "lindblad", "phi-factorisation"]
+         "linearised", "master", "fr24-background", "lindblad", "phi-factorisation"]
 # Fourier reality uses the landed Kepler parity certificate even in a focused run.
 requested = copy(ARGS)
+"master" in requested && push!(requested,"linearised")
 any(in(requested), ["linearised","lindblad"]) && append!(requested,["background","fourier"])
 "phi-factorisation" in requested && push!(requested,"fourier")
 "fourier" in requested && push!(requested,"kepler")
