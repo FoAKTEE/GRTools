@@ -5,11 +5,18 @@ groups = Dict("environment" => FRDerivation.certify_environment,
               "background" => FRDerivation.certify_fr22_background,
               "normalisation" => FRDerivation.certify_fr24_normalisation,
               "fourier" => FRDerivation.certify_fr22_fourier,
-              "second-order-averages" => FRDerivation.certify_fr24_second_order_averages)
+              "second-order-averages" => FRDerivation.certify_fr24_second_order_averages,
+              "linearised" => FRDerivation.certify_fr22_linearised,
+              "lindblad" => FRDerivation.certify_fr22_lindblad,
+              "phi-factorisation" => FRDerivation.certify_fr22_phi_factorisation)
 all(name -> haskey(groups, name), ARGS) || error("unknown certificate group")
-order = ["environment", "kepler", "background", "normalisation", "fourier", "second-order-averages"]
+order = ["environment", "kepler", "background", "normalisation", "fourier", "second-order-averages",
+         "linearised", "lindblad", "phi-factorisation"]
 # Fourier reality uses the landed Kepler parity certificate even in a focused run.
-requested = "fourier" in ARGS ? vcat(ARGS,["kepler"]) : ARGS
+requested = copy(ARGS)
+any(in(requested), ["linearised","lindblad"]) && append!(requested,["background","fourier"])
+"phi-factorisation" in requested && push!(requested,"fourier")
+"fourier" in requested && push!(requested,"kepler")
 selected = isempty(ARGS) ? order : filter(in(requested), order)
 for name in selected
     certs = groups[name]()
@@ -17,5 +24,6 @@ for name in selected
         println("CERTIFICATE\t",name,'\t',c.name,'\t',c.eqref,'\t',c.modality,'\t',c.pass)
     end
     println("Certificates: ", count(c -> c.pass, certs), "/", length(certs), " PASS (", name, ")")
+    flush(stdout)
     all(c -> c.pass, certs) || exit(1)
 end

@@ -3,6 +3,7 @@ using Symbolics
 using FRDerivation
 
 const FR = FRDerivation
+include("phi_quadrature.jl")
 @testset "FR derivation environment" begin
     @test all(c -> c.pass, FR.certify_environment())
     @test FR.certificate_disc(0.1, 1.0, 0.0).h0 isa Float64
@@ -16,6 +17,50 @@ const FR = FRDerivation
     @test_throws ErrorException FR.exact_eval(x, Dict(x => 0.5))
     @test FR.exact_eval(x, Dict(x => FR.RatB(1, 3))) == FR.RatB(1, 3)
 end
+
+@testset "FR22 linearised polar fluid equations" begin
+    certs = FR.certify_fr22_linearised()
+    @test all(c -> c.pass && c.modality == :symbolic,certs)
+    for paper in ("2207.14637v2","2407.20398v1","2506.19917v3"), label in
+        ("eq:density_pert_eqn","eq:ur_eqn","eq:uphi_eqn")
+        @test any(c -> c.eqref == "$paper::$label",certs)
+    end
+    s = FR.fr22_linearised_residuals()
+    (; Omega,uphi,P_r,ds,Sigma,m,omega_lm,ur) = s.symbols
+    # Against the derived Euler equation, drop one Coriolis contribution,
+    # reverse the density-pressure term, or use pattern instead of total frequency.
+    for mutant in (s.printed[2]+Omega*uphi,
+                   s.printed[2]+2P_r*ds/Sigma^2,
+                   s.printed[2]+im*(m-1)*omega_lm*ur)
+        @test !FR.certify_symbolic("linearised negative control","test",
+            s.derived[2]-mutant;verbose=false).pass
+    end
+end
+
+@testset "FR22 pressureless resonances and exceptional modes" begin
+    certs = FR.certify_fr22_lindblad()
+    @test all(c -> c.pass && c.modality == :symbolic,certs)
+    @test any(c -> occursin("E-ECC-8",c.name),certs)
+    @test any(c -> occursin("apsidal",c.name),certs)
+    @variables m l n
+    # The purported inner radius cannot satisfy the OUTER sign equation.
+    @test !FR.certify_symbolic("swapped inner sign","test",
+        l*n-(m+1)*l*n/(m-1);verbose=false).pass
+end
+
+@testset "FR22 potential factorisation certificate" begin
+    certs = FR.certify_fr22_phi_factorisation()
+    @test all(c -> c.pass && c.modality == :symbolic,certs)
+    @test any(c -> occursin("radial derivatives",c.name),certs)
+    @variables n pi_exact b rp Gmu C
+    expected = -Gmu*b*C/(2pi_exact*rp)
+    @test !FR.certify_symbolic("missing frequency negative control","test",
+        -Gmu/(2pi_exact^2)/n*(pi_exact*b/rp)*C-expected;verbose=false).pass
+    @test !FR.certify_symbolic("Laplace normalization negative control","test",
+        -Gmu*n/(2pi_exact^2)/n*(2pi_exact*b/rp)*C-expected;verbose=false).pass
+end
+
+check_phi_factorisation()
 
 @testset "FR22 Fourier decomposition and E-ECC-2" begin
     certs = FR.certify_fr22_fourier()
