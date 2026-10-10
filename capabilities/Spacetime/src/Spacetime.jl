@@ -60,6 +60,9 @@ export geodesic_trajectory_equatorial, geodesic_proper_time
 include("Separatrix/separatrix.jl")
 export separatrix, kerr_isco, get_separatrix, kerr_isso, isso_radial_curvature
 
+include("Geodesics/harmonics.jl")
+export EquatorialOrbit, worldline_rates, orbit_frequency, orbit_harmonic
+
 include("Geometry/christoffel.jl")
 export christoffel, christoffel_dr, christoffel_dtheta
 

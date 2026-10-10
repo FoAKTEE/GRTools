@@ -47,6 +47,43 @@ hphc_ghp_coeffs, hphc_R_of_r, hphc_r_of_R, hphc_horizon_R}` (nested module, not 
 (Scaffold stage: submodules are stubs; each lands grounded against the legacy oracle or an
 analytic identity before its exports go live.)
 
+## Equatorial eccentric harmonics
+
+`EquatorialOrbit(a,p,e)` stores a stable bound orbit with positive Lz, pericentre
+at q=0, and M=1. A negative spin describes retrograde motion relative to the hole.
+`worldline_rates(orbit,q)` returns signed `Ur=dr/dλ`, the periodic t/φ deviations,
+the coordinate-time measure `dt_dlambda`, and proper-time four-velocity components.
+`orbit_frequency(orbit,m,k)` is mΩφ+kΩr.
+
+```julia
+using Spacetime
+setprecision(BigFloat, 256) do
+    orbit = EquatorialOrbit(big"0.9", big"10", big"0.3")
+    H(q, state) = state.r / orbit.p + im * state.Ur / orbit.p
+    coefficient = orbit_harmonic(H, orbit, 2, -1; N=160, paired=true)
+end
+```
+
+The callback supplies the azimuthal coefficient H_m, with exp(−imψ) convention.
+The projector integrates H_m exp(i[kq+ωΔt−mΔφ]) with the dt/dλ measure and
+normalizes by 2πΓ. `paired=true` evaluates both q and 2π−q explicitly; it does
+not assume a real or even callback. Nodes are generated in the orbit's precision.
+Check convergence by increasing N for the orbit and harmonic of interest.
+
+`turning_point_jacobian` and `orbital_params_jacobian` live in Geodesics;
+`SpinningSecondary.spin_orbital_params_jacobian` is the compatibility wrapper.
+The constants differentiated are (E,Lz,K), where K=Q+(Lz−aE)². The legacy
+Jacobian keeps its original arithmetic and signed-spin constants convention:
+physical inverse checks use a≥0 with signed x. A consumer of negative-a element
+maps must normalize that chart explicitly. Circular turning-point degeneracy
+(e=0) is outside this Jacobian's domain.
+
+The equatorial trajectory fixture is independently generated from Darwin-angle
+quadrature; [its provenance](test/fixtures/spacetime_trajectory_PROVENANCE.md)
+contains the equations and reproduction command. C-ORBIT/C-HARM checks live
+in `test/test_eccentric_harmonics.jl`; C-MAP chain checks run in the same
+Spacetime test environment in `test/test_turning_point_jacobian.jl`.
+
 ## Dependencies
 
 - **Runtime:** `LinearAlgebra`, `NumericsCore` (Carlson/elliptic/Jacobi for Geodesics;
