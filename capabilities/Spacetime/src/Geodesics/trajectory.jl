@@ -9,47 +9,30 @@
     geodesic_trajectory_equatorial(a, p, e) -> Function
 
 Radial worldline of a bound equatorial Kerr geodesic (M = 1). Returns
-`qr -> (; r, Ur, Δtr, Δφr, Δτr)`: BL radius `r(qr)`, radial velocity, and the oscillating
+`qr -> (; r, Ur, Δtr, Δφr, Δτr)`: BL radius `r(qr)`, signed Mino velocity `Ur = dr/dλ`, and the oscillating
 deviations of t, φ, τ (the SpinningTrajectory "TrajectoryDeltas" convention), as functions of the
 radial Mino phase `qr ∈ [0,2π)`. Replaces `KerrGeoTrajectoryEquatorial`.
 """
 function geodesic_trajectory_equatorial(a, p, e)
-    En = geodesic_energy(a, p, e, 1); L = geodesic_angular_momentum(a, p, e, 1)
-    Q = carter_constant(a, p, e, 1)
-    r1c, r2c, r3c, r4c = radial_roots(a, p, e, 1, En, Q)
-    r1 = real(r1c); r2 = real(r2c); r3 = real(r3c); r4 = real(r4c)   # real for bound orbits
-    rp = 1 + sqrt(1 - a^2); rm = 1 - sqrt(1 - a^2)
+    radial = geodesic_trajectory_radial(a, p, e, 1)
+    # Match the signed-spin symmetry used by kerr_frequencies.
+    En, _, Q = constants_of_motion(abs(a), p, e, a < 0 ? -1 : 1)
+    r1, r2, r3, r4 = real.(radial_roots(a, p, e, 1, En, Q))
     kr = (r1 - r2) * (r3 - r4) / ((r1 - r3) * (r2 - r4))
     hr = (r1 - r2) / (r1 - r3)
-    hp = ((r1 - r2) * (r3 - rp)) / ((r1 - r3) * (r2 - rp))
-    hm = ((r1 - r2) * (r3 - rm)) / ((r1 - r3) * (r2 - rm))
-    Kk = real(ellipK(kr)); Ek = real(ellipE(kr))
-    Pihr = real(ellipPi(hr, kr)); Pihp = real(ellipPi(hp, kr)); Pihm = real(ellipPi(hm, kr))
+    Kk = real(ellipK(kr)); Ek = real(ellipE(kr)); Pihr = real(ellipPi(hr, kr))
     sden = sqrt((1 - En^2) * (r1 - r3) * (r2 - r4))
     return function (qr)
-        sn = jacobiSN(Kk / pi * qr, kr)
-        ψr = asin(sn)
-        ΔE  = Ek  * qr / pi - ellipEinc(ψr, kr)
+        ψr = jacobiAM(Kk / pi * qr, kr)
+        sn, cn = sincos(ψr)
+        ΔE = Ek * qr / pi - ellipEinc(ψr, kr)
         ΔΠhr = Pihr * qr / pi - ellipPiinc(hr, ψr, kr)
-        ΔΠhm = Pihm * qr / pi - ellipPiinc(hm, ψr, kr)
-        ΔΠhp = Pihp * qr / pi - ellipPiinc(hp, ψr, kr)
-        r = (r3 * (r1 - r2) * sn^2 - r2 * (r1 - r3)) / ((r1 - r2) * sn^2 - (r1 - r3))
-        Ur = sqrt((1 - En^2) / (r1 - r3) * (r2 - r4)) * (r1 - r2) * (r2 - r3) *
-             sqrt((1 - sn^2) * (1 - kr * sn^2)) * sn / (1 - hr * sn^2)^2
-        Δtr = -1 / sden * (
-            -4 * (r2 - r3) / (rp - rm) * (
-              -(-2a^2 * En + rm * (4En - a * L)) / ((-rm + r2) * (-rm + r3)) * ΔΠhm
-              +(-2a^2 * En + rp * (4En - a * L)) / ((-rp + r2) * (-rp + r3)) * ΔΠhp)
-            + 2 * En * (r2 - r3) * (2 + 1 / (1 - En^2)) * ΔΠhr
-            + En * (r2 - r4) * ((r1 - r3) * ΔE + (r1 - r2) * sn / (1 - hr * sn^2) *
-                                sqrt((1 - sn^2) * (1 - kr * sn^2))))
-        Δφr = (2a * (r2 - r3) * (
-              -(2rm * En - a * L) / ((-rm + r2) * (-rm + r3)) * ΔΠhm
-              +(2rp * En - a * L) / ((-rp + r2) * (-rp + r3)) * ΔΠhp)) / ((-rm + rp) * sden)
+        # cn carries the inward sign on the second half-period. The same continued
+        # amplitude is used by the shared radial t/φ trajectory.
         Δτr = -1 / sden * ((r2 - r3) * 2 / (1 - En^2) * ΔΠhr
             + (r2 - r4) * ((r1 - r3) * ΔE + (r1 - r2) * sn / (1 - hr * sn^2) *
-                           sqrt((1 - sn^2) * (1 - kr * sn^2))))
-        return (r = r, Ur = Ur, Δtr = Δtr, Δφr = Δφr, Δτr = Δτr)
+                           cn * sqrt(1 - kr * sn^2)))
+        return (; radial(qr)..., Δτr)
     end
 end
 
@@ -61,8 +44,15 @@ Radial worldline of a generic (inclined) bound Kerr geodesic (M = 1). Returns
 KerrGeoOrbit "Phases" convention). Replaces `KerrGeoTrajectoryRadial`.
 """
 function geodesic_trajectory_radial(a, p, e, x)
+    if a < 0 && x^2 == 1
+        # Equatorial signed-spin chart: consistent with the frequency routine.
+        radial = geodesic_trajectory_radial(-a, p, e, -x)
+        return function (qr)
+            g = radial(qr)
+            return (r=g.r, Ur=g.Ur, Δtr=g.Δtr, Δφr=-g.Δφr)
+        end
+    end
     En, L, Q = constants_of_motion(a, p, e, x)
-    Kc = Q + (L - a * En)^2                       # Carter K = Q + (Lz − aE)²
     r1c, r2c, r3c, r4c = radial_roots(a, p, e, x, En, Q)
     r1 = real(r1c); r2 = real(r2c); r3 = real(r3c); r4 = real(r4c)
     rp = 1 + sqrt(1 - a^2); rm = 1 - sqrt(1 - a^2)
@@ -75,14 +65,16 @@ function geodesic_trajectory_radial(a, p, e, x)
     sden = sqrt((1 - En^2) * (r1 - r3) * (r2 - r4))
     return function (qr)
         u = Kk / pi * qr
-        sn = jacobiSN(u, kr); ψr = jacobiAM(u, kr)
+        ψr = jacobiAM(u, kr); sn = sin(ψr)
         ΔE  = Ek  * qr / pi - ellipEinc(ψr, kr)
         ΔΠhr = Πhr * qr / pi - ellipPiinc(hr, ψr, kr)
         ΔΠhm = Πhm * qr / pi - ellipPiinc(hm, ψr, kr)
         ΔΠhp = Πhp * qr / pi - ellipPiinc(hp, ψr, kr)
         r = (r3 * (r1 - r2) * sn^2 - r2 * (r1 - r3)) / ((r1 - r2) * sn^2 - (r1 - r3))
-        Rr = ((r^2 + a^2) * En - a * L)^2 - (r^2 - 2r + a^2) * (Kc + r^2)   # radial potential R(r)
-        Ur = (mod(qr, 2pi) < pi ? 1 : -1) * sqrt(max(Rr, zero(Rr)))         # signed dr/dλ
+        # Differentiate r(qr) analytically instead of subtracting large terms in R(r).
+        # This is signed on both halves and vanishes at the turning points.
+        Ur = sden * hr * (r2 - r3) * sn * cos(ψr) * sqrt(1 - kr * sn^2) /
+             (1 - hr * sn^2)^2
         bnd = hr * (sin(ψr) * cos(ψr) * sqrt(1 - kr * sin(ψr)^2)) / (1 - hr * sin(ψr)^2)
         Δtr = -En / sden * (
             4 * (r2 - r3) * ΔΠhr

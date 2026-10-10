@@ -5,6 +5,7 @@
 # spar=0 ⇒ spin_orbit constants/frequencies equal the in-package Geodesics.
 using Test
 using Spacetime
+using .EquatorialQuadratureOracle: quadrature_orbit
 using Spacetime.SpinningSecondary: spin_linear_constants, spin_linear_frequencies,
                                    spin_mino_time_correction, spin_orbit, spin_orbit_equatorial
 include(joinpath(@__DIR__, "fixtures", "spacetime_spinning_ref.jl"))  # SPIN_{LIN,ORBIT,ORBIT_EQ}_REF
@@ -33,7 +34,7 @@ include(joinpath(@__DIR__, "fixtures", "spacetime_spinning_ref.jl"))  # SPIN_{LI
         @test isapprox(spin_mino_time_correction(a, p, e, x), lp.Upsilont1CTilde; rtol = 1e-9, atol = 1e-12)
     end
 
-    @testset "spin_orbit (equatorial) == KerrSpinOrbit (baked): (a,p,e,spar,gauge)=$c" for (ci, c) in enumerate([
+    @testset "spin_orbit (equatorial): baked scalars + independent signed-spin trajectory: (a,p,e,spar,gauge)=$c" for (ci, c) in enumerate([
             (0.5, 10.0, 0.2, 0.1, "pex"), (0.9, 8.0, 0.3, 0.05, "pex"),
             (0.5, 10.0, 0.2, 0.1, "CTilde"), (-0.6, 11.0, 0.15, 0.08, "pex")])
         a, p, e, spar, gauge = c
@@ -46,10 +47,20 @@ include(joinpath(@__DIR__, "fixtures", "spacetime_spinning_ref.jl"))  # SPIN_{LI
         @test isapprox(o.Frequencies.Uph, oo.Frequencies.Uph; rtol = 1e-8, atol = 1e-11)
         @test isapprox(o.Frequencies.Ut,  oo.Frequencies.Ut;  rtol = 1e-8, atol = 1e-11)
         @test isapprox(o.ProperTimeFrequency, oo.ProperTimeFrequency; rtol = 1e-9, atol = 1e-11)
+        # The negative-spin legacy trajectory used constants from the wrong chart.
+        # Keep the scalar fixture; independently integrate its shifted geodesic and
+        # apply the stated Δt_spin = Δt_geo - 3s/(2√K̃) Δτ_geo assembly.
+        independent = a < 0 ? quadrature_orbit(BigFloat(a),BigFloat(oo.pTilde),BigFloat(oo.eTilde)) : nothing
         for (qi, qr) in enumerate((0.0, 0.7, 1.6, 3.0))
-            @test isapprox(o.trajectory(qr).r,   oo.trajectory[qi].r;   rtol = 1e-9, atol = 1e-11)
-            @test isapprox(o.trajectory(qr).Δtr, oo.trajectory[qi].Δtr; rtol = 1e-8, atol = 1e-10)
-            @test isapprox(o.trajectory(qr).Δφr, oo.trajectory[qi].Δφr; rtol = 1e-8, atol = 1e-11)
+            reference = if independent === nothing
+                oo.trajectory[qi]
+            else
+                g=independent.at_phase(BigFloat(qr))
+                (r=g.r, Δtr=g.Δtr-3BigFloat(spar)/(2sqrt(BigFloat(oo.KTilde)))*g.Δτr, Δφr=g.Δφr)
+            end
+            @test isapprox(o.trajectory(qr).r, reference.r; rtol = 1e-9, atol = 1e-11)
+            @test isapprox(o.trajectory(qr).Δtr, reference.Δtr; rtol = 1e-8, atol = 1e-10)
+            @test isapprox(o.trajectory(qr).Δφr, reference.Δφr; rtol = 1e-8, atol = 1e-11)
         end
     end
 
