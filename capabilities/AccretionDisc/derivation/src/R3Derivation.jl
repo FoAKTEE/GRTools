@@ -46,5 +46,6 @@ include("thermal_balance.jl")
 include("eccentric_conventions.jl")
 include("eccentric_source.jl")
 include("eccentric_source_certificates.jl")
+include("eccentric_emission.jl")
 
 end # module
