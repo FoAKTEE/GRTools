@@ -1,8 +1,10 @@
 using FRDerivation
+println("Runtime: Julia ", VERSION, "; Julia threads=", Threads.nthreads())
 
 groups = Dict("environment" => FRDerivation.certify_environment,
               "kepler" => FRDerivation.certify_fr22_kepler,
               "background" => FRDerivation.certify_fr22_background,
+              "fr24-background" => FRDerivation.certify_fr24_background,
               "normalisation" => FRDerivation.certify_fr24_normalisation,
               "fourier" => FRDerivation.certify_fr22_fourier,
               "second-order-averages" => FRDerivation.certify_fr24_second_order_averages,
@@ -11,7 +13,7 @@ groups = Dict("environment" => FRDerivation.certify_environment,
               "phi-factorisation" => FRDerivation.certify_fr22_phi_factorisation)
 all(name -> haskey(groups, name), ARGS) || error("unknown certificate group")
 order = ["environment", "kepler", "background", "normalisation", "fourier", "second-order-averages",
-         "linearised", "lindblad", "phi-factorisation"]
+         "linearised", "fr24-background", "lindblad", "phi-factorisation"]
 # Fourier reality uses the landed Kepler parity certificate even in a focused run.
 requested = copy(ARGS)
 any(in(requested), ["linearised","lindblad"]) && append!(requested,["background","fourier"])

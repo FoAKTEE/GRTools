@@ -18,6 +18,7 @@ const Modes = AccretionDisc.Modes
 include("runtime_identities.jl")
 include("kepler.jl")
 include("background.jl")
+include("fr24_background.jl")
 include("fr24_dimensions.jl")
 include("normalisation.jl")
 include("fourier.jl")
