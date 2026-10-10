@@ -21,6 +21,7 @@ number from a paper) lives here as a **thin driver** plus a **golden** (`expecte
 | **arXiv:1301.1591**<br>`arXiv-1301.1591/` | Chrzanowski-Cohen-Kegeles metric reconstruction | 6 | 4 fig · 2 tab | 1 fast · 5 heavy | 6 solid |
 | **arXiv:1811.09628**<br>`arXiv-1811.09628/` | Pound et al. — second-order self-force | 1 | 1 fig | 0 fast · 1 heavy | 1 solid |
 | **arXiv:2303.16798**<br>`arXiv-2303.16798/` | Piovano et al. — generic linear-in-spin fluxes | 8 | 4 fig · 4 tab | 6 fast · 2 heavy | 6 solid · 2 future |
+| **arXiv:2506.19917**<br>`arXiv-2506.19917/` | Fairbairn & Dittmann — eccentric planet-disc interactions to e = 0.7 (mission paper; scaffold) | 18 | 17 fig · 1 chk | 1 fast · 17 heavy | 18 future |
 | **arXiv:2506.20726**<br>`arXiv-2506.20726/` | scalar self-force / effective source | 4 | 3 fig · 1 chk | 4 fast | 4 solid |
 | **arXiv:2510.02433**<br>`arXiv-2510.02433/` | modified-gravity ringdown | 5 | 4 fig · 1 chk | 4 fast · 1 heavy | 3 solid · 2 prelim |
 | **arXiv:2601.19123**<br>`arXiv-2601.19123/` | hybrid EMRI waveform generation | 3 | 2 fig · 1 chk | 3 fast | 2 solid · 1 prelim |
@@ -30,7 +31,7 @@ number from a paper) lives here as a **thin driver** plus a **golden** (`expecte
 | **arXiv:2608.17003**<br>`arXiv-2608.17003/` | EMRI in a gas disc — spiral-wave torque (mission paper) | 15 | 14 fig · 1 chk | 1 fast · 14 heavy | 13 solid · 2 prelim |
 | **arXiv:gr-qc-0703028**<br>`arXiv-gr-qc-0703028/` | Berti, Cardoso & Starinets — QNM tables | 1 | 1 tab | 1 fast | 1 solid |
 | **_selftest**<br>`_selftest/` | harness self-test (not a paper) | 1 | 1 chk | 1 fast | 1 solid |
-| **total** | 13 papers | **61** | 45 fig · 8 tab · 8 chk | 32 fast · 29 heavy | 51 solid · 8 prelim · 2 future |
+| **total** | 14 papers | **79** | 62 fig · 8 tab · 9 chk | 33 fast · 46 heavy | 51 solid · 8 prelim · 20 future |
 
 ### By result
 
@@ -62,6 +63,24 @@ The **golden** column is measured on the file, not declared: `n values / size`,
 | arXiv:2303.16798 | `tableII` | table | fast | solid | `arXiv-2303.16798/check_tableII.jl` | 10 / 2 KB | `Perturbation` `Spacetime` |
 | arXiv:2303.16798 | `tableIII` | table | fast | solid | `arXiv-2303.16798/check_tableIII.jl` | 8 / 11 KB | `Perturbation` `Spacetime` |
 | arXiv:2303.16798 | `tableI_full` | table | heavy | future | `arXiv-2303.16798/check_tableI_full.jl` | not yet generated | `Perturbation` `Spacetime` |
+| arXiv:2506.19917 | `fd25_check_printed_numbers` | check | fast | future | `arXiv-2506.19917/_future.jl` | (none) | `AccretionDisc` |
+| arXiv:2506.19917 | `fd25_fig01` | figure | heavy | future | `arXiv-2506.19917/_future.jl` | not yet generated | `AccretionDisc` |
+| arXiv:2506.19917 | `fd25_fig02` | figure | heavy | future | `arXiv-2506.19917/_future.jl` | not yet generated | `AccretionDisc` |
+| arXiv:2506.19917 | `fd25_fig03` | figure | heavy | future | `arXiv-2506.19917/_future.jl` | not yet generated | `AccretionDisc` |
+| arXiv:2506.19917 | `fd25_fig04` | figure | heavy | future | `arXiv-2506.19917/_future.jl` | not yet generated | `AccretionDisc` |
+| arXiv:2506.19917 | `fd25_fig05` | figure | heavy | future | `arXiv-2506.19917/_future.jl` | not yet generated | `AccretionDisc` |
+| arXiv:2506.19917 | `fd25_fig06` | figure | heavy | future | `arXiv-2506.19917/_future.jl` | not yet generated | `AccretionDisc` |
+| arXiv:2506.19917 | `fd25_fig07` | figure | heavy | future | `arXiv-2506.19917/_future.jl` | not yet generated | `AccretionDisc` |
+| arXiv:2506.19917 | `fd25_fig08` | figure | heavy | future | `arXiv-2506.19917/_future.jl` | not yet generated | `AccretionDisc` |
+| arXiv:2506.19917 | `fd25_fig09` | figure | heavy | future | `arXiv-2506.19917/_future.jl` | not yet generated | `AccretionDisc` |
+| arXiv:2506.19917 | `fd25_fig10` | figure | heavy | future | `arXiv-2506.19917/_future.jl` | not yet generated | `AccretionDisc` |
+| arXiv:2506.19917 | `fd25_fig11` | figure | heavy | future | `arXiv-2506.19917/_future.jl` | not yet generated | `AccretionDisc` |
+| arXiv:2506.19917 | `fd25_fig12` | figure | heavy | future | `arXiv-2506.19917/_future.jl` | not yet generated | `AccretionDisc` |
+| arXiv:2506.19917 | `fd25_fig13` | figure | heavy | future | `arXiv-2506.19917/_future.jl` | not yet generated | `AccretionDisc` |
+| arXiv:2506.19917 | `fd25_figA1` | figure | heavy | future | `arXiv-2506.19917/_future.jl` | not yet generated | `AccretionDisc` |
+| arXiv:2506.19917 | `fd25_figA2` | figure | heavy | future | `arXiv-2506.19917/_future.jl` | not yet generated | `AccretionDisc` |
+| arXiv:2506.19917 | `fd25_figA3` | figure | heavy | future | `arXiv-2506.19917/_future.jl` | not yet generated | `AccretionDisc` |
+| arXiv:2506.19917 | `fd25_figA4` | figure | heavy | future | `arXiv-2506.19917/_future.jl` | not yet generated | `AccretionDisc` |
 | arXiv:2506.20726 | `check_isso_spin_shift` | check | fast | solid | `arXiv-2506.20726/check_isso_spin_shift.jl` | 8 / 1 KB | `Spacetime` |
 | arXiv:2506.20726 | `fig_deltaJr` | figure | fast | solid | `arXiv-2506.20726/fig_deltaJr.jl` | 7 / 5 KB | `Spacetime` |
 | arXiv:2506.20726 | `fig_rISSO` | figure | fast | solid | `arXiv-2506.20726/fig_rISSO.jl` | 11 / 28 KB | `Spacetime` |
@@ -102,10 +121,10 @@ The **golden** column is measured on the file, not declared: `n values / size`,
 | arXiv:gr-qc-0703028 | `skh_tables` | table | fast | solid | `arXiv-gr-qc-0703028/check_skh_tables.jl` | 11 / 1 KB | `Perturbation` `Harmonics` `Spacetime` |
 | _selftest | `harness-selftest` | check | fast | solid | `_selftest/selftest.jl` | 13 / 1 KB | `Spacetime` |
 
-**61 registered results** across 13 papers (+ the harness self-test): 51 solid · 8 prelim · 2 future.
-32 run at the default `--tier fast` ceiling; 58 goldens on disk, 977 KB total (cap 200 KB each).
+**79 registered results** across 14 papers (+ the harness self-test): 51 solid · 8 prelim · 20 future.
+33 run at the default `--tier fast` ceiling; 58 goldens on disk, 977 KB total (cap 200 KB each).
 
-> **Not yet reproduced (2)** — declared open, not a defect: `2303.16798::tableI_full` (future, heavy, no golden yet), `2303.16798::fig_comparison_spherical` (future, heavy, no golden yet). 2 of them are `heavy`, so the default `--tier fast` sweep does not select them.
+> **Not yet reproduced (20)** — declared open, not a defect: `2303.16798::tableI_full` (future, heavy, no golden yet), `2303.16798::fig_comparison_spherical` (future, heavy, no golden yet), `2506.19917::fd25_fig01` (future, heavy, no golden yet), `2506.19917::fd25_fig02` (future, heavy, no golden yet), `2506.19917::fd25_fig03` (future, heavy, no golden yet), `2506.19917::fd25_fig04` (future, heavy, no golden yet), `2506.19917::fd25_fig05` (future, heavy, no golden yet), `2506.19917::fd25_fig06` (future, heavy, no golden yet), `2506.19917::fd25_fig07` (future, heavy, no golden yet), `2506.19917::fd25_fig08` (future, heavy, no golden yet), `2506.19917::fd25_fig09` (future, heavy, no golden yet), `2506.19917::fd25_fig10` (future, heavy, no golden yet), `2506.19917::fd25_fig11` (future, heavy, no golden yet), `2506.19917::fd25_fig12` (future, heavy, no golden yet), `2506.19917::fd25_fig13` (future, heavy, no golden yet), `2506.19917::fd25_figA1` (future, heavy, no golden yet), `2506.19917::fd25_figA2` (future, heavy, no golden yet), `2506.19917::fd25_figA3` (future, heavy, no golden yet), `2506.19917::fd25_figA4` (future, heavy, no golden yet), `2506.19917::fd25_check_printed_numbers` (future, fast). 19 of them are `heavy`, so the default `--tier fast` sweep does not select them.
 <!-- END GENERATED INDEX -->
 
 ## Layout
