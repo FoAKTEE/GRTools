@@ -907,3 +907,14 @@ tier = "fast"
 depends = ["AccretionDisc"]
 status = "solid"
 notes = "ECC::fr22-setup-parameters (status mirrors the ledger node). Initial gate checks the FR22Setup object's printed setup, definitions and target values against the extracted JSON and tex anchors in EMRI_DISK_ROOT. Convergence figure claims remain pending. Softening 0.3H remains an explicit unresolved policy choice. No expected key: this check has no numerical golden of its own."
+
+[[result]]
+paper = "2207.14637"
+id = "fr22_fig01"
+kind = "figure"
+script = "arXiv-2207.14637/fig01.jl"
+tier = "fast"
+expected = "arXiv-2207.14637/expected/fr22_fig01.json"
+depends = ["AccretionDisc"]
+status = "future"
+notes = "ECC::fr22-fig1 (status mirrors the ledger node). Fig. 1 (fig:cartoon), a schematic with no data: the orbit is Modes.planet_orbit on an EccentricOrbit with FR22Setup's middle printed eccentricity e = 0.25 and units a = n = 1, so the star sits at the focus (a e right of the ellipse centre); the planet is drawn at T_p/12 after pericentre and the disc point at phi = 0.7 pi on the dashed boundary r = 1.4 a (presentation choices). The golden registers the plotted geometry (73 orbit samples, peri/apocentre, focal offset, planet and disc-point coordinates and angles); the PNG beside it is the VLM artefact. VLM: every element of cartoon.eps is reproduced except the orbit aspect: the published ellipse is not a Kepler orbit (b/a = 0.90 with the star 0.19 a from the centre; e = 0.44 would be needed for that b/a), the Kepler ellipse has b/a = 0.97; two independent blind reviews call this one structural difference, so the node is not promoted (owner decision requested, obligation fr22-o-fig1-kepler-vs-cartoon). rtol 1e-12."
