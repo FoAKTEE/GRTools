@@ -9,7 +9,7 @@
 #             (rerun: julia --project=capabilities/AccretionDisc/derivation \
 #                          capabilities/AccretionDisc/derivation/scripts/emit_sources.jl)
 # input     : capabilities/AccretionDisc/derivation/out/R3_master.jls.txt  sha256 cd4b600da538c1645b500458032a240c28a01033e60eac7a89c2d005f34d2f7d
-# derivation: sha256 22daab833714f31dca9523dc0e641e9951eb124b1b2d9c7141a7ceb6dace31ab over derivation/src/*.jl (sorted, concatenated)
+# derivation: sha256 d46ee52a2a1a5d894dcd832dd1eaecc70685e0d7760c614eb1c125ea64d92cc0 over derivation/src/*.jl (sorted, concatenated)
 # julia     : 1.12.6   Symbolics 7.36.0
 # content   : dy/dr = C.y + S with y = (deltaU, urbyi) = (delta p-hat/(eps+p), -i delta u-hat^r);
 #             C = [C00 C01; C10 C11], S = [S0, S1]  (arXiv:2608.17003 eq 47).

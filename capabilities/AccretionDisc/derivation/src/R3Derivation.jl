@@ -43,5 +43,6 @@ include("serialize.jl")
 include("codegen.jl")
 include("locally_isothermal.jl")
 include("thermal_balance.jl")
+include("eccentric_conventions.jl")
 
 end # module
