@@ -60,6 +60,8 @@ export laplace_b_soft, laplace_b_soft_deriv, laplace_b_soft_2deriv
 include("EccentricPlanet.jl")   # FR22 (24)-(25) Kepler orbit; ZZ22 (4)-(9) wavelets
 export EccentricOrbit, kepler_E, planet_orbit
 export zz22_wavelet, zz22_track
+include("EccentricTorques.jl")  # FR24 v1 (52)-(55) PL00/CN06 literature prescriptions
+export pl00_tauL_inv, pl00_taue_inv, cn06_tauL_inv, cn06_taue_inv
 
 include("PressurelessLindblad.jl")
 export SurfaceDensityProfile, PowerLawSigma
