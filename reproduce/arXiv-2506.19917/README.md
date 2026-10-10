@@ -6,9 +6,10 @@ validated against 2D locally isothermal Disco hydrodynamics for (p, q) ∈ {(1.5
 (0.5, 0.0)}, h_p = 0.06.  It supplies the high-eccentricity Newtonian targets that the relativistic
 eccentric extension must recover in the p/M → ∞ limit sequence.
 
-**SCAFFOLD (`ECC::fd25-repro-scaffold`).**  No driver, no golden and no physics exist here yet.  Every
-row of `MANIFEST.toml` for this paper is `status = "future"` (mirroring its `ECC::fd25-*` ledger node)
-and points at the shared HOLE stub `_future.jl` (exit 3, counted as SKIP).  The manifest ids carry an
+**SCAFFOLD (`ECC::fd25-repro-scaffold`).**  No linear-theory driver and no physics exist here yet.  Every
+row of `MANIFEST.toml` for this paper mirrors its `ECC::fd25-*` ledger node and, until its own driver
+lands, points at the shared HOLE stub `_future.jl` (exit 3, counted as SKIP).  The one driver so far is
+`figA3.jl` (Fig A3), a SIM figure: it re-plots digitised reference data and calls no package.  The manifest ids carry an
 `fd25_` prefix, so they stay unique across the manifest.  A row leaves `future` only
 when its thin driver and golden land and the ledger node is promoted.  Tiers are PROVISIONAL (`heavy`)
 until a driver measures them.
@@ -67,7 +68,7 @@ re-run).  The references live in the emri-disk mission repo:
 | 13 | coorbital F_J slices + T(t), e = .3 | `fig:corotation_e0.3` | SIM | `fd25_fig13` | — | heavy (prov.) | future | — | `ECC::fd25-fig13` | digitised slices; linear curve off-scale |
 | A1 | dT/dr vs \|m−l\|_max, e = .5 + residuals | `fig:dTdr_convergence` | LINEAR | `fd25_figA1` | — | heavy (prov.) | future | — | `ECC::fd25-figA1` | digitised curves |
 | A2 | T(e) vs \|m−l\|_max + extended points | `fig:net_T_converegence` | LINEAR | `fd25_figA2` | — | heavy (prov.) | future | — | `ECC::fd25-figA2` | digitised markers |
-| A3 | Disco resolution test | `fig:dTdr_convergence_sim` | SIM | `fd25_figA3` | — | heavy (prov.) | future | — | `ECC::fd25-figA3` | digitised (reference only) |
+| A3 | Disco resolution test | `fig:dTdr_convergence_sim` | SIM | `fd25_figA3` | `fd25_figA3.json` + `.png` | fast | future | match (structure; style residuals in the manifest notes) | `ECC::fd25-figA3` | digitised (reference only); driver `figA3.jl`, no physics |
 | A4 | Disco − linear dT/dr, (0.5,0), e = .5 | `fig:dTdr_err` | MIXED | `fd25_figA4` | — | heavy (prov.) | future | — | `ECC::fd25-figA4` | digitised sim + computed linear |
 | —  | printed-number gate | — | check | `fd25_check_printed_numbers` | none (by design) | fast | future | n/a | `ECC::fd25-printed-numbers-gate` | over the figure goldens |
 

@@ -870,12 +870,12 @@ notes = "ECC::fd25-figA2. Fig A2 (fig:net_T_converegence, LINEAR): T(e) for |m-l
 paper = "2506.19917"
 id = "fd25_figA3"
 kind = "figure"
-script = "arXiv-2506.19917/_future.jl"
-tier = "heavy"
+script = "arXiv-2506.19917/figA3.jl"
+tier = "fast"
 expected = "arXiv-2506.19917/expected/fd25_figA3.json"
-depends = ["AccretionDisc"]
+depends = []
 status = "future"
-notes = "ECC::fd25-figA3. Fig A3 (fig:dTdr_convergence_sim, SIM): Disco fiducial vs double resolution = digitised reference only. SCAFFOLD (ECC::fd25-repro-scaffold): no driver and no golden yet; the script is the shared HOLE stub (exit 3, SKIP); tier provisional until a driver measures it."
+notes = "ECC::fd25-figA3. Fig A3 (fig:dTdr_convergence_sim, SIM, app_modal_convergence.tex:44-63): Disco fiducial vs double resolution dT/dr, the residual (A2) and the cumulative error, (p,q) = (0.5,0.0), e = 0.5. DIGITISED REFERENCE ONLY, never a reproduced result: every curve is a Disco run, which the mission does not re-run, so the thin driver figA3.jl calls no GrTools package and re-plots in the FD25 style (manual sections 0 and 8) the series ECC::fd25-vector-digitise read off the published vector paths, on axes mapped from the PDF's own tick calibration. Inputs live in the emri-disk mission repo (sibling checkout, or GRTOOLS_EMRI_DISK); absent inputs are a HOLE (exit 3). The golden pins the sha256 of the CSV, manifest and reference package and registers per-series counts, ranges and extremum positions, the axes limits, the outer cumulative level c(2.0003) = -7.537e-4 (printed ~7.5e-4 in magnitude, A:63) and the drawn integral of (b), all exact to rtol 1e-12. VLM: same three-panel structure as the published figure; residual style differences are backend-level (square legend corners, GR dash pattern, shorter ticks). 10 s at -t1, tier fast."
 
 [[result]]
 paper = "2506.19917"
