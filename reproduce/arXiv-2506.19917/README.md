@@ -68,7 +68,7 @@ re-run).  The references live in the emri-disk mission repo:
 | 13 | coorbital F_J slices + T(t), e = .3 | `fig:corotation_e0.3` | SIM | `fd25_fig13` | — | heavy (prov.) | future | — | `ECC::fd25-fig13` | digitised slices; linear curve off-scale |
 | A1 | dT/dr vs \|m−l\|_max, e = .5 + residuals | `fig:dTdr_convergence` | LINEAR | `fd25_figA1` | — | heavy (prov.) | future | — | `ECC::fd25-figA1` | digitised curves |
 | A2 | T(e) vs \|m−l\|_max + extended points | `fig:net_T_converegence` | LINEAR | `fd25_figA2` | — | heavy (prov.) | future | — | `ECC::fd25-figA2` | digitised markers |
-| A3 | Disco resolution test | `fig:dTdr_convergence_sim` | SIM | `fd25_figA3` | `fd25_figA3.json` + `.png` | fast | preliminary | match (structure; style residuals in the manifest notes) | `ECC::fd25-figA3` | digitised (reference only); driver `figA3.jl`, no physics |
+| A3 | Disco resolution test | `fig:dTdr_convergence_sim` | SIM | `fd25_figA3` | `fd25_figA3.json` + `.png` | fast | solid | match (structure; style residuals in the manifest notes) | `ECC::fd25-figA3` | digitised (reference only); driver `figA3.jl`, no physics |
 | A4 | Disco − linear dT/dr, (0.5,0), e = .5 | `fig:dTdr_err` | MIXED | `fd25_figA4` | — | heavy (prov.) | future | — | `ECC::fd25-figA4` | digitised sim + computed linear |
 | —  | printed-number gate | — | check | `fd25_check_printed_numbers` | none (by design) | fast | future | n/a | `ECC::fd25-printed-numbers-gate` | over the figure goldens |
 
