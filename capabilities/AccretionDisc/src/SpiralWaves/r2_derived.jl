@@ -9,7 +9,7 @@
 #             (rerun: julia --project=capabilities/AccretionDisc/derivation \
 #                          capabilities/AccretionDisc/derivation/scripts/emit_sources.jl)
 # input     : capabilities/AccretionDisc/derivation/out/R3_diagnostics.jls.txt  sha256 894b710e9645abb194140514588aa93756e78b02347b520e4a16df187586fd41
-# derivation: sha256 db57f0453b08efcb9286484a64d0e3317546a6ab9d35025ca3378035fa9388af over derivation/src/*.jl (sorted, concatenated)
+# derivation: sha256 58442ab9db5cd8394e4011b102339f055419cfd0495da334dd85715e335a172a over derivation/src/*.jl (sorted, concatenated)
 # julia     : 1.12.6   Symbolics 7.36.0
 # input2    : capabilities/AccretionDisc/derivation/out/R3_master.jls.txt  sha256 cd4b600da538c1645b500458032a240c28a01033e60eac7a89c2d005f34d2f7d
 # content   : the quantities of the (47) reduction and of the diagnostics (69)-(73) in the master

@@ -47,5 +47,6 @@ include("eccentric_conventions.jl")
 include("eccentric_source.jl")
 include("eccentric_source_certificates.jl")
 include("eccentric_emission.jl")
+include("li_emission.jl")
 
 end # module

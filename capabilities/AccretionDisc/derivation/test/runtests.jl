@@ -73,5 +73,6 @@ const NPTS = parse(Int, get(ENV, "R3_NPTS", "12"))
     include("test_eccentric_conventions.jl")
     include("test_eccentric_source.jl")
     include("test_general_emission.jl")
+    include("test_li_emission.jl")
     include("test_midpoint.jl")
 end
