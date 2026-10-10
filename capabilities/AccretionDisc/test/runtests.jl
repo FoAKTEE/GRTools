@@ -7,6 +7,7 @@ using AccretionDisc
     end
 
     include("hygiene.jl")
+    include("test_forcing_modes.jl")
 
     include("Modes/test_background.jl")
     include("Modes/test_velocity.jl")

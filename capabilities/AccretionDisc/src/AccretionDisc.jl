@@ -22,6 +22,14 @@ Every primitive is type-generic `{T}` so BigFloat precision is inherited.
 """
 module AccretionDisc
 
+include("ForcingModes.jl")
+using .ForcingModes
+export ForcingModes, HarmonicMode, NewtonianMode, mode_power
+export ClosureTag, Adiabatic, LocallyIsothermalOptionA, Cooling
+export SofteningPolicy, FixedSoftening, SemimajorScaleHeight, InstantaneousScaleHeight,
+       LocalScaleHeight
+export ModeMaskTag, FR22Mask, FR24Mask, FD25Mask
+
 include("Modes/Modes.jl")
 using .Modes
 # Re-export the Modes background/resonance primitives at the package top level.
