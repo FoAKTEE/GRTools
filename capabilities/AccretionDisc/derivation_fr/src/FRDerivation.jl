@@ -20,5 +20,7 @@ include("kepler.jl")
 include("background.jl")
 include("fr24_dimensions.jl")
 include("normalisation.jl")
+include("fourier.jl")
+include("second_order_averages.jl")
 
 end

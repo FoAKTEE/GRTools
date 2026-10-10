@@ -17,6 +17,51 @@ const FR = FRDerivation
     @test FR.exact_eval(x, Dict(x => FR.RatB(1, 3))) == FR.RatB(1, 3)
 end
 
+@testset "FR22 Fourier decomposition and E-ECC-2" begin
+    certs = FR.certify_fr22_fourier()
+    @test all(c -> c.pass && c.modality == :symbolic, certs)
+    @test any(c -> occursin("E-ECC-2 printed inverse",c.name),certs)
+    for paper in ("2407.20398v1","2506.19917v3"), label in ("eqn:potential_expansion","eqn:modal_repsonse")
+        @test any(c -> c.eqref == "$paper::$label",certs)
+    end
+    @variables n pi_exact
+    cc = FR.real_product_coefficients(Num(1),Num(1))
+    inner = (2pi_exact)^2/n*(cc.pm+cc.mp)
+    @test !FR.certify_symbolic("printed Fourier gain negative control", "test",
+        inner/(2pi_exact^2)-1;verbose=false).pass
+    # Exact nonunit frequency exposes the normalization hidden by n=1.
+    @test FR.exact_eval(n/(2pi_exact^2)*inner,Dict(n=>FR.RatB(7,3),pi_exact=>FR.RatB(1))) == 1
+    @test FR.exact_eval(inner/(2pi_exact^2),Dict(n=>FR.RatB(7,3),pi_exact=>FR.RatB(1))) == 3//7
+end
+
+@testset "FR24 and FD25 shared second-order averages" begin
+    certs = FR.certify_fr24_second_order_averages()
+    @test all(c -> c.pass && c.modality == :symbolic, certs)
+    for paper in ("2407.20398v1","2506.19917v3"), label in ("eq:AMF-def","eq:F_jml","eq:dTdr_jml")
+        @test any(c -> c.eqref == "$paper::$label",certs)
+    end
+    @variables ar ai br bi C S pi_exact Phi m
+    A, B = ar+im*ai, br+im*bi
+    p = FR.real_product_coefficients(A,B)
+    integral = 2pi_exact*(p.pm*(C-im*S)+p.mp*(C+im*S))
+    # Unequal l must retain time dependence after integrating only phi.
+    @test !FR.certify_symbolic("cross-l must not be discarded", "test", integral;verbose=false).pass
+    @test !FR.certify_symbolic("instantaneous sine sign negative control", "test",
+        integral-pi_exact*(real(A*conj(B))*C-imag(A*conj(B))*S);verbose=false).pass
+    @test !FR.certify_symbolic("4pi weight negative control", "test",
+        2pi_exact*(p.pm+p.mp)-4pi_exact*real(A*conj(B));verbose=false).pass
+    q = FR.real_product_coefficients(A,im*m*Phi)
+    @test !FR.certify_symbolic("torque sign negative control", "test",
+        -2pi_exact*(q.pm+q.mp)-pi_exact*m*Phi*ai;verbose=false).pass
+    # Exact type inheritance in the common coefficient algebra.
+    @test FR.real_product_coefficients(1.0+2.0im,3.0-4.0im).pm isa ComplexF64
+    setprecision(192) do
+        pbig = FR.real_product_coefficients(Complex(big"1",big"2"),Complex(big"3",big"-4"))
+        @test pbig.pm isa Complex{BigFloat}
+        @test precision(real(pbig.pm)) == 192
+    end
+end
+
 @testset "FR22 Kepler" begin
     certs = FR.certify_fr22_kepler()
     @test length(certs) == 9
