@@ -58,8 +58,9 @@ using AccretionDisc
         @test SemimajorScaleHeight(0.3).b === 0.3
         @test InstantaneousScaleHeight(0.3).b === 0.3
         @test LocalScaleHeight(0.3).b === 0.3
-        @test length(Set(typeof.((SemimajorScaleHeight(0.3),
-                                 InstantaneousScaleHeight(0.3), LocalScaleHeight(0.3))))) == 3
+        # FD25's constant length must never collapse into FR24's moving b*H(r_p).
+        @test length(Set(typeof.((FixedSoftening(0.3), SemimajorScaleHeight(0.3),
+                                 InstantaneousScaleHeight(0.3), LocalScaleHeight(0.3))))) == 4
         # FD25: pass the constant length once; no time/field radius is stored.
         @test FixedSoftening((3//10) * 0.1 * 2).eps ≈ 0.06
         for policy in (FixedSoftening, SemimajorScaleHeight,
@@ -83,6 +84,32 @@ using AccretionDisc
         @test length(Set((Adiabatic, LocallyIsothermalOptionA, Cooling))) == 3
         @test all(tag -> tag isa ModeMaskTag, (FR22Mask, FR24Mask, FD25Mask))
         @test length(Set((FR22Mask, FR24Mask, FD25Mask))) == 3
+    end
+
+    @testset "Value semantics for mode sets and cache keys" begin
+        setprecision(BigFloat, 256) do
+            a, b = HarmonicMode(2, 1, big"0.75"), HarmonicMode(2, 1, big"0.75")
+            @test a == b
+            @test isequal(a, b) && hash(a) == hash(b)
+            @test haskey(Dict(a => 1), b)
+            @test length(unique([a, b])) == 1
+            @test a != HarmonicMode(2, 0, big"0.75") && a != HarmonicMode(1, 1, big"0.75")
+            @test a != HarmonicMode(2, 1, big"0.5")
+            @test HarmonicMode(2, 1, 0.75) == HarmonicMode{BigFloat}(2, 1, 0.75)
+            @test hash(HarmonicMode(2, 1, 0.75)) == hash(HarmonicMode{BigFloat}(2, 1, 0.75))
+            for policy in (FixedSoftening, SemimajorScaleHeight,
+                           InstantaneousScaleHeight, LocalScaleHeight)
+                p, q = policy(big"0.3"), policy(big"0.3")
+                @test p == q
+                @test isequal(p, q) && hash(p) == hash(q)
+                @test haskey(Dict(p => 1), q)
+                @test p != policy(big"0.5")
+            end
+        end
+        @test HarmonicMode(1, -1, 0.0) == HarmonicMode(1, -1, -0.0)
+        # Equal scale, different policy: distinct keys.
+        @test length(unique((FixedSoftening(0.3), SemimajorScaleHeight(0.3),
+                             InstantaneousScaleHeight(0.3), LocalScaleHeight(0.3)))) == 4
     end
 
     @testset "Precision inherited at 128 and 256 bits" begin

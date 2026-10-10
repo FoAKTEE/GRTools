@@ -41,12 +41,22 @@ end
 HarmonicMode(m::Integer, k::Integer, omega::Real) =
     HarmonicMode{typeof(float(omega))}(m, k, omega)
 
+# Value semantics. The default struct `==`/`hash` compare a BigFloat field by object
+# identity, so equal-valued BigFloat modes would be distinct mode-set and cache keys.
+Base.:(==)(a::HarmonicMode, b::HarmonicMode) =
+    a.m == b.m && a.k == b.k && a.omega == b.omega
+Base.isequal(a::HarmonicMode, b::HarmonicMode) =
+    a.m == b.m && a.k == b.k && isequal(a.omega, b.omega)
+Base.hash(x::HarmonicMode, h::UInt) =
+    hash(x.omega, hash(x.k, hash(x.m, hash(:HarmonicMode, h))))
+
 """
     NewtonianMode(m, l, n)
 
 Adapter returning `HarmonicMode(m, l-m, l*n)` for the Newtonian phase
 `m*phi - l*n*t`. Mean motion `n` must be finite and positive. The pattern speed
-is `(l/m)*n` for `m > 0`; it is NOT the stored frequency. Signed and zero `l`
+is `(l/m)*n` for `m > 0`; it is NOT the stored frequency (FR22 and FR24 print that
+pattern speed as `omega_lm`/`omega_ml`; the stored `omega` is `l*n`). Signed and zero `l`
 are retained so paper-specific exclusions remain the mode-selection owner's job.
 """
 function NewtonianMode(m::Integer, l::Integer, n::Real)
@@ -150,6 +160,16 @@ struct LocalScaleHeight{T<:Real} <: SofteningPolicy{T}
         new{T}(_softening_parameter(convert(T, b)))
 end
 LocalScaleHeight(b::Real) = LocalScaleHeight{typeof(float(b))}(b)
+
+# Value semantics as for HarmonicMode: equal when the policy type and scale agree.
+for (P, f) in ((:FixedSoftening, :eps), (:SemimajorScaleHeight, :b),
+               (:InstantaneousScaleHeight, :b), (:LocalScaleHeight, :b))
+    @eval begin
+        Base.:(==)(x::$P, y::$P) = x.$f == y.$f
+        Base.isequal(x::$P, y::$P) = isequal(x.$f, y.$f)
+        Base.hash(x::$P, h::UInt) = hash(x.$f, hash($(QuoteNode(P)), h))
+    end
+end
 
 """
 Paper-mask identity tags `FR22Mask`, `FR24Mask`, `FD25Mask`. Enumeration, cutoffs,
