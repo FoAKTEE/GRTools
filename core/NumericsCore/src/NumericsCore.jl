@@ -77,6 +77,9 @@ export LogChebInterp, log_cheb_interp, BigLogRInterp, biglogr_interp
 include("chebyshev.jl")   # after interp.jl: CGL nodes + D1/D2 (Weideman–Reddy) + dense solve for
 export cheb_lobatto, cheb_collocation, cheb_solve   # the Q2-H hyperboloidal collocation operator
 
+include("fft.jl")
+export fft_radix2!, fft_radix2
+
 include("ode.jl")
 export dp5_step!, dp5_step_buffered!, integrate_grid, integrate_to_targets!,
        gragg_midpoint!, gbs_kmax, gbs_integrate_to_targets!

@@ -19,6 +19,7 @@ using NumericsCore
     include("test_dataschema.jl")
     include("test_interp.jl")
     include("test_chebyshev.jl")
+    include("test_fft.jl")
     include("test_ode.jl")
     include("test_legendre.jl")
     include("test_kummer.jl")
