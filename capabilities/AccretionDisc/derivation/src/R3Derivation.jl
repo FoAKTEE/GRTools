@@ -42,5 +42,6 @@ include("diagnostics.jl")
 include("serialize.jl")
 include("codegen.jl")
 include("locally_isothermal.jl")
+include("thermal_balance.jl")
 
 end # module
