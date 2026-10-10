@@ -1,0 +1,8 @@
+println("[RUN] loading R3 source graph"); flush(stdout)
+include(joinpath(@__DIR__,"..","src","R3Derivation.jl"))
+println("[RUN] starting C-SOURCE symbolic gates"); flush(stdout)
+certs = R3Derivation.source_certificates()
+!isempty(certs) && all(c.pass for c in certs) || error("C-SOURCE failed")
+println("[PASS] C-SOURCE symbolic certificates: $(length(certs))/$(length(certs))")
+println("[I] Equal-time slicing, component transport, softening frame, far-zone continuation are model choices.")
+println("No subleading, retarded-field, global gauge or far-field accuracy claim.")

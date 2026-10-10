@@ -44,5 +44,7 @@ include("codegen.jl")
 include("locally_isothermal.jl")
 include("thermal_balance.jl")
 include("eccentric_conventions.jl")
+include("eccentric_source.jl")
+include("eccentric_source_certificates.jl")
 
 end # module
