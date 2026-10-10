@@ -41,5 +41,6 @@ include("stage2.jl")
 include("diagnostics.jl")
 include("serialize.jl")
 include("codegen.jl")
+include("locally_isothermal.jl")
 
 end # module

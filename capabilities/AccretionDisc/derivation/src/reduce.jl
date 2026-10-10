@@ -4,7 +4,8 @@
 # The four steps, in the order forced by the variable content of the equations (printed by
 # `reduction_structure()`; it matches the route-R2 report exactly):
 #
-#   (ii)  adiabatic closure (19)–(21) with ξ^r = iδû^r/(u^tω_d)            →  δε̂   [needs δp̂, δû^r]
+#   (ii)  pressure closure: adiabatic (19)–(21) (default) or Option A locally isothermal,
+#         ξ^r = iδû^r/(u^tω_d)                                              →  δε̂   [needs δp̂, δû^r]
 #   (iii) φ-Euler δℰ^φ = 0 — algebraic in δû^φ, no δp̂′/δû^r′/δû^t          →  δû^φ  [needs δp̂, δû^r, ĥ]
 #   (i)   perturbed normalisation 2u_αδû^α + ĥ_{αβ}u^αu^β = 0              →  δû^t  [needs δû^φ, ĥ]
 #   (iv)  r-Euler (carries δp̂′, not δû^r′) + energy equation (carries δû^r′,
@@ -82,16 +83,39 @@ function solve_linear2(E1, E2, x1, x2)
 end
 
 # ---------------------------------------------------------------------------------------------
-# step (ii) — adiabatic closure (19)-(21)  ⇒  δε̂
+# step (ii) — pressure closure  ⇒  δε̂   (adiabatic (19)-(21) by default; Option A LI selectable)
 # ---------------------------------------------------------------------------------------------
+
+"""
+    pressure_closure([Val(:adiabatic)])
+    pressure_closure(Val(:locally_isothermal))
+
+Pressure residual for the reduction. The default is G26 (19)-(21). Option A
+`Val(:locally_isothermal)` imposes p = Θ(r)ε, δΘ = 0 in the G26 singular-field
+gauge in Boyer–Lindquist coordinates, with Θ = p/ε (no extra primitive).
+Energy/Euler equations and conserved baryons are unchanged; there is no bath.
+
+Since Δ = δ + ξʳ∂r, the LI residual is equivalently
+    [Δp - ΘΔε - εΘ′ξʳ]/p,
+where εΘ′ = p′ - (p/ε)ε′. Thus the displacement term is retained even though
+it cancels from the Eulerian residual. Changing Γ₁ alone would omit it.
+Together with retained (19), Δp = -Θ(ε+p)q^{αβ}Δg_{αβ}/2 + εΘ′ξʳ.
+This pressure law is gauge-fixed when Θ′ ≠ 0; it is not a cooling model.
+"""
+pressure_closure(::Val{:adiabatic} = Val(:adiabatic)) =
+    (dp + XI_R * p_r) / p - Gamma1 * (deps + XI_R * eps_r) / (eps + p)
+pressure_closure(::Val{:locally_isothermal}) = dp / p - deps / eps
 
 """
     CLOSURE_RESIDUAL
 
-Δp/p − Γ₁Δε/(ε+p) with Δ = δ + 𝓛_ξ acting on the scalars p, ε: Δp̂ = δp̂ + ξ^r p′,
-Δε̂ = δε̂ + ξ^r ε′ (p and ε depend on r only).  This is Eqs. (19)+(20) of the paper.
+`pressure_closure(PRESSURE_CLOSURE)` when the including module defines `PRESSURE_CLOSURE`
+(the `LocallyIsothermal` submodule), otherwise the adiabatic default Δp/p − Γ₁Δε/(ε+p) with
+Δ = δ + 𝓛_ξ acting on the scalars p, ε: Δp̂ = δp̂ + ξ^r p′, Δε̂ = δε̂ + ξ^r ε′ (p and ε depend on
+r only) — Eqs. (19)+(20) of the paper.
 """
-const CLOSURE_RESIDUAL = (dp + XI_R * p_r) / p - Gamma1 * (deps + XI_R * eps_r) / (eps + p)
+const CLOSURE_RESIDUAL = pressure_closure(
+    isdefined(@__MODULE__, :PRESSURE_CLOSURE) ? PRESSURE_CLOSURE : Val(:adiabatic))
 
 "δε̂ from the closure — step (ii)."
 const DEPS_SOL = solve_linear(CLOSURE_RESIDUAL, deps)

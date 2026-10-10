@@ -68,4 +68,5 @@ const NPTS = parse(Int, get(ENV, "R3_NPTS", "12"))
             rm(tmp2; recursive = true, force = true)
         end
     end
+    include("test_li_closure.jl")
 end
