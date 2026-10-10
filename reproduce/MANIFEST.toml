@@ -874,7 +874,7 @@ script = "arXiv-2506.19917/figA3.jl"
 tier = "fast"
 expected = "arXiv-2506.19917/expected/fd25_figA3.json"
 depends = []
-status = "future"
+status = "preliminary"
 notes = "ECC::fd25-figA3. Fig A3 (fig:dTdr_convergence_sim, SIM, app_modal_convergence.tex:44-63): Disco fiducial vs double resolution dT/dr, the residual (A2) and the cumulative error, (p,q) = (0.5,0.0), e = 0.5. DIGITISED REFERENCE ONLY, never a reproduced result: every curve is a Disco run, which the mission does not re-run, so the thin driver figA3.jl calls no GrTools package and re-plots in the FD25 style (manual sections 0 and 8) the series ECC::fd25-vector-digitise read off the published vector paths, on axes mapped from the PDF's own tick calibration. Inputs live in the emri-disk mission repo (sibling checkout, or GRTOOLS_EMRI_DISK); absent inputs are a HOLE (exit 3). The golden pins the sha256 of the CSV, manifest and reference package and registers per-series counts, ranges and extremum positions, the axes limits, the outer cumulative level c(2.0003) = -7.537e-4 (printed ~7.5e-4 in magnitude, A:63) and the drawn integral of (b), all exact to rtol 1e-12. VLM: same three-panel structure as the published figure; residual style differences are backend-level (square legend corners, GR dash pattern, shorter ticks). 10 s at -t1, tier fast."
 
 [[result]]
@@ -905,5 +905,5 @@ kind = "check"
 script = "arXiv-2207.14637/check_printed_numbers.jl"
 tier = "fast"
 depends = ["AccretionDisc"]
-status = "future"
-notes = "ECC::fr22-setup-parameters (status mirrors the ledger node; future until it is promoted). Initial gate checks the FR22Setup object's printed setup, definitions and target values against the extracted JSON and tex anchors in EMRI_DISK_ROOT. Convergence figure claims remain pending. Softening 0.3H remains an explicit unresolved policy choice. No expected key: this check has no numerical golden of its own."
+status = "solid"
+notes = "ECC::fr22-setup-parameters (status mirrors the ledger node). Initial gate checks the FR22Setup object's printed setup, definitions and target values against the extracted JSON and tex anchors in EMRI_DISK_ROOT. Convergence figure claims remain pending. Softening 0.3H remains an explicit unresolved policy choice. No expected key: this check has no numerical golden of its own."
