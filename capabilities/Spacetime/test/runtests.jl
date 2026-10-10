@@ -22,6 +22,7 @@ using Spacetime
     include("test_equatorial_branch.jl")
     include("test_turning_point_jacobian.jl")
     include("test_eccentric_harmonics.jl")
+    include("test_equatorial_map.jl")
     include("test_separatrix.jl")
     include("test_christoffel.jl")
     include("test_schwarzschild_orbit.jl")

@@ -63,6 +63,9 @@ export separatrix, kerr_isco, get_separatrix, kerr_isso, isso_radial_curvature
 include("Geodesics/harmonics.jl")
 export EquatorialOrbit, worldline_rates, orbit_frequency, orbit_harmonic
 
+include("Geodesics/equatorial_map.jl")
+export EL_to_pe_jacobian, ELdot_to_pedot, eccentric_mode_numerator
+
 include("Geometry/christoffel.jl")
 export christoffel, christoffel_dr, christoffel_dtheta
 

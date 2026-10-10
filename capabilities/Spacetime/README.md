@@ -86,6 +86,23 @@ contains the equations and reproduction command. C-ORBIT/C-HARM checks live
 in `test/test_eccentric_harmonics.jl`; C-MAP chain checks run in the same
 Spacetime test environment in `test/test_turning_point_jacobian.jl`.
 
+`EL_to_pe_jacobian(a,p,e)` constrains that owner to K=(Lz−aE)², with
+`xdot=0`. `ELdot_to_pedot(orbit,Edot,Ldot)` returns the element rates and
+rejects excessive conditioning or changes above 1% per radial period (both
+thresholds are configurable). For small eccentricity supply
+`eccentric_numerator=eccentric_mode_numerator(orbit,alpha,modes;
+axisymmetric_power,mu)`, where `alpha=∂pE/∂pL` and each mode has `m,k,torque`.
+Disc power and torque enter with the negative reaction sign. Include the
+summed m=0 power explicitly; the helper never divides it by m.
+
+These rate APIs require e>0. The separate circular certificates in
+`test/test_equatorial_map_circular.jl` use s=e² and a double-root expansion:
+sdot has a finite limit away from the ISCO, while a finite de/e additionally
+requires a smooth, circular-preserving forcing law, N(0)=0 for
+N=Edot−(∂pE/∂pL)Ldot. Then lim(de/e)=N_s(0)/(2(E_s−alpha L_s)_0).
+The numerator rewrite alone does not evaluate this 0/0. Neither certificate
+asserts that a future disc solver satisfies the required forcing assumptions.
+
 ## Dependencies
 
 - **Runtime:** `LinearAlgebra`, `NumericsCore` (Carlson/elliptic/Jacobi for Geodesics;
