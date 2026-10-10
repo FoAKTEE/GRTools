@@ -14,6 +14,7 @@ using Spacetime
     # or against an analytic identity (Schwarzschild ISCO = 6M, separatrix p = 6 + 2e at a=0,
     # metric det/inverse identities, geodesic-constant consistency).
     include("test_geodesics_constants.jl")
+    include("test_negative_spin_constants.jl")
     include("test_geometry.jl")
     include("test_geodesics_frequencies.jl")
     include("equatorial_quadrature_oracle.jl")

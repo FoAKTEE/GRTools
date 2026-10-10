@@ -42,6 +42,7 @@ end
 Radial worldline of a generic (inclined) bound Kerr geodesic (M = 1). Returns
 `qr -> (; r, Ur, Δtr, Δφr)`: BL radius and the oscillating radial deviations of t, φ (the
 KerrGeoOrbit "Phases" convention). Replaces `KerrGeoTrajectoryRadial`.
+For a<0, |x|=1, reflect to (-a,-x), reversing only the azimuthal deviation.
 """
 function geodesic_trajectory_radial(a, p, e, x)
     if a < 0 && x^2 == 1

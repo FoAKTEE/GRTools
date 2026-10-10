@@ -57,6 +57,6 @@ function quadrature_orbit(a::T, p::T, e::T; n=128) where {T<:AbstractFloat}
         s = reflected ? -one(T) : one(T)
         return (r=r, Ur=s*Ur, Δtr=s*deviations[1], Δφr=s*deviations[2], Δτr=s*deviations[3])
     end
-    return (; at_phase, Υr, Γ=means[1], Υφ=means[2], Υτ=means[3], rates, dlambda, radius, nodes, weights)
+    return (; E, L, at_phase, Υr, Γ=means[1], Υφ=means[2], Υτ=means[3], rates, dlambda, radius, nodes, weights)
 end
 end

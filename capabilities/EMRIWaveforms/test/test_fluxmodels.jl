@@ -16,6 +16,7 @@ using Test
 using EMRIWaveforms.FluxModels
 using NumericsCore: GslBicubic, TricubicNotAKnot
 using EMRIWaveforms.Mappings: apex_of_uwyz, apex_of_UWYZ
+using Spacetime: get_separatrix
 import Data
 using HDF5    # fires DataHDF5Ext — read_fluxgrid body activates
 using TestKit: oracle_root, oracle_or_skip
@@ -163,6 +164,24 @@ const _KERR_H5 = joinpath(_FEWDATA, "KerrEccEqFluxData.h5")
                 @test FEW.convert_Y(flux) == false
                 @test FEW.background(flux) == :Kerr
                 @test FEW.num_add_args(flux) == 0
+            end
+        end
+
+        # ---- retrograde separatrix (FEW flux.py:640-641) ----
+        # The default pLSO is the apex separatrix get_separatrix(a, e, x), not one taken at the grid's
+        # signed spin a_in = -a; under the signed-spin chart (-a, x = -1) is the PROGRADE orbit.
+        @testset "retrograde default pLSO is the apex separatrix" begin
+            if oracle_or_skip(isfile(_KERR_H5), "FEW.KerrEccEqFlux retrograde pLSO"; env = "GRTOOLS_FEWDATA_DIR")
+                for convention in ("ELQ", "pex")
+                    flux = FEW.KerrEccEqFlux(; convention,
+                                             downsample = ((32, 16, 16), (16, 8, 8)), file = _KERR_H5)
+                    for (a, p, e) in ((0.9, 12.0, 0.3), (0.5, 14.0, 0.2))
+                        psep = get_separatrix(a, e, -1.0)
+                        @test psep > get_separatrix(a, e, 1.0)
+                        @test FEW.interpolate_flux_grids(flux, p, e, -1.0, a) ===
+                              FEW.interpolate_flux_grids(flux, p, e, -1.0, a; pLSO = psep)
+                    end
+                end
             end
         end
     end

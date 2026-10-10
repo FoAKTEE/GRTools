@@ -68,10 +68,12 @@ Last-stable-orbit separatrix `p_sep(a, e, x)` (Stein–Warburton 2020, M = 1, `x
 Branches: a=0 → `6+2e`; e=0,|x|=1 → `kerr_isco`; |x|=1 → root of the equatorial polynomial;
 x=0 → root of the polar polynomial; otherwise the generic-polynomial root bracketed between
 the equatorial and polar separatrices (sign of x selects the bracket).
+At negative spin on the equator use `(-a,e,-x)` to select the physical bracket.
 """
 function separatrix(a::Real, e::Real, x::Real)
     T = float(promote_type(typeof(a), typeof(e), typeof(x)))
     a, e, x = T(a), T(e), T(x)
+    a < 0 && abs(x) == 1 && return separatrix(-a,e,-x)
     if a == 0
         return 6 + 2e
     elseif e == 0 && abs(x) == 1

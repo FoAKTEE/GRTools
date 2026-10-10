@@ -40,6 +40,29 @@ include(joinpath(@__DIR__, "fixtures", "spacetime_spinning_ref.jl"))  # SPIN_{LI
         a, p, e, spar, gauge = c
         o  = spin_orbit(a, p, e, 1.0, spar; gauge = gauge)
         oo = SPIN_ORBIT_REF[ci]
+        independent = nothing
+        if a < 0
+            # Replace the wrong-chart scalar fixture using the radial-root spin
+            # displacement and a separately integrated shifted geodesic.
+            ab,pb,eb,sb=BigFloat.((a,p,e,spar))
+            base=quadrature_orbit(ab,pb,eb)
+            K=(base.L-ab*base.E)^2
+            ra=pb/(1-eb); rp=pb/(1+eb)
+            dra=-((ra^2+ab^2)*base.E-ab*base.L)/(ra*sqrt(K))
+            drp=-((rp^2+ab^2)*base.E-ab*base.L)/(rp*sqrt(K))
+            pT=pb-sb*2(rp^2*dra+ra^2*drp)/(ra+rp)^2
+            eT=eb-sb*2(rp*dra-ra*drp)/(ra+rp)^2
+            independent=quadrature_orbit(ab,pT,eT)
+            Et,Lt=independent.E,independent.L
+            Kt=(Lt-ab*Et)^2
+            oo=(EnTilde=Et,JzTilde=Lt,KTilde=Kt,pTilde=pT,eTilde=eT,
+                Energy=Et-sb*(1-Et^2)/(2sqrt(Kt)),
+                AngularMomentum=Lt-sb*(ab-Et*Lt/2)/sqrt(Kt),
+                CarterConstantK=Kt-sb*(3ab*(Lt-ab*Et)-Et*Kt)/sqrt(Kt),
+                Frequencies=(Ur=independent.Υr,Uph=independent.Υφ,
+                    Ut=independent.Γ-3sb*independent.Υτ/(2sqrt(Kt))),
+                ProperTimeFrequency=independent.Υτ)
+        end
         for f in (:EnTilde, :JzTilde, :KTilde, :pTilde, :eTilde, :Energy, :AngularMomentum, :CarterConstantK)
             @test isapprox(getfield(o, f), getfield(oo, f); rtol = 1e-9, atol = 1e-12)
         end
@@ -47,10 +70,8 @@ include(joinpath(@__DIR__, "fixtures", "spacetime_spinning_ref.jl"))  # SPIN_{LI
         @test isapprox(o.Frequencies.Uph, oo.Frequencies.Uph; rtol = 1e-8, atol = 1e-11)
         @test isapprox(o.Frequencies.Ut,  oo.Frequencies.Ut;  rtol = 1e-8, atol = 1e-11)
         @test isapprox(o.ProperTimeFrequency, oo.ProperTimeFrequency; rtol = 1e-9, atol = 1e-11)
-        # The negative-spin legacy trajectory used constants from the wrong chart.
-        # Keep the scalar fixture; independently integrate its shifted geodesic and
-        # apply the stated Δt_spin = Δt_geo - 3s/(2√K̃) Δτ_geo assembly.
-        independent = a < 0 ? quadrature_orbit(BigFloat(a),BigFloat(oo.pTilde),BigFloat(oo.eTilde)) : nothing
+        # Independently integrate the corrected shifted geodesic and apply
+        # Δt_spin = Δt_geo - 3s/(2√K̃) Δτ_geo.
         for (qi, qr) in enumerate((0.0, 0.7, 1.6, 3.0))
             reference = if independent === nothing
                 oo.trajectory[qi]

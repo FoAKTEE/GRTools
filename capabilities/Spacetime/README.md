@@ -72,11 +72,13 @@ Check convergence by increasing N for the orbit and harmonic of interest.
 
 `turning_point_jacobian` and `orbital_params_jacobian` live in Geodesics;
 `SpinningSecondary.spin_orbital_params_jacobian` is the compatibility wrapper.
-The constants differentiated are (E,Lz,K), where K=Q+(Lz−aE)². The legacy
-Jacobian keeps its original arithmetic and signed-spin constants convention:
-physical inverse checks use a≥0 with signed x. A consumer of negative-a element
-maps must normalize that chart explicitly. Circular turning-point degeneracy
-(e=0) is outside this Jacobian's domain.
+The constants differentiated are (E,Lz,K), where K=Q+(Lz−aE)². Equatorial
+negative-spin constants and the separatrix now normalize the reflected chart
+in their common owners; callers need no chart correction. The Jacobian uses
+the original signed-a coordinates. Circular turning-point degeneracy (e=0)
+is outside this Jacobian's domain. Inclined negative spin (a<0, 0<|x|<1, e>0)
+is NOT normalized: its constants fail R(r_p)=0 and its separatrix ignores the
+sign of a. Use a≥0 with signed x there (open obligation st-o-negative-spin-inclined).
 
 The equatorial trajectory fixture is independently generated from Darwin-angle
 quadrature; [its provenance](test/fixtures/spacetime_trajectory_PROVENANCE.md)

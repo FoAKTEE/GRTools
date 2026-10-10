@@ -136,9 +136,14 @@ end
 Orbital energy `E` of a generic bound Kerr geodesic (M = 1), `x = cos(inclination)`. Selects the
 circular (e = 0) or generic (e > 0) closed form.
 """
-@inline geodesic_energy(a, p, e, x) = iszero(x) ?
+@inline function geodesic_energy(a, p, e, x)
+    if _reflect_eccentric_equator(a,e,x)
+        a,x = -a,-x
+    end
+    return iszero(x) ?
     (iszero(e) ? _energy_polar_circular(a, p) : _energy_polar_generic(a, p, e)) :
     (iszero(e) ? _energy_circular(a, p, x) : _energy_generic(a, p, e, x))
+end
 
 """
     geodesic_angular_momentum(a, p, e, x[, E]) -> Lz
@@ -163,8 +168,15 @@ neighbouring radius.
     arithmetic (an ISCO scaling, a mesh coordinate, a unit conversion) may land a few ulp away and
     get one of those values with no warning. `E` is unaffected there (4.3e-16).
 """
-@inline geodesic_angular_momentum(a, p, e, x) = iszero(x) ? _constants_zero(a, p, e, x) :
+@inline function geodesic_angular_momentum(a, p, e, x)
+    reflected = _reflect_eccentric_equator(a,e,x)
+    if reflected
+        a,x = -a,-x
+    end
+    Lz = iszero(x) ? _constants_zero(a, p, e, x) :
     (iszero(e) ? _angular_momentum_circular_sel(a, p, x) : _angular_momentum_generic(a, p, e, x))
+    return reflected ? -Lz : Lz
+end
 @inline geodesic_angular_momentum(a, p, e, x, _E) = geodesic_angular_momentum(a, p, e, x)
 
 """
@@ -174,9 +186,14 @@ Carter constant `Q` of a generic bound Kerr geodesic (M = 1). Passed `E`/`Lz` ar
 (present for the legacy delegating-wrapper signature). `Q` is exactly zero on the equator, the
 `p = 2` endpoint included (there the Schmidt form is `0*NaN`; see `geodesic_angular_momentum`).
 """
-@inline carter_constant(a, p, e, x) = iszero(x) ?
+@inline function carter_constant(a, p, e, x)
+    if _reflect_eccentric_equator(a,e,x)
+        a,x = -a,-x
+    end
+    return iszero(x) ?
     (iszero(e) ? _carter_polar_circular(a, p) : _carter_polar_generic(a, p, e)) :
     (iszero(e) ? _carter_circular_sel(a, p, e, x) : _carter_generic(a, p, e, x))
+end
 @inline carter_constant(a, p, e, x, _E) = carter_constant(a, p, e, x)
 @inline carter_constant(a, p, e, x, _E, _Lz) = carter_constant(a, p, e, x)
 
@@ -185,6 +202,14 @@ Carter constant `Q` of a generic bound Kerr geodesic (M = 1). Passed `E`/`Lz` ar
 
 The `(E, Lz, Q)` bundle for a generic bound Kerr geodesic (M = 1). Canonical replacement for the
 KerrGeodesics `KerrGeoConstantsOfMotion` and the KerrBackwards `constants_of_motion` wrapper.
+For negative spin on an eccentric equatorial orbit, evaluate in the reflected
+chart `(-a,p,e,-x)` and reverse Lz. The scalar accessors use the same rule.
+The circular formulas and all a≥0 evaluations retain their operation order.
 """
 @inline constants_of_motion(a, p, e, x) =
     (E = geodesic_energy(a, p, e, x), Lz = geodesic_angular_momentum(a, p, e, x), Q = carter_constant(a, p, e, x))
+
+# The Schmidt eccentric square-root branch assumes nonnegative a. Kerr reflection
+# preserves E,Q and reverses Lz. Keep circular and inclined arithmetic unchanged.
+# Inclined a<0, e>0 is still unnormalized (R(r_p)≠0): pass a≥0 with signed x there.
+@inline _reflect_eccentric_equator(a,e,x) = a < 0 && e > 0 && abs(x) == 1

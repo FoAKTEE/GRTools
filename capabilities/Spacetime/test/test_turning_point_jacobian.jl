@@ -12,10 +12,8 @@ using Spacetime.SpinningSecondary: spin_orbital_params_jacobian
                 a,p,e,x = parse.(T,(as,ps,es,xs))
                 J=orbital_params_jacobian(a,p,e,x)
                 @test isequal(J,spin_orbital_params_jacobian(a,p,e,x))
-                # The legacy signed-spin constants are preserved bitwise above. The
-                # constrained inverse certificate uses a≥0 and both signs of x;
-                # signed-a chart normalization belongs to the element-map consumer.
-                if abs(x)==1 && a>=0
+                # The constants owner normalizes equatorial signed spin.
+                if abs(x)==1
                     E,L,_ = constants_of_motion(a,p,e,x)
                     chain = T[1 0; 0 1; -2a*(L-a*E) 2*(L-a*E)]
                     constrained = J*chain

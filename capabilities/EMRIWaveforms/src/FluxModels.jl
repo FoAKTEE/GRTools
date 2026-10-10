@@ -266,7 +266,8 @@ PN normalization (`KerrEccEqFlux.interpolate_flux_grids`).
 function interpolate_flux_grids(flux::KerrEccEqFlux, p::Real, e::Real, x::Real, a::Real;
                                 pLSO = nothing)
     a_in = x == -1 ? -a : a
-    pl = pLSO === nothing ? get_separatrix(a_in, e, x) : pLSO
+    # FEW flux.py:640-641 takes the separatrix at the apex (a, e, x), not at the grid's signed a_in.
+    pl = pLSO === nothing ? get_separatrix(a, e, x) : pLSO
     u, w, _, z, inA = kerrecceq_forward_map(a_in, p, e, 1.0; pLSO = pl,
                                             return_mask = true, kind = "flux")
     tag = inA ? :A : :B

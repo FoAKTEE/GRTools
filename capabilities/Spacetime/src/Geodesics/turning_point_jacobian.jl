@@ -6,8 +6,8 @@
 Return `∂(r_apo,r_peri,z_max²)/∂(E,Lz,K)` at fixed spin, where
 `K = Q + (Lz-aE)²`. Requires distinct radial turning points (e > 0),
 a bound orbit away from the separatrix, and a nondegenerate polar root.
-The legacy constants convention is preserved: use a≥0 with signed x for
-physical derivative checks; negative-a constants require chart normalization.
+Equatorial negative-a constants are normalized by the constants owner; the
+derivatives here are with respect to the original signed-a coordinates.
 """
 function turning_point_jacobian(a, p, e, x)
     En, Lz, Q = constants_of_motion(a, p, e, x)

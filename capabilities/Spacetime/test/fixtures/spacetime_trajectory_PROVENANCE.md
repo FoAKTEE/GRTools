@@ -40,9 +40,10 @@ The radial test uses the exact Ur(0)=0 condition at pericentre; all nonzero
 phase samples retain their original comparison tolerances.
 
 The negative-spin `spin_orbit` fixture also embedded the old geodesic chart.
-Its stored scalar/shifted-element values remain the characterization target.
-`test_spinning_secondary.jl` now checks that case's trajectory by quadrature
-at its stored pTilde,eTilde and the assembly formula
-Δt_spin = Δt_geo − 3s/(2√K̃) Δτ_geo. This checks propagation of the repaired
-geodesic into the existing spin assembly; it does not certify the unchanged
-negative-spin scalar corrections as a new physical result.
+Its stored negative-spin scalar/shifted-element values are superseded by
+`test_spinning_secondary.jl`'s radial-root displacement calculation and
+quadrature at the resulting pTilde,eTilde. Both K and the trajectory use the
+corrected constants. The assembly formula is
+Δt_spin = Δt_geo − 3s/(2√K̃) Δτ_geo. The fixture's other cases remain unchanged.
+This checks consistency of the existing linear-spin assembly; it does not
+constitute an independent certification of the underlying spin dynamics.

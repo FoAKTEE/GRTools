@@ -31,6 +31,7 @@ using Perturbation
     TEST_FILES_PERT = [
         "test_amplitudes.jl", "test_cache_threadsafety.jl",
         "test_fluxes.jl",
+        "test_negative_spin_constants.jl",
         "test_pointparticle.jl",
         "test_published_tables_2303_16798.jl",   # arXiv:2303.16798 Tables I/II/III (slow: ~2.5 min at -t4)
         "test_qnm_fast.jl",

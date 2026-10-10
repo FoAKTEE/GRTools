@@ -25,11 +25,9 @@ end
 
 function EquatorialOrbit(a::Real, p::Real, e::Real)
     a,p,e = promote(float(a),float(p),float(e))
-    # separatrix(a<0,e>0,+1) brackets the prograde root; test the reflected chart instead.
-    abs(a)<1 && 0<=e<1 && p>separatrix(abs(a),e,a < 0 ? -one(a) : one(a)) ||
+    abs(a)<1 && 0<=e<1 && p>separatrix(a,e,one(a)) ||
         throw(ArgumentError("EquatorialOrbit requires |a|<1, 0≤e<1 and p above the separatrix"))
-    E,L,_ = constants_of_motion(abs(a),p,e,a < 0 ? -one(a) : one(a))
-    a < 0 && (L = -L)
+    E,L,_ = constants_of_motion(a,p,e,one(a))
     f = kerr_frequencies(a,p,e,one(a); Time="Mino")
     radial = geodesic_trajectory_radial(a,p,e,one(a))
     return EquatorialOrbit(a,p,e,E,L,f.Ur,f.Uph,f.Ut,f.Ur/f.Ut,f.Uph/f.Ut,radial)
