@@ -18,6 +18,20 @@ struct FR22Setup{S<:Union{Nothing,SofteningPolicy},V<:NamedTuple}
     values::V
 end
 
+"FR22's ordered (m,l) mask: m≥1, l≥1, |l-m|≤lm_max; m_max=0 is empty."
+function fr22_modes(setup::FR22Setup=FR22Setup(); m_max::Integer=setup.values.m_max,
+                    lm_max::Integer=setup.values.lm_max)
+    m_max >= 0 && lm_max >= 0 || throw(ArgumentError("mode truncations must be nonnegative"))
+    [(m, l) for m in 1:m_max for l in max(1, m-lm_max):m+lm_max]
+end
+
+"Nested FR22 Figs. 5–6 mode sets; keys are the varied cutoff."
+function fr22_truncations(setup::FR22Setup=FR22Setup())
+    v = setup.values
+    (; by_m=[m => fr22_modes(setup; m_max=m) for m in 0:v.conv_m_fixed_lm[2]:v.m_max],
+       by_offset=[k => fr22_modes(setup; lm_max=k) for k in 0:v.conv_lm_fixed_m[2]:v.lm_max])
+end
+
 function FR22Setup(::Type{T}=Float64; softening::Union{Nothing,SofteningPolicy}=nothing) where {T<:AbstractFloat}
     eccentricities = (T(1)/10, T(1)/4, T(1)/2)
     phases = (zero(T), T(1)/4, T(1)/2, T(3)/4)

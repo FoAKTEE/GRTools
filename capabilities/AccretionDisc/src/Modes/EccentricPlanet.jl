@@ -15,6 +15,22 @@ struct EccentricOrbit{T<:AbstractFloat}
     end
 end
 
+"""
+    lindblad_locations(orbit::EccentricOrbit, m, l) -> (r_minus, r_plus)
+
+Pressureless Newtonian FR22 (26) radii for positive-frequency modes, `m,l ≥ 1`.
+The minus branch is inner and the plus branch outer. For `m=1` the inner
+resonance is absent (`nothing`), not a radius at zero. This overload does not
+include pressure or relativistic frequency shifts. The common mean motion
+cancels; radii inherit the orbit's floating type and precision.
+"""
+function lindblad_locations(orbit::EccentricOrbit{T}, m::Integer, l::Integer) where {T}
+    m >= 1 && l >= 1 || throw(ArgumentError("pressureless FR22 radii require m,l ≥ 1"))
+    inner = m == 1 ? nothing : orbit.a * cbrt(T(m - 1) / T(l))^2
+    outer = orbit.a * cbrt(T(m + 1) / T(l))^2
+    inner, outer
+end
+
 function _kepler_eccentricity(e)
     isfinite(e) && 0 <= e < 1 || throw(DomainError(e, "elliptic eccentricity must satisfy 0 ≤ e < 1"))
     e
