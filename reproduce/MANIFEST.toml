@@ -897,3 +897,13 @@ tier = "fast"
 depends = ["AccretionDisc"]
 status = "future"
 notes = "ECC::fd25-printed-numbers-gate. Will assert every printed number of arXiv:2506.19917 that the figure goldens cover (scales, torque exponents and extrema, rate features, convergence integrals). NO expected key by design, as for the 2608.17003 gate. SCAFFOLD (ECC::fd25-repro-scaffold): the script is the shared HOLE stub (exit 3, SKIP)."
+
+[[result]]
+paper = "2207.14637"
+id = "fr22_check_printed_numbers"
+kind = "check"
+script = "arXiv-2207.14637/check_printed_numbers.jl"
+tier = "fast"
+depends = ["AccretionDisc"]
+status = "future"
+notes = "ECC::fr22-setup-parameters (status mirrors the ledger node; future until it is promoted). Initial gate checks the FR22Setup object's printed setup, definitions and target values against the extracted JSON and tex anchors in EMRI_DISK_ROOT. Convergence figure claims remain pending. Softening 0.3H remains an explicit unresolved policy choice. No expected key: this check has no numerical golden of its own."

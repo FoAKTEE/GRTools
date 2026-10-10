@@ -42,6 +42,7 @@ const PAPER_TITLES = Dict(
     "1010.0759"      => "Fujita, Hikida & Tagoshi — Teukolsky MST fluxes",
     "1301.1591"      => "Chrzanowski-Cohen-Kegeles metric reconstruction",
     "1811.09628"     => "Pound et al. — second-order self-force",
+    "2207.14637"     => "Fairbairn & Rafikov — density waves from eccentric planets, linear theory (mission paper)",
     "2303.16798"     => "Piovano et al. — generic linear-in-spin fluxes",
     "2506.19917"     => "Fairbairn & Dittmann — eccentric planet-disc interactions to e = 0.7 (mission paper; scaffold)",
     "2506.20726"     => "scalar self-force / effective source",
