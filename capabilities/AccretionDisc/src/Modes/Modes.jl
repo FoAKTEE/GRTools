@@ -57,8 +57,9 @@ export PotentialCache, passive_mode, passive_sigma
 export laplace_b_soft, laplace_b_soft_deriv, laplace_b_soft_2deriv
 
 # DESIGN v3 §3 owners of the FR22/FR24 eccentric Newtonian planet.
-include("EccentricPlanet.jl")   # FR22 (24)-(25) Kepler orbit
+include("EccentricPlanet.jl")   # FR22 (24)-(25) Kepler orbit; ZZ22 (4)-(9) wavelets
 export EccentricOrbit, kepler_E, planet_orbit
+export zz22_wavelet, zz22_track
 
 include("PressurelessLindblad.jl")
 export SurfaceDensityProfile, PowerLawSigma

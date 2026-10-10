@@ -8,7 +8,7 @@ using AccretionDisc
 
     include("hygiene.jl")
     include("test_forcing_modes.jl")
-    include("test_eccentric_newtonian.jl")       # ECC::fr22-kepler-orbit
+    include("test_eccentric_newtonian.jl")       # ECC::fr22-kepler-orbit, ECC::fr22-zz22-overlay
 
     include("Modes/test_background.jl")
     include("Modes/test_velocity.jl")

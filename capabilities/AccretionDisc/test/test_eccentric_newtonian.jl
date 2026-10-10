@@ -65,3 +65,53 @@ using NumericsCore: bisect
         @test EccentricOrbit(1, big"0.25", 1) isa EccentricOrbit{BigFloat}
     end
 end
+
+@testset "ZZ22 wavelet owner" begin
+    using NumericsCore: gl_nodes_weights
+    for T in (Float64, BigFloat)
+        setprecision(BigFloat, 256) do
+            nodes, weights = gl_nodes_weights(T, 128)
+            tol = T === Float64 ? T(2e-12) : T(10)^(-65)
+            for e in T.((0, 1//10, 1//4, 1//2)), t1 in T.((0, 1, 3)), dir in (-1, 1)
+                orb = EccentricOrbit(one(T), e, one(T))
+                cs, age = T(1)/10, T(2)
+                p = planet_orbit(t1, orb)
+                w = zz22_wavelet(t1, t1+age, orb, dir; cs)
+                @test w.R ≈ p.r_p+dir*cs*age rtol=8eps(T)
+                # Independent quadrature of ZZ22 (7), split at the corotation kink.
+                # Trailing-wave convention gives dtheta/dR=-|Omega_pat-Omega(R)|/cs.
+                rc = p.dphi_dt^(-T(2)/3)
+                lo, hi = minmax(p.r_p, w.R)
+                bounds = lo < rc < hi ? (lo, rc, hi) : (lo, hi)
+                integral = zero(T)
+                for (a, b) in zip(bounds[1:end-1], bounds[2:end])
+                    radii = (a+b)/2 .+ (b-a)/2 .* nodes
+                    integral += (b-a)/2 * sum(weights .* abs.(p.dphi_dt .- radii.^(-T(3)/2))) / cs
+                end
+                theta = p.phi_p+p.dphi_dt*age-sign(w.R-p.r_p)*integral
+                @test abs(w.theta-theta) <= tol
+                launch = zz22_wavelet(t1, t1, orb, dir; cs)
+                @test launch.R == p.r_p
+                @test abs(launch.theta-p.phi_p) <= 8eps(T)*max(1,abs(p.phi_p))
+                @test w.R isa T && w.theta isa T
+                # Physical length/time scaling: a -> 2a, n -> 3n, cs -> 6cs.
+                scaled = zz22_wavelet(t1/3, (t1+age)/3, EccentricOrbit(T(2),e,T(3)), dir; cs=6cs)
+                @test abs(scaled.R/2-w.R) <= 64eps(T)
+                @test abs(scaled.theta-w.theta) <= 256eps(T)*max(1,abs(w.theta))
+            end
+            orb = EccentricOrbit(one(T), T(1)/2, one(T))
+            @test zz22_wavelet(zero(T), T(10), orb, -1; cs=T(1)/10) === nothing
+            out = zz22_track(orb, T(3), 1; cs=T(1)/10, dt=T(1)/10)
+            @test length(out) == 31
+            @test first(out)[1] == 0 && last(out)[1] == 30
+            @test all(0 <= row[3] <= 2 for row in out)
+            @test eltype(out) == Tuple{Int,T,T}
+            @test length(zz22_track(orb,T(3),1;cs=T(1)/10,dt=T(2))) == 2
+        end
+    end
+    orb = EccentricOrbit(1, 0.25, 1)
+    @test_throws ArgumentError zz22_wavelet(0, 1, orb, 0; cs=0.1)
+    @test_throws DomainError zz22_wavelet(1, 0, orb, 1; cs=0.1)
+    @test_throws DomainError zz22_wavelet(0, 1, orb, 1; cs=0)
+    @test_throws DomainError zz22_track(orb,1,1;cs=0.1,dt=0)
+end

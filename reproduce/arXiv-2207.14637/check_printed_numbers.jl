@@ -1,7 +1,8 @@
 # Setup-value gate only: convergence-result verification belongs to the later figure nodes.
 include(joinpath(@__DIR__, "..", "_lib", "repro_harness.jl"))
 using .ReproHarness
-include(joinpath(@__DIR__, "_fr22_setup.jl"))
+include(joinpath(@__DIR__, "_zz22_wavelets.jl"))
+using .ZZ22Wavelets: FR22Setup
 
 "Compare the complete setup object with the independently extracted JSON and its tex anchors."
 function check_fr22_setup(setup::FR22Setup, spec, src)
@@ -52,7 +53,11 @@ function main()
     src = joinpath(root, "ref-paper", "arXiv-2207.14637", "src")
     isfile(specpath) && isdir(src) || ReproHarness.hole("FR22 extracted setup/source missing; set EMRI_DISK_ROOT")
     spec = ReproHarness.json_read(read(specpath, String))
-    check_fr22_setup(FR22Setup(), spec, src) ? 0 : 1
+    setup = FR22Setup()
+    consumer_ok = ZZ22Wavelets.SETUP.values == setup.values &&
+                  ZZ22Wavelets.SETUP.softening === setup.softening
+    println(consumer_ok ? "[PASS] wavelet driver uses the shared setup" : "[FAIL] wavelet driver setup differs")
+    check_fr22_setup(setup, spec, src) && consumer_ok ? 0 : 1
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
