@@ -1,0 +1,22 @@
+name = "FRDerivation"
+uuid = "51fb50ef-d22c-43c8-a15f-b6373c953728"
+version = "0.1.0"
+
+[deps]
+AccretionDisc = "41b4f346-9cfd-4132-92af-b9cd45d2bbed"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
+Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+TestKit = "a6b7dd63-3a78-412f-8db2-e0e7b8b9a65d"
+
+[sources]
+AccretionDisc = {path = ".."}
+TestKit = {path = "../../../core/TestKit"}
+
+[compat]
+AccretionDisc = "0.1"
+SymbolicUtils = "4"
+Symbolics = "=7.36.0"
+julia = "1.10"
