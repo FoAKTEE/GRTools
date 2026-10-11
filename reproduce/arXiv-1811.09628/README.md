@@ -47,13 +47,14 @@ driver here regenerates from package functions.
 | 12 | `secondary_amplitude_homogeneous` | — | fast | future | theory curves are cheap; the overlaid POINTS are published reference values — the authors' amplitude-ID driver is unpublished |
 | 13 | `mode_phases` | — | heavy | future | m = 2…30 global modes; the legacy run capped at m = 20 as compute-prohibitive |
 | 14 | `dphi_phi_theory` | — | heavy | future | the theory curves are cheap and were reproduced exactly by the legacy run; the published NUMERICAL (dotted) overlay needs the full 2-D synthesis + arm extraction |
-| 15 | `phase_refine` | — | heavy | future | needs the fig-13 mode bank |
+| 15 | `phase_refine` | `fig15_phase_refine.jl` | heavy | **preliminary — does NOT match yet** | one m = 10 forced solve plus one MR App. A secant step (≈ 380 s at -t1; the caption needs no mode bank). The golden pins our own output for regression only: reference acceptance 17/21, VLM mismatch, unattributed (see "Figure 15" below) |
 | 16 | `m_max` convergence | — | heavy | future | one `solve_modes(d, 1:80, x)` (≈ 1.7 h) then m-sum truncation at 10/20/40/80 |
 
-**Summary: 1 of 16 has a driver and regenerates end-to-end; 14 are compute-bound (the physics is now
-in the package, the wall time is the obstacle) and 1 (fig 6) has a genuine external dependency.**
-None of the 15 in-scope figures is blocked on missing physics any more — that is what this wave
-changed.
+**Summary: 2 of 16 have a driver. Fig. 1 regenerates end-to-end and matches; fig. 15 regenerates our
+own computation but does not yet reproduce the published figure (preliminary). 13 are compute-bound
+(the physics is now in the package, the wall time is the obstacle) and 1 (fig 6) has a genuine
+external dependency.** None of the 15 in-scope figures is blocked on missing physics any more —
+that is what the migration wave changed.
 
 ## Figure 1 — measured agreement with the legacy run
 
@@ -78,6 +79,33 @@ identical 3-panel stack, identical axes and ticks, identical curve shapes, wavel
 magnitudes in every panel, Re black / Im red, corotation line at r = 1 with the m = 2 spike. The
 published figure's own remaining difference is unchanged from the legacy assessment: it used ≈ 1e5
 grid points, so its exterior red fill is denser than a 2e4-point render.
+
+## Figure 15 — preliminary: the golden is a regression pin, not a reproduction
+
+`fig15_phase_refine.jl` calls `AccretionDisc.Modes.mr19_phase_refinement`: one forced m = 10 solve
+on the 60 000-point grid of MR19 §2 (h_p = 0.1 in the paper's adiabatic sound-speed convention,
+p = q = 1, γ = 7/5, softening 0.06, β = 10⁸ as the no-cooling limit), followed by ONE secant step of
+MR19 App. A on (C_in, C_out), ported from the authors' `main.py` (`phase_error_diagnostic` and the
+`phgrad_steps` loop) into `Modes/PhaseGradient.jl` and exposed as `solve_m_mode(...; phgrad_steps = 1)`.
+The default `phgrad_steps = 0` leaves the solver bitwise unchanged.
+
+**The golden `expected/fig15_phase_refine.json` stores OUR computed curves and diagnostics so that a
+later change to the solver is detected. It does not certify agreement with the paper.** The
+preregistered comparison with the published vector figure (emri-disk
+`results/emri-eccentric/paper_EMRI-ECC/evidence/mr19-fig15/`, `TOLERANCES.json` fixed before the run)
+passes 17 of 21 checks. The four failures:
+
+| check | measured | bound |
+|---|---|---|
+| before panel, max point-to-polyline distance (computed→published / published→computed) | 2.56 / 2.70 pt | 1.5 pt |
+| after panel, max pointwise error for r ≤ 0.7 r_p and r ≥ 1.1 r_p (attained at r ≈ 1.18 r_p, on the steep flank right of r_p) | 3.5 × 10⁻³ | 5 × 10⁻⁴ |
+| outer boundary X_after / X_before | 0.281 | 0.2 |
+
+The VLM comparison is a **mismatch**: panels, axes, labels, the off-frame feature at r_p, the dip near
+1.25 r_p and the suppression of the inner oscillation agree, but the inner-disc oscillation of panel
+(a) is phase-shifted (its extrema sit 1–2 % inward of the published ones, giving an extra lobe beside
+the trough at r ≈ 0.73). The cause is unattributed; the reviewer's divergence table between this port,
+the authors' code and the paper text is in the emri-disk evidence (`review/findings.json`).
 
 ## Physics regime — the finding that governs every forced figure
 

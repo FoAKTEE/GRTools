@@ -600,6 +600,17 @@ status = "solid"
 notes = "GRR::migrate-1811.09628. Miranda-Rafikov 2019 Fig. 1 (mode_profiles): fractional surface-density perturbation profiles dSigma_m/Sigma for m = 2, 5, 10 in the figure's unit (M_p/M_th)^-1, on the 20000-point log grid r in [0.05, 5], adiabatic limit beta = 80 (MR19 has NO cooling; the shipped MR20 parameters.py beta = 0.1 damps the outward waves and destroys the figure - carried finding). 676 s for the three solves at -t4. SAME as the legacy DiscModes run to every digit the legacy record printed (results/emri-disk/figures/1811.09628/repro_fig1.spec.md): interior envelope 0.0362796 / 0.0566626 / 0.0378439 vs legacy 0.0363 / 0.0567 / 0.0378; global max 0.269520 / 0.274813 / 0.181617 vs 0.2695 / 0.2748 / 0.1816, all attained at r = 5. Both sets are registered side by side in the golden. VLM comparison of the rendered PNG against the legacy repro_fig1.png: MATCH (identical panels, axes, curve shapes, wavelengths, envelopes). This is the FIRST MR19 figure reproducible inside GrTools: the Newtonian planet-forced disc-mode solver it needs had no GrTools home until this wave (see reproduce/arXiv-1811.09628/README.md for the per-figure record of the other 15)."
 
 [[result]]
+paper = "1811.09628"
+id = "fig15_phase_refine"
+kind = "figure"
+script = "arXiv-1811.09628/fig15_phase_refine.jl"
+tier = "heavy"
+expected = "arXiv-1811.09628/expected/fig15_phase_refine.json"
+depends = ["AccretionDisc", "NumericsCore"]
+status = "preliminary"
+notes = "ECC::mr19-fig15 (preliminary). Miranda-Rafikov 2019 Fig. 15 (phase_refine): fractional phase-gradient error eps_10/k_10 before and after ONE MR App. A secant step on (C_in, C_out), computed by AccretionDisc.Modes.mr19_phase_refinement (m = 10, h_p = 0.1 in the adiabatic sound-speed convention, p = q = 1, gamma = 7/5, softening 0.06, beta = 1e8 as the no-cooling limit, 60000 log points on [0.05, 5]); about 380 s at -t1. THE GOLDEN PINS OUR OWN OUTPUT FOR REGRESSION ONLY. It is NOT a reproduction of the published figure: the preregistered reference acceptance failed 17/21 (before panel: maximum point-to-polyline distance 2.56 / 2.70 pt against 1.5 pt; after panel: maximum pointwise error 3.5e-3 against 5e-4; outer boundary X_after/X_before = 0.281 against 0.2), and the VLM verdict is mismatch (the inner-disc oscillation pattern of panel (a) is phase-shifted near the trough at r = 0.7-0.8). The discrepancy is unattributed. Evidence and review: emri-disk results/emri-eccentric/paper_EMRI-ECC/evidence/mr19-fig15/."
+
+[[result]]
 paper = "1301.1591"
 id = "tails_spin_ladder"
 kind = "figure"
