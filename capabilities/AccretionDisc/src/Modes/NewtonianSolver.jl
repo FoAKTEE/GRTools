@@ -13,33 +13,63 @@
 
 using NumericsCore: integrate_grid, local_interp
 
+# Direct forcing remains the circular Laplace harmonic, even when a different
+# frequency is supplied for an operator test. Eccentric production supplies a cache.
+_forcing_at(d, r, m, ::Nothing) = (Phi_m(d,r,m), dPhidr_m(d,r,m), d2Phidr2_m(d,r,m))
+_forcing_value_derivative(d, r, m, ::Nothing) = (Phi_m(d,r,m), dPhidr_m(d,r,m))
+
+function _mode_anchor(d, x, mode, anchor)
+    if anchor === :legacy || (anchor === :auto && omega_pat(d,mode) == _azimuthal_number(mode))
+        return argmin(abs.(x .- 1))
+    elseif anchor === :corotation || anchor === :auto
+        return corotation_index(d,x,mode)
+    end
+    throw(ArgumentError("anchor must be :auto, :legacy or :corotation"))
+end
+
+# PhaseGradient.jl owns the secant and its finite-difference Jacobian. Its integer
+# m=1 branch is selected there; for a harmonic, reuse that same Jacobian and apply
+# the outer-only correction here, without defining another refinement algorithm.
+function _mode_phase_refine(d, x, mode, fh1, fh2, fih, Ci, Co, ii, io; kwargs...)
+    step = phase_gradient_refine(d,x,mode,fh1,fh2,fih,Ci,Co,ii,io; kwargs...)
+    if mode isa HarmonicMode && mode.m == 1
+        Co -= step.X[2]/step.jacobian[2,2]
+        a1,a2 = homogeneous_coefficients(fh1,fh2,fih,Ci,Co,ii,io)
+        return (; step..., mode=a1 .* fh1 .+ a2 .* fh2 .+ fih, C=(Ci,Co))
+    end
+    step
+end
+
 "Log-spaced radial grid r_in … r_out with `n` points."
 loggrid(d::NewtonianDisc{T}, r_in, r_out, n) where {T} =
     T(10) .^ range(log10(T(r_in)), log10(T(r_out)); length = n)
 
-"Corotation index: argmin |mΩ(r) − ω_p| (the same radius for every m)."
+"Corotation index: argmin |mΩ(r) − ω| for an integer m or a HarmonicMode."
 function corotation_index(d::NewtonianDisc, x, m)
-    best = 1; bv = abs(m * Omega(d, x[1]) - omega_pat(d, m))
+    best = 1; bv = abs(_azimuthal_number(m) * Omega(d, x[1]) - omega_pat(d, m))
     @inbounds for i in 2:length(x)
-        v = abs(m * Omega(d, x[i]) - omega_pat(d, m)); v < bv && (bv = v; best = i)
+        v = abs(_azimuthal_number(m) * Omega(d, x[i]) - omega_pat(d, m)); v < bv && (bv = v; best = i)
     end
     best
 end
 
 """
-    master_rhs(d, r, y, m, ih) -> NTuple{4}
+    master_rhs(d, r, y, mode, ih[, cache]) -> NTuple{4}
 
 Master-equation right-hand side as a real 4-vector `y = [Re δh, Im δh, Re δh′, Im δh′]`.
 `ih = 1` includes the secondary's forcing potential, `ih = 0` gives the homogeneous problem.
+`mode` is an integer circular m or a `HarmonicMode`. The optional cache supplies
+Phi, Phi' and Phi''; without it the forcing is the circular Laplace harmonic.
 """
-function master_rhs(d::NewtonianDisc, r, y, m, ih)
+function master_rhs(d::NewtonianDisc, r, y, mode, ih, cache=nothing)
+    m = _azimuthal_number(mode)
     Om = Omega(d, r); dOm = dOmegadr(d, r); Sig = Sigma(d, r); dSig = dSigmadr(d, r)
-    cs = csadi(d, r); ot = omega_pat(d, m) - m * Om
-    Dv = Dfreq(d, r, m); dD = dDdr(d, r, m)
+    cs = csadi(d, r); ot = omega_pat(d, mode) - m * Om
+    Dv = Dfreq(d, r, mode); dD = dDdr(d, r, mode)
     LSi = LSinv(d, r); dLSi = dLSinvdr(d, r); LTi = LTinv(d, r); dLTi = dLTinvdr(d, r)
     N2 = Nr2(d, r); dN2 = dNr2dr(d, r); t = tc(d, r); dt = dtcdr(d, r)
     if ih == 1
-        Ph = Phi_m(d, r, m); dPh = dPhidr_m(d, r, m); d2Ph = d2Phidr2_m(d, r, m)
+        Ph, dPh, d2Ph = _forcing_at(d, r, m, cache)
     else
         Ph = dPh = d2Ph = zero(r)
     end
@@ -57,9 +87,9 @@ end
 Callable master-equation right-hand side with BOTH an in-place method `(out, r, y)` (zero-allocation,
 the form `NumericsCore.integrate_grid` detects and prefers) and the allocating `(r, y)` form.
 """
-struct MasterRHS{D,I}
+struct MasterRHS{D,M,I}
     d::D
-    m::I
+    m::M
     ih::I
 end
 @inline function (g::MasterRHS)(out::AbstractVector, r, y)
@@ -76,9 +106,12 @@ Integrate the master equation on grid `x` outward AND inward from corotation wit
 `bc = (δh, δh′)` there; column 1 is δh, column 2 is δh′.
 """
 function integrate_master(d::NewtonianDisc{T}, x, bc, m, ih; rtol = 1e-10, atol = 1e-12) where {T}
+    _integrate_master(d, x, bc, m, MasterRHS(d, m, ih); rtol, atol)
+end
+
+function _integrate_master(d::NewtonianDisc{T}, x, bc, m, frhs; rtol, atol) where {T}
     ico = corotation_index(d, x, m)
     y0 = T[real(bc[1]), imag(bc[1]), real(bc[2]), imag(bc[2])]
-    frhs = MasterRHS(d, m, ih)
     Yout = integrate_grid(frhs, y0, x, ico, +1; rtol = rtol, atol = atol)
     Yin  = integrate_grid(frhs, y0, x, ico, -1; rtol = rtol, atol = atol)
     n = length(x); f = zeros(Complex{T}, n, 2)
@@ -100,7 +133,7 @@ function homogeneous_coefficients(yh1, yh2, yih, Ci, Co, i_in, i_out)
     a1, a2
 end
 
-"Adaptive boundary indices: where |δh| first drops below `thresh·|δh(r=1)|` on either side."
+"Adaptive boundary indices: first drop below `thresh*|δh(x[i1])|` on either side."
 function mode_boundaries(f, i1, thresh = 1e-4)
     mx = abs(f[i1, 1]); n = size(f, 1); i_in = 1; i_out = n
     for i in i1:-1:1
@@ -115,7 +148,7 @@ end
 "WKB outgoing-wave coefficients at the two boundaries (with the m = 1 inner correction of main.py)."
 function wkb_boundary_coeffs(d::NewtonianDisc, x, i_in, i_out, m)
     Ci = wkbC(d, x[i_in], m)
-    m == 1 && (Ci -= 2im * kwave(d, x[i_in], m))
+    _azimuthal_number(m) == 1 && (Ci -= 2im * kwave(d, x[i_in], m))
     Co = wkbC(d, x[i_out], m)
     Ci, Co
 end
@@ -131,16 +164,25 @@ zero preserves the original solver. `diagnostics=true` returns a named tuple wit
 boundary constants, boundary errors, and relative changes. With a phase step, `before` is the
 pre-boundary-update baseline, matching the mirrored algorithm. `boundary_coeffs` and
 `phase_scale_height` select the published boundary and scale-height convention.
+`phgrad_safeguard=true` (integer circular `m` only) applies the descent safeguard of
+[`phase_gradient_refine`](@ref) with at most `phgrad_max_backtracks` halvings; the diagnostics
+then also carry its audit as `phase_safeguard`.
+This direct method forces with the circular Laplace harmonic Φ_m, so a `HarmonicMode` is accepted
+here only for the circular planet (`k == 0`, `omega == m`); any other mode needs its own potential
+through the cached method or [`solve_lm_mode`](@ref).
 """
 function solve_m_mode(d::NewtonianDisc, m, x; rtol = 1e-10, atol = 1e-12, kwargs...)
+    m isa HarmonicMode && !(m.k == 0 && m.omega == m.m) &&
+        throw(ArgumentError("direct forcing is the circular Phi_m; pass this mode's PotentialCache"))
     _solve_m_mode(d, m, x; rtol, atol, kwargs...)
 end
 
 function _solve_m_mode(d::NewtonianDisc{T}, m, x, cache...; reint_steps = 2,
                        phgrad_steps = 0, diagnostics = false, boundary_coeffs = wkb_boundary_coeffs,
-                       phase_scale_height = _phase_scale_height, rtol, atol) where {T}
+                       phase_scale_height = _phase_scale_height, anchor = :auto,
+                       phgrad_safeguard::Bool = false, phgrad_max_backtracks::Integer = 6, rtol, atol) where {T}
     phgrad_steps in (0,1) || throw(ArgumentError("phgrad_steps must be 0 or 1 (one MR secant step)"))
-    n = length(x); i1 = argmin(abs.(x .- 1))
+    n = length(x); i1 = _mode_anchor(d, x, m, anchor)
     fh1 = integrate_master(d, x, (one(Complex{T}), zero(Complex{T})), m, 0, cache...; rtol = rtol, atol = atol)
     fh2 = integrate_master(d, x, (zero(Complex{T}), one(Complex{T})), m, 0, cache...; rtol = rtol, atol = atol)
     fih = integrate_master(d, x, (zero(Complex{T}), zero(Complex{T})), m, 1, cache...; rtol = rtol, atol = atol)
@@ -165,8 +207,9 @@ function _solve_m_mode(d::NewtonianDisc{T}, m, x, cache...; reint_steps = 2,
     C_before = (Ci,Co)
     before = phgrad_steps == 1 ? baseline : fm
     if phgrad_steps == 1
-        step = phase_gradient_refine(d,x,m,fh1,fh2,fih,Ci,Co,i_in,i_out;
-                                     baseline,scale_height=phase_scale_height)
+        step = _mode_phase_refine(d,x,m,fh1,fh2,fih,Ci,Co,i_in,i_out;
+                                     baseline,scale_height=phase_scale_height,
+                                     safeguard=phgrad_safeguard,max_backtracks=phgrad_max_backtracks)
         fm = step.mode
         Ci,Co = step.C
     end
@@ -175,28 +218,33 @@ function _solve_m_mode(d::NewtonianDisc{T}, m, x, cache...; reint_steps = 2,
         X_before = phase_error_diagnostic(d,before,x,m,i_in,i_out; scale_height=phase_scale_height)
         X_after = phase_error_diagnostic(d,fm,x,m,i_in,i_out; scale_height=phase_scale_height)
         relative_state_change = ntuple(j -> sqrt(sum(abs2,fm[:,j]-before[:,j])/sum(abs2,before[:,j])),2)
-        return (; mode=fm,before,C_before,C_after=(Ci,Co),X_before,X_after,
+        result = (; mode=fm,before,C_before,C_after=(Ci,Co),X_before,X_after,
                  indices=(i_in,i_out),relative_C_change=abs.(((Ci,Co).-C_before)./C_before),
                  relative_state_change)
+        return phgrad_safeguard && phgrad_steps == 1 ?
+            (; result..., phase_safeguard=step.safeguard) : result
     end
     fm
 end
 
 """
-    vars_from_enthalpy(d, f, x, m) -> (δu_r, δu_φ, δΣ)
+    vars_from_enthalpy(d, f, x, mode[, cache]) -> (δu_r, δu_φ, δΣ)
 
 Reconstruct the velocity and surface-density perturbations from the enthalpy mode `f`
 (main.py `vars_from_enthalpy`). Complex vectors of `length(x)`.
+An integer mode preserves circular forcing; a `HarmonicMode` supplies the total
+frequency. Pass the same potential cache used by the eccentric solve.
 """
-function vars_from_enthalpy(d::NewtonianDisc{T}, f, x, m) where {T}
+function vars_from_enthalpy(d::NewtonianDisc{T}, f, x, mode, cache=nothing) where {T}
+    m = _azimuthal_number(mode)
     n = length(x); u_r = zeros(Complex{T}, n); u_phi = zeros(Complex{T}, n); sig = zeros(Complex{T}, n)
     @inbounds for i in 1:n
         r = x[i]; Om = Omega(d, r); kap = kappa(d, r)
-        ot = (omega_pat(d, m) - m * Om) + im * d.pole_disp; t = tc(d, r); bt = ot * t
+        ot = (omega_pat(d, mode) - m * Om) + im * d.pole_disp; t = tc(d, r); bt = ot * t
         N2 = Nr2(d, r); LSi = LSinv(d, r); LTi = LTinv(d, r)
         Leff = (LTi - im * d.gamma * bt * LSi) / (1 - im * d.gamma * bt)
-        Dv = Dfreq(d, r, m); Dc = Dv - im * d.gamma * bt / (1 - im * d.gamma * bt) * N2
-        Ph = Phi_m(d, r, m); dPh = dPhidr_m(d, r, m); cs = csadi(d, r)
+        Dv = Dfreq(d, r, mode); Dc = Dv - im * d.gamma * bt / (1 - im * d.gamma * bt) * N2
+        Ph, dPh = _forcing_value_derivative(d, r, m, cache); cs = csadi(d, r)
         u_r[i] = im / Dc * (ot * (f[i, 2] + dPh) - 2 * m * Om / r * (f[i, 1] + Ph) - Leff * ot * f[i, 1])
         u_phi[i] = 1 / Dc * (kap^2 / (2 * Om) * (f[i, 2] + dPh) -
                              m * (kap^2 - Dc) / (r * ot) * (f[i, 1] + Ph) - Leff * kap^2 / (2 * Om) * f[i, 1])
@@ -255,32 +303,51 @@ end
      local_interp(lq, c.lg, c.d2P; npts = 4))
 end
 
+_forcing_at(d, r, m, cache::PotentialCache) = potential_at(cache,r)
+_forcing_value_derivative(d, r, m, cache::PotentialCache) = potential_at(cache,r)[1:2]
+
+"""
+    solve_lm_mode(d, mode::HarmonicMode, x, cache::PotentialCache;
+                  reint_steps=2, phgrad_steps=0, anchor=:auto, kwargs...)
+
+Frequency-aware MR shooting solver. Construct `mode = NewtonianMode(m,l,n)` in
+`AccretionDisc.ForcingModes`; its total frequency is `l*n`, in the disc's units
+GM=1. Supply the forcing through any `PotentialCache`, including `harmonic_cache`.
+The cache and grid must use those same length units; for a Kepler orbit n=a^(-3/2).
+
+This corotation shooting method requires m>0 and a positive frequency whose
+corotation lies in the grid. Static, retrograde and axisymmetric modes require a
+different boundary-value treatment and are rejected here.
+
+`:auto` anchors adaptive boundaries at corotation for non-circular frequencies,
+and at r=1 when omega=m to retain circular bit identity. `:corotation` explicitly
+selects corotation for all modes; `:legacy` explicitly selects r=1. Phase correction
+is opt-in, as in `solve_m_mode`; use `phgrad_steps=1` for the FR refinement. Matching
+options and a circular Phi_m cache give the identical circular solve. The phase-step descent
+safeguard (`phgrad_safeguard=true`) accepts integer circular modes only and raises an
+`ArgumentError` for a `HarmonicMode` until its harmonic integration is certified.
+"""
+function solve_lm_mode(d::NewtonianDisc, mode::HarmonicMode, x, cache::PotentialCache; kwargs...)
+    mode.m > 0 && mode.omega > 0 ||
+        throw(ArgumentError("corotation shooting requires m > 0 and omega > 0"))
+    length(x) >= 2 && all(r -> isfinite(r) && r > 0,x) && all(diff(x) .> 0) ||
+        throw(ArgumentError("the radial grid must be positive, finite and strictly increasing"))
+    mode.m*Omega(d,first(x)) >= mode.omega >= mode.m*Omega(d,last(x)) ||
+        throw(ArgumentError("corotation must lie within the radial grid"))
+    length(cache.lg) >= 4 && length(cache.lg) == length(cache.P) == length(cache.dP) == length(cache.d2P) &&
+        all(diff(cache.lg) .> 0) && first(cache.lg) <= log10(first(x)) && last(cache.lg) >= log10(last(x)) ||
+        throw(ArgumentError("the potential cache must have at least four ordered nodes covering the grid"))
+    solve_m_mode(d,mode,x,cache; kwargs...)
+end
+
 "Master-equation right-hand side with the tabulated potential (see [`PotentialCache`](@ref))."
-struct CachedMasterRHS{D,I,C}
+struct CachedMasterRHS{D,M,I,C}
     d::D
-    m::I
+    m::M
     ih::I
     cache::C
 end
-function _cached_rhs(g::CachedMasterRHS, r, y)
-    d = g.d
-    Om = Omega(d, r); dOm = dOmegadr(d, r); Sig = Sigma(d, r); dSig = dSigmadr(d, r)
-    cs = csadi(d, r); ot = omega_pat(d, g.m) - g.m * Om
-    Dv = Dfreq(d, r, g.m); dD = dDdr(d, r, g.m)
-    LSi = LSinv(d, r); dLSi = dLSinvdr(d, r); LTi = LTinv(d, r); dLTi = dLTinvdr(d, r)
-    N2 = Nr2(d, r); dN2 = dNr2dr(d, r); t = tc(d, r); dt = dtcdr(d, r)
-    if g.ih == 1
-        Ph, dPh, d2Ph = potential_at(g.cache, r)
-    else
-        Ph = dPh = d2Ph = zero(r)
-    end
-    C1R, C1I, C0R, C0I, PsiR, PsiI = master_equation_cool(
-        r, d.gamma, cs, Om, dOm, Sig, dSig, LTi, dLTi, LSi, dLSi, ot, t, dt, Dv, dD, N2, dN2,
-        d.pole_disp, Ph, dPh, d2Ph, g.m)
-    @inbounds (y[3], y[4],
-        PsiR - C1R * y[3] + C1I * y[4] - C0R * y[1] + C0I * y[2],
-        PsiI - C1R * y[4] - C1I * y[3] - C0R * y[2] - C0I * y[1])
-end
+_cached_rhs(g::CachedMasterRHS, r, y) = master_rhs(g.d, r, y, g.m, g.ih, g.cache)
 @inline function (g::CachedMasterRHS)(out::AbstractVector, r, y)
     d1, d2, d3, d4 = _cached_rhs(g, r, y)
     @inbounds (out[1] = d1; out[2] = d2; out[3] = d3; out[4] = d4)
@@ -290,18 +357,7 @@ end
 
 function integrate_master(d::NewtonianDisc{T}, x, bc, m, ih, cache::PotentialCache;
                           rtol = 1e-8, atol = 1e-10) where {T}
-    ico = corotation_index(d, x, m)
-    y0 = T[real(bc[1]), imag(bc[1]), real(bc[2]), imag(bc[2])]
-    frhs = CachedMasterRHS(d, m, ih, cache)
-    Yout = integrate_grid(frhs, y0, x, ico, +1; rtol = rtol, atol = atol)
-    Yin  = integrate_grid(frhs, y0, x, ico, -1; rtol = rtol, atol = atol)
-    n = length(x); f = zeros(Complex{T}, n, 2)
-    @inbounds for i in 1:n
-        Y = i >= ico ? Yout : Yin
-        f[i, 1] = Y[i, 1] + im * Y[i, 2]; f[i, 2] = Y[i, 3] + im * Y[i, 4]
-    end
-    f[ico, 1] = bc[1]; f[ico, 2] = bc[2]
-    f
+    _integrate_master(d, x, bc, m, CachedMasterRHS(d, m, ih, cache); rtol, atol)
 end
 
 """

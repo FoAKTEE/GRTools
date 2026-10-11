@@ -17,6 +17,11 @@
 #
 # TYPE-GENERIC (Float64 default; BigFloat inherited).
 
+using ..ForcingModes: HarmonicMode
+
+_azimuthal_number(m::Integer) = m
+_azimuthal_number(mode::HarmonicMode) = mode.m
+
 """
     NewtonianDisc(; h0, q, p, gamma, beta, soft, indirect, pole_disp, lap_nphi)
 
@@ -63,12 +68,13 @@ function dkappadr(d::NewtonianDisc, s)
     (s^(-d.q) * (d.h0^2 * (d.p + d.q) * (d.q^2 - 4) * s + 3 * s^d.q) / 3 /
      sqrt(1 + d.h0^2 * (d.q - 2) * (d.p + d.q) * s^(1 - d.q)))
 end
-"Pattern frequency ω_p = mΩ(r=1) — corotation sits at r = 1 for every m."
-omega_pat(d::NewtonianDisc, m) = m
+"Total forcing frequency: circular m (Ω_K(1)=1), or the supplied harmonic l*n."
+omega_pat(d::NewtonianDisc, m::Integer) = m
+omega_pat(d::NewtonianDisc, mode::HarmonicMode) = mode.omega
 "Resonance denominator D = κ² − (mΩ − ω_p)²; its Lindblad zeros bound the wave-propagating region."
-Dfreq(d::NewtonianDisc, s, m)  = kappa(d, s)^2 - (m * Omega(d, s) - omega_pat(d, m))^2
+Dfreq(d::NewtonianDisc, s, m)  = kappa(d, s)^2 - (_azimuthal_number(m) * Omega(d, s) - omega_pat(d, m))^2
 dDdr(d::NewtonianDisc, s, m)   = 2 * kappa(d, s) * dkappadr(d, s) -
-                                 2 * m * (m * Omega(d, s) - omega_pat(d, m)) * dOmegadr(d, s)
+                                 2 * _azimuthal_number(m) * (_azimuthal_number(m) * Omega(d, s) - omega_pat(d, m)) * dOmegadr(d, s)
 csiso(d::NewtonianDisc, s)     = d.h0 / s^(d.q / 2)
 dcsisodr(d::NewtonianDisc, s)  = -(d.q / 2) * d.h0 / s^(d.q / 2 + 1)
 csadi(d::NewtonianDisc, s)     = sqrt(d.gamma) * csiso(d, s)
@@ -98,7 +104,7 @@ WKB radial wavenumber of the m-th cooled density wave: `k = √(−D_eff)/c_eff`
 sound speed and resonance denominator (MR20 §3). Complex inside the evanescent band.
 """
 function kwave(d::NewtonianDisc, s, m)
-    ot = omega_pat(d, m) - m * Omega(d, s)
+    ot = omega_pat(d, m) - _azimuthal_number(m) * Omega(d, s)
     t = tc(d, s)
     cseff = ((1 + (d.gamma * ot * t)^2) / (1 + (ot * t)^2))^(one(s) / 4) * csiso(d, s)
     Deff = Dfreq(d, s, m) + (d.gamma * ot * t)^2 / (1 + (d.gamma * ot * t)^2) * Nr2(d, s)
@@ -112,7 +118,7 @@ Outgoing-wave boundary coefficient: the WKB relation δh′ = C δh imposed at t
 Includes the cooling-induced imaginary part of `k` and the amplitude-transport terms.
 """
 function wkbC(d::NewtonianDisc, s, m)
-    ot = omega_pat(d, m) - m * Omega(d, s)
+    ot = omega_pat(d, m) - _azimuthal_number(m) * Omega(d, s)
     t = tc(d, s)
     rek = kwave(d, s, m)
     imk = (d.gamma - 1) / 2 * ot * t / (1 + d.gamma * (ot * t)^2) * rek
