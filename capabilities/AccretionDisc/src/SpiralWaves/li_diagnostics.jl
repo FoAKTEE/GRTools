@@ -10,7 +10,8 @@ _diagnostic_stress(::Val{LocallyIsothermalOptionA},c,r,y,geo;hmodes,landau) =
 
 Connected quadratic Reynolds contribution to the physical angular-momentum
 current: `4π sqrt(-g) (epsilon+p) Re(delta u^r conj(delta u_phi))`.
-`du_phi` is COVARIANT and includes `g_phi,a delta u^a + h_phi,a u^a`.
+`du_phi` is COVARIANT and includes `g_phi,a delta u^a + h_phi,a u^a`; with a Landau
+shift the caller passes its partner continued in omega_d (`li_flux_decomposition`).
 Inputs are half amplitudes, as in C-NORM. The definition is independent of the
 thermodynamic closure; `li_flux_decomposition` substitutes OPTION A solutions.
 
@@ -47,15 +48,19 @@ Kronecker term. Metric/velocity cross terms survive in du_phi.
 This is distinct from the adiabatic Noether flux, which also contains
 u_phi<dp du^r>. OPTION A has zero bath four-force. Finite-GR wave/mean balance
 does not imply a conserved wave flux or identify its edge jump as total torque.
+With the Landau shift on, the conjugated du_phi is continued in omega_d as in the
+adiabatic and frozen circular AMF (one convention for every closure); du^r and the
+mean-transport factor carry no omega_d.
 """
 function li_flux_decomposition(c::ModeContext,r,y;hmodes,landau::Bool=true)
     c.closure==LocallyIsothermalOptionA || throw(ArgumentError("LI flux requires OPTION A context"))
-    f=reconstruct_fluid(c,r,y;hmodes,landau)
+    inp=master_inputs(c,r;hmodes,landau,y)
+    f=_context_reconstruction(Val(c.closure),inp); partner=_continued_partner(c,inp)
     geo=_diagnostic_geometry(c,r,hmodes)
     enthalpy=eps_profile(c.disc,r)+pressure(c.disc,r)
     u_phi=sum(geo.g[3,:] .* geo.u)
     dlogmeasure=sum(geo.gi .* geo.metric)/2
-    wave=reynolds_flux(c.mode;measure=geo.measure,enthalpy,dur=f.dur,du_phi=f.du_phi)
+    wave=reynolds_flux(c.mode;measure=geo.measure,enthalpy,dur=f.dur,du_phi=partner.du_phi)
     mean_transport=reality_pair_weight(c.mode)*geo.measure*u_phi*
         real((f.deps+f.dp+enthalpy*dlogmeasure)*conj(f.dur))
     (;wave,mean_transport,quadratic=wave+mean_transport)

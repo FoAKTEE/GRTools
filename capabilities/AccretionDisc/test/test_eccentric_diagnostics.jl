@@ -317,6 +317,22 @@ function li_flux_checks()
         F=SW.reynolds_flux(mode;measure=r,enthalpy=Sigma,dur=ur/2,du_phi=r*up/2)
         @test F ≈ pi*r^2*Sigma*real(ur*conj(up)) rtol=5e-15
     end
+    # Lander review R2: one conjugation convention for every closure. At qTemp = 0 the OPTION A and
+    # adiabatic reconstructions coincide (C-LI-0), so through corotation with the Landau shift on the
+    # LI wave flux plus the adiabatic pressure current u_phi<dp du^r> equals the adiabatic context AMF.
+    ca=context(;closure=Adiabatic,q=0.0); cl=context(;closure=LocallyIsothermalOptionA,q=0.0)
+    @test ca.r_c==cl.r_c
+    shifts=Float64[]
+    for δ in (-1e-3,-1e-4,-3e-5,3e-5,1e-4,1e-3)
+        r=ca.r_c+δ; h=eccentric_test_source(r); y=(0.003+0.001im,-0.002+0.004im)
+        inp=SW.master_inputs(cl,r;hmodes=h,landau=true,y)
+        push!(shifts,imag(inp.omega_d)/abs(real(inp.omega_d)))
+        fa=SW.reconstruct_fluid(ca,r,y;hmodes=h,landau=true)
+        pc=4pi*SW.sqrt_minus_g(ca.disc,r)*real(SW.rotation_profile(ca.disc,r).uφ*fa.dp*conj(fa.dur))
+        @test SW.li_flux_decomposition(cl,r,y;hmodes=h,landau=true).wave+pc ≈
+              SW.amf_mode(ca,r,y;hmodes=h,landau=true) rtol=1e-10
+    end
+    @test maximum(shifts)>1
     println("PASS LI Reynolds: emitted stress jets, exact mixed-stress expansion, metric cross terms and mean-transport subtraction; FR24 pi r^2 Sigma Re(ur conj(uphi))")
 end
 
