@@ -27,6 +27,8 @@ using AccretionDisc
     include("Modes/test_fr22_phase_gradient.jl")  # ECC::fr22-phase-gradient: opt-in descent safeguard of the secant step
     include("Modes/test_fr22_linear_solver.jl")  # ECC::fr22-linear-solver: FR22 (m,l) settings forwarding, m = 1 bounded-change safeguard
     include("Modes/test_solver_mode_generalisation.jl")  # ECC::fr22-solver-mode-generalisation: frequency-aware (m,l) MR solver
+    include("Modes/test_fr24_corotation_radius.jl")  # ECC::fr24-corotation-radius: FR24 (35) vs the exact eq (7) root
+    include("Modes/test_fr24_torque_diagnostics.jl")  # ECC::fr24-torque-diagnostics: FR24 (28), (31)-(39) flux, torque, split, power
     include("test_mr_core_certification.jl")   # ECC::mr19-core-certification: thermal endpoints
     include("Modes/test_thindisc.jl")   # NT/SS thin-disc structure + total Lindblad torque (2510.02433)
     include("Force/test_loader.jl")
