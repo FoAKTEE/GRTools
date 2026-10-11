@@ -25,6 +25,7 @@ using AccretionDisc
     include("Modes/test_newtonian_planet.jl")  # MR19/MR20 Newtonian planet-forced disc modes (arXiv:1811.09628)
     include("Modes/test_phase_gradient.jl")  # ECC::mr19-fig15: MR Appendix A secant step
     include("Modes/test_fr22_phase_gradient.jl")  # ECC::fr22-phase-gradient: opt-in descent safeguard of the secant step
+    include("Modes/test_fr22_linear_solver.jl")  # ECC::fr22-linear-solver: FR22 (m,l) settings forwarding, m = 1 bounded-change safeguard
     include("Modes/test_solver_mode_generalisation.jl")  # ECC::fr22-solver-mode-generalisation: frequency-aware (m,l) MR solver
     include("test_mr_core_certification.jl")   # ECC::mr19-core-certification: thermal endpoints
     include("Modes/test_thindisc.jl")   # NT/SS thin-disc structure + total Lindblad torque (2510.02433)
