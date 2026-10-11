@@ -109,6 +109,10 @@ export radiation_impedance_row
 # ECC::gr-li-boundary-certificate — OPTION A outgoing/evanescent edge rows with the first transport
 # (thermal-gradient) correction; needs locally_isothermal.jl and boundary.jl; explicit import only
 include("li_boundary.jl")
+# ECC::gr-mode-solver + ECC::gr-li-mode-solver — end-to-end eccentric projection, C-66 / OPTION A edge
+# rows, midpoint BVP and closure-tagged reconstruction (needs eccentric_source.jl, boundary.jl and
+# li_boundary.jl; new methods of solve_mode/reconstruct_fluid; explicit import only, no new exports)
+include("eccentric_modes.jl")
 export ModeSolution, solve_mode, midpoint_system, solve_midpoint, midpoint_residual
 export eigen2, outgoing_branch, wkb_wavenumber_gr, wkb_wavenumber2_gr
 export wkb_split, wkb_amplitudes, mode_amplitudes

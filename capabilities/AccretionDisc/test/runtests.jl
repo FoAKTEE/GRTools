@@ -54,4 +54,6 @@ using AccretionDisc
     include("test_eccentric_boundary.jl")    # ECC::gr-boundary-certificate: arbitrary-frequency radiation rows (66)-(68)
     include("test_eccentric_li_boundary.jl") # ECC::gr-li-boundary-certificate: OPTION A edge rows, thermal transport, GR transparency
     include("test_eccentric_source_bank.jl") # ECC::gr-azimuth-projector, ECC::gr-source-harmonics: eccentric source bank
+    include("test_eccentric_modes.jl")       # ECC::gr-mode-solver: end-to-end adiabatic modes, e=0 gate, circular isolation
+    include("test_eccentric_li_modes.jl")    # ECC::gr-li-mode-solver: end-to-end OPTION A modes, LI rows, closure law, isolation
 end
