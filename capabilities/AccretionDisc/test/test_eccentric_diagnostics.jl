@@ -417,6 +417,13 @@ function sanity_checks(closure)
     println("PASS sanity cells are finite, satisfy direct work/torque and retain axisymmetric power; no mesh, tail or exterior convergence claim")
 end
 
+function li_axisymmetric_checks()
+    axisymmetric_checks(LocallyIsothermalOptionA)
+    @testset "LI axisymmetric zero bath" begin
+        zero_bath_checks(;axisymmetric=true)
+    end
+end
+
 end # module
 
 let selection=get(ENV,"ECC_DIAGNOSTICS_TEST","all")
@@ -424,6 +431,7 @@ let selection=get(ENV,"ECC_DIAGNOSTICS_TEST","all")
     selection in ("all","axisymmetric") && EccentricDiagnosticsTests.axisymmetric_checks(EccentricDiagnosticsTests.Adiabatic)
     selection=="circular" && EccentricDiagnosticsTests.circular_checks(EccentricDiagnosticsTests.Adiabatic)
     selection in ("all","li") && EccentricDiagnosticsTests.li_checks()
+    selection in ("all","li_axisymmetric") && EccentricDiagnosticsTests.li_axisymmetric_checks()
     selection=="li_circular" && EccentricDiagnosticsTests.circular_checks(EccentricDiagnosticsTests.LocallyIsothermalOptionA)
     selection=="sanity" && EccentricDiagnosticsTests.sanity_checks(EccentricDiagnosticsTests.Adiabatic)
     selection=="li_sanity" && EccentricDiagnosticsTests.sanity_checks(EccentricDiagnosticsTests.LocallyIsothermalOptionA)
