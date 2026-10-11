@@ -9,6 +9,7 @@ using AccretionDisc
     include("hygiene.jl")
     include("test_forcing_modes.jl")
     include("test_eccentric_newtonian.jl")       # ECC::fr22-kepler-orbit, ECC::fr22-zz22-overlay
+    include("test_newtonian_projector.jl")       # ECC::shared-newtonian-projector: all-mode potential bank (oracle sets: GRTOOLS_SLOW_TESTS=1)
     include("test_literature_prescriptions.jl")  # ECC::fr24-literature-prescriptions: FR24 v1 (52)-(55)
 
     include("Modes/test_background.jl")
