@@ -63,6 +63,7 @@ include("EccentricPlanet.jl")   # FR22 (24)-(25) Kepler orbit; ZZ22 (4)-(9) wave
 export EccentricOrbit, kepler_E, planet_orbit
 export zz22_wavelet, zz22_track
 export NewtonianPotentialBank, potential_bank, harmonic_cache
+include("FR22Potential.jl")     # ECC::fr22-potential-harmonics: factorised Gauss-E oracle (unexported)
 include("EccentricTorques.jl")  # FR24 v1 (52)-(55) PL00/CN06 literature prescriptions
 export pl00_tauL_inv, pl00_taue_inv, cn06_tauL_inv, cn06_taue_inv
 
