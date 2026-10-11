@@ -506,3 +506,98 @@ function corotation_radius(d::DiscModel{T}, mode::HarmonicMode;
     signbit(flo) == signbit(fhi) && return nothing
     brent(f,lo,hi;maxiter=max(200,2precision(T)))
 end
+
+"""
+Mode grid with fixed physical endpoints. `central` is empty when r_c is absent;
+an endpoint corotation has a one-sided central block. No Lindblad radius is
+inferred from the reference normalization or inserted as a resonance.
+"""
+struct EccentricGrid{T,K,P}
+    r::Vector{T}
+    r_c::Union{Nothing,T}
+    central::UnitRange{Int}
+    context_key::K
+    params::P
+end
+
+"Linearized Landau-layer radial half-width at the actual pole; nothing without a root."
+function corotation_width(c::ModeContext)
+    c.r_c === nothing && return nothing
+    landau_shift(c,c.r_c)/abs(c.mode.m*dOmega_dr(c.disc,c.r_c))
+end
+
+"Local oscillatory wavenumber from the eccentric operator's own eigenvalues."
+function wkb_wavenumber(c::ModeContext, r)
+    C,_ = master_matrices(c,r;hmodes=_zero_source(c),landau=false)
+    k1,k2,_,_ = eigen2(C)
+    max(abs(imag(k1)),abs(imag(k2)))
+end
+function wkb_wavenumber_floored(c::ModeContext, r; k_trust=10)
+    max(wkb_wavenumber(c,r),k_trust/(c.disc.h_ref*r))
+end
+
+# Feed the existing cell-count spline, quadrature and placement algorithms.
+# Only the mode-specific wavenumber differs from the circular region builder.
+function _wkb_region(c::ModeContext{T}, side::Symbol, lo::T, hi::T, edge::T,
+                     spacing::T, slope::T, n_anc::Integer, k_trust::T) where {T}
+    r = [lo*(hi/lo)^(T(i)/(n_anc-1)) for i in 0:n_anc-1]
+    r[1]=lo; r[end]=hi
+    kbar = [wkb_wavenumber_floored(c,x;k_trust) for x in r]
+    steps = [spacing+slope*abs(x-edge) for x in r]
+    glx,glw = gl_nodes_weights(T,4)
+    WKBRegion{T}(side,r,kbar,steps,edge,glx,glw)
+end
+
+"""
+    build_grid(context; nL=240,nR=240,nC=24000,n_anc=10000,σ_wc_frac=1e-3,s_c=4,k_trust=10)
+
+Build on exactly `context.domain`. With corotation, clip the existing symmetric
+sinh block to the domain, retaining the root and exact physical endpoints.
+The adjacent WKB blocks reuse `_solve_nW`/`_place_nodes`. Without a root, use
+one WKB block anchored at the inner physical edge; nC has no effect.
+
+Resolution defaults retain the circular Appendix-C reference counts. The root
+is retained as an extra node when the requested nC is even. The :gr wavenumber
+comes from the selected closure, not a circular frequency.
+`corotation_width(context)` reports the Landau scale for resolution studies;
+changing εp still requires explicit grid/solution convergence checks.
+"""
+function build_grid(c::ModeContext{T}; nL::Integer=240,nR::Integer=240,nC::Integer=24000,
+                    n_anc::Integer=10000,σ_wc_frac=1e-3,s_c=4,k_trust=10) where {T}
+    nL>=1 && nR>=1 && nC>=3 && n_anc>=4 || throw(ArgumentError("invalid grid counts"))
+    all(x -> isfinite(x) && x>0,(σ_wc_frac,s_c,k_trust)) || throw(ArgumentError("grid scales must be finite and positive"))
+    lo,hi = c.domain
+    rc = c.r_c
+    if rc === nothing
+        region = _wkb_region(c,:R,lo,hi,lo,(hi-lo)/max(nL,nR),zero(T),n_anc,T(k_trust))
+        N,nW = _solve_nW(region,max(nL,nR))
+        r = _place_nodes(region,nW,N)
+        central = 1:0
+    else
+        σ,s = T(σ_wc_frac)*rc,T(s_c)
+        block = filter(x -> lo<=x<=hi,corotation_block(rc,σ,s,nC))
+        # Clipping a core at a physical edge must retain that edge exactly.
+        push!(block,max(lo,rc-σ),rc,min(hi,rc+σ))
+        sort!(unique!(block))
+        length(block)>=2 || throw(ArgumentError("corotation block unresolved at working precision"))
+        spacing,slope = _central_edge_spacing(σ,s,nC)
+        r = T[]
+        if lo < first(block)
+            reg = _wkb_region(c,:L,lo,first(block),first(block),spacing,slope,n_anc,T(k_trust))
+            N,nW = _solve_nW(reg,nL)
+            append!(r,_place_nodes(reg,nW,N)[1:end-1])
+        end
+        start = length(r)+1
+        append!(r,block)
+        central = start:length(r)
+        if last(block)<hi
+            reg = _wkb_region(c,:R,last(block),hi,last(block),spacing,slope,n_anc,T(k_trust))
+            N,nW = _solve_nW(reg,nR)
+            append!(r,_place_nodes(reg,nW,N)[2:end])
+        end
+    end
+    all(diff(r).>0) || throw(ArgumentError("grid must be strictly ascending"))
+    params = (;nL,nR,nC,n_anc,σ_wc_frac=T(σ_wc_frac),s_c=T(s_c),k_trust=T(k_trust),
+              wavenumber=:gr,closure=c.closure)
+    EccentricGrid(r,rc,central,mode_cache_key(c),params)
+end

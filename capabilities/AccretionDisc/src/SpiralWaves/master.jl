@@ -426,3 +426,58 @@ function reconstruct_fluid(c::ModeContext, r, y; hmodes, landau::Bool=true)
     _context_reconstruction(Val(c.closure),inp)
 end
 delta_u_phi(c::ModeContext, r, y; kwargs...) = reconstruct_fluid(c,r,y;kwargs...).du_phi
+
+"""
+    solve_mode(context; source, grid=build_grid(context), landau=true,
+               bc=:outgoing, boundary_rows=nothing, linsolve=:banded)
+
+Context overload of the existing implicit-midpoint solve. `source(r)` supplies
+all complex covariant jets. Uses `solve_midpoint` (the existing banded LU) and
+`outgoing_branch` (the existing `_away_is_first` selector). Physical inner/outer
+edges set propagation direction even when corotation is absent.
+
+For custom boundary equations pass `((row_in,rhs_in),(row_out,rhs_out))`.
+LI outgoing/temperature-gradient certification belongs to the LI boundary node:
+until that adapter is supplied, LI solves require explicit boundary rows.
+Corotation exactly at an edge likewise needs an explicit boundary condition.
+"""
+function solve_mode(c::ModeContext{T}; source, grid::EccentricGrid=build_grid(c),
+                    landau::Bool=true,bc::Symbol=:outgoing,boundary_rows=nothing,
+                    linsolve::Symbol=:banded) where {T}
+    grid.context_key == mode_cache_key(c) || throw(ArgumentError("grid belongs to a different context/precision"))
+    t0 = time()
+    r = grid.r
+    length(r)>=2 && first(r)==c.domain[1] && last(r)==c.domain[2] && all(diff(r).>0) ||
+        throw(ArgumentError("grid must span the physical domain in strictly ascending order"))
+    if boundary_rows === nothing
+        c.closure == Adiabatic || throw(ArgumentError("LI solve requires explicit boundary_rows pending LI boundary certification"))
+        rows = map(((first(r),false),(last(r),true))) do (edge,outward)
+            ωd = omega_d(c,edge)
+            iszero(ωd) && throw(ArgumentError("edge corotation requires explicit boundary_rows"))
+            C,_ = master_matrices(c,edge;hmodes=_zero_source(c),landau)
+            _,_,row = outgoing_branch(C,ωd;outward,bc)
+            (row,zero(Complex{T}))
+        end
+    else
+        rows = boundary_rows
+    end
+    (rowin,bin),(rowout,bout) = rows
+    length(rowin)==length(rowout)==2 || throw(ArgumentError("boundary rows must have two entries"))
+    bvalues = (rowin...,bin,rowout...,bout)
+    all(isfinite,bvalues) || throw(ArgumentError("boundary rows must be finite"))
+    promote_type(T,map(z -> typeof(real(z)),bvalues)...) === T ||
+        throw(ArgumentError("boundary precision exceeds context type"))
+    Cmid = Matrix{Complex{T}}[]; Smid = Vector{Complex{T}}[]
+    for i in 1:length(r)-1
+        mid = (r[i]+r[i+1])/2
+        C,S = master_matrices(c,mid;hmodes=source(mid),landau)
+        eltype(C) === Complex{T} && eltype(S) === Complex{T} ||
+            throw(ArgumentError("source type exceeds context precision; rebuild the context"))
+        push!(Cmid,C); push!(Smid,S)
+    end
+    y = solve_midpoint(r,Cmid,Smid,rowin,bin,rowout,bout;linsolve)
+    ra,rr = midpoint_residual(r,Cmid,Smid,y)
+    bcres = abs(sum(rowin .* y[:,1])-bin)+abs(sum(rowout .* y[:,end])-bout)
+    params = (;landau,bc=boundary_rows === nothing ? bc : :specified,linsolve,closure=c.closure,rows)
+    EccentricModeSolution(c,copy(r),y,source,ra,rr,bcres,params,time()-t0)
+end

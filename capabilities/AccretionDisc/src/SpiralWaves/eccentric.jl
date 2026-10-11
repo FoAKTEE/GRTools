@@ -172,3 +172,35 @@ function _zero_source(c::ModeContext{T}) where {T}
     z = zero(Complex{T})
     (;htt=z,htt_r=z,htphi=z,htphi_r=z,hphiphi=z,hphiphi_r=z,hrr=z,hzz=z,htr=z,hrphi=z)
 end
+
+"""
+    mode_cache_key(context)
+
+Value key for operator/grid work only, including closure, frequency, domain,
+disc normalization and stored/current precision. A response/source cache must
+add its own source identity. No hash of the source is inferred from (m,k).
+"""
+function mode_cache_key(c::ModeContext{T}) where {T}
+    d = c.disc
+    (; closure=c.closure, type=T, precision=precision(T), stored_precision=precision(d.r_ref),
+       disc=(d.χ,d.r_ref,d.h_ref,d.pSigma,d.qTemp,d.epsilon_ref,d.εp,d.σε,d.evolution),
+       mode=c.mode, domain=c.domain, r_c=c.r_c)
+end
+
+"Context solution; closure is taken from the validated context, never defaulted."
+struct EccentricModeSolution{T,F,P}
+    context::ModeContext{T}
+    closure::ClosureTag
+    r::Vector{T}
+    y::Matrix{Complex{T}}
+    source::F
+    residual_abs::T
+    residual::T
+    bc_residual::T
+    params::P
+    seconds::Float64
+    function EccentricModeSolution(c::ModeContext{T},r,y,source,ra,rr,bcres,params,seconds) where {T}
+        new{T,typeof(source),typeof(params)}(c,c.closure,r,y,source,ra,rr,bcres,params,seconds)
+    end
+end
+Base.length(sol::EccentricModeSolution) = length(sol.r)
