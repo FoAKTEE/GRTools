@@ -73,7 +73,7 @@ axs[0].tick_params(labelbottom=False)
 axs[1].set_xticks([.1,.3,1.,3.],['0.1','0.3','1.0','3.0'])
 axs[1].set_xlabel(r'$r/r_\mathrm{p}$',labelpad=1)
 fig.text(.028,.55,r'$\epsilon_{10}/k_{10}$',rotation=90,va='center',ha='center')
-fig.savefig(sys.argv[2],dpi=144)
+fig.savefig(sys.argv[2],dpi=144,bbox_inches='tight',pad_inches=.02)
 """
         run(`python3 -c $presentation $table $png`)
         filesize(png)<=200_000 || error("figure exceeds 200 KB")
