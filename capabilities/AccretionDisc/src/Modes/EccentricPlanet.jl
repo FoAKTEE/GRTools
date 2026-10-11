@@ -168,3 +168,185 @@ function zz22_track(orbit::EccentricOrbit, t2::Real, dir::Integer;
     end
     out
 end
+
+# All-mode Newtonian source bank (DESIGN §3). The circular cache/interpolator
+# remains owned by NewtonianSolver.jl; no solver or FFT implementation lives here.
+using NumericsCore: fft_radix2!
+using LinearAlgebra: mul!
+using ..ForcingModes: HarmonicMode, SofteningPolicy, FixedSoftening,
+    SemimajorScaleHeight, InstantaneousScaleHeight, LocalScaleHeight
+
+"""
+Storage returned by [`potential_bank`](@ref). `caches[eindex, modeindex]` owns
+ordinary `PotentialCache` vectors; every cache shares the bank's log-radius grid.
+`key` records physical inputs, softening policy, grids, precision and backend.
+There is no global memoization. Treat the bank and its cache vectors as read-only.
+"""
+struct NewtonianPotentialBank{T,K}
+    caches::Matrix{PotentialCache{T}}
+    mode_indices::Dict{HarmonicMode{T},Int}
+    key::K
+end
+
+"""
+    harmonic_cache(bank, eindex, mode::HarmonicMode) -> PotentialCache
+
+Return the bank-owned per-mode cache (the same object on every call). No copy,
+quadrature or interpolation is done here. These are zero-copy per-mode handles:
+the existing `PotentialCache` has concrete Vector fields, not SubArray fields.
+The full frequency participates in lookup, preventing accidental reuse at a
+different mean motion. `potential_at(cache,r)` provides the existing interpolation.
+"""
+function harmonic_cache(bank::NewtonianPotentialBank{T}, eindex::Integer,
+                        mode::HarmonicMode) where {T}
+    bank.caches[eindex, bank.mode_indices[HarmonicMode{T}(mode.m, mode.k, mode.omega)]]
+end
+
+_bank_softvalue(s::FixedSoftening) = s.eps
+_bank_softvalue(s::Union{SemimajorScaleHeight,InstantaneousScaleHeight,LocalScaleHeight}) = s.b
+_bank_softlength(s::FixedSoftening, h, power, a, rp, r) = s.eps
+_bank_softlength(s::SemimajorScaleHeight, h, power, a, rp, r) = s.b*h*a^power
+_bank_softlength(s::InstantaneousScaleHeight, h, power, a, rp, r) = s.b*h*rp^power
+_bank_softlength(s::LocalScaleHeight, h, power, a, rp, r) = s.b*h*r^power
+
+"""
+    potential_bank(d, orbits, rs, modes; softening=FixedSoftening(d.soft),
+                   Nt=1024, Nphi=1024, derivatives=2, method=:direct, Gmu=1)
+
+Project the direct Plummer potential and its first two analytic radial derivatives
+for every orbit, radius and requested `HarmonicMode`. `modes` uses the shared
+Newtonian adapter (`l=m+k`, `omega=l*n`); signed l and m=0 are supported. Orbits
+must share the mean motion implied by the requested frequencies. Radii must be
+positive and strictly increasing. All inputs are promoted, Float64 by default;
+BigFloat inherits ambient precision. `derivatives=2` is the only supported value,
+so every returned cache is ready for the existing second-order master equation.
+
+Both methods sample endpoint-exclusive `(M,phi)=2pi*(i/Nt,j/Nphi)`. `:fft` uses
+NumericsCore's 2-D transform and returns `2real(F[mod(-l,Nt)+1,m+1])/(Nt*Nphi)`.
+`:direct` evaluates those same bins by batched real matrix products in phi and
+direct time sums. It is the default for the measured FR22-size masks; choose
+`:fft` for dense spectra. FFT sizes must be powers of two; both methods require
+strict sub-Nyquist indices (`2abs(l)<Nt`, `2m<Nphi`). Node refinement is the
+caller's convergence obligation; this constructor does not assert convergence.
+
+FR22's corrected normalization is `n/(2pi^2)` in dt, or `1/(2pi^2)` in dM
+(E-ECC-1/2; derivation_fr/src/fourier.jl and phi_factorisation.jl). The factor 2
+also applies to (0,0) as a Fourier-bin convention; a mean term in reconstruction
+must use half this value. No sector or paper mask is silently discarded.
+
+`Gmu` is G times perturber mass; lengths use the disc's reference radius (one).
+Scale-height policies use `H(x)=d.h0*x^((3-d.q)/2)`. Field-radius softening
+includes both radial derivatives of H. FR22's ambiguous policy must be selected
+explicitly by its caller. `d.indirect != 0` is rejected: this API implements the
+direct potential only, not the extra indirect tables absent from FR24 v1.
+
+Memory is O(Nt*Nphi + Nt*(unique(m)+unique(l)) + length(orbits)*length(rs)*
+length(modes)); temporary arrays are reused across radii and orbits. No global
+precision or BLAS/thread configuration is changed here.
+"""
+function potential_bank(d::NewtonianDisc, orbits, rs, modes;
+                        softening::SofteningPolicy=FixedSoftening(d.soft),
+                        Nt::Integer=1024, Nphi::Integer=1024, derivatives=2,
+                        method::Symbol=:direct, Gmu::Real=1)
+    obs, radii, requested = collect(orbits), collect(rs), collect(modes)
+    isempty(obs) && throw(ArgumentError("at least one orbit is required"))
+    isempty(radii) && throw(ArgumentError("at least one radius is required"))
+    derivatives == 2 || throw(ArgumentError("PotentialCache requires derivatives=2"))
+    method in (:fft, :direct) || throw(ArgumentError("method must be :fft or :direct"))
+    Nt > 0 && Nphi > 0 || throw(ArgumentError("node counts must be positive"))
+    method == :fft && !(ispow2(Nt) && ispow2(Nphi)) &&
+        throw(ArgumentError("FFT node counts must be powers of two"))
+    d.indirect == 0 || throw(ArgumentError("the bank implements only the direct potential"))
+    T = float(promote_type(typeof(d.h0), typeof(d.q), typeof(Gmu),
+        typeof(_bank_softvalue(softening)), mapreduce(typeof, promote_type, radii),
+        mapreduce(o -> typeof(o.a), promote_type, obs),
+        mapreduce(m -> typeof(m.omega), promote_type, requested; init=Int)))
+    rg = T.(radii)
+    all(r -> isfinite(r) && r > 0, rg) && all(diff(rg) .> 0) ||
+        throw(ArgumentError("radii must be finite, positive and strictly increasing"))
+    isfinite(Gmu) && Gmu >= 0 || throw(DomainError(Gmu, "Gmu must be finite and nonnegative"))
+    isfinite(d.h0) && d.h0 >= 0 && isfinite(d.q) ||
+        throw(ArgumentError("finite q and finite nonnegative h0 are required"))
+    os = [EccentricOrbit(T(o.a), T(o.e), T(o.n)) for o in obs]
+    ms = [HarmonicMode{T}(m.m, m.k, m.omega) for m in requested]
+    ls = [Base.Checked.checked_add(m.m, m.k) for m in ms]
+    for (m, l) in zip(ms, ls)
+        -Nt/2 < l < Nt/2 && m.m < Nphi/2 ||
+            throw(ArgumentError("requested modes must lie strictly below Nyquist"))
+        all(o -> isapprox(m.omega, l*o.n; rtol=8eps(T), atol=zero(T)), os) ||
+            throw(ArgumentError("mode frequency must equal (m+k)*orbit.n"))
+    end
+    indices = Dict(m => i for (i,m) in enumerate(ms))
+    length(indices) == length(ms) || throw(ArgumentError("duplicate modes"))
+    lg = log10.(rg)
+    caches = [PotentialCache{T}(lg, zeros(T,length(rg)), zeros(T,length(rg)),
+                               zeros(T,length(rg))) for _ in os, _ in ms]
+    key = (; scalar_type=T, bits=precision(T), orbits=Tuple((o.a,o.e,o.n) for o in os),
+        radii=Tuple(rg), modes=Tuple(ms), softening, h0=T(d.h0), q=T(d.q),
+        Gmu=T(Gmu), Nt, Nphi, derivatives, method)
+    bank = NewtonianPotentialBank(caches, indices, key)
+    isempty(ms) && return bank
+    _fill_potential_bank!(bank, d, os, rg, ms, ls, softening, Int(Nt), Int(Nphi), method, T(Gmu))
+    bank
+end
+
+function _fill_potential_bank!(bank::NewtonianPotentialBank{T}, d, os, rg, ms, ls,
+                               softening, Nt, Nphi, method, Gmu) where {T}
+    M = [2T(pi)*T(i)/Nt for i in 0:Nt-1]
+    phi = [2T(pi)*T(j)/Nphi for j in 0:Nphi-1]
+    A = zeros(method == :fft ? Complex{T} : T, Nt, Nphi, 3)
+    # Precompute the separable direct weights once for the whole bank.
+    um, ul = unique([m.m for m in ms]), unique(ls)
+    mi, li = [findfirst(==(m.m), um) for m in ms], [findfirst(==(l), ul) for l in ls]
+    W = method == :direct ? hcat([cos(m*p) for p in phi, m in um],
+                                 [sin(m*p) for p in phi, m in um]) : zeros(T,0,0)
+    C = method == :direct ? [cos(l*t) for t in M, l in ul] : zeros(T,0,0)
+    S = method == :direct ? [sin(l*t) for t in M, l in ul] : zeros(T,0,0)
+    projected = zeros(T, method == :direct ? Nt : 0, method == :direct ? 2length(um) : 0)
+    power = (3-T(d.q))/2
+    scale = T(2)/(T(Nt)*T(Nphi))
+    for (ei,o) in enumerate(os)
+        orbit = planet_orbit.(M, Ref(o))
+        # Stable squared separation near conjunction, shared by all radii.
+        bend = [2p.r_p*sin((az-p.phi_p)/2)^2 for p in orbit, az in phi]
+        for (ri,r) in enumerate(rg)
+            for i in 1:Nt
+                rp = orbit[i].r_p
+                ep = T(_bank_softlength(softening,T(d.h0),power,o.a,rp,r))
+                dep = softening isa LocalScaleHeight ? power*ep/r : zero(T)
+                d2ep = softening isa LocalScaleHeight ? power*(power-1)*ep/r^2 : zero(T)
+                @inbounds for j in 1:Nphi
+                    distance2 = (r-rp)^2 + 2r*bend[i,j] + ep^2
+                    distance2 > 0 || throw(DomainError(distance2,"singular unsoftened sample"))
+                    v = inv(sqrt(distance2))
+                    u = (r-rp) + bend[i,j] + ep*dep
+                    A[i,j,1] = -Gmu*v
+                    A[i,j,2] = Gmu*u*v^3
+                    A[i,j,3] = Gmu*((1+dep^2+ep*d2ep)*v^3-3u^2*v^5)
+                end
+            end
+            if method == :fft
+                fft_radix2!(A; dims=(1,2))
+            end
+            for c in 1:3
+                method == :direct && mul!(projected, view(A,:,:,c), W)
+                for k in eachindex(ms)
+                    value = if method == :fft
+                        real(A[mod(-ls[k],Nt)+1,ms[k].m+1,c])
+                    else
+                        acc = zero(T)
+                        @inbounds for i in 1:Nt
+                            acc += C[i,li[k]]*projected[i,mi[k]] +
+                                   S[i,li[k]]*projected[i,mi[k]+length(um)]
+                        end
+                        acc
+                    end
+                    cache = bank.caches[ei,k]
+                    dest = c == 1 ? cache.P : c == 2 ? cache.dP : cache.d2P
+                    dest[ri] = scale*value
+                end
+            end
+        end
+    end
+    bank
+end
