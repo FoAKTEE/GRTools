@@ -204,3 +204,11 @@ struct EccentricModeSolution{T,F,P}
     end
 end
 Base.length(sol::EccentricModeSolution) = length(sol.r)
+
+"Caller-owned operator cache, bound to closure/context, grid values and Landau setting."
+struct EccentricOperatorCache{T,K}
+    key::K
+    r::Vector{T}
+    Cmid::Vector{Matrix{Complex{T}}}
+    Cedges::NTuple{2,Matrix{Complex{T}}}
+end

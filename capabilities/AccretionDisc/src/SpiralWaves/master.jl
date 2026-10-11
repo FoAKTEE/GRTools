@@ -402,8 +402,8 @@ function master_inputs(c::ModeContext{T}, r::Real; hmodes, landau::Bool=true, y=
 end
 
 function _context_operator(::Val{Adiabatic}, inp)
-    (_eccentric_adiabatic_C00(inp),_eccentric_adiabatic_C01(inp),
-     _eccentric_adiabatic_C10(inp),_eccentric_adiabatic_C11(inp))
+    [_eccentric_adiabatic_C00(inp) _eccentric_adiabatic_C01(inp);
+     _eccentric_adiabatic_C10(inp) _eccentric_adiabatic_C11(inp)]
 end
 _context_source(::Val{Adiabatic}, inp) = (_eccentric_adiabatic_S0(inp),_eccentric_adiabatic_S1(inp))
 function _context_reconstruction(::Val{Adiabatic}, inp)
@@ -415,9 +415,29 @@ end
 "Evaluate the closure-tagged eccentric operator and complex source, dy/dr=C*y+S."
 function master_matrices(c::ModeContext, r; hmodes, landau::Bool=true)
     inp = master_inputs(c,r;hmodes,landau)
-    a,b,d,e = _context_operator(Val(c.closure),inp)
     s0,s1 = _context_source(Val(c.closure),inp)
-    ([a b; d e], [s0,s1])
+    (_context_operator(Val(c.closure),inp), [s0,s1])
+end
+
+"Source-independent operator evaluation for grid and cache construction."
+master_operator(c::ModeContext,r;landau::Bool=true) =
+    _context_operator(Val(c.closure),master_inputs(c,r;hmodes=_zero_source(c),landau))
+
+"""
+    mode_operator_cache(context, grid; landau=true)
+
+Precompute midpoint and edge operators for repeated sources on exactly this
+grid/context. The key includes the mandatory closure tag and working precision.
+Storage is caller-owned; do not mutate its matrices during concurrent solves.
+"""
+function mode_operator_cache(c::ModeContext, grid::EccentricGrid; landau::Bool=true)
+    grid.context_key == mode_cache_key(c) || throw(ArgumentError("grid belongs to a different context/precision"))
+    r = grid.r
+    length(r)>=2 && first(r)==c.domain[1] && last(r)==c.domain[2] && all(diff(r).>0) ||
+        throw(ArgumentError("grid must span the physical domain in strictly ascending order"))
+    Cmid = [master_operator(c,(r[i]+r[i+1])/2;landau) for i in 1:length(r)-1]
+    edges = (master_operator(c,first(r);landau),master_operator(c,last(r);landau))
+    EccentricOperatorCache((mode_cache_key(c),landau),copy(r),Cmid,edges)
 end
 
 "Reconstruct the Eulerian fluid amplitudes with the context's closure."
@@ -429,7 +449,7 @@ delta_u_phi(c::ModeContext, r, y; kwargs...) = reconstruct_fluid(c,r,y;kwargs...
 
 """
     solve_mode(context; source, grid=build_grid(context), landau=true,
-               bc=:outgoing, boundary_rows=nothing, linsolve=:banded)
+               bc=:outgoing, boundary_rows=nothing, linsolve=:banded, cache=nothing)
 
 Context overload of the existing implicit-midpoint solve. `source(r)` supplies
 all complex covariant jets. Uses `solve_midpoint` (the existing banded LU) and
@@ -440,10 +460,13 @@ For custom boundary equations pass `((row_in,rhs_in),(row_out,rhs_out))`.
 LI outgoing/temperature-gradient certification belongs to the LI boundary node:
 until that adapter is supplied, LI solves require explicit boundary rows.
 Corotation exactly at an edge likewise needs an explicit boundary condition.
+`cache=mode_operator_cache(context,grid;landau)` reuses the operator for another
+source. Different closures, frequencies, grids, precisions or Landau settings
+are rejected. The source is evaluated anew for every solve.
 """
 function solve_mode(c::ModeContext{T}; source, grid::EccentricGrid=build_grid(c),
                     landau::Bool=true,bc::Symbol=:outgoing,boundary_rows=nothing,
-                    linsolve::Symbol=:banded) where {T}
+                    linsolve::Symbol=:banded,cache::Union{Nothing,EccentricOperatorCache}=nothing) where {T}
     grid.context_key == mode_cache_key(c) || throw(ArgumentError("grid belongs to a different context/precision"))
     t0 = time()
     r = grid.r
@@ -451,10 +474,15 @@ function solve_mode(c::ModeContext{T}; source, grid::EccentricGrid=build_grid(c)
         throw(ArgumentError("grid must span the physical domain in strictly ascending order"))
     if boundary_rows === nothing
         c.closure == Adiabatic || throw(ArgumentError("LI solve requires explicit boundary_rows pending LI boundary certification"))
-        rows = map(((first(r),false),(last(r),true))) do (edge,outward)
+        any(edge -> iszero(omega_d(c,edge)),(first(r),last(r))) &&
+            throw(ArgumentError("edge corotation requires explicit boundary_rows"))
+    end
+    ops = cache === nothing ? mode_operator_cache(c,grid;landau) : cache
+    ops.key == (mode_cache_key(c),landau) && ops.r == r ||
+        throw(ArgumentError("operator cache context/closure/precision/grid/Landau mismatch"))
+    if boundary_rows === nothing
+        rows = map(((first(r),false,ops.Cedges[1]),(last(r),true,ops.Cedges[2]))) do (edge,outward,C)
             ωd = omega_d(c,edge)
-            iszero(ωd) && throw(ArgumentError("edge corotation requires explicit boundary_rows"))
-            C,_ = master_matrices(c,edge;hmodes=_zero_source(c),landau)
             _,_,row = outgoing_branch(C,ωd;outward,bc)
             (row,zero(Complex{T}))
         end
@@ -467,13 +495,13 @@ function solve_mode(c::ModeContext{T}; source, grid::EccentricGrid=build_grid(c)
     all(isfinite,bvalues) || throw(ArgumentError("boundary rows must be finite"))
     promote_type(T,map(z -> typeof(real(z)),bvalues)...) === T ||
         throw(ArgumentError("boundary precision exceeds context type"))
-    Cmid = Matrix{Complex{T}}[]; Smid = Vector{Complex{T}}[]
+    Cmid = ops.Cmid; Smid = Vector{Complex{T}}[]
     for i in 1:length(r)-1
         mid = (r[i]+r[i+1])/2
-        C,S = master_matrices(c,mid;hmodes=source(mid),landau)
-        eltype(C) === Complex{T} && eltype(S) === Complex{T} ||
+        inp = master_inputs(c,mid;hmodes=source(mid),landau)
+        inp isa EccentricMasterInputs{T} ||
             throw(ArgumentError("source type exceeds context precision; rebuild the context"))
-        push!(Cmid,C); push!(Smid,S)
+        push!(Smid,collect(_context_source(Val(c.closure),inp)))
     end
     y = solve_midpoint(r,Cmid,Smid,rowin,bin,rowout,bout;linsolve)
     ra,rr = midpoint_residual(r,Cmid,Smid,y)

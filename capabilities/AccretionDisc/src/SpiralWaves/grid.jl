@@ -528,7 +528,7 @@ end
 
 "Local oscillatory wavenumber from the eccentric operator's own eigenvalues."
 function wkb_wavenumber(c::ModeContext, r)
-    C,_ = master_matrices(c,r;hmodes=_zero_source(c),landau=false)
+    C = master_operator(c,r;landau=false)
     k1,k2,_,_ = eigen2(C)
     max(abs(imag(k1)),abs(imag(k2)))
 end
