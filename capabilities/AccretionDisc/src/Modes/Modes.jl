@@ -49,6 +49,8 @@ export ss_surface_density, ss_aspect_ratio, pressure_cutoff, total_lindblad_torq
 include("NewtonianMaster.jl")
 include("NewtonianPlanet.jl")
 include("NewtonianSolver.jl")
+include("PhaseGradient.jl")
+export phase_gradient_error, phase_error_diagnostic, phase_gradient_refine, mr19_phase_refinement
 # MR19/MR20 Newtonian planet-forced disc: the model profiles stay UNEXPORTED (`Modes.Omega`,
 # `Modes.Sigma`, … belong to this background only); the solver API and the softened Laplace family
 # are exported.

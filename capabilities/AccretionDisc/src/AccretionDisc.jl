@@ -55,6 +55,8 @@ using .Modes: NovikovThorneDisc, nt_isco, nt_factors, nt_surface_density, nt_sca
 using .Modes: qinv_operator, q_operator
 using .Modes: disc_OmegaK_z, alpha_z, Uvec_z, pressure_z, eden_z
 using .Modes: qinv_operator_z, q_operator_z, heightavg
+using .Modes: phase_gradient_error, phase_error_diagnostic, phase_gradient_refine, mr19_phase_refinement
+export phase_gradient_error, phase_error_diagnostic, phase_gradient_refine, mr19_phase_refinement
 using .Modes: NewtonianDisc, master_equation_cool, loggrid, solve_m_mode, solve_modes,
               vars_from_enthalpy, PotentialCache, passive_mode, passive_sigma
 using .Modes: laplace_b_soft, laplace_b_soft_deriv, laplace_b_soft_2deriv

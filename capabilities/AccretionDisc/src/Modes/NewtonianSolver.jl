@@ -121,35 +121,64 @@ function wkb_boundary_coeffs(d::NewtonianDisc, x, i_in, i_out, m)
 end
 
 """
-    solve_m_mode(d, m, x; reint_steps = 2, rtol = 1e-10, atol = 1e-12) -> complex (n, 2)
+    solve_m_mode(d, m, x; reint_steps = 2, phgrad_steps = 0, diagnostics = false, rtol = 1e-10, atol = 1e-12) -> complex (n, 2)
 
 Enthalpy perturbation `(δh, δh′)` of azimuthal number `m` on grid `x` by the MR19 method: two
 homogeneous plus one inhomogeneous integration from corotation, WKB outgoing-wave conditions at
 adaptive boundaries, and `reint_steps` inhomogeneous re-integration refinements. Values outside the
-converged boundaries are zeroed.
+converged boundaries are zeroed. `phgrad_steps=1` applies one MR secant correction; the default
+zero preserves the original solver. `diagnostics=true` returns a named tuple with mode, before,
+boundary constants, boundary errors, and relative changes. With a phase step, `before` is the
+pre-boundary-update baseline, matching the mirrored algorithm. `boundary_coeffs` and
+`phase_scale_height` select the published boundary and scale-height convention.
 """
-function solve_m_mode(d::NewtonianDisc{T}, m, x; reint_steps = 2, rtol = 1e-10, atol = 1e-12) where {T}
+function solve_m_mode(d::NewtonianDisc, m, x; rtol = 1e-10, atol = 1e-12, kwargs...)
+    _solve_m_mode(d, m, x; rtol, atol, kwargs...)
+end
+
+function _solve_m_mode(d::NewtonianDisc{T}, m, x, cache...; reint_steps = 2,
+                       phgrad_steps = 0, diagnostics = false, boundary_coeffs = wkb_boundary_coeffs,
+                       phase_scale_height = _phase_scale_height, rtol, atol) where {T}
+    phgrad_steps in (0,1) || throw(ArgumentError("phgrad_steps must be 0 or 1 (one MR secant step)"))
     n = length(x); i1 = argmin(abs.(x .- 1))
-    fh1 = integrate_master(d, x, (one(Complex{T}), zero(Complex{T})), m, 0; rtol = rtol, atol = atol)
-    fh2 = integrate_master(d, x, (zero(Complex{T}), one(Complex{T})), m, 0; rtol = rtol, atol = atol)
-    fih = integrate_master(d, x, (zero(Complex{T}), zero(Complex{T})), m, 1; rtol = rtol, atol = atol)
+    fh1 = integrate_master(d, x, (one(Complex{T}), zero(Complex{T})), m, 0, cache...; rtol = rtol, atol = atol)
+    fh2 = integrate_master(d, x, (zero(Complex{T}), one(Complex{T})), m, 0, cache...; rtol = rtol, atol = atol)
+    fih = integrate_master(d, x, (zero(Complex{T}), zero(Complex{T})), m, 1, cache...; rtol = rtol, atol = atol)
     i_in = 1; i_out = n
-    Ci, Co = wkb_boundary_coeffs(d, x, i_in, i_out, m)
+    Ci, Co = boundary_coeffs(d, x, i_in, i_out, m)
     a1, a2 = homogeneous_coefficients(fh1, fh2, fih, Ci, Co, i_in, i_out)
     fm = a1 .* fh1 .+ a2 .* fh2 .+ fih
     i_in, i_out = mode_boundaries(fm, i1)
-    Ci, Co = wkb_boundary_coeffs(d, x, i_in, i_out, m)
+    Ci, Co = boundary_coeffs(d, x, i_in, i_out, m)
+    baseline = fm
     for _ in 1:reint_steps
         ico = corotation_index(d, x, m)
-        fih = integrate_master(d, x, (fm[ico, 1], fm[ico, 2]), m, 1; rtol = rtol, atol = atol)
+        fih = integrate_master(d, x, (fm[ico, 1], fm[ico, 2]), m, 1, cache...; rtol = rtol, atol = atol)
         a1, a2 = homogeneous_coefficients(fh1, fh2, fih, Ci, Co, i_in, i_out)
         fm = a1 .* fh1 .+ a2 .* fh2 .+ fih
+        baseline = fm  # main.py:639 uses this pre-boundary-update solution.
         i_in, i_out = mode_boundaries(fm, i1)
-        Ci, Co = wkb_boundary_coeffs(d, x, i_in, i_out, m)
+        Ci, Co = boundary_coeffs(d, x, i_in, i_out, m)
         a1, a2 = homogeneous_coefficients(fh1, fh2, fih, Ci, Co, i_in, i_out)
-        fm = a1 .* fh1 .+ a2 .* fh2 .+ fih
+        phgrad_steps == 0 && (fm = a1 .* fh1 .+ a2 .* fh2 .+ fih)
+    end
+    C_before = (Ci,Co)
+    before = phgrad_steps == 1 ? baseline : fm
+    if phgrad_steps == 1
+        step = phase_gradient_refine(d,x,m,fh1,fh2,fih,Ci,Co,i_in,i_out;
+                                     baseline,scale_height=phase_scale_height)
+        fm = step.mode
+        Ci,Co = step.C
     end
     fm[1:i_in-1, :] .= 0; fm[i_out+1:end, :] .= 0
+    if diagnostics
+        X_before = phase_error_diagnostic(d,before,x,m,i_in,i_out; scale_height=phase_scale_height)
+        X_after = phase_error_diagnostic(d,fm,x,m,i_in,i_out; scale_height=phase_scale_height)
+        relative_state_change = ntuple(j -> sqrt(sum(abs2,fm[:,j]-before[:,j])/sum(abs2,before[:,j])),2)
+        return (; mode=fm,before,C_before,C_after=(Ci,Co),X_before,X_after,
+                 indices=(i_in,i_out),relative_C_change=abs.(((Ci,Co).-C_before)./C_before),
+                 relative_state_change)
+    end
     fm
 end
 
@@ -191,12 +220,12 @@ end
 
 Solve an arbitrary (not necessarily contiguous) list of azimuthal numbers in parallel.
 """
-function solve_modes(d::NewtonianDisc{T}, ms::AbstractVector, x; reint_steps = 2,
+function solve_modes(d::NewtonianDisc{T}, ms::AbstractVector, x; reint_steps = 2, phgrad_steps = 0,
                      rtol = 1e-10, atol = 1e-12) where {T}
     ms = collect(ms)
     out = Vector{Matrix{Complex{T}}}(undef, length(ms))
     Threads.@threads for i in eachindex(ms)
-        out[i] = solve_m_mode(d, ms[i], x; reint_steps = reint_steps, rtol = rtol, atol = atol)
+        out[i] = solve_m_mode(d, ms[i], x; phgrad_steps, reint_steps = reint_steps, rtol = rtol, atol = atol)
     end
     Dict(ms[i] => out[i] for i in eachindex(ms))
 end
@@ -281,30 +310,9 @@ end
 Same algorithm as [`solve_m_mode`](@ref) with the tabulated forcing potential (throughput path for
 parameter sweeps over many `m`).
 """
-function solve_m_mode(d::NewtonianDisc{T}, m, x, cache::PotentialCache; reint_steps = 2,
-                      rtol = 1e-8, atol = 1e-10) where {T}
-    n = length(x); i1 = argmin(abs.(x .- 1))
-    fh1 = integrate_master(d, x, (one(Complex{T}), zero(Complex{T})), m, 0, cache; rtol = rtol, atol = atol)
-    fh2 = integrate_master(d, x, (zero(Complex{T}), one(Complex{T})), m, 0, cache; rtol = rtol, atol = atol)
-    fih = integrate_master(d, x, (zero(Complex{T}), zero(Complex{T})), m, 1, cache; rtol = rtol, atol = atol)
-    i_in = 1; i_out = n
-    Ci, Co = wkb_boundary_coeffs(d, x, i_in, i_out, m)
-    a1, a2 = homogeneous_coefficients(fh1, fh2, fih, Ci, Co, i_in, i_out)
-    fm = a1 .* fh1 .+ a2 .* fh2 .+ fih
-    i_in, i_out = mode_boundaries(fm, i1)
-    Ci, Co = wkb_boundary_coeffs(d, x, i_in, i_out, m)
-    for _ in 1:reint_steps
-        ico = corotation_index(d, x, m)
-        fih = integrate_master(d, x, (fm[ico, 1], fm[ico, 2]), m, 1, cache; rtol = rtol, atol = atol)
-        a1, a2 = homogeneous_coefficients(fh1, fh2, fih, Ci, Co, i_in, i_out)
-        fm = a1 .* fh1 .+ a2 .* fh2 .+ fih
-        i_in, i_out = mode_boundaries(fm, i1)
-        Ci, Co = wkb_boundary_coeffs(d, x, i_in, i_out, m)
-        a1, a2 = homogeneous_coefficients(fh1, fh2, fih, Ci, Co, i_in, i_out)
-        fm = a1 .* fh1 .+ a2 .* fh2 .+ fih
-    end
-    fm[1:i_in-1, :] .= 0; fm[i_out+1:end, :] .= 0
-    fm
+function solve_m_mode(d::NewtonianDisc, m, x, cache::PotentialCache;
+                      rtol = 1e-8, atol = 1e-10, kwargs...)
+    _solve_m_mode(d, m, x, cache; rtol, atol, kwargs...)
 end
 
 # ---- homogeneous (passive-wake) problem, MR19 §passive / Figs. 10-12 ------------------------------
