@@ -45,22 +45,26 @@ whose error drives the step (the ordering in main.py:639), not a silently rebuil
 The returned X is that baseline error. Floating-point precision is inherited from the disc.
 The default returns `(mode, C, X, jacobian)` and preserves the unguarded MR step exactly.
 
-For the FR22 consumer, `safeguard=true` requires finite, strictly smaller X at BOTH edges
-(including the evanescent inner edge at m=1). Try the full step, then halve its common
+For the FR22 consumer, `safeguard=true` requires finite, strictly smaller X at both edges
+for m≥2. For m=1 only X_out gates descent: C_in is fixed, and the relative L2 change
+of enthalpy on [2r_in, r_corotation] must not exceed 0.1. An empty or nonfinite
+resolved inner interval rejects the step. X_in remains diagnostic only because its
+inner edge layer is not mesh-converged. This 10% bound is a conservative acceptance
+policy, not a claimed physical error estimate. Try the full step, then halve its common
 fraction at most `max_backtracks` times. Only Co varies at m=1. On failure, retain the
 pre-step coefficients and recombine their mode. The supplied pre-update `baseline` still
 drives the secant and acceptance comparison; it need not equal that recombination when
 adaptive boundaries just moved. The extra `safeguard` result records `status` (:accepted,
 :backtracked or :rejected), `fraction`, `backtracks`, `X_before` and the actual `X_after`.
-This safeguard currently accepts integer circular modes (l=m); harmonic-mode solver
-wiring is a separate integration step. No additional ODE integrations are performed.
+`inner_response_change` records the m=1 bound (zero for other m). Integer and
+harmonic modes use the same azimuthal-number branch. No ODE integrations are added.
 """
 function phase_gradient_refine(d::NewtonianDisc{T}, x, m, fh1, fh2, fih, Ci, Co, i_in, i_out;
                                baseline, delta = T(1)/10^6, scale_height = _phase_scale_height,
                                safeguard::Bool = false, max_backtracks::Integer = 6) where {T}
     delta > 0 || throw(ArgumentError("delta must be positive"))
     max_backtracks >= 0 || throw(ArgumentError("max_backtracks must be nonnegative"))
-    safeguard && !(m isa Integer) && throw(ArgumentError("safeguard requires an integer circular mode"))
+    m1 = _azimuthal_number(m) == 1
     combine(ci,co) = begin
         a1,a2 = homogeneous_coefficients(fh1,fh2,fih,ci,co,i_in,i_out)
         a1 .* fh1 .+ a2 .* fh2 .+ fih
@@ -78,7 +82,17 @@ function phase_gradient_refine(d::NewtonianDisc{T}, x, m, fh1, fh2, fih, Ci, Co,
         end
     end
     C_before = (Ci,Co)
-    if m == 1
+    # The unresolved m=1 inner edge layer must not gate a phase correction.
+    # Bound the change of enthalpy on the resolved inner disc instead (F11 of
+    # the solver-generalisation certificate: stable for r >= 2 r_in).
+    inner = searchsortedfirst(x, 2x[i_in]):corotation_index(d,x,m)
+    inner_change(f) = begin
+        isempty(inner) && return T(Inf)
+        scale = sum(abs2, @view baseline[inner,1])
+        change = sum(abs2(f[i,1]-baseline[i,1]) for i in inner)
+        iszero(scale) ? (iszero(change) ? zero(T) : T(Inf)) : sqrt(change/scale)
+    end
+    if m1
         Co -= X[2]/jac[2,2]
     else
         det = jac[1,1]*jac[2,2]-jac[1,2]*jac[2,1]
@@ -91,20 +105,26 @@ function phase_gradient_refine(d::NewtonianDisc{T}, x, m, fh1, fh2, fih, Ci, Co,
         fraction = one(T)
         for backtracks in 0:max_backtracks
             X_after = diagnostic(mode)
-            if all(isfinite, X) && all(isfinite, X_after) && all(X_after .< X)
+            response_change = m1 ? inner_change(mode) : zero(T)
+            descent = m1 ? (isfinite(X[2]) && isfinite(X_after[2]) && X_after[2] < X[2] &&
+                            isfinite(response_change) && response_change <= T(1)/10) :
+                           (all(isfinite, X) && all(isfinite, X_after) && all(X_after .< X))
+            if descent
                 status = backtracks == 0 ? :accepted : :backtracked
-                audit = (; status, fraction, backtracks, X_before=X, X_after)
+                audit = (; status, fraction, backtracks, X_before=X, X_after,
+                           inner_response_change=response_change)
                 return (; mode, C=(Ci,Co), X, jacobian=jac, safeguard=audit)
             end
             backtracks == max_backtracks && break
             fraction /= 2
-            Ci = m == 1 ? C_before[1] : C_before[1] + fraction*(C_full[1]-C_before[1])
+            Ci = m1 ? C_before[1] : C_before[1] + fraction*(C_full[1]-C_before[1])
             Co = C_before[2] + fraction*(C_full[2]-C_before[2])
             mode = combine(Ci,Co)
         end
         mode = combine(C_before...)
         audit = (; status=:rejected, fraction=zero(T), backtracks=max_backtracks,
-                   X_before=X, X_after=diagnostic(mode))
+                   X_before=X, X_after=diagnostic(mode),
+                   inner_response_change=m1 ? inner_change(mode) : zero(T))
         return (; mode, C=C_before, X, jacobian=jac, safeguard=audit)
     end
     (; mode, C=(Ci,Co), X, jacobian=jac)
@@ -115,7 +135,7 @@ function mr19_boundary_coeffs(d, x, i_in, i_out, m)
     map((i_in,i_out)) do i
         r=x[i]; DS=Dfreq(d,r,m)+Nr2(d,r); dDS=dDdr(d,r,m)+dNr2dr(d,r)
         C=im*kwave(d,r,m)+dDS/(4DS)-dSigmadr(d,r)/(2Sigma(d,r))+dcsadidr(d,r)/(2csadi(d,r))-1/(2r)
-        m == 1 && i == i_in ? C-2im*kwave(d,r,m) : C
+        _azimuthal_number(m) == 1 && i == i_in ? C-2im*kwave(d,r,m) : C
     end
 end
 

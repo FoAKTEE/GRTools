@@ -36,7 +36,12 @@ using AccretionDisc
                 @test audit.backtracks == max_backtracks
             else
                 @test all(isfinite, audit.X_after)
-                @test all(audit.X_after .< audit.X_before)
+                if m == 1
+                    @test audit.X_after[2] < audit.X_before[2]
+                    @test audit.inner_response_change <= .1
+                else
+                    @test all(audit.X_after .< audit.X_before)
+                end
                 @test audit.fraction == 2.0^(-audit.backtracks)
                 @test (audit.status == :accepted) == (audit.backtracks == 0)
             end
@@ -57,6 +62,7 @@ using AccretionDisc
     @test rejected.C === (Ci, Co)
     @test isequal(rejected.mode, baseline)
     @test rejected.safeguard.X_after == phase_error_diagnostic(d,baseline,x,1,1,length(x))
+    @test rejected.safeguard.backtracks == 6  # default max_backtracks (lander review R6)
 
     invalid = phase_gradient_refine(d,x,1,h1,h2,ih,Ci,Co,1,length(x);
                                     baseline=zeros(ComplexF64,size(baseline)), safeguard=true)
@@ -65,8 +71,12 @@ using AccretionDisc
     @test invalid.C === (Ci, Co)
     @test isequal(invalid.mode, baseline)
     mode = AccretionDisc.ForcingModes.NewtonianMode(1,1,1.0)
-    @test_throws ArgumentError phase_gradient_refine(d,x,mode,h1,h2,ih,Ci,Co,1,length(x);
-                                                     baseline, safeguard=true)
+    # Harmonic m=1 now follows the same safeguarded outer-only branch.
+    harmonic = phase_gradient_refine(d,x,mode,h1,h2,ih,Ci,Co,1,length(x);
+                                     baseline, safeguard=true)
+    integer = phase_gradient_refine(d,x,1,h1,h2,ih,Ci,Co,1,length(x);
+                                    baseline, safeguard=true)
+    @test isequal(harmonic, integer)
 end
 
 @testset "a zero secant leaves X unchanged and is rejected (lander review R2)" begin
@@ -89,6 +99,7 @@ end
         still = phase_gradient_refine(d, x, m, h1, h2, flat, Cf..., 1, length(x); baseline=flat, safeguard=true)
         @test still.safeguard.X_after == (0., 0.)
         @test still.safeguard.status == :rejected
+        @test still.safeguard.backtracks == 6  # default max_backtracks (lander review R6)
         @test still.C === Cf
         @test isequal(still.mode, flat)
     end
@@ -146,16 +157,67 @@ end
             @test isequal(g.mode, baseline)
             @test X_full[1] < X0[1] && X_full[2] > X0[2]  # one edge improves, the other worsens
         else
-            @test all(a.X_after .< X0)
+            if m == 1
+                @test a.X_after[2] < X0[2]
+                @test a.inner_response_change <= .1
+            else
+                @test all(a.X_after .< X0)
+            end
             @test a.fraction == 2.0^-a.backtracks
             if expected == :accepted
                 @test a.backtracks == 0
                 @test g.C == legacy.C
                 @test isequal(g.mode, legacy.mode)
+                if m == 10
+                    # m >= 2 keeps the two-edge rule (lander review R5): with a zero outer baseline
+                    # error no trial can descend at the outer edge, so the step is rejected although
+                    # the full step improves the inner edge.
+                    cut = argmin(abs.(x .- (x[n] - P._phase_scale_height(d, x[n]))))
+                    flat_out = copy(baseline)
+                    flat_out[cut:n, 1] .= 1
+                    flat_out[cut:n, 2] .= im .* real.([P.kwave(d, r, m) for r in x[cut:n]])
+                    full = phase_gradient_refine(args...; baseline=flat_out)
+                    guard = phase_gradient_refine(args...; baseline=flat_out, safeguard=true)
+                    @test full.X[2] == 0 && guard.X[1] == X0[1]
+                    @test phase_error_diagnostic(d, full.mode, x, m, 1, n)[1] < X0[1]
+                    @test guard.safeguard.status == :rejected
+                    @test guard.C === (Ci, Co)
+                end
             else
                 @test a.backtracks >= 1
                 @test g.C[2] == Co + a.fraction * (legacy.C[2] - Co)
                 @test all(X_full .> X0)  # the full MR step ascends at both edges
+                if m == 1
+                    @test a.inner_response_change <= .1
+                    # An undefined X_in must not gate m=1. The edge layer is
+                    # disjoint from the resolved [2r_in,r_c] interval.
+                    edge = argmin(abs.(x .- (x[1]+P._phase_scale_height(d,x[1]))))
+                    no_inner_phase = copy(baseline)
+                    no_inner_phase[1:edge-1,1] .= 0
+                    outer_only = phase_gradient_refine(args...; baseline=no_inner_phase, safeguard=true)
+                    @test isnan(outer_only.X[1])
+                    @test outer_only.safeguard.status == a.status
+                    @test isequal(outer_only.C, g.C)
+                    @test isequal(outer_only.mode, g.mode)
+                    # The edge layer [r_in, 2 r_in) never enters the bound (lander review R3):
+                    # rescaling the baseline there keeps every phase gradient, the decision and
+                    # the bound bit-identical.
+                    layer = 1:searchsortedfirst(x, 2x[1])-1
+                    rescaled = copy(baseline); rescaled[layer, :] .*= .5
+                    same = phase_gradient_refine(args...; baseline=rescaled, safeguard=true)
+                    @test same.safeguard.status == a.status
+                    @test isequal(same.C, g.C) && isequal(same.mode, g.mode)
+                    @test same.safeguard.inner_response_change === a.inner_response_change
+                    # Outer descent alone is insufficient if the resolved
+                    # inner response changes by more than the fixed bound.
+                    bounded = copy(baseline)
+                    inner = searchsortedfirst(x,2x[1]):P.corotation_index(d,x,m)
+                    bounded[inner,1] .*= .5
+                    stopped = phase_gradient_refine(args...; baseline=bounded, safeguard=true)
+                    @test stopped.safeguard.status == :rejected
+                    @test stopped.safeguard.inner_response_change > .1
+                    @test stopped.C === (Ci,Co)
+                end
                 reject = phase_gradient_refine(args...; baseline, safeguard=true, max_backtracks=0)
                 @test reject.safeguard.status == :rejected
                 @test reject.C === (Ci, Co)
@@ -163,4 +225,26 @@ end
             end
         end
     end
+end
+
+@testset "m=1 bound: an empty resolved inner interval rejects the step (lander review R4)" begin
+    # [2 r_in, r_c] is empty when corotation lies inside 2 r_in. The bound is then undefined, so
+    # the documented rule rejects the step: inner_response_change is Inf and the pre-step
+    # coefficients and their combination are kept, whatever X_out does.
+    P = AccretionDisc.Modes
+    d = NewtonianDisc(beta=80.0)
+    x = loggrid(d, .6, 5., 600)  # integer m = 1 corotates at r = 1 < 2 r_in = 1.2
+    @test isempty(searchsortedfirst(x, 2x[1]):P.corotation_index(d, x, 1))
+    h = exp.(im .* (2 .* x .+ x.^2 ./ 2))
+    h1 = hcat(h, im .* (2 .+ x) .* h)
+    h2 = conj.(h1)
+    ih = hcat(.03 .* x.^2 .+ .02im .* x, .06 .* x .+ .02im)
+    Ci, Co = -.4+2.1im, .2+7.1im
+    a1, a2 = P.homogeneous_coefficients(h1, h2, ih, Ci, Co, 1, length(x))
+    baseline = a1 .* h1 .+ a2 .* h2 .+ ih
+    g = phase_gradient_refine(d, x, 1, h1, h2, ih, Ci, Co, 1, length(x); baseline, safeguard=true)
+    @test g.safeguard.status == :rejected
+    @test isinf(g.safeguard.inner_response_change)
+    @test g.C === (Ci, Co)
+    @test isequal(g.mode, baseline)
 end

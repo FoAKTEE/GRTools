@@ -221,7 +221,8 @@ end
     @test on.indices == plain.indices == (1, n)
     @test a.status == :backtracked && a.backtracks >= 1 && a.fraction == 2.0^-a.backtracks
     @test a.X_before == on.X_before && a.X_after == on.X_after
-    @test all(on.X_after .< on.X_before)
+    @test on.X_after[2] < on.X_before[2]
+    @test a.inner_response_change <= .1
     @test on.C_before === plain.C_before
     @test on.C_after[1] === on.C_before[1]  # m = 1: only C_out moves
     @test on.C_after[2] == on.C_before[2] + a.fraction * (plain.C_after[2] - on.C_before[2])
@@ -240,9 +241,10 @@ end
     @test acc.phase_safeguard.fraction == 1.0
     @test bits(acc.mode, full.mode) && acc.C_after === full.C_after
     @test all(acc.X_after .< acc.X_before)
-    # The safeguard is integer-only in PhaseGradient.jl: a harmonic request must refuse, never skip.
-    @test_throws ArgumentError P.solve_lm_mode(d, NewtonianMode(1,1,1.), x, cache;
-                                               phgrad_steps=1, phgrad_safeguard=true)
+    # Harmonic and integer requests now share the safeguarded azimuthal branch.
+    harmonic = P.solve_lm_mode(d, NewtonianMode(1,1,1.), x, cache;
+                              phgrad_steps=1, phgrad_safeguard=true, diagnostics=true)
+    @test isequal(harmonic,on)
 end
 
 @testset "adaptive-boundary anchor rule (lander review)" begin

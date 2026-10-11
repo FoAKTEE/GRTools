@@ -27,19 +27,6 @@ function _mode_anchor(d, x, mode, anchor)
     throw(ArgumentError("anchor must be :auto, :legacy or :corotation"))
 end
 
-# PhaseGradient.jl owns the secant and its finite-difference Jacobian. Its integer
-# m=1 branch is selected there; for a harmonic, reuse that same Jacobian and apply
-# the outer-only correction here, without defining another refinement algorithm.
-function _mode_phase_refine(d, x, mode, fh1, fh2, fih, Ci, Co, ii, io; kwargs...)
-    step = phase_gradient_refine(d,x,mode,fh1,fh2,fih,Ci,Co,ii,io; kwargs...)
-    if mode isa HarmonicMode && mode.m == 1
-        Co -= step.X[2]/step.jacobian[2,2]
-        a1,a2 = homogeneous_coefficients(fh1,fh2,fih,Ci,Co,ii,io)
-        return (; step..., mode=a1 .* fh1 .+ a2 .* fh2 .+ fih, C=(Ci,Co))
-    end
-    step
-end
-
 "Log-spaced radial grid r_in … r_out with `n` points."
 loggrid(d::NewtonianDisc{T}, r_in, r_out, n) where {T} =
     T(10) .^ range(log10(T(r_in)), log10(T(r_out)); length = n)
@@ -105,15 +92,15 @@ end
 Integrate the master equation on grid `x` outward AND inward from corotation with the state
 `bc = (δh, δh′)` there; column 1 is δh, column 2 is δh′.
 """
-function integrate_master(d::NewtonianDisc{T}, x, bc, m, ih; rtol = 1e-10, atol = 1e-12) where {T}
-    _integrate_master(d, x, bc, m, MasterRHS(d, m, ih); rtol, atol)
+function integrate_master(d::NewtonianDisc{T}, x, bc, m, ih; rtol = 1e-10, atol = 1e-12, dense::Bool = true) where {T}
+    _integrate_master(d, x, bc, m, MasterRHS(d, m, ih); rtol, atol, dense)
 end
 
-function _integrate_master(d::NewtonianDisc{T}, x, bc, m, frhs; rtol, atol) where {T}
+function _integrate_master(d::NewtonianDisc{T}, x, bc, m, frhs; rtol, atol, dense = true) where {T}
     ico = corotation_index(d, x, m)
     y0 = T[real(bc[1]), imag(bc[1]), real(bc[2]), imag(bc[2])]
-    Yout = integrate_grid(frhs, y0, x, ico, +1; rtol = rtol, atol = atol)
-    Yin  = integrate_grid(frhs, y0, x, ico, -1; rtol = rtol, atol = atol)
+    Yout = integrate_grid(frhs, y0, x, ico, +1; rtol = rtol, atol = atol, dense)
+    Yin  = integrate_grid(frhs, y0, x, ico, -1; rtol = rtol, atol = atol, dense)
     n = length(x); f = zeros(Complex{T}, n, 2)
     @inbounds for i in 1:n
         Y = i >= ico ? Yout : Yin
@@ -164,7 +151,7 @@ zero preserves the original solver. `diagnostics=true` returns a named tuple wit
 boundary constants, boundary errors, and relative changes. With a phase step, `before` is the
 pre-boundary-update baseline, matching the mirrored algorithm. `boundary_coeffs` and
 `phase_scale_height` select the published boundary and scale-height convention.
-`phgrad_safeguard=true` (integer circular `m` only) applies the descent safeguard of
+`phgrad_safeguard=true` applies the descent safeguard of
 [`phase_gradient_refine`](@ref) with at most `phgrad_max_backtracks` halvings; the diagnostics
 then also carry its audit as `phase_safeguard`.
 This direct method forces with the circular Laplace harmonic Φ_m, so a `HarmonicMode` is accepted
@@ -180,12 +167,12 @@ end
 function _solve_m_mode(d::NewtonianDisc{T}, m, x, cache...; reint_steps = 2,
                        phgrad_steps = 0, diagnostics = false, boundary_coeffs = wkb_boundary_coeffs,
                        phase_scale_height = _phase_scale_height, anchor = :auto,
-                       phgrad_safeguard::Bool = false, phgrad_max_backtracks::Integer = 6, rtol, atol) where {T}
+                       phgrad_safeguard::Bool = false, phgrad_max_backtracks::Integer = 6, dense::Bool = true, rtol, atol) where {T}
     phgrad_steps in (0,1) || throw(ArgumentError("phgrad_steps must be 0 or 1 (one MR secant step)"))
     n = length(x); i1 = _mode_anchor(d, x, m, anchor)
-    fh1 = integrate_master(d, x, (one(Complex{T}), zero(Complex{T})), m, 0, cache...; rtol = rtol, atol = atol)
-    fh2 = integrate_master(d, x, (zero(Complex{T}), one(Complex{T})), m, 0, cache...; rtol = rtol, atol = atol)
-    fih = integrate_master(d, x, (zero(Complex{T}), zero(Complex{T})), m, 1, cache...; rtol = rtol, atol = atol)
+    fh1 = integrate_master(d, x, (one(Complex{T}), zero(Complex{T})), m, 0, cache...; rtol = rtol, atol = atol, dense)
+    fh2 = integrate_master(d, x, (zero(Complex{T}), one(Complex{T})), m, 0, cache...; rtol = rtol, atol = atol, dense)
+    fih = integrate_master(d, x, (zero(Complex{T}), zero(Complex{T})), m, 1, cache...; rtol = rtol, atol = atol, dense)
     i_in = 1; i_out = n
     Ci, Co = boundary_coeffs(d, x, i_in, i_out, m)
     a1, a2 = homogeneous_coefficients(fh1, fh2, fih, Ci, Co, i_in, i_out)
@@ -195,7 +182,7 @@ function _solve_m_mode(d::NewtonianDisc{T}, m, x, cache...; reint_steps = 2,
     baseline = fm
     for _ in 1:reint_steps
         ico = corotation_index(d, x, m)
-        fih = integrate_master(d, x, (fm[ico, 1], fm[ico, 2]), m, 1, cache...; rtol = rtol, atol = atol)
+        fih = integrate_master(d, x, (fm[ico, 1], fm[ico, 2]), m, 1, cache...; rtol = rtol, atol = atol, dense)
         a1, a2 = homogeneous_coefficients(fh1, fh2, fih, Ci, Co, i_in, i_out)
         fm = a1 .* fh1 .+ a2 .* fh2 .+ fih
         baseline = fm  # main.py:639 uses this pre-boundary-update solution.
@@ -207,7 +194,7 @@ function _solve_m_mode(d::NewtonianDisc{T}, m, x, cache...; reint_steps = 2,
     C_before = (Ci,Co)
     before = phgrad_steps == 1 ? baseline : fm
     if phgrad_steps == 1
-        step = _mode_phase_refine(d,x,m,fh1,fh2,fih,Ci,Co,i_in,i_out;
+        step = phase_gradient_refine(d,x,m,fh1,fh2,fih,Ci,Co,i_in,i_out;
                                      baseline,scale_height=phase_scale_height,
                                      safeguard=phgrad_safeguard,max_backtracks=phgrad_max_backtracks)
         fm = step.mode
@@ -324,8 +311,12 @@ and at r=1 when omega=m to retain circular bit identity. `:corotation` explicitl
 selects corotation for all modes; `:legacy` explicitly selects r=1. Phase correction
 is opt-in, as in `solve_m_mode`; use `phgrad_steps=1` for the FR refinement. Matching
 options and a circular Phi_m cache give the identical circular solve. The phase-step descent
-safeguard (`phgrad_safeguard=true`) accepts integer circular modes only and raises an
-`ArgumentError` for a `HarmonicMode` until its harmonic integration is certified.
+safeguard (`phgrad_safeguard=true`) uses outer descent with bounded inner enthalpy
+change at m=1, and two-edge descent otherwise. FR22 consumers must explicitly pass
+`reint_steps=2, phgrad_steps=1, phgrad_safeguard=true, anchor=:corotation` and their
+measured `rtol, atol`. `dense=false` uses the existing grid-capped DP5 integrator;
+`dense=true` retains the legacy cubic-Hermite dense output. Neither setting asserts
+response convergence: refine tolerances, output grid and forcing cache separately.
 """
 function solve_lm_mode(d::NewtonianDisc, mode::HarmonicMode, x, cache::PotentialCache; kwargs...)
     mode.m > 0 && mode.omega > 0 ||
@@ -356,8 +347,8 @@ end
 @inline (g::CachedMasterRHS)(r, y) = collect(_cached_rhs(g, r, y))
 
 function integrate_master(d::NewtonianDisc{T}, x, bc, m, ih, cache::PotentialCache;
-                          rtol = 1e-8, atol = 1e-10) where {T}
-    _integrate_master(d, x, bc, m, CachedMasterRHS(d, m, ih, cache); rtol, atol)
+                          rtol = 1e-8, atol = 1e-10, dense::Bool = true) where {T}
+    _integrate_master(d, x, bc, m, CachedMasterRHS(d, m, ih, cache); rtol, atol, dense)
 end
 
 """
