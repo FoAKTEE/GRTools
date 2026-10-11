@@ -99,6 +99,10 @@ export strip_halfwidth, trapezoid_nodes
 # ---- EGD::sw-mode-solver — implicit-midpoint global solve + outgoing-wave BCs (Sec. II.E) ---------
 # (needs master.jl for C, S and delta_u_phi, source.jl for the modes at the midpoints, grid.jl for r)
 include("solver.jl")
+# ECC::gr-boundary-certificate — arbitrary-frequency radiation rows (66)-(68), C-66; the matrix
+# frequency-derivative `wkb_split` method that `outgoing_branch` routes through
+include("boundary.jl")
+export radiation_impedance_row
 export ModeSolution, solve_mode, midpoint_system, solve_midpoint, midpoint_residual
 export eigen2, outgoing_branch, wkb_wavenumber_gr, wkb_wavenumber2_gr
 export wkb_split, wkb_amplitudes, mode_amplitudes

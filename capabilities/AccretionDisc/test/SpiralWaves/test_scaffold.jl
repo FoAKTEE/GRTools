@@ -46,9 +46,10 @@ using TestKit
                         :newtonian_grid, :newtonian_solve_mode, :newtonian_amf_mode,
                         :newtonian_torque_density_mode, :newtonian_amf, :newtonian_torque_density,
                         :newtonian_balance_residual]                          # EGD::sw-newtonian-limit
+    landed_boundary = [:radiation_impedance_row]                  # ECC::gr-boundary-certificate (C-66)
     @test Set(names(SW)) == Set(vcat(:SpiralWaves, landed_background, landed_grid, landed_master,
                                      landed_source, landed_solver, landed_diag, landed_survey,
-                                     landed_image, landed_newtonian))
+                                     landed_image, landed_newtonian, landed_boundary))
     @test SW.PAPER == "arXiv:2608.17003"
     @test SW.sw_version() isa VersionNumber
     @test SW.sw_version() == v"0.12.0"
