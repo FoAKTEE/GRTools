@@ -61,4 +61,5 @@ using AccretionDisc
     include("test_eccentric_li_modes.jl")    # ECC::gr-li-mode-solver: end-to-end OPTION A modes, LI rows, closure law, isolation
     include("test_li_thermostat.jl")         # ECC::gr-li-thermostat-sensitivity: thermostat law, bath work, primary-dispatch separation
     include("test_eccentric_diagnostics.jl") # ECC::gr-{adiabatic,li}-balance-diagnostics, gr-{,li-}axisymmetric-power: direct work, LI Reynolds flux
+    include("test_eccentric_convergence.jl") # ECC::gr-quadrature-convergence (PREREG_v2 audit), gr-radial-convergence tooling: norms, gates, tiny ladders
 end
