@@ -125,6 +125,10 @@ include("diagnostics.jl")
 export sqrt_minus_g, amf, amf_mode, torque_density, torque_density_mode, cumulative_torque
 export total_torque, lindblad_torque, torque_units, m_cut, balance_residual, corotation_split
 export corotation_window
+# ECC::gr-li-balance-diagnostics — OPTION A connected Reynolds wave flux and mean-transport split
+# (needs locally_isothermal.jl and diagnostics.jl, whose eccentric context/solution work, torque
+# and power methods belong to ECC::gr-adiabatic-balance-diagnostics; no new exports)
+include("li_diagnostics.jl")
 
 # ---- EGD::sw-survey-parallel — threaded m-sweep and configuration sweep (Sec. III) ----------------
 include("survey.jl")
