@@ -95,6 +95,9 @@ include("source.jl")
 export SingularFieldCoeffs, singular_field_coeffs, worldline_velocity, s0_squared, s0_squared_dr
 export singular_field, singular_field_mode, source_modes, source_modes!, raise_modes
 export strip_halfwidth, trapezoid_nodes
+# ECC::gr-azimuth-projector + ECC::gr-source-harmonics — eccentric source bank and its
+# coordinate-time harmonics (needs eccentric.jl, source.jl; new methods of the source generics above)
+include("eccentric_source.jl")
 
 # ---- EGD::sw-mode-solver — implicit-midpoint global solve + outgoing-wave BCs (Sec. II.E) ---------
 # (needs master.jl for C, S and delta_u_phi, source.jl for the modes at the midpoints, grid.jl for r)

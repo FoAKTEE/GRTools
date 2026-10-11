@@ -53,4 +53,5 @@ using AccretionDisc
     include("test_eccentric_li.jl")          # ECC::gr-li-runtime: OPTION A runtime, closure-bound cache and solutions
     include("test_eccentric_boundary.jl")    # ECC::gr-boundary-certificate: arbitrary-frequency radiation rows (66)-(68)
     include("test_eccentric_li_boundary.jl") # ECC::gr-li-boundary-certificate: OPTION A edge rows, thermal transport, GR transparency
+    include("test_eccentric_source_bank.jl") # ECC::gr-azimuth-projector, ECC::gr-source-harmonics: eccentric source bank
 end
