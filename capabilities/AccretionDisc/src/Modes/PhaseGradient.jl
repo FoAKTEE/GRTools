@@ -35,18 +35,32 @@ end
 
 """
     phase_gradient_refine(d, x, m, fh1, fh2, fih, Ci, Co, i_in, i_out;
-                          baseline, delta=1e-6, scale_height) -> (mode, C, X, jacobian)
+                          baseline, delta=1e-6, scale_height,
+                          safeguard=false, max_backtracks=6)
 
 ONE secant step in `(Ci,Co)` using the two existing homogeneous solutions and particular
 solution. The Jacobian uses `C*(1±delta)` and complex coefficient differences, as in mirrored
 `main.py:641–697`. Only Co is updated for m=1. `baseline` is the pre-boundary-update mode
 whose error drives the step (the ordering in main.py:639), not a silently rebuilt combination.
 The returned X is that baseline error. Floating-point precision is inherited from the disc.
-The nonsmooth peak-to-peak objective does not guarantee descent; inspect the returned diagnostics.
+The default returns `(mode, C, X, jacobian)` and preserves the unguarded MR step exactly.
+
+For the FR22 consumer, `safeguard=true` requires finite, strictly smaller X at BOTH edges
+(including the evanescent inner edge at m=1). Try the full step, then halve its common
+fraction at most `max_backtracks` times. Only Co varies at m=1. On failure, retain the
+pre-step coefficients and recombine their mode. The supplied pre-update `baseline` still
+drives the secant and acceptance comparison; it need not equal that recombination when
+adaptive boundaries just moved. The extra `safeguard` result records `status` (:accepted,
+:backtracked or :rejected), `fraction`, `backtracks`, `X_before` and the actual `X_after`.
+This safeguard currently accepts integer circular modes (l=m); harmonic-mode solver
+wiring is a separate integration step. No additional ODE integrations are performed.
 """
 function phase_gradient_refine(d::NewtonianDisc{T}, x, m, fh1, fh2, fih, Ci, Co, i_in, i_out;
-                               baseline, delta = T(1)/10^6, scale_height = _phase_scale_height) where {T}
+                               baseline, delta = T(1)/10^6, scale_height = _phase_scale_height,
+                               safeguard::Bool = false, max_backtracks::Integer = 6) where {T}
     delta > 0 || throw(ArgumentError("delta must be positive"))
+    max_backtracks >= 0 || throw(ArgumentError("max_backtracks must be nonnegative"))
+    safeguard && !(m isa Integer) && throw(ArgumentError("safeguard requires an integer circular mode"))
     combine(ci,co) = begin
         a1,a2 = homogeneous_coefficients(fh1,fh2,fih,ci,co,i_in,i_out)
         a1 .* fh1 .+ a2 .* fh2 .+ fih
@@ -63,6 +77,7 @@ function phase_gradient_refine(d::NewtonianDisc{T}, x, m, fh1, fh2, fih, Ci, Co,
             jac[i,j] = (ep[i]-em[i])/(cp-cm)
         end
     end
+    C_before = (Ci,Co)
     if m == 1
         Co -= X[2]/jac[2,2]
     else
@@ -70,7 +85,29 @@ function phase_gradient_refine(d::NewtonianDisc{T}, x, m, fh1, fh2, fih, Ci, Co,
         Ci -= (jac[2,2]*X[1]-jac[1,2]*X[2])/det
         Co -= (-jac[2,1]*X[1]+jac[1,1]*X[2])/det
     end
-    (; mode=combine(Ci,Co), C=(Ci,Co), X, jacobian=jac)
+    mode = combine(Ci,Co)
+    if safeguard
+        C_full = (Ci,Co)
+        fraction = one(T)
+        for backtracks in 0:max_backtracks
+            X_after = diagnostic(mode)
+            if all(isfinite, X) && all(isfinite, X_after) && all(X_after .< X)
+                status = backtracks == 0 ? :accepted : :backtracked
+                audit = (; status, fraction, backtracks, X_before=X, X_after)
+                return (; mode, C=(Ci,Co), X, jacobian=jac, safeguard=audit)
+            end
+            backtracks == max_backtracks && break
+            fraction /= 2
+            Ci = m == 1 ? C_before[1] : C_before[1] + fraction*(C_full[1]-C_before[1])
+            Co = C_before[2] + fraction*(C_full[2]-C_before[2])
+            mode = combine(Ci,Co)
+        end
+        mode = combine(C_before...)
+        audit = (; status=:rejected, fraction=zero(T), backtracks=max_backtracks,
+                   X_before=X, X_after=diagnostic(mode))
+        return (; mode, C=C_before, X, jacobian=jac, safeguard=audit)
+    end
+    (; mode, C=(Ci,Co), X, jacobian=jac)
 end
 
 "MR19 App. A outgoing coefficient with D_S (the cooling code uses D instead)."
