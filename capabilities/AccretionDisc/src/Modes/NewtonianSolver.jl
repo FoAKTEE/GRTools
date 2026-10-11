@@ -221,8 +221,13 @@ Reconstruct the velocity and surface-density perturbations from the enthalpy mod
 (main.py `vars_from_enthalpy`). Complex vectors of `length(x)`.
 An integer mode preserves circular forcing; a `HarmonicMode` supplies the total
 frequency. Pass the same potential cache used by the eccentric solve.
+For a three-column `lindblad_regular=true` solve, also pass that keyword here:
+the third column supplies radial mass flux, including at D=0, and the forcing
+is evaluated with the solve's C2 interpolation.
 """
-function vars_from_enthalpy(d::NewtonianDisc{T}, f, x, mode, cache=nothing) where {T}
+function vars_from_enthalpy(d::NewtonianDisc{T}, f, x, mode, cache=nothing;
+                            lindblad_regular::Bool=false) where {T}
+    lindblad_regular && return _regular_vars(d, f, x, mode, cache)
     m = _azimuthal_number(mode)
     n = length(x); u_r = zeros(Complex{T}, n); u_phi = zeros(Complex{T}, n); sig = zeros(Complex{T}, n)
     @inbounds for i in 1:n
@@ -312,13 +317,23 @@ selects corotation for all modes; `:legacy` explicitly selects r=1. Phase correc
 is opt-in, as in `solve_m_mode`; use `phgrad_steps=1` for the FR refinement. Matching
 options and a circular Phi_m cache give the identical circular solve. The phase-step descent
 safeguard (`phgrad_safeguard=true`) uses outer descent with bounded inner enthalpy
-change at m=1, and two-edge descent otherwise. FR22 consumers must explicitly pass
-`reint_steps=2, phgrad_steps=1, phgrad_safeguard=true, anchor=:corotation` and their
-measured `rtol, atol`. `dense=false` uses the existing grid-capped DP5 integrator;
+change at m=1, and two-edge descent otherwise. FR22 consumers pass the measured settings
+[`FR22_SOLVER_SETTINGS`](@ref) (`solve_lm_mode(d, mode, x, cache; FR22_SOLVER_SETTINGS...)`)
+rather than their own. `dense=false` uses the existing grid-capped DP5 integrator;
 `dense=true` retains the legacy cubic-Hermite dense output. Neither setting asserts
 response convergence: refine tolerances, output grid and forcing cache separately.
+
+`lindblad_regular=true` (locally isothermal `beta=0` only) integrates the regular
+first-order enthalpy-plus-potential and radial mass-flux system through D=0. The
+forcing uses a global C2 spline of the supplied cache's potential values; its
+derivatives are taken from that same spline. This opt-in result has THREE columns:
+`(δh, δh′, rΣδu_r)`. Pass `lindblad_regular=true` to `vars_from_enthalpy` to use the
+retained flux at resonances without division by D. The legacy two-column result
+and all circular defaults are unchanged. Grid and forcing convergence remain the
+caller's responsibility; use `dense=false` to avoid cubic dense-output error.
 """
-function solve_lm_mode(d::NewtonianDisc, mode::HarmonicMode, x, cache::PotentialCache; kwargs...)
+function solve_lm_mode(d::NewtonianDisc, mode::HarmonicMode, x, cache::PotentialCache;
+                       lindblad_regular::Bool=false, kwargs...)
     mode.m > 0 && mode.omega > 0 ||
         throw(ArgumentError("corotation shooting requires m > 0 and omega > 0"))
     length(x) >= 2 && all(r -> isfinite(r) && r > 0,x) && all(diff(x) .> 0) ||
@@ -328,8 +343,27 @@ function solve_lm_mode(d::NewtonianDisc, mode::HarmonicMode, x, cache::Potential
     length(cache.lg) >= 4 && length(cache.lg) == length(cache.P) == length(cache.dP) == length(cache.d2P) &&
         all(diff(cache.lg) .> 0) && first(cache.lg) <= log10(first(x)) && last(cache.lg) >= log10(last(x)) ||
         throw(ArgumentError("the potential cache must have at least four ordered nodes covering the grid"))
+    if lindblad_regular
+        iszero(d.beta) || throw(ArgumentError("lindblad_regular requires beta=0"))
+        return _solve_m_mode(d,mode,x,RegularPotential(cache);
+                             rtol=1e-8,atol=1e-10,kwargs...)
+    end
     solve_m_mode(d,mode,x,cache; kwargs...)
 end
+
+"""
+    FR22_SOLVER_SETTINGS
+
+The FR22 keywords of [`solve_lm_mode`](@ref): two re-seeds, one safeguarded phase step anchored at
+corotation, `rtol=1e-10, atol=1e-12`, grid-capped DP5 (`dense=false`) and the regular Lindblad
+crossing (`lindblad_regular=true`, so `beta=0`). Measured (ECC::fr22-linear-solver, lane w16-g40)
+only for the tested scope: 4000 log-spaced radii on [0.1, 5] a (native control [0.05, 5] a), forcing
+caches of at least 3997 nodes and the twelve-mode ladder plus the native m = 40 control, where the
+torque error is at most 1.8e-5 against a fixed-mesh eighth-order oracle. Other grids, caches or
+domains need their own refinement.
+"""
+const FR22_SOLVER_SETTINGS = (; reint_steps=2, phgrad_steps=1, phgrad_safeguard=true, anchor=:corotation,
+                               rtol=1e-10, atol=1e-12, dense=false, lindblad_regular=true)
 
 "Master-equation right-hand side with the tabulated potential (see [`PotentialCache`](@ref))."
 struct CachedMasterRHS{D,M,I,C}

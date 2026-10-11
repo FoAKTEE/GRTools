@@ -1,5 +1,8 @@
 using Test, AccretionDisc, NumericsCore
 
+# Exercise the opt-in crossing keyword whenever this registered FR22 suite runs.
+include("test_fr22_lindblad_crossing.jl")
+
 @testset "FR22 harmonic safeguarded response" begin
     P = AccretionDisc.Modes
     d = NewtonianDisc(h0=.1, q=0., p=0., beta=0., gamma=1., soft=.03, lap_nphi=256)
