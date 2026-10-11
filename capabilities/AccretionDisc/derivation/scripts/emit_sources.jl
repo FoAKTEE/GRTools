@@ -56,4 +56,16 @@ println()
 print(R3.certificate_table([c]))
 c.pass || error("codegen: round-trip self-check FAILED")
 println()
-println(@sprintf("=== SUMMARY === emission + round-trip OK   total wall %.1f s", time() - t0))
+# All five targets carry the hash of derivation/src/*.jl, including thermal
+# balance. Re-emit the eccentric targets from their certified, unchanged
+# serialized expressions whenever that provenance changes.
+for tag in ("adiabatic", "li", "li_stress")
+    artifact = joinpath(HERE, "out", "ECC_$(tag).jls.txt")
+    path = R3.emit_eccentric(joinpath(OUTDIR,"generated","eccentric_$(tag).jl"),artifact;tag)
+    mktempdir() do scratch
+        repeat = R3.emit_eccentric(joinpath(scratch,"eccentric_$(tag).jl"),artifact;tag)
+        @assert read(path)==read(repeat) "eccentric emission must be deterministic"
+    end
+    println("[PASS] deterministic eccentric provenance emission: ",path," sha256 ",_sha(path))
+end
+println(@sprintf("=== SUMMARY === five-target emission + circular round-trip OK   total wall %.1f s", time() - t0))

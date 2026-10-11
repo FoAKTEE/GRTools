@@ -180,3 +180,69 @@ function li_energy_balance_certificates(; npts::Int=12, seed::Int=191101429, ver
     end
     C
 end
+
+"""
+A distinct thermostatted sensitivity completion, inferred from conserved rest
+mass and the caloric ideal-gas law p=rho*T, epsilon=rho*(1+c_v*T). T(r) is fixed
+in the same BL/source gauge, c_v=1/(gamma_gas-1) is constant, and J_bath=Q*u.
+No primary LI coefficients or closure residuals are changed. The compression
+index is defined by Delta p/p = Gamma_eff*Delta rho/rho at T'=0; it is not
+obtained by imposing the zero-bath G26 (19) on this bath-coupled fluid.
+"""
+function thermostat_expressions()
+    @variables rho_th temp_th cv_th expansion_th advtemp_th drho_th xi_th temp_r_th
+    pressure=rho_th*temp_th
+    energy=rho_th*(1+cv_th*temp_th)
+    heat=pressure*expansion_th+rho_th*cv_th*advtemp_th
+    density_rate=-rho_th*expansion_th
+    energy_rate=Symbolics.derivative(energy,rho_th)*density_rate+
+                Symbolics.derivative(energy,temp_th)*advtemp_th
+    lagpressure=temp_th*drho_th+rho_th*temp_r_th*xi_th
+    lagenergy=energy/rho_th*drho_th+rho_th*cv_th*temp_r_th*xi_th
+    theta=pressure/energy
+    (;rho=rho_th,temp=temp_th,cv=cv_th,expansion=expansion_th,advtemp=advtemp_th,
+      drho=drho_th,xi=xi_th,temp_r=temp_r_th,pressure,energy,heat,density_rate,
+      energy_rate,lagpressure,lagenergy,theta,gamma_eff=Num(1),sound_speed2=pressure/(energy+pressure))
+end
+
+"Exact symbolic completion; smooth fields, conserved baryons and unit timelike u."
+function thermostat_certificates(;verbose=true)
+    x=thermostat_expressions(); C=Certificate[]
+    check(name,res)=push!(C,certify_symbolic(name,"thermostatted sensitivity",res;verbose))
+    check("thermostat mass continuity",x.density_rate+x.rho*x.expansion)
+    check("thermostat caloric energy law",x.energy-x.rho-x.cv*x.pressure)
+    check("thermostat required heat from energy balance",x.energy_rate+(x.energy+x.pressure)*x.expansion-x.heat)
+    check("thermostat Lagrangian temperature gradient",
+        [x.lagpressure-x.temp*x.drho-x.rho*x.temp_r*x.xi,
+         x.lagenergy-x.energy/x.rho*x.drho-x.rho*x.cv*x.temp_r*x.xi])
+    check("thermostat q=0 Gamma_eff=1",subs(x.lagpressure,Dict(x.temp_r=>0))/x.pressure-x.drho/x.rho)
+    check("primary Gamma_eff differs by Theta",(x.energy+x.pressure)/x.energy-x.gamma_eff-x.theta)
+    check("thermostat acoustic speed differs from primary",x.sound_speed2-x.theta/(1+x.theta))
+    # G26 (19) would identify d epsilon/(epsilon+p)=d rho/rho. The bath
+    # completion has the following nonzero off-shell defect even at T'=0.
+    check("zero-bath relation19 defect is explicit",
+        subs(x.lagenergy,Dict(x.temp_r=>0))/(x.energy+x.pressure)-x.drho/x.rho+
+        x.pressure*x.drho/(x.rho*(x.energy+x.pressure)))
+    @variables a_th b_th c_th Q_th ut_th uphi_th gravE_th gravL_th
+    normden=1-a_th^2-b_th^2-c_th^2
+    u=[(1+a_th^2+b_th^2+c_th^2)/normden,2a_th/normden,2b_th/normden,2c_th/normden]
+    low=[-u[1],u[2],u[3],u[4]]
+    J=Q_th.*u
+    check("thermostat normalized timelike rational chart",sum(u.*low)+1)
+    check("thermostat comoving heat -u.J=Q",-sum(low.*J)-Q_th)
+    check("thermostat no spatial bath force",J+u*sum(low.*J))
+    # The already certified off-shell current identity in li_balance_expressions
+    # gives div(E)=gravitational_work-J_t and div(L)=gravitational_torque+J_phi.
+    currentE=gravE_th-Q_th*ut_th; currentL=gravL_th+Q_th*uphi_th
+    check("thermostat separate Killing energy work",currentE-gravE_th+Q_th*ut_th)
+    check("thermostat separate Killing angular work",currentL-gravL_th-Q_th*uphi_th)
+    @variables delta_expansion_th delta_ur_th lambda_th
+    # Circular stationary background: theta0=u^r0=0, hence Q0=0. Linearize
+    # Q with delta T=0: delta Q=p0 delta theta+rho0*c_v*delta u^r*T'.
+    heatpert=subs(x.heat,Dict(x.expansion=>lambda_th*delta_expansion_th,
+                            x.advtemp=>lambda_th*delta_ur_th*x.temp_r))
+    check("thermostat circular background heat vanishes",subs(heatpert,Dict(lambda_th=>0)))
+    check("thermostat linear heat at arbitrary temperature slope",
+        Symbolics.derivative(heatpert,lambda_th)-x.pressure*delta_expansion_th-x.rho*x.cv*delta_ur_th*x.temp_r)
+    C
+end
