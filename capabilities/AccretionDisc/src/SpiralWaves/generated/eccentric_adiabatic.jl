@@ -1,7 +1,7 @@
 # GENERATED: closure = adiabatic; do not edit by hand.
 # generator: derivation/src/eccentric_emission.jl
 # input: ECC_adiabatic.jls.txt sha256 46e907ea160885e0f75c64e12b3482ab94a4f29bc5ed272347e070277bf95c82
-# derivation: sha256 58442ab9db5cd8394e4011b102339f055419cfd0495da334dd85715e335a172a
+# derivation: sha256 fb55c490d1667fec10dec54bfa35241ecaf888ce64a95d16a3a385c5d53a7cf6
 # Inputs use the R3 alphabet (enu, epsi, emu are exponentials).
 # htr/hrphi and barred amplitudes are independent complex inputs.
 # Physical conjugacy is supplied by the caller; no reality projection is applied.

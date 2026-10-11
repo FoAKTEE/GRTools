@@ -1,5 +1,5 @@
 """
-Leading G26 source model, in (t,r,phi,z) at the worldline event.
+Leading G26 singular-field gauge in Boyer–Lindquist (t,r,phi,z) at the worldline event.
 The caller supplies the metric and the signed proper-time rates owned by
 Spacetime.worldline_rates; no orbit, turning-point or metric solver lives here.
 [I] Equal-time slicing, coordinate-component transport, the softening frame,
@@ -42,8 +42,8 @@ function field_jet(g, u, rp, r, psi, softening, mass)
     ulow = g*u
     K = 2mass*(g+2ulow*transpose(ulow))
     s = sqrt(j.s2)
-    h = K/s
-    h_r = -K*j.s2_r/(2s^3)
+    h = K ./ s
+    h_r = -K*j.s2_r ./ (2s^3)
     h_rr = K*(3j.s2_r^2/(4s^5)-j.s2_rr/(2s^3))
     (; h, h_r, h_rr, j...)
 end
