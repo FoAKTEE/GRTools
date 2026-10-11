@@ -21,18 +21,18 @@ number from a paper) lives here as a **thin driver** plus a **golden** (`expecte
 | **arXiv:1301.1591**<br>`arXiv-1301.1591/` | Chrzanowski-Cohen-Kegeles metric reconstruction | 6 | 4 fig · 2 tab | 1 fast · 5 heavy | 6 solid |
 | **arXiv:1811.09628**<br>`arXiv-1811.09628/` | Pound et al. — second-order self-force | 2 | 2 fig | 0 fast · 2 heavy | 2 solid |
 | **arXiv:2207.14637**<br>`arXiv-2207.14637/` | Fairbairn & Rafikov — density waves from eccentric planets, linear theory (mission paper) | 2 | 1 fig · 1 chk | 2 fast | 2 solid |
-| **arXiv:2303.16798**<br>`arXiv-2303.16798/` | Piovano et al. — generic linear-in-spin fluxes | 8 | 4 fig · 4 tab | 6 fast · 2 heavy | 6 solid · 2 future |
+| **arXiv:2303.16798**<br>`arXiv-2303.16798/` | Piovano et al. — generic linear-in-spin fluxes | 8 | 4 fig · 4 tab | 6 fast · 2 heavy | 4 solid · 2 prelim · 2 future |
 | **arXiv:2506.19917**<br>`arXiv-2506.19917/` | Fairbairn & Dittmann — eccentric planet-disc interactions to e = 0.7 (mission paper; scaffold) | 18 | 17 fig · 1 chk | 2 fast · 16 heavy | 1 solid · 17 future |
 | **arXiv:2506.20726**<br>`arXiv-2506.20726/` | scalar self-force / effective source | 4 | 3 fig · 1 chk | 4 fast | 4 solid |
 | **arXiv:2510.02433**<br>`arXiv-2510.02433/` | modified-gravity ringdown | 5 | 4 fig · 1 chk | 4 fast · 1 heavy | 3 solid · 2 prelim |
 | **arXiv:2601.19123**<br>`arXiv-2601.19123/` | hybrid EMRI waveform generation | 3 | 2 fig · 1 chk | 3 fast | 2 solid · 1 prelim |
-| **arXiv:2603.12189**<br>`arXiv-2603.12189/` | post-Newtonian self-force comparison | 2 | 2 fig | 2 fast | 2 solid |
+| **arXiv:2603.12189**<br>`arXiv-2603.12189/` | post-Newtonian self-force comparison | 2 | 2 fig | 2 fast | 2 prelim |
 | **arXiv:2603.13482**<br>`arXiv-2603.13482/` | elliptic scalar self-force | 2 | 2 fig | 2 fast | 2 solid |
 | **arXiv:2606.04998**<br>`arXiv-2606.04998/` | Vu et al. — self-force with NR methods (mission paper) | 6 | 6 fig | 0 fast · 6 heavy | 3 solid · 3 prelim |
 | **arXiv:2608.17003**<br>`arXiv-2608.17003/` | EMRI in a gas disc — spiral-wave torque (mission paper) | 15 | 14 fig · 1 chk | 1 fast · 14 heavy | 13 solid · 2 prelim |
 | **arXiv:gr-qc-0703028**<br>`arXiv-gr-qc-0703028/` | Berti, Cardoso & Starinets — QNM tables | 1 | 1 tab | 1 fast | 1 solid |
 | **_selftest**<br>`_selftest/` | harness self-test (not a paper) | 1 | 1 chk | 1 fast | 1 solid |
-| **total** | 15 papers | **82** | 64 fig · 8 tab · 10 chk | 36 fast · 46 heavy | 55 solid · 8 prelim · 19 future |
+| **total** | 15 papers | **82** | 64 fig · 8 tab · 10 chk | 36 fast · 46 heavy | 51 solid · 12 prelim · 19 future |
 
 ### By result
 
@@ -61,8 +61,8 @@ The **golden** column is measured on the file, not declared: `n values / size`,
 | arXiv:2207.14637 | `fr22_fig01` | figure | fast | solid | `arXiv-2207.14637/fig01.jl` | 18 / 4 KB | `AccretionDisc` |
 | arXiv:2303.16798 | `fig_FSl0k_spherical` | figure | fast | solid | `arXiv-2303.16798/fig_FSl0k_spherical.jl` | 8 / 12 KB | `Perturbation` `Spacetime` |
 | arXiv:2303.16798 | `fig_comparison_spherical` | figure | heavy | future | `arXiv-2303.16798/fig_comparison_spherical.jl` | not yet generated | `Perturbation` `Spacetime` |
-| arXiv:2303.16798 | `fig_error_eccentric` | figure | fast | solid | `arXiv-2303.16798/fig_error_eccentric.jl` | 20 / 2 KB | `Perturbation` `Spacetime` |
-| arXiv:2303.16798 | `fig_fourier_coefficients` | figure | fast | solid | `arXiv-2303.16798/fig_fourier_coefficients.jl` | 10 / 3 KB | `Spacetime` |
+| arXiv:2303.16798 | `fig_error_eccentric` | figure | fast | prelim | `arXiv-2303.16798/fig_error_eccentric.jl` | 20 / 2 KB | `Perturbation` `Spacetime` |
+| arXiv:2303.16798 | `fig_fourier_coefficients` | figure | fast | prelim | `arXiv-2303.16798/fig_fourier_coefficients.jl` | 10 / 3 KB | `Spacetime` |
 | arXiv:2303.16798 | `tableI` | table | fast | solid | `arXiv-2303.16798/check_tableI.jl` | 8 / 1 KB | `Perturbation` `Spacetime` |
 | arXiv:2303.16798 | `tableII` | table | fast | solid | `arXiv-2303.16798/check_tableII.jl` | 10 / 2 KB | `Perturbation` `Spacetime` |
 | arXiv:2303.16798 | `tableIII` | table | fast | solid | `arXiv-2303.16798/check_tableIII.jl` | 8 / 11 KB | `Perturbation` `Spacetime` |
@@ -97,8 +97,8 @@ The **golden** column is measured on the file, not declared: `n values / size`,
 | arXiv:2601.19123 | `check_isco_markers` | check | fast | solid | `arXiv-2601.19123/check_isco_markers.jl` | 9 / 1 KB | `Spacetime` |
 | arXiv:2601.19123 | `figDampedRegions` | figure | fast | solid | `arXiv-2601.19123/figDampedRegions.jl` | 9 / 3 KB | `AccretionDisc` |
 | arXiv:2601.19123 | `figOperatorPlot` | figure | fast | prelim | `arXiv-2601.19123/figOperatorPlot.jl` | 11 / 81 KB | `AccretionDisc` |
-| arXiv:2603.12189 | `fig03` | figure | fast | solid | `arXiv-2603.12189/fig03.jl` | 12 / 3 KB | `Perturbation` `Spacetime` |
-| arXiv:2603.12189 | `fig07` | figure | fast | solid | `arXiv-2603.12189/fig07.jl` | 16 / 6 KB | `Perturbation` `Spacetime` |
+| arXiv:2603.12189 | `fig03` | figure | fast | prelim | `arXiv-2603.12189/fig03.jl` | 12 / 3 KB | `Perturbation` `Spacetime` |
+| arXiv:2603.12189 | `fig07` | figure | fast | prelim | `arXiv-2603.12189/fig07.jl` | 16 / 6 KB | `Perturbation` `Spacetime` |
 | arXiv:2603.13482 | `fig_FE1_Cplus1_220k` | figure | fast | solid | `arXiv-2603.13482/fig_FE1_Cplus1_220k.jl` | 8 / 2 KB | `Perturbation` `Spacetime` |
 | arXiv:2603.13482 | `fig_delta_Omega` | figure | fast | solid | `arXiv-2603.13482/fig_delta_Omega.jl` | 18 / 17 KB | `Spacetime` |
 | arXiv:2606.04998 | `fig_convergence` | figure | heavy | prelim | `arXiv-2606.04998/fig_convergence.jl` | 86 / 34 KB | `ScalarSelfForce` `EllipticCore` |
@@ -125,7 +125,7 @@ The **golden** column is measured on the file, not declared: `n values / size`,
 | arXiv:gr-qc-0703028 | `skh_tables` | table | fast | solid | `arXiv-gr-qc-0703028/check_skh_tables.jl` | 11 / 1 KB | `Perturbation` `Harmonics` `Spacetime` |
 | _selftest | `harness-selftest` | check | fast | solid | `_selftest/selftest.jl` | 13 / 1 KB | `Spacetime` |
 
-**82 registered results** across 15 papers (+ the harness self-test): 55 solid · 8 prelim · 19 future.
+**82 registered results** across 15 papers (+ the harness self-test): 51 solid · 12 prelim · 19 future.
 36 run at the default `--tier fast` ceiling; 61 goldens on disk, 1142 KB total (cap 200 KB each).
 
 > **Not yet reproduced (19)** — declared open, not a defect: `2303.16798::tableI_full` (future, heavy, no golden yet), `2303.16798::fig_comparison_spherical` (future, heavy, no golden yet), `2506.19917::fd25_fig01` (future, heavy, no golden yet), `2506.19917::fd25_fig02` (future, heavy, no golden yet), `2506.19917::fd25_fig03` (future, heavy, no golden yet), `2506.19917::fd25_fig04` (future, heavy, no golden yet), `2506.19917::fd25_fig05` (future, heavy, no golden yet), `2506.19917::fd25_fig06` (future, heavy, no golden yet), `2506.19917::fd25_fig07` (future, heavy, no golden yet), `2506.19917::fd25_fig08` (future, heavy, no golden yet), `2506.19917::fd25_fig09` (future, heavy, no golden yet), `2506.19917::fd25_fig10` (future, heavy, no golden yet), `2506.19917::fd25_fig11` (future, heavy, no golden yet), `2506.19917::fd25_fig12` (future, heavy, no golden yet), `2506.19917::fd25_fig13` (future, heavy, no golden yet), `2506.19917::fd25_figA1` (future, heavy, no golden yet), `2506.19917::fd25_figA2` (future, heavy, no golden yet), `2506.19917::fd25_figA4` (future, heavy, no golden yet), `2506.19917::fd25_check_printed_numbers` (future, fast). 18 of them are `heavy`, so the default `--tier fast` sweep does not select them.

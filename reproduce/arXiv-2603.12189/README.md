@@ -5,8 +5,13 @@ Legacy sources: `emri-disk/results/gw-flux/figures/2603.12189/repro_*.jl` (read-
 
 | published object | driver | result id | tier | status | wall (-t4) | vs legacy |
 |---|---|---|---|---|---|---|
-| fig. 3 `fig:fluxcomparen` | `fig03.jl` | `fig03` | fast | solid | 124 s | VLM: SAME |
-| fig. 7 `fig:comparepvalues_leadingharmonics` | `fig07.jl` | `fig07` | fast | solid | 206 s | — |
+| fig. 3 `fig:fluxcomparen` | `fig03.jl` | `fig03` | fast | preliminary ([HOLE] golden below resolution) | 124 s | VLM: SAME |
+| fig. 7 `fig:comparepvalues_leadingharmonics` | `fig07.jl` | `fig07` | fast | preliminary ([HOLE] golden below resolution) | 206 s | — |
+
+`[HOLE]` both rows fail `--check` since GRTools `3e887e9` (the analytic radial `Ur`). The failing
+entries (`rel_SG_vs_exact_n11`, `err_h6_*`) move by more than the golden `rtol = 1e-8` under a one-ulp
+radius perturbation, so they were not re-baked; the measurements are in the MANIFEST notes and the
+open EMRI-ECC obligation `st-o-repro-goldens-after-trajectory-fix`.
 
 `[N/A]`: fig. 1a–e are schematic cartoons with no data.
 `[FUTURE]`: figs. 11 and 12 (inspiral dephasing) need the un-ported 0PA driver.

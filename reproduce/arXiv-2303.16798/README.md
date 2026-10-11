@@ -11,10 +11,15 @@ testset `emri-disk/packages/TeukolskySpinFluxes/test/runtests.jl:731-760` (both 
 | Table I, all six rows | `check_tableI_full.jl` | `tableI_full` | heavy | **future** (no golden) | est. 20–25 min |
 | Table II (`tab:spherical`), 12 rows | `check_tableII.jl` | `tableII` | fast | solid | 88 s |
 | Table III (`tab:generic`), 24 rows | `check_tableIII.jl` | `tableIII` | fast | solid | 94 s |
-| `fig:fourier_coefficients` | `fig_fourier_coefficients.jl` | `fig_fourier_coefficients` | fast | solid | 47 s |
+| `fig:fourier_coefficients` | `fig_fourier_coefficients.jl` | `fig_fourier_coefficients` | fast | preliminary ([HOLE] golden below resolution) | 47 s |
 | `fig:fluxes_spherical` (FSl{1,2,3}0k) | `fig_FSl0k_spherical.jl` | `fig_FSl0k_spherical` | fast | solid | 82 s |
 | `fig:comparison_spherical` | `fig_comparison_spherical.jl` | `fig_comparison_spherical` | heavy | **future** (no golden) | 79 min, not completed |
-| `fig:comparison_generic` (error_eccentric ×2) | `fig_error_eccentric.jl` | `fig_error_eccentric` | fast | solid | 220 s |
+| `fig:comparison_generic` (error_eccentric ×2) | `fig_error_eccentric.jl` | `fig_error_eccentric` | fast | preliminary ([HOLE] golden below resolution) | 220 s |
+
+`[HOLE]` `fig_fourier_coefficients` and `fig_error_eccentric` fail `--check` since GRTools `3e887e9` (the
+corrected radial `Ur` and equatorial branch). Their failing entries move by more than the golden
+`rtol = 1e-8` under a one-ulp radius perturbation, so they were not re-baked; the measurements are in
+the MANIFEST notes and the open EMRI-ECC obligation `st-o-repro-goldens-after-trajectory-fix`.
 
 The three published tables also live as a GrTools test file,
 `capabilities/Perturbation/test/test_published_tables_2303_16798.jl` (commit `8bb3a57`), so the

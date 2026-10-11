@@ -96,8 +96,8 @@ script = "arXiv-2303.16798/fig_fourier_coefficients.jl"
 tier = "fast"
 expected = "arXiv-2303.16798/expected/fig_fourier_coefficients.json"
 depends = ["Spacetime"]
-status = "solid"
-notes = "fig:fourier_coefficients - the radial spin-correction Fourier coefficients |dchi^S_{r,n}| vs n at a=0.9, p=15, I=15deg for e=0.2/0.4/0.6 (nmax=16, kmax=8). Peak at n=+-1 proportional to e (residual 1.5e-3), symmetric decay, then the least-squares truncation floor. FINDING (same as the legacy figure): only the e=0.6 floor (4.5e-12) is resolvable in Float64; the e=0.2/0.4 floors sit at 1.7e4-3.3e6 times eps*peak, i.e. the conditioning floor of the Float64 least-squares solve, whereas the published figure reaches ~1e-20 (extended precision). No monotone-floor claim is registered. 47 s at -t4."
+status = "preliminary"
+notes = "[HOLE ECC st-o-repro-goldens-after-trajectory-fix, 2026-10-11] --check fails since GRTools 3e887e9 and is NOT re-baked: the analytic radial Ur = dr/dlambda of that commit (alone; bisected) moves floor_at_n_16 and floor_over_eps_times_peak by 0.87 % and 2.5 % (norm-rel). These Float64 conditioning-floor entries are below the driver resolution at rtol 1e-8: a one-ulp radius perturbation moves them by 0.33 % and 0.48 %, and the same pipeline fed the correctly rounded BigFloat-256 trajectory differs from both the golden and HEAD by 0.2-2 % (up to 140 % on one entry), so neither value can be confirmed. Every other entry agrees with that oracle to <= 5.2e-11. Evidence: emri-disk results/emri-eccentric/paper_EMRI-ECC/evidence/repro-goldens-trajectory-fix/ fig:fourier_coefficients - the radial spin-correction Fourier coefficients |dchi^S_{r,n}| vs n at a=0.9, p=15, I=15deg for e=0.2/0.4/0.6 (nmax=16, kmax=8). Peak at n=+-1 proportional to e (residual 1.5e-3), symmetric decay, then the least-squares truncation floor. FINDING (same as the legacy figure): only the e=0.6 floor (4.5e-12) is resolvable in Float64; the e=0.2/0.4 floors sit at 1.7e4-3.3e6 times eps*peak, i.e. the conditioning floor of the Float64 least-squares solve, whereas the published figure reaches ~1e-20 (extended precision). No monotone-floor claim is registered. 47 s at -t4."
 
 [[result]]
 paper = "2506.20726"
@@ -342,8 +342,8 @@ script = "arXiv-2603.12189/fig03.jl"
 tier = "fast"
 expected = "arXiv-2603.12189/expected/fig03.json"
 depends = ["Perturbation", "Spacetime"]
-status = "solid"
-notes = "fig:fluxcomparen - the EXACT linear-in-spin flux corrections of the (2,2,n,0) modes vs n = 1..11 against the SHIFTED-GEODESIC approximation, four channels, at a=0.9, p=12, e=0.2, x=sqrt(3)/2. SG tracks the exact correction to 5.0e-5 / 7.7e-6 / 5.2e-5 / 7.7e-6 at n=1 and deviates to 5.1% / 6.4% / 5.1% / 6.4% at n=11 - the published message. VLM comparison of fig03.png against the legacy fig3.png: SAME. 124 s at -t4."
+status = "preliminary"
+notes = "[HOLE ECC st-o-repro-goldens-after-trajectory-fix, 2026-10-11] --check fails since GRTools 3e887e9 and is NOT re-baked: the analytic radial Ur of that commit (alone; bisected) moves the exact n = 11 corrections by <= 6.7e-9, hence rel_SG_vs_exact_n11 by 8.9e-8. The SG central spin difference (s = 2e-6) is not resolved at high n: a one-ulp radius perturbation moves sg_* by 5e-7 (norm-rel) and rel_SG_vs_exact_n11 by up to 47 %; with the correctly rounded BigFloat-256 trajectory the n = 11 deviations are 8.5/7.6/7.9/6.8 % instead of 5.1/7.1/4.7/6.4 %. The qualitative message (SG within 5.3e-5 of the exact correction at n = 1, deviating at high n) holds in every realization; the n = 11 percentages below are one rounding realization. Evidence: emri-disk results/emri-eccentric/paper_EMRI-ECC/evidence/repro-goldens-trajectory-fix/ fig:fluxcomparen - the EXACT linear-in-spin flux corrections of the (2,2,n,0) modes vs n = 1..11 against the SHIFTED-GEODESIC approximation, four channels, at a=0.9, p=12, e=0.2, x=sqrt(3)/2. SG tracks the exact correction to 5.0e-5 / 7.7e-6 / 5.2e-5 / 7.7e-6 at n=1 and deviates to 5.1% / 6.4% / 5.1% / 6.4% at n=11 - the published message. VLM comparison of fig03.png against the legacy fig3.png: SAME. 124 s at -t4."
 
 [[result]]
 paper = "2303.16798"
@@ -353,8 +353,8 @@ script = "arXiv-2303.16798/fig_error_eccentric.jl"
 tier = "fast"
 expected = "arXiv-2303.16798/expected/fig_error_eccentric.json"
 depends = ["Perturbation", "Spacetime"]
-status = "solid"
-notes = "fig:comparison_generic panels error_eccentric_l2m2 and _l5m4 - the per-mode relative difference |1 - F(I)/F(0)| vs inclination for n = 0..4, k = 0 at a=0.9, p=12, e=0.3. Published O(I^2) message reproduced exactly: log-log slopes 1.9957-1.9967 (l2m2) and 1.9615-1.9788 (l5m4). Uses the omega-derivative step h=1e-5 (not the 3e-4 default, which floors these 1e-5..1e-4 differences). KNOWN GAP carried from the legacy reproduction: the published panels spread the n-curves over ~22x, the validated flux gives 1.42x (l2m2) / 1.49x (l5m4); the inclined per-mode flux is oracle-matched against the BHPToolkit Mathematica source at (2,2,0,0) and (2,2,1,0), so the spread is an undocumented per-n figure-construction step, not the flux. 220 s at -t4."
+status = "preliminary"
+notes = "[HOLE ECC st-o-repro-goldens-after-trajectory-fix, 2026-10-11] --check fails since GRTools 3e887e9 and is NOT re-baked. Bisected and attributed: the equatorial owner of that commit changes the node count of equatorial_spin_flux, which the old owner read off the asin-branch trajectory at q = pi + 1e-6 (dphase(pi) 7.955 instead of the BigFloat-256 value 1.789; stepsr 256/256/512 -> 64/128/128 for (l,m,n) = (2,2,0)/(2,2,1)/(5,4,0)). The registered values are below rtol 1e-8 resolution: F_eq shows no convergence in the node count (l5m4 n=0 wanders over ~1e-6 relative for stepsr 32..2048, the h = 1e-5 omega-derivative noise floor), and a one-ulp radius perturbation moves dF_l5m4_n0 by 7.6e-6 and slopes_l5m4 by 1.1e-4 (norm-rel); the slopes stay 2 to 0.05 in every realization. Evidence: emri-disk results/emri-eccentric/paper_EMRI-ECC/evidence/repro-goldens-trajectory-fix/ fig:comparison_generic panels error_eccentric_l2m2 and _l5m4 - the per-mode relative difference |1 - F(I)/F(0)| vs inclination for n = 0..4, k = 0 at a=0.9, p=12, e=0.3. Published O(I^2) message reproduced exactly: log-log slopes 1.9957-1.9967 (l2m2) and 1.9615-1.9788 (l5m4). Uses the omega-derivative step h=1e-5 (not the 3e-4 default, which floors these 1e-5..1e-4 differences). KNOWN GAP carried from the legacy reproduction: the published panels spread the n-curves over ~22x, the validated flux gives 1.42x (l2m2) / 1.49x (l5m4); the inclined per-mode flux is oracle-matched against the BHPToolkit Mathematica source at (2,2,0,0) and (2,2,1,0), so the spread is an undocumented per-n figure-construction step, not the flux. 220 s at -t4."
 
 [[result]]
 paper = "2303.16798"
@@ -375,8 +375,8 @@ script = "arXiv-2603.12189/fig07.jl"
 tier = "fast"
 expected = "arXiv-2603.12189/expected/fig07.json"
 depends = ["Perturbation", "Spacetime"]
-status = "solid"
-notes = "fig:comparepvalues_leadingharmonics - the error of three approximate spinning trajectories (shifted geodesic; the orbit correction truncated at n^s=k^s=4 and 6) against the exact n^s=k^s=8 trajectory, for the (2,2,0,0) mode over p in [6,15], in four flux channels. The published ordering SG > n^s=4 > n^s=6 holds at 19/19 points in all four channels. At p=6 the E-infinity errors are 1.92e-6 / 3.24e-10 / 4.79e-13. 206 s at -t4."
+status = "preliminary"
+notes = "[HOLE ECC st-o-repro-goldens-after-trajectory-fix, 2026-10-11] --check fails since GRTools 3e887e9 and is NOT re-baked: the analytic radial Ur of that commit (alone; bisected) moves err_h6_* by 1.1e-6 to 2.9e-6 (norm-rel). These are differences |dF(8,8) - dF(6,6)| at 1e-6 to 1e-9 of dF itself and are below rtol 1e-8 resolution: a one-ulp radius perturbation moves them by 1e-7 to 3e-6, the BigFloat-256 trajectory oracle likewise, while the raw dF agree with the oracle to <= 1.4e-10. Evidence: emri-disk results/emri-eccentric/paper_EMRI-ECC/evidence/repro-goldens-trajectory-fix/ fig:comparepvalues_leadingharmonics - the error of three approximate spinning trajectories (shifted geodesic; the orbit correction truncated at n^s=k^s=4 and 6) against the exact n^s=k^s=8 trajectory, for the (2,2,0,0) mode over p in [6,15], in four flux channels. The published ordering SG > n^s=4 > n^s=6 holds at 19/19 points in all four channels. At p=6 the E-infinity errors are 1.92e-6 / 3.24e-10 / 4.79e-13. 206 s at -t4."
 
 [[result]]
 paper = "2608.17003"
