@@ -72,6 +72,9 @@ export dlogp_dr_over_enthalpy, kappa2, r_isco, softening_length, F_J0, F_J1
 export disc_OmegaK, kappar2, csound, eden0
 
 include("eccentric.jl")
+# ECC::gr-li-thermostat-sensitivity — thermostatted LI sensitivity diagnostics (a DAG sink); its tag is
+# rejected by the primary closure dispatch of eccentric.jl, so it is included after that file
+include("li_thermostat.jl")
 
 # ---- EGD::sw-grid — adaptive corotation/WKB radial grid (App. C) ---------------------------------
 include("grid.jl")
