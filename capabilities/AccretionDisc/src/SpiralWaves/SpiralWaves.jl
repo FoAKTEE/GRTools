@@ -71,6 +71,8 @@ export dlogp_dr_over_enthalpy, kappa2, r_isco, softening_length, F_J0, F_J1
 # the EXISTING Modes generics gain DiscBackground methods (one name = one concept); re-exported here
 export disc_OmegaK, kappar2, csound, eden0
 
+include("eccentric.jl")
+
 # ---- EGD::sw-grid — adaptive corotation/WKB radial grid (App. C) ---------------------------------
 include("grid.jl")
 export SpiralGrid, build_grid, corotation_radius, corotation_block, smoothmin
