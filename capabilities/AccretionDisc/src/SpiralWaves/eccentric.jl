@@ -75,3 +75,100 @@ end
 r_isco(d::DiscModel) = r_isco(d.reference)
 F_J0(d::DiscModel; q=1) = F_J0(d.reference; q)
 F_J1(d::DiscModel; q=1) = F_J1(d.reference; q)
+
+"""
+    EccentricPerturber(orbit::EquatorialOrbit; mass=1, softening)
+
+Spacetime-owned equatorial worldline and a shared softening policy. The mass
+and policy must fit the orbit's working type without lowering precision.
+Neither the orbit nor its evolution changes the disc reference normalization.
+"""
+struct EccentricPerturber{T,O<:EquatorialOrbit{T},S<:SofteningPolicy}
+    orbit::O
+    mass::T
+    softening::S
+    function EccentricPerturber(orbit::EquatorialOrbit{T}; mass=1,
+                               softening::SofteningPolicy{U}) where {T,U}
+        promote_type(T,typeof(float(mass)),U) === T ||
+            throw(ArgumentError("perturber mass/softening must not exceed orbit precision type"))
+        isfinite(mass) && mass > 0 || throw(ArgumentError("perturber mass must be finite and positive"))
+        new{T,typeof(orbit),typeof(softening)}(orbit,T(mass),softening)
+    end
+end
+
+"""
+    ModeContext(disc, mode::HarmonicMode; closure, domain=(r_isco(disc),5disc.r_ref))
+    ModeContext(disc, perturber, m, k; closure, domain=...)
+    ModeContext(disc, perturber, mode::HarmonicMode; closure, domain=...)
+
+Frequency-aware operator context. `mode.omega` is the total coordinate-time
+frequency in inverse M, never a pattern speed. Its type must match the disc.
+The mandatory closure must agree with the disc. `r_c` is the root in the
+physical `domain`, including endpoints, or `nothing`; no reference radius is
+substituted for an absent root. The static axisymmetric (0,0-frequency) operator
+is singular everywhere and is rejected. Other signed/zero frequencies are valid.
+
+The perturber overload checks spin/type and ω=mΩφ+kΩr through Spacetime's sole
+frequency implementation. The direct mode overload also supports arbitrary
+prescribed frequencies. Source jets are supplied at evaluation time.
+"""
+struct ModeContext{T<:AbstractFloat}
+    disc::DiscModel{T}
+    mode::HarmonicMode{T}
+    closure::ClosureTag
+    domain::NTuple{2,T}
+    r_c::Union{Nothing,T}
+    function ModeContext(d::DiscModel{T}, mode::HarmonicMode; closure,
+                         domain=(r_isco(d),5d.r_ref)) where {T}
+        typeof(mode.omega) === T || throw(ArgumentError("disc and mode frequency types must match"))
+        tag = _closure_tag(closure)
+        tag == d.closure || throw(ArgumentError("context closure must match DiscModel"))
+        mode.m == 0 && iszero(mode.omega) &&
+            throw(ArgumentError("static axisymmetric operator is singular everywhere"))
+        lo,hi = T.(domain)
+        all(isfinite,(lo,hi)) && r_isco(d) <= lo < hi ||
+            throw(ArgumentError("domain must be finite, ordered and outside the ISCO"))
+        rc = corotation_radius(d,mode;domain=(lo,hi))
+        new{T}(d,mode,tag,(lo,hi),rc)
+    end
+end
+
+function ModeContext(d::DiscModel{T}, p::EccentricPerturber, mode::HarmonicMode;
+                     closure, kwargs...) where {T}
+    typeof(p.orbit.a) === T && p.orbit.a == d.χ ||
+        throw(ArgumentError("disc and orbit spin/type must match"))
+    ω = orbit_frequency(p.orbit,mode.m,mode.k)
+    scale = max(abs(ω),abs(mode.m*p.orbit.Ωφ),abs(mode.k*p.orbit.Ωr))
+    abs(mode.omega-ω) <= 64eps(T)*scale ||
+        throw(ArgumentError("mode frequency does not match mΩφ+kΩr"))
+    ModeContext(d,mode;closure,kwargs...)
+end
+function ModeContext(d::DiscModel, p::EccentricPerturber, m::Integer, k::Integer; kwargs...)
+    ModeContext(d,p,HarmonicMode(m,k,orbit_frequency(p.orbit,m,k));kwargs...)
+end
+
+omega_d(c::ModeContext, r) = c.mode.omega-c.mode.m*Omega(c.disc,r)
+corotation_radius(c::ModeContext) = c.r_c
+
+"""
+Complex source inputs for the emitted eccentric kernels (R3 alphabet).
+The geometry, equilibrium, and thermodynamics are real; omega_d, all metric
+amplitudes (including htr/hrphi), and the response y0/y1 are Complex{T}.
+No circular zeroing or real projection is applied.
+"""
+struct EccentricMasterInputs{T<:AbstractFloat}
+    m::Int
+    enu::T; epsi::T; emu::T; psi_r::T; mu_r::T; omt::T; omt_r::T
+    W::T; v::T; v_r::T; p::T; p_r::T; eps::T; eps_r::T; Gamma1::T
+    omega_d::Complex{T}
+    htt::Complex{T}; htt_r::Complex{T}; htphi::Complex{T}; htphi_r::Complex{T}
+    hphiphi::Complex{T}; hphiphi_r::Complex{T}; hrr::Complex{T}; hzz::Complex{T}
+    htr::Complex{T}; hrphi::Complex{T}
+    y0::Complex{T}; y1::Complex{T}
+end
+
+"Zero covariant source jets in the context's working type (operator evaluation)."
+function _zero_source(c::ModeContext{T}) where {T}
+    z = zero(Complex{T})
+    (;htt=z,htt_r=z,htphi=z,htphi_r=z,hphiphi=z,hphiphi_r=z,hrr=z,hzz=z,htr=z,hrphi=z)
+end

@@ -483,3 +483,26 @@ function build_grid(bg::DiscBackground{T}, m::Integer; nL::Integer = 240, nR::In
     SpiralGrid{T}(r, Int(m), r_c, r_in, r_out, r_Cin, r_Cout, rWKB_L, rWKB_R, Int(nL), Int(nR), Int(nC),
                   NL, NR, nW_L, nW_R, blocks, params)
 end
+
+"""
+    corotation_radius(d::DiscModel, mode::HarmonicMode; domain) -> radius or nothing
+
+Root of ω-mΩ in the supplied physical domain. Assumes monotonically decreasing
+rotation, with a 65-point derivative check rejecting unsupported backgrounds;
+this check is not an analytic monotonicity certificate for arbitrary power laws.
+Axisymmetric dynamic modes and non-bracketing frequencies return `nothing`.
+"""
+function corotation_radius(d::DiscModel{T}, mode::HarmonicMode;
+                           domain=(r_isco(d),5d.r_ref)) where {T}
+    lo,hi = T.(domain)
+    all(isfinite,(lo,hi)) && r_isco(d) <= lo < hi || throw(ArgumentError("invalid physical domain"))
+    mode.m == 0 && return nothing
+    all(r -> dOmega_dr(d,r)<0, range(lo,hi;length=65)) ||
+        throw(ArgumentError("corotation search requires decreasing rotation throughout the domain"))
+    f(r) = mode.omega-mode.m*Omega(d,r)
+    flo,fhi = f(lo),f(hi)
+    iszero(flo) && return lo
+    iszero(fhi) && return hi
+    signbit(flo) == signbit(fhi) && return nothing
+    brent(f,lo,hi;maxiter=max(200,2precision(T)))
+end

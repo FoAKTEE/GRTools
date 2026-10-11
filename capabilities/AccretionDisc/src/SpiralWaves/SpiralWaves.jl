@@ -83,6 +83,7 @@ export cell_count, GRID_EXTENTS
 # (included AFTER grid.jl: the Landau shift uses grid.jl's `corotation_radius`; master_derived.jl and
 #  r2_derived.jl are emitted by capabilities/AccretionDisc/derivation — route R3, no external CAS)
 include("master.jl")
+include("generated/eccentric_adiabatic.jl")
 export MasterInputs, master_inputs, master_matrices, master_matrices_newtonian, delta_u_phi_newtonian
 export delta_u_phi, r2_context, dv_dr, rotation_derivs
 export landau_shift, dOmega_dr

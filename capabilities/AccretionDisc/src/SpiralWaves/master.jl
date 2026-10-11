@@ -367,3 +367,62 @@ function delta_u_phi(bg::DiscBackground, m::Integer, r, y; hmodes, landau::Bool 
     inp, ω̃, vp = r2_context(bg, m, r; hmodes = hmodes, landau = landau, rc = rc)
     _r2_delta_u_phi(inp, ω̃, vp, y[1], y[2])
 end
+
+"Landau pole profile for an actual mode corotation; identically zero if none exists."
+function landau_shift(c::ModeContext{T}, r) where {T}
+    c.r_c === nothing && return zero(promote_type(T,typeof(r)))
+    landau_shift(c.disc.reference,c.mode.m,r;rc=c.r_c)
+end
+
+"""
+    master_inputs(context, r; hmodes, landau=true, y=(0,0)) -> EccentricMasterInputs
+
+Assemble on-shell inputs without circular source assumptions. Source properties
+htr/hrphi are required even if zero. BigFloat source/radius/response inputs
+promote the local arithmetic; the mode frequency is fixed by the context.
+"""
+function master_inputs(c::ModeContext{T}, r::Real; hmodes, landau::Bool=true, y=(0,0)) where {T}
+    fields = (:htt,:htt_r,:htphi,:htphi_r,:hphiphi,:hphiphi_r,:hrr,:hzz,:htr,:hrphi)
+    h = map(n -> getproperty(hmodes,n),fields)
+    S = float(promote_type(T,typeof(r),map(x -> typeof(real(x)),h)...,
+                          typeof(real(y[1])),typeof(real(y[2]))))
+    rr = S(r)
+    c.domain[1] <= rr <= c.domain[2] || throw(DomainError(r,"radius outside context domain"))
+    all(isfinite,h) && all(isfinite,y) || throw(ArgumentError("source and response must be finite"))
+    d = c.disc
+    pot = kerr_equatorial_potentials(S(d.χ),rr)
+    dr = kerr_equatorial_potentials_dr(S(d.χ),rr)
+    rp = rotation_profile(d,rr)
+    ε,p = eps_profile(d,rr),pressure(d,rr)
+    ωd = Complex{S}(omega_d(c,rr),landau ? landau_shift(c,rr) : zero(S))
+    iszero(ωd) && throw(DomainError(rr,"unregularized corotation is singular"))
+    EccentricMasterInputs{S}(c.mode.m,exp(pot.ν),exp(pot.ψ),exp(pot.μ),dr.dψ,dr.dμ,pot.ω̃,dr.dω̃,
+        1/sqrt(1-rp.v^2),rp.v,dv_dr(d,rr),p,-(d.pSigma+d.qTemp)*p/rr,
+        ε,-d.pSigma*ε/rr,gamma1(d,rr),ωd,Complex{S}.(h)...,Complex{S}(y[1]),Complex{S}(y[2]))
+end
+
+function _context_operator(::Val{Adiabatic}, inp)
+    (_eccentric_adiabatic_C00(inp),_eccentric_adiabatic_C01(inp),
+     _eccentric_adiabatic_C10(inp),_eccentric_adiabatic_C11(inp))
+end
+_context_source(::Val{Adiabatic}, inp) = (_eccentric_adiabatic_S0(inp),_eccentric_adiabatic_S1(inp))
+function _context_reconstruction(::Val{Adiabatic}, inp)
+    (; dut=_eccentric_adiabatic_dut(inp),dur=im*inp.y1,
+       duphi_up=_eccentric_adiabatic_duphi_up(inp),deps=_eccentric_adiabatic_deps(inp),
+       du_phi=_eccentric_adiabatic_duphi_low(inp),dp=(inp.eps+inp.p)*inp.y0)
+end
+
+"Evaluate the closure-tagged eccentric operator and complex source, dy/dr=C*y+S."
+function master_matrices(c::ModeContext, r; hmodes, landau::Bool=true)
+    inp = master_inputs(c,r;hmodes,landau)
+    a,b,d,e = _context_operator(Val(c.closure),inp)
+    s0,s1 = _context_source(Val(c.closure),inp)
+    ([a b; d e], [s0,s1])
+end
+
+"Reconstruct the Eulerian fluid amplitudes with the context's closure."
+function reconstruct_fluid(c::ModeContext, r, y; hmodes, landau::Bool=true)
+    inp = master_inputs(c,r;hmodes,landau,y)
+    _context_reconstruction(Val(c.closure),inp)
+end
+delta_u_phi(c::ModeContext, r, y; kwargs...) = reconstruct_fluid(c,r,y;kwargs...).du_phi

@@ -47,4 +47,5 @@ using AccretionDisc
     include("SpiralWaves/test_newtonian.jl")  # EGD::sw-newtonian-limit: (50) on a Newtonian background (Fig. 5 T_Newt)
     include("test_eccentric_legacy.jl")      # ECC::gr-disc-model: pre-context circular bit golden (96 Float64 values)
     include("test_eccentric_disc_model.jl")  # ECC::gr-disc-model: DiscModel units, hydrostatic balance, closure/evolution
+    include("test_eccentric_context.jl")     # ECC::gr-frequency-context: arbitrary-ω complex contexts, e → 0 parity
 end
