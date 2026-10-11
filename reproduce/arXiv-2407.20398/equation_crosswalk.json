@@ -1,0 +1,201 @@
+{
+  "scope": "FR24 v1 equations 1 and 9-22; canonical algebra is consumed, not repeated.",
+  "notation": {
+    "FR24 Phi_ml": "FR22 Phi_lm",
+    "FR24 Omega_p": "FR22 n",
+    "FR24 c_s": "FR22 c_s,iso",
+    "FR24 omega_ml": "FR22 omega_lm = total mode.omega/m",
+    "GR index k": "l-m"
+  },
+  "rows": [
+    {
+      "fr24_eq": 1,
+      "fr24_label": "2407.20398v1::eqn:direct_potential",
+      "fr24_source": "ref-paper/arXiv-2407.20398/src/Sections/2_linear_framework.tex:18",
+      "fr22_eq": 2,
+      "fr22_label": "2207.14637v2::eq:direct_potential",
+      "fr22_source": "ref-paper/arXiv-2207.14637/src/Sections/2_framework.tex:29",
+      "canonical_node": "ECC::fr22-eq-phi-factorisation",
+      "note": "Phi_ml <-> Phi_lm; direct potential only"
+    },
+    {
+      "fr24_eq": 9,
+      "fr24_label": "2407.20398v1::eqn:potential_expansion",
+      "fr24_source": "ref-paper/arXiv-2407.20398/src/Sections/2_linear_framework.tex:84",
+      "fr22_eq": 10,
+      "fr22_label": "2207.14637v2::eq:cosine_expansion",
+      "fr22_source": "ref-paper/arXiv-2207.14637/src/Sections/2_framework.tex:99",
+      "canonical_node": "ECC::fr22-eq-fourier",
+      "note": "m(phi-omega_lm*t) = m*phi-l*n*t; Omega_p <-> n"
+    },
+    {
+      "fr24_eq": 10,
+      "fr24_label": "2407.20398v1::eqn:pattern_speed",
+      "fr24_source": "ref-paper/arXiv-2407.20398/src/Sections/2_linear_framework.tex:91",
+      "fr22_eq": 11,
+      "fr22_label": "2207.14637v2::eq:olm",
+      "fr22_source": "ref-paper/arXiv-2207.14637/src/Sections/2_framework.tex:106",
+      "canonical_node": "ECC::fr22-eq-fourier",
+      "note": "omega_ml=(l/m)*Omega_p; mode.omega stores l*Omega_p"
+    },
+    {
+      "fr24_eq": 11,
+      "fr24_label": "2407.20398v1::eqn:modal_repsonse",
+      "fr24_source": "ref-paper/arXiv-2407.20398/src/Sections/2_linear_framework.tex:98",
+      "fr22_eq": 12,
+      "fr22_label": null,
+      "fr22_source": "ref-paper/arXiv-2207.14637/src/Sections/2_framework.tex:114",
+      "canonical_node": "ECC::fr22-eq-fourier",
+      "note": "delta X <-> delta x; preserve misspelled FR24 label"
+    },
+    {
+      "fr24_eq": 12,
+      "fr24_label": "2407.20398v1::eq:density_pert_eqn",
+      "fr24_source": "ref-paper/arXiv-2407.20398/src/Sections/2_linear_framework.tex:105",
+      "fr22_eq": 13,
+      "fr22_label": "2207.14637v2::eq:density_pert_eqn",
+      "fr22_source": "ref-paper/arXiv-2207.14637/src/Sections/2_framework.tex:123",
+      "canonical_node": "ECC::fr22-eq-linearised",
+      "note": "d/dr and partial_r agree after Fourier separation"
+    },
+    {
+      "fr24_eq": 13,
+      "fr24_label": "2407.20398v1::eq:ur_eqn",
+      "fr24_source": "ref-paper/arXiv-2407.20398/src/Sections/2_linear_framework.tex:108",
+      "fr22_eq": 14,
+      "fr22_label": "2207.14637v2::eq:ur_eqn",
+      "fr22_source": "ref-paper/arXiv-2207.14637/src/Sections/2_framework.tex:128",
+      "canonical_node": "ECC::fr22-eq-linearised",
+      "note": "same separated radial derivative"
+    },
+    {
+      "fr24_eq": 14,
+      "fr24_label": "2407.20398v1::eq:uphi_eqn",
+      "fr24_source": "ref-paper/arXiv-2407.20398/src/Sections/2_linear_framework.tex:111",
+      "fr22_eq": 15,
+      "fr22_label": "2207.14637v2::eq:uphi_eqn",
+      "fr22_source": "ref-paper/arXiv-2207.14637/src/Sections/2_framework.tex:133",
+      "canonical_node": "ECC::fr22-eq-linearised",
+      "note": "same"
+    },
+    {
+      "fr24_eq": 15,
+      "fr24_label": "2407.20398v1::eq:master_eqn",
+      "fr24_source": "ref-paper/arXiv-2407.20398/src/Sections/2_linear_framework.tex:118",
+      "fr22_eq": 16,
+      "fr22_label": "2207.14637v2::eq:master_eqn",
+      "fr22_source": "ref-paper/arXiv-2207.14637/src/Sections/2_framework.tex:140",
+      "canonical_node": "ECC::fr22-eq-master",
+      "note": "FR24 c_{s^2} means c_s^2; FR22 c_{s,iso}^2; finite L_T inverse retained"
+    },
+    {
+      "fr24_eq": 16,
+      "fr24_label": "2407.20398v1::eqn:thermal_scale",
+      "fr24_source": "ref-paper/arXiv-2407.20398/src/Sections/2_linear_framework.tex:129",
+      "fr22_eq": 18,
+      "fr22_label": "2207.14637v2::eq:thermal_length",
+      "fr22_source": "ref-paper/arXiv-2207.14637/src/Sections/2_framework.tex:158",
+      "canonical_node": "ECC::fr22-eq-master",
+      "note": "FR24 c_s = FR22 c_s,iso; L_T^-1=-q/r"
+    },
+    {
+      "fr24_eq": 17,
+      "fr24_label": "2407.20398v1::eqn:resonance_offset",
+      "fr24_source": "ref-paper/arXiv-2407.20398/src/Sections/2_linear_framework.tex:136",
+      "fr22_eq": 17,
+      "fr22_label": "2207.14637v2::eq:detuning",
+      "fr22_source": "ref-paper/arXiv-2207.14637/src/Sections/2_framework.tex:151",
+      "canonical_node": "ECC::fr22-eq-master",
+      "note": "D=kappa^2-(l*n-m*Omega)^2"
+    },
+    {
+      "fr24_eq": 18,
+      "fr24_label": "2407.20398v1::eq:dsigma_dh",
+      "fr24_source": "ref-paper/arXiv-2407.20398/src/Sections/2_linear_framework.tex:143",
+      "fr22_eq": 19,
+      "fr22_label": "2207.14637v2::eq:dsigma_dh",
+      "fr22_source": "ref-paper/arXiv-2207.14637/src/Sections/2_framework.tex:165",
+      "canonical_node": "ECC::fr22-eq-master",
+      "note": "same sound-speed notation correction"
+    },
+    {
+      "fr24_eq": 19,
+      "fr24_label": "2407.20398v1::eq:dur_dh",
+      "fr24_source": "ref-paper/arXiv-2407.20398/src/Sections/2_linear_framework.tex:145",
+      "fr22_eq": 20,
+      "fr22_label": "2207.14637v2::eq:dur_dh",
+      "fr22_source": "ref-paper/arXiv-2207.14637/src/Sections/2_framework.tex:167",
+      "canonical_node": "ECC::fr22-eq-master",
+      "note": "same radial derivative and Phi index exchange"
+    },
+    {
+      "fr24_eq": 20,
+      "fr24_label": "2407.20398v1::eq:duphi_dh",
+      "fr24_source": "ref-paper/arXiv-2407.20398/src/Sections/2_linear_framework.tex:147",
+      "fr22_eq": 21,
+      "fr22_label": "2207.14637v2::eq:duphi_dh",
+      "fr22_source": "ref-paper/arXiv-2207.14637/src/Sections/2_framework.tex:169",
+      "canonical_node": "ECC::fr22-eq-master",
+      "note": "same radial derivative and Phi index exchange"
+    },
+    {
+      "fr24_eq": 21,
+      "fr24_label": "2407.20398v1::eqn:lindblad_resonances",
+      "fr24_source": "ref-paper/arXiv-2407.20398/src/Sections/2_linear_framework.tex:166",
+      "fr22_eq": 26,
+      "fr22_label": "2207.14637v2::eq:linblad_resonances",
+      "fr22_source": "ref-paper/arXiv-2207.14637/src/Sections/3_numerical_procedure.tex:66",
+      "canonical_node": "ECC::fr22-eq-lindblad",
+      "note": "Kepler limit only; minus inner, plus outer; FR22 prose reverses names (E-ECC-8)"
+    },
+    {
+      "fr24_eq": 22,
+      "fr24_label": "2407.20398v1::eq:phi_mode_integral",
+      "fr24_source": "ref-paper/arXiv-2407.20398/src/Sections/2_linear_framework.tex:197",
+      "fr22_eq": "22-23",
+      "fr22_label": "2207.14637v2::eq:phi_mode_integral",
+      "fr22_source": "ref-paper/arXiv-2207.14637/src/Sections/3_numerical_procedure.tex:29",
+      "canonical_node": "ECC::fr22-eq-phi-factorisation",
+      "note": "both printed physical-time inverses omit n/Omega_p; corrected prefactor Omega_p/(2*pi^2); FR24 prints one number (22), on the second equality; the first equality is unnumbered"
+    }
+  ],
+  "deltas": [
+    {
+      "name": "softening",
+      "FR24": "epsilon=b*H(r_p(t))",
+      "FR22": "epsilon=.3H is ambiguous; provisional fixed H(a) run policy is not inherited by FR24",
+      "source": "ref-paper/arXiv-2407.20398/src/Sections/2_linear_framework.tex:202",
+      "runtime": "Modes.potential_bank(...;softening=ForcingModes.InstantaneousScaleHeight(b))"
+    },
+    {
+      "name": "domain",
+      "FR24": [
+        0.05,
+        5
+      ],
+      "FR22": [
+        0.1,
+        5
+      ],
+      "source": "ref-paper/arXiv-2407.20398/src/Sections/2_linear_framework.tex:206",
+      "scope": "r/a; no claim that FR22 tolerance convergence automatically covers the enlarged domain"
+    },
+    {
+      "name": "temperature",
+      "FR24": "q!=0 including finite L=-q/r and Lprime=q/r^2",
+      "FR22": "equations arbitrary q; published runs q=0",
+      "source": "ref-paper/arXiv-2207.14637/src/Sections/2_framework.tex:175",
+      "runtime_check": "evidence/fr24-fr22-equation-identity/check_identity.jl consumes canonical expressions at q=0,.25,.75,1 and l!=m"
+    },
+    {
+      "name": "Fourier units",
+      "corrected": "Omega_p/(2*pi^2) integral dt dphi; equivalently 1/(2*pi^2) integral dM dphi",
+      "source": "ref-paper/arXiv-2407.20398/src/Sections/2_linear_framework.tex:196",
+      "certificates": [
+        "ECC::fr22-eq-fourier",
+        "ECC::fr24-units-normalisation",
+        "ECC::shared-newtonian-projector"
+      ]
+    }
+  ]
+}
