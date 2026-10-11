@@ -47,11 +47,12 @@ driver here regenerates from package functions.
 | 12 | `secondary_amplitude_homogeneous` | — | fast | future | theory curves are cheap; the overlaid POINTS are published reference values — the authors' amplitude-ID driver is unpublished |
 | 13 | `mode_phases` | — | heavy | future | m = 2…30 global modes; the legacy run capped at m = 20 as compute-prohibitive |
 | 14 | `dphi_phi_theory` | — | heavy | future | the theory curves are cheap and were reproduced exactly by the legacy run; the published NUMERICAL (dotted) overlay needs the full 2-D synthesis + arm extraction |
-| 15 | `phase_refine` | `fig15_phase_refine.jl` | heavy | **preliminary — does NOT match yet** | one m = 10 forced solve plus one MR App. A secant step (≈ 380 s at -t1; the caption needs no mode bank). The golden pins our own output for regression only: reference acceptance 17/21, VLM mismatch, unattributed (see "Figure 15" below) |
+| 15 | `phase_refine` | `fig15_phase_refine.jl` | heavy | **solid — accepted by owner ruling 2026-10-11 with recorded deviations** | one m = 10 forced solve plus one MR App. A secant step (≈ 380 s at -t1; the caption needs no mode bank). The figure acceptance gate itself did not pass (17/21, VLM mismatch); the 4 failing checks are accepted deviations, not passes (see "Figure 15" below) |
 | 16 | `m_max` convergence | — | heavy | future | one `solve_modes(d, 1:80, x)` (≈ 1.7 h) then m-sum truncation at 10/20/40/80 |
 
 **Summary: 2 of 16 have a driver. Fig. 1 regenerates end-to-end and matches; fig. 15 regenerates our
-own computation but does not yet reproduce the published figure (preliminary). 13 are compute-bound
+own computation and is accepted by owner ruling 2026-10-11 with recorded deviations (it does not pass
+its preregistered reference comparison). 13 are compute-bound
 (the physics is now in the package, the wall time is the obstacle) and 1 (fig 6) has a genuine
 external dependency.** None of the 15 in-scope figures is blocked on missing physics any more —
 that is what the migration wave changed.
@@ -80,7 +81,12 @@ magnitudes in every panel, Re black / Im red, corotation line at r = 1 with the 
 published figure's own remaining difference is unchanged from the legacy assessment: it used ≈ 1e5
 grid points, so its exterior red fill is denser than a 2e4-point render.
 
-## Figure 15 — preliminary: the golden is a regression pin, not a reproduction
+## Figure 15 — solid by owner ruling, with recorded deviations
+
+Accepted by owner ruling 2026-10-11 with recorded deviations: after viewing the published and
+reproduced figures side by side the owner ruled "our thing is good enough, just proceed, it is fine".
+The figure acceptance gate itself did NOT pass; the four failures below are accepted deviations, not
+passes.
 
 `fig15_phase_refine.jl` calls `AccretionDisc.Modes.mr19_phase_refinement`: one forced m = 10 solve
 on the 60 000-point grid of MR19 §2 (h_p = 0.1 in the paper's adiabatic sound-speed convention,
@@ -105,7 +111,11 @@ The VLM comparison is a **mismatch**: panels, axes, labels, the off-frame featur
 1.25 r_p and the suppression of the inner oscillation agree, but the inner-disc oscillation of panel
 (a) is phase-shifted (its extrema sit 1–2 % inward of the published ones, giving an extra lobe beside
 the trough at r ≈ 0.73). The cause is unattributed; the reviewer's divergence table between this port,
-the authors' code and the paper text is in the emri-disk evidence (`review/findings.json`).
+the authors' code and the paper text is in the emri-disk evidence (`review/findings.json`). The
+preregistered diagnosis (`diagnosis/` there) ran eight single-change cases and a boundary-versus-
+accumulated phase test: none passes all 21 checks, and the unrefined-curve phase offset (0.25 rad
+near r_in growing to 1.47 rad by r ≈ 0.55, of ≈ 430 rad accumulated WKB phase) stays unattributed.
+The clipped x-axis label of the first PNG was a layout defect, fixed by a tight bounding box.
 
 ## Physics regime — the finding that governs every forced figure
 
