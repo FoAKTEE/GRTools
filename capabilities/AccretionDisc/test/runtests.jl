@@ -18,6 +18,7 @@ using AccretionDisc
     include("Modes/test_resonances.jl")
     include("Modes/test_reducedode.jl")
     include("Modes/test_forcing.jl")
+    include("Modes/test_negative_spin_torque.jl")  # ECC::st-negative-spin-constants: a<0 ILR torque consumer
     include("Modes/test_pressureless_lindblad.jl")  # EGD::analytic-lindblad-hegade: arXiv:2510.03564 (18a,18b,19,20,23,24,25,C1-C2)
     include("Modes/test_newtonian_planet.jl")  # MR19/MR20 Newtonian planet-forced disc modes (arXiv:1811.09628)
     include("Modes/test_phase_gradient.jl")  # ECC::mr19-fig15: MR Appendix A secant step
