@@ -55,6 +55,7 @@ export phase_gradient_error, phase_error_diagnostic, phase_gradient_refine, mr19
 # `Modes.Sigma`, … belong to this background only); the solver API and the softened Laplace family
 # are exported.
 export NewtonianDisc, master_equation_cool, loggrid, solve_m_mode, solve_modes, vars_from_enthalpy
+export solve_lm_mode  # ECC::fr22-solver-mode-generalisation: frequency-aware (m,l) entry point
 export PotentialCache, passive_mode, passive_sigma
 export laplace_b_soft, laplace_b_soft_deriv, laplace_b_soft_2deriv
 

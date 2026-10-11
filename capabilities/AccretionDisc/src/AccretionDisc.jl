@@ -59,6 +59,7 @@ using .Modes: phase_gradient_error, phase_error_diagnostic, phase_gradient_refin
 export phase_gradient_error, phase_error_diagnostic, phase_gradient_refine, mr19_phase_refinement
 using .Modes: NewtonianDisc, master_equation_cool, loggrid, solve_m_mode, solve_modes,
               vars_from_enthalpy, PotentialCache, passive_mode, passive_sigma
+using .Modes: solve_lm_mode
 using .Modes: laplace_b_soft, laplace_b_soft_deriv, laplace_b_soft_2deriv
 using .Modes: master_radial_coeffs
 export RelativisticDisc, disc_OmegaK, kappar2, delta_r, csound, eden0, risco_disc
@@ -81,6 +82,7 @@ export NovikovThorneDisc, nt_isco, nt_factors, nt_surface_density, nt_scale_heig
 export ss_surface_density, ss_aspect_ratio, pressure_cutoff, total_lindblad_torque, powerlaw_fit
 export NewtonianDisc, master_equation_cool, loggrid, solve_m_mode, solve_modes,
        vars_from_enthalpy, PotentialCache, passive_mode, passive_sigma
+export solve_lm_mode
 export laplace_b_soft, laplace_b_soft_deriv, laplace_b_soft_2deriv
 export qinv_operator, q_operator
 export disc_OmegaK_z, alpha_z, Uvec_z, pressure_z, eden_z
