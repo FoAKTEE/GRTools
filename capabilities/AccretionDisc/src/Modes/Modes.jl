@@ -65,6 +65,7 @@ include("EccentricPlanet.jl")   # FR22 (24)-(25) Kepler orbit; ZZ22 (4)-(9) wave
 export EccentricOrbit, kepler_E, planet_orbit
 export zz22_wavelet, zz22_track
 export NewtonianPotentialBank, potential_bank, harmonic_cache
+include("FR22WakeSynthesis.jl") # FR22 time-dependent, unit-weight density sum
 include("FR24Diagnostics.jl")  # FR24 per-harmonic flux, torque and power (unexported)
 include("FR24Evolution.jl")    # Shared Keplerian orbital rates from modal diagnostics
 include("FR22Potential.jl")     # ECC::fr22-potential-harmonics: factorised Gauss-E oracle (unexported)
