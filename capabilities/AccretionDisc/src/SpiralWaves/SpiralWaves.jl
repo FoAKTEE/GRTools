@@ -103,6 +103,9 @@ include("solver.jl")
 # frequency-derivative `wkb_split` method that `outgoing_branch` routes through
 include("boundary.jl")
 export radiation_impedance_row
+# ECC::gr-li-boundary-certificate — OPTION A outgoing/evanescent edge rows with the first transport
+# (thermal-gradient) correction; needs locally_isothermal.jl and boundary.jl; explicit import only
+include("li_boundary.jl")
 export ModeSolution, solve_mode, midpoint_system, solve_midpoint, midpoint_residual
 export eigen2, outgoing_branch, wkb_wavenumber_gr, wkb_wavenumber2_gr
 export wkb_split, wkb_amplitudes, mode_amplitudes
