@@ -215,3 +215,67 @@ function singular_field_mode(p::EccentricPerturber{T}, m::Integer, r, q; N::Int=
     end
     _eccentric_source_jet(K,(a+c)/N,(ar+cr)/N)
 end
+
+# A component of a coordinate-time projection, using the circular source's
+# compensated adder separately on real/imaginary parts. Componentwise ordering
+# matters when one part nearly cancels while the other stays large.
+function _eccentric_harmonic_sum(b, m, weights, ir, component, derivative)
+    T = eltype(b.q)
+    ar,cr,ai,ci = zero(T),zero(T),zero(T),zero(T)
+    @inbounds for iq in eachindex(b.q)
+        z = weights[iq]*b.events[iq].tensor[component]*b.kernels[m+1,iq,ir,derivative]
+        ar,cr = _kbn_add(ar,cr,real(z))
+        ai,ci = _kbn_add(ai,ci,imag(z))
+    end
+    complex(ar+cr,ai+ci)
+end
+
+"""
+    source_modes(bank::SourceAzimuthBank, modes; derivatives=true)
+
+Return a matrix indexed `[radius_index, mode_index]` of covariant component
+NamedTuples. With derivatives=true each tuple includes all seven first radial
+jets (same names as singular_field); otherwise it has seven field components.
+Every k shares the stored orbit, tensor and azimuth bank. Frequencies must be
+m*Omega_phi+k*Omega_r in the bank's floating type, and 0<=m<=bank.mmax.
+No sector is silently dropped, including axisymmetric or secular modes.
+
+Implements Spacetime's C-HARM convention (Geodesics/harmonics.jl:73-102):
+sum[(dt/dlambda)/(Nq*Gamma) H_m exp(i(k*q+omega*Delta_t-m*Delta_phi))].
+Real and imaginary sums are separately compensated. Returned complex Fourier
+coefficients are not real-amplitude cosine coefficients: FR22's Newtonian
+potential amplitude is -real(htt), since Phi=-h_tt/2 and the reality-pair
+amplitude is 2*Phi_hat (E-ECC-2). No enforced reality projection is applied.
+
+Nq is caller-controlled: compare independent rebuilt banks at Nq,2Nq,4Nq.
+A single bank carries no convergence claim. No circular-source dispatch occurs.
+"""
+function source_modes(b::SourceAzimuthBank{T}, modes; derivatives::Bool=true) where {T}
+    selected = collect(modes)
+    names = derivatives ? ECCENTRIC_SOURCE_JETS : ECCENTRIC_SOURCE_COMPONENTS
+    proto = NamedTuple{names}(ntuple(_ -> zero(Complex{T}),length(names)))
+    out = Matrix{typeof(proto)}(undef,length(b.rs),length(selected))
+    weights = Vector{Complex{T}}(undef,length(b.q))
+    for (imode,mode) in enumerate(selected)
+        mode isa HarmonicMode || throw(ArgumentError("source modes must be HarmonicMode values"))
+        0<=mode.m<size(b.kernels,1) || throw(ArgumentError("requested m is outside the azimuth bank"))
+        typeof(mode.omega) === T || throw(ArgumentError("mode and source bank precision types must match"))
+        omega = orbit_frequency(b.perturber.orbit,mode.m,mode.k)
+        scale = max(abs(omega),abs(mode.m*b.perturber.orbit.Ωφ),abs(mode.k*b.perturber.orbit.Ωr))
+        abs(mode.omega-omega)<=64eps(T)*scale ||
+            throw(ArgumentError("mode frequency does not match m*Omega_phi+k*Omega_r"))
+        for iq in eachindex(b.q)
+            phase = mode.k*b.q[iq]+omega*b.delta_t[iq]-mode.m*b.delta_phi[iq]
+            weights[iq] = b.time_weights[iq]*cis(phase)
+        end
+        for ir in eachindex(b.rs)
+            values = ntuple(length(names)) do j
+                component = derivatives ? (j+1)÷2 : j
+                derivative = derivatives && iseven(j) ? 2 : 1
+                _eccentric_harmonic_sum(b,mode.m,weights,ir,component,derivative)
+            end
+            out[ir,imode] = NamedTuple{names}(values)
+        end
+    end
+    out
+end

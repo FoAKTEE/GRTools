@@ -177,3 +177,232 @@ println("PASS AZIMUTH_PARITY FFT vs independent R3 Gauss quadrature and Nphi,2Np
 println("PASS CIRCULAR_STRIP lower bound vs exact circular zeros; legacy bit identity")
 println("PASS MEMORY cap/overflow/invalid input rejection; BigFloat128 tiny inheritance unit")
 end
+
+function source_measure(f)
+    start=ccall(:clock,Clong,())
+    t=@timed f()
+    cpu=(ccall(:clock,Clong,())-start)/1e6 # POSIX CLOCKS_PER_SEC on the test host
+    (;value=t.value,wall=t.time,cpu,allocated=t.bytes)
+end
+
+# FR22 physical-time double integral, with E-ECC-2's n/(2pi^2).
+# Absolute phi is integrated, not a pre-factorised Laplace coefficient.
+function fr22_direct_source(e,radii,modes;Nt=256,Nphi=512,n=0.37)
+    result=zeros(ComplexF64,length(radii),length(modes),2)
+    dt=2pi/(n*Nt)
+    dphi=2pi/Nphi
+    weight=n/(2pi^2)*dt*dphi
+    for j in 0:Nt-1
+        M=2pi*j/Nt
+        s=AccretionDisc.Modes.planet_orbit(M,e;a=1.0,n)
+        for l in 0:Nphi-1
+            phi=2pi*l/Nphi
+            c=cos(phi-s.phi_p)
+            for (ir,r) in enumerate(radii)
+                sep=sqrt((r-s.r_p)^2+2r*s.r_p*(1-c)+0.018^2)
+                potential=-1/sep
+                derivative=(r-s.r_p*c)/sep^3
+                for (imode,(m,k)) in enumerate(modes)
+                    phase=cis((m+k)*M-m*phi)
+                    result[ir,imode,1]+=weight*potential*phase
+                    result[ir,imode,2]+=weight*derivative*phase
+                end
+            end
+        end
+    end
+    result
+end
+
+if SOURCE_TEST_STAGE in ("all","harmonics")
+include(joinpath(@__DIR__,"..","..","Spacetime","test","equatorial_quadrature_oracle.jl"))
+using .EquatorialQuadratureOracle
+@testset "ECC gr-source-harmonics" begin
+    @testset "C-HARM owner and independent coordinate-time gate" begin
+        for spin in (-0.7,0.5), e in (0.3,0.6)
+            d,p=source_fixture(spin,20.0,e)
+            rs=[9.0,70.0]
+            b=ESW.source_azimuth_bank(d,p,rs;Nq=256,mmax=3,blocksize=2)
+            pairs=((0,2),(1,-1),(2,-3),(3,2))
+            modes=[HarmonicMode(m,k,orbit_frequency(p.orbit,m,k)) for (m,k) in pairs]
+            h=ESW.source_modes(b,modes)
+            maxbudget=0.0
+            for (j,mode) in enumerate(modes), (ir,r) in enumerate(rs)
+                H(q,s)=collect(values(ESW.singular_field_mode(p,mode.m,r,q;N=2048)))
+                reference=orbit_harmonic(H,p.orbit,mode.m,mode.k;N=128)
+                oracle=NamedTuple{SOURCE_KEYS}(Tuple(reference))
+                maxbudget=max(maxbudget,source_budget_ratio(h[ir,j],oracle,p))
+                @test source_budget_ratio(h[ir,j],oracle,p)<=1
+            end
+            @printf("CHARM,%.1f,%.1f,%.9g\n",spin,e,maxbudget)
+            @test abs(sum(b.time_weights)-1)<1e-13
+            # Demonstrate sensitivity to dropping dt/dlambda from the measure.
+            mode=modes[4]
+            unweighted=sum(b.events[i].tensor[1]*b.kernels[mode.m+1,i,1,1]*
+                cis(mode.k*b.q[i]+mode.omega*b.delta_t[i]-mode.m*b.delta_phi[i])
+                for i in eachindex(b.q))/length(b.q)
+            @test abs(unweighted-h[1,4].htt)>1e-5abs(h[1,4].htt)
+            @test abs(imag(h[1,4].htr))>1e-8
+            nod=ESW.source_modes(b,modes;derivatives=false)
+            @test all(nod[i].htt==h[i].htt && nod[i].hrphi==h[i].hrphi for i in eachindex(h))
+            @test size(ESW.source_modes(b,HarmonicMode{Float64}[]))==(2,0)
+            @test_throws ArgumentError ESW.source_modes(b,[HarmonicMode(4,0,4p.orbit.Ωφ)])
+            @test_throws ArgumentError ESW.source_modes(b,[HarmonicMode(1,0,1.0)])
+        end
+        # Consume the Spacetime owner's Darwin-angle quadrature oracle, whose
+        # time/azimuth integrals do not use trajectory deviations or Mino FFTs.
+        d,p=source_fixture(-0.7,20.0,0.3)
+        qo=quadrature_orbit(p.orbit.a,p.orbit.p,p.orbit.e;n=64)
+        m,k,r=2,-1,9.0
+        omega=(m*qo.Υφ+k*qo.Υr)/qo.Γ
+        Tr=2pi*qo.Γ/qo.Υr
+        function coordinate_integrand(chi)
+            rp=qo.radius(chi)
+            rates=qo.rates(chi)
+            dl=qo.dlambda(chi)
+            t=integrate_oracle(z->qo.rates(z).t*qo.dlambda(z),0.0,chi,qo.nodes,qo.weights)
+            phi=integrate_oracle(z->qo.rates(z).phi*qo.dlambda(z),0.0,chi,qo.nodes,qo.weights)
+            Ur=p.orbit.p*p.orbit.e*sin(chi)/(1+p.orbit.e*cos(chi))^2/dl
+            state=(r=rp,ut=rates.t/rp^2,ur=Ur/rp^2,uphi=rates.phi/rp^2)
+            h=r3_azimuth_oracle(p,m,r,state;panels=8,order=24)
+            collect(values(h))*cis(omega*t-m*phi)*rates.t*dl/Tr
+        end
+        direct=integrate_oracle(coordinate_integrand,0.0,pi,qo.nodes,qo.weights)+
+               integrate_oracle(coordinate_integrand,pi,2pi,qo.nodes,qo.weights)
+        b=ESW.source_azimuth_bank(d,p,[r];Nq=256,mmax=m)
+        h=only(ESW.source_modes(b,[HarmonicMode(m,k,orbit_frequency(p.orbit,m,k))]))
+        err=source_budget_ratio(h,NamedTuple{SOURCE_KEYS}(Tuple(direct)),p)
+        @test err<=1
+        @printf("COORDINATE_TIME,spin=-0.7,e=0.3,budget_ratio=%.9g\n",err)
+    end
+    @testset "Nq refinement and measured projection cost" begin
+        println("COST,spin,p,e,Nq,nr,nm,maxNphi,bank_wall_s,bank_cpu_s,sum_wall_s,sum_cpu_s,allocated_bytes,retained_bytes,workspace_bound_bytes")
+        println("NQ_REFINEMENT,spin,e,Nq_to_2Nq_budget,2Nq_to_4Nq_budget")
+        # Warm the same methods before timing, with no BigFloat production.
+        dw,pw=source_fixture()
+        bw=ESW.source_azimuth_bank(dw,pw,[80.0];Nq=2,mmax=6)
+        ESW.source_modes(bw,[HarmonicMode(1,0,pw.orbit.Ωφ)])
+        for (spin,e) in ((-0.7,0.3),(0.9,0.6))
+            d,p=source_fixture(spin,20.0,e)
+            rs=[p.orbit.p/(1+e),20.0,38.0,70.0]
+            modes=[HarmonicMode(m,k,orbit_frequency(p.orbit,m,k)) for m in 0:6 for k in -4:4]
+            series=[]
+            # The recorded high-e pilot resolves neither 512 nor 1024;
+            # retain that failure and certify two doublings from 2048.
+            nqs = e>=0.5 ? (2048,4096,8192) : (512,1024,2048)
+            for nq in nqs
+                bt=source_measure(()->ESW.source_azimuth_bank(d,p,rs;Nq=nq,mmax=6,blocksize=2))
+                b=bt.value
+                ht=source_measure(()->ESW.source_modes(b,modes))
+                push!(series,ht.value)
+                @printf("COST,%.1f,20,%.1f,%d,4,%d,%d,%.9g,%.9g,%.9g,%.9g,%d,%d,%d\n",
+                    spin,e,nq,length(modes),maximum(b.nphi),bt.wall,bt.cpu,ht.wall,ht.cpu,
+                    bt.allocated+ht.allocated,Base.summarysize(b),b.workspace_bound_bytes)
+                flush(stdout)
+            end
+            err1=maximum(source_budget_ratio(series[1][i],series[2][i],p) for i in eachindex(series[1]))
+            err2=maximum(source_budget_ratio(series[2][i],series[3][i],p) for i in eachindex(series[2]))
+            @test err1<=1
+            @test err2<=1
+            @printf("NQ_REFINEMENT,%.1f,%.1f,%.9g,%.9g\n",spin,e,err1,err2)
+        end
+    end
+    @testset "Circular B1 through eccentric pipeline and e to zero" begin
+        println("CIRCULAR,spin,e,max_diagonal_budget,max_sideband_source_units")
+        for spin in (-0.7,0.0,0.9)
+            diag_errors=Float64[]
+            side_errors=Float64[]
+            for e in (0.0,1e-3,1e-4)
+                d,p=source_fixture(spin,20.0,e)
+                rs=[18.0,20.0,25.0]
+                modes=[HarmonicMode(m,k,orbit_frequency(p.orbit,m,k)) for m in (1,3) for k in (-1,0,1)]
+                b=ESW.source_azimuth_bank(d,p,rs;Nq=64,mmax=3)
+                h=ESW.source_modes(b,modes)
+                bg=ESW.DiscBackground(χ=spin,aEMRI=20.0,h0=0.06,b=0.3)
+                maxbudget,maxside,maxdiag=0.0,0.0,0.0
+                for (j,mode) in enumerate(modes), (ir,r) in enumerate(rs)
+                    if mode.k==0
+                        old=ESW.singular_field_mode(bg,mode.m,r)
+                        reference=NamedTuple{SOURCE_KEYS}(ntuple(i->haskey(old,SOURCE_KEYS[i]) ? old[SOURCE_KEYS[i]] : 0.0,14))
+                        maxbudget=max(maxbudget,source_budget_ratio(h[ir,j],reference,p))
+                        maxdiag=max(maxdiag,abs(h[ir,j].htt-reference.htt)*20)
+                    else
+                        maxside=max(maxside,abs(h[ir,j].htt)*20,abs(h[ir,j].htr)*20)
+                    end
+                end
+                if e==0
+                    @test maxbudget<=1
+                    @test maxside<1e-12
+                end
+                push!(diag_errors,maxdiag)
+                push!(side_errors,maxside)
+                @printf("CIRCULAR,%.1f,%.1g,%.9g,%.9g\n",spin,e,maxbudget,maxside)
+            end
+            @test diag_errors[3]<0.02diag_errors[2]
+            @test side_errors[3]<0.11side_errors[2]
+        end
+    end
+    @testset "FR22 direct quadrature weak-field sequence, E-ECC-2" begin
+        println("FR_WEAK,spin,e,p,max_field_error,max_derivative_error,quadrature_error")
+        pairs=((1,0),(2,-1),(2,1),(3,0))
+        rr=[0.4,1.8]
+        for e in (0.2,0.5)
+            ref=fr22_direct_source(e,rr,pairs)
+            refined=fr22_direct_source(e,rr,pairs;Nt=512,Nphi=1024,n=0.73)
+            qerr=maximum(abs.(ref-refined))
+            @test qerr<1e-10
+            @test maximum(abs.(imag.(refined)))<1e-12
+            errors=[]
+            for porb in (1e3,1e4,1e5)
+                semimajor=porb/(1-e^2)
+                d,p=source_fixture(0.5,porb,e;soft=0.018semimajor)
+                modes=[HarmonicMode(m,k,orbit_frequency(p.orbit,m,k)) for (m,k) in pairs]
+                b=ESW.source_azimuth_bank(d,p,semimajor.*rr;Nq=256,mmax=3)
+                h=ESW.source_modes(b,modes)
+                err=ntuple(2) do derivative
+                    maximum(eachindex(rr)) do ir
+                        maximum(eachindex(modes)) do j
+                            gr=derivative==1 ? -semimajor*real(h[ir,j].htt) : -semimajor^2*real(h[ir,j].htt_r)
+                            abs(gr-real(refined[ir,j,derivative]))/max(abs(refined[ir,j,derivative]),1e-8)
+                        end
+                    end
+                end
+                push!(errors,err)
+                @printf("FR_WEAK,0.5,%.1f,%.0f,%.9g,%.9g,%.9g\n",e,porb,err[1],err[2],qerr)
+            end
+            for c in 1:2
+                @test errors[3][c]<0.15errors[2][c]<0.15^2*errors[1][c]
+                @test errors[3][c]<2e-3
+            end
+        end
+    end
+    @testset "Compensated real and imaginary reductions" begin
+        # Lander test gap (HM-NAIVE mutant): a left-to-right sum loses the unit
+        # term exactly, since 1e16+1 rounds to 1e16. The bank's real and
+        # imaginary reductions must both recover it through source_modes.
+        _,p=source_fixture()
+        K=ESW.EccentricSourceEvent(20.0,0.36,1.0,1.0,0.0,0.0,ntuple(_->1.0,7))
+        kernels=Array{ComplexF64}(undef,1,3,1,2)
+        for derivative in 1:2
+            kernels[1,:,1,derivative]=[complex(1e16,-1e16),complex(1.0,1.0),complex(-1e16,1e16)]
+        end
+        b=ESW.SourceAzimuthBank(p,[20.0],zeros(3),ones(3),zeros(3),zeros(3),[K,K,K],
+                                kernels,[256],[0.1],1,0)
+        h=only(ESW.source_modes(b,[HarmonicMode(0,0,0.0)]))
+        @test all(==(complex(1.0,1.0)),values(h))
+    end
+    @testset "Harmonic precision inheritance unit" begin
+        setprecision(BigFloat,128) do
+            d,p=source_fixture(big"0.5",big"20",big"0.3";soft=big"0.36")
+            b=ESW.source_azimuth_bank(d,p,BigFloat[60];Nq=2,mmax=1)
+            h=only(ESW.source_modes(b,[HarmonicMode(1,0,p.orbit.Ωφ)]))
+            @test h.htr isa Complex{BigFloat}
+            @test precision(real(h.htt))==128
+        end
+    end
+end
+println("PASS C_HARM independent Spacetime orbit_harmonic and Darwin coordinate-time quadrature")
+println("PASS NQ_REFINEMENT two consecutive doublings; cost per orbit/radial block/mode set recorded")
+println("PASS CIRCULAR_B1 exact e=0 and e->0 through eccentric source, including vanishing sidebands")
+println("PASS FR_WEAK_FIELD direct double Fourier integral; E-ECC-2; field and radial derivative limit")
+println("PASS HARMONIC_PRECISION BigFloat128 tiny inheritance unit; production Float64")
+end
