@@ -271,3 +271,134 @@ function balance_residual(bg::DiscBackground{T}, sol::ModeSolution{T};
     scale = maximum(abs, rhs)
     (rm, lhs, rhs, iszero(scale) ? zeros(T, n) : abs.(lhs .- rhs) ./ scale)
 end
+
+# Eccentric contexts use the independent two-index reality pairs of C-NORM.
+# The circular methods above retain their original arithmetic and weights.
+sqrt_minus_g(d::DiscModel,r) = sqrt_minus_g(d.reference,r)
+
+"""
+    reality_pair_weight(mode::HarmonicMode)
+
+Azimuth integral / time average for half amplitudes: `4π` for each independent
+pair `(m,k),(-m,-k)`. Use m>0 with any k, or m=0,k>0 with nonzero frequency.
+Static (0,0) and the redundant m=0,k<0 representative are excluded. A static
+nonaxisymmetric pattern (m>0, omega=0) still has the azimuthal reality partner.
+"""
+function reality_pair_weight(mode::HarmonicMode)
+    mode.m > 0 || (mode.k > 0 && !iszero(mode.omega)) ||
+        throw(ArgumentError("diagnostics require m>0 or a dynamic independent m=0,k>0 pair"))
+    4oftype(float(mode.omega),π)
+end
+
+"""
+    gravitational_work(mode, stress, metric; measure=1) -> (torque, power)
+
+Direct contractions `+stress:conj(i*m*h)/2` and
+`-stress:conj(-i*omega*h)/2`, with the two-index pair weight and metric measure.
+`stress` and covariant `metric` are complex 4×4 amplitudes in (t,r,phi,z) order;
+off-diagonal components occur twice. `stress` is the first variation of the
+stress density divided by the background measure, or adiabatic delta_xi T.
+Positive signs mean work/torque into the disc. No division by m or omega.
+"""
+function gravitational_work(mode::HarmonicMode,stress::AbstractMatrix,metric::AbstractMatrix;
+                            measure=one(mode.omega))
+    size(stress)==size(metric)==(4,4) || throw(DimensionMismatch("stress and metric must be 4×4"))
+    weight=reality_pair_weight(mode)*measure/2
+    torque=weight*real(sum(stress .* conj.(im*mode.m .* metric)))
+    power=-weight*real(sum(stress .* conj.(-im*mode.omega .* metric)))
+    (;torque,power)
+end
+
+# Equatorial geometry from the existing Spacetime potentials (G26 (4)).
+function _diagnostic_geometry(c::ModeContext,r,h)
+    pot=kerr_equatorial_potentials(c.disc.χ,r)
+    a,b,d=exp(2pot.ν),exp(2pot.ψ),exp(2pot.μ)
+    w=pot.ω̃; z=zero(a); o=one(a)
+    g=[-a+b*w^2 z -b*w z; z d z z; -b*w z b z; z z z o]
+    gi=[-o/a z -w/a z; z o/d z z; -w/a z o/b-w^2/a z; z z z o]
+    metric=[h.htt h.htr h.htphi z; h.htr h.hrr h.hrphi z;
+            h.htphi h.hrphi h.hphiphi z; z z z h.hzz]
+    rot=rotation_profile(c.disc,r)
+    u=[rot.ut,z,rot.ut*rot.Ω,z]
+    (;g,gi,metric,u,measure=sqrt_minus_g(c.disc,r))
+end
+
+# Perfect-fluid stress jet, R3 derivation/src/diagnostics.jl:163–172.
+# This is not the adiabatic U/V wave current.
+function _diagnostic_stress(::Val{Adiabatic},c,r,y,geo;hmodes,landau)
+    f=reconstruct_fluid(c,r,y;hmodes,landau)
+    du=[f.dut,f.dur,f.duphi_up,zero(f.dut)]
+    p=pressure(c.disc,r); enthalpy=eps_profile(c.disc,r)+p
+    (f.deps+f.dp)*(geo.u*transpose(geo.u)) +
+        enthalpy*(du*transpose(geo.u)+geo.u*transpose(du)) +
+        f.dp*geo.gi-p*(geo.gi*geo.metric*geo.gi)
+end
+
+"""
+    gravitational_stress(context,r,y;hmodes,landau=true)
+
+Return `(stress, metric, measure, eulerian)` for direct gravitational work.
+`stress = delta T + (g^ab h_ab/2) T0`: the first variation of sqrt(-g) T
+divided by sqrt(-g). The volume term matters for general complex sources.
+For the adiabatic closure this differs from delta_xi T in G26 (40)–(42) only
+by W:h. W is real and symmetric under exchange of index pairs, hence
+Im[(W:h):conj(h)]=0. Both give identical averaged work and torque.
+OPTION A uses its emitted Eulerian stress with no adiabatic U/V/W substitution.
+"""
+function gravitational_stress(c::ModeContext,r,y;hmodes,landau::Bool=true)
+    geo=_diagnostic_geometry(c,r,hmodes)
+    p=pressure(c.disc,r); enthalpy=eps_profile(c.disc,r)+p
+    background=enthalpy*(geo.u*transpose(geo.u))+p*geo.gi
+    eulerian=_diagnostic_stress(Val(c.closure),c,r,y,geo;hmodes,landau)
+    stress=eulerian+sum(geo.gi .* geo.metric)/2*background
+    (;stress,metric=geo.metric,measure=geo.measure,eulerian)
+end
+
+function gravitational_work(c::ModeContext,r,y;hmodes,landau::Bool=true)
+    s=gravitational_stress(c,r,y;hmodes,landau)
+    gravitational_work(c.mode,s.stress,s.metric;measure=s.measure)
+end
+torque_density_mode(c::ModeContext,r,y;kwargs...) = gravitational_work(c,r,y;kwargs...).torque
+power_density_mode(c::ModeContext,r,y;kwargs...) = gravitational_work(c,r,y;kwargs...).power
+
+function _wave_flux(::Val{Adiabatic},c,r,y;hmodes,landau)
+    f=reconstruct_fluid(c,r,y;hmodes,landau)
+    rot=rotation_profile(c.disc,r)
+    sqrt_minus_g(c.disc,r)*reality_pair_weight(c.mode)*
+        real(rot.uφ*f.dp*conj(f.dur)+(eps_profile(c.disc,r)+pressure(c.disc,r))*f.dur*conj(f.du_phi))
+end
+
+"Closure-specific wave angular-momentum flux of a two-index harmonic."
+amf_mode(c::ModeContext,r,y;hmodes,landau::Bool=true) =
+    _wave_flux(Val(c.closure),c,r,y;hmodes,landau)
+
+"Torque and power densities at solved nodes, reusing the retained source table."
+function gravitational_work(sol::EccentricModeSolution)
+    [gravitational_work(sol.context,r,view(sol.y,:,i);hmodes=sol.source(r),landau=sol.params.landau)
+     for (i,r) in enumerate(sol.r)]
+end
+torque_density(sol::EccentricModeSolution) = getproperty.(gravitational_work(sol),:torque)
+power_density(sol::EccentricModeSolution) = getproperty.(gravitational_work(sol),:power)
+amf(sol::EccentricModeSolution) =
+    [amf_mode(sol.context,r,view(sol.y,:,i);hmodes=sol.source(r),landau=sol.params.landau)
+     for (i,r) in enumerate(sol.r)]
+
+"Cumulative torque into the disc, with zero integration constant at the inner edge."
+function cumulative_torque(sol::EccentricModeSolution;density::AbstractVector=torque_density(sol))
+    length(density)==length(sol.r) || throw(DimensionMismatch("one density per radial node required"))
+    T=promote_type(eltype(sol.r),eltype(density))
+    out=Vector{T}(undef,length(density)); out[1]=zero(T)
+    for i in 2:length(out)
+        out[i]=out[i-1]+(sol.r[i]-sol.r[i-1])*(density[i]+density[i-1])/2
+    end
+    out
+end
+"Cumulative direct gravitational power; the quadrature is shared with torque."
+cumulative_power(sol::EccentricModeSolution;density::AbstractVector=power_density(sol)) =
+    cumulative_torque(sol;density)
+total_torque(sol::EccentricModeSolution;kwargs...) = last(cumulative_torque(sol;kwargs...))
+total_power(sol::EccentricModeSolution;kwargs...) = last(cumulative_power(sol;kwargs...))
+function lindblad_torque(sol::EccentricModeSolution;flux::AbstractVector=amf(sol))
+    sol.closure==Adiabatic || throw(ArgumentError("LI wave edge flux is not a Lindblad torque; use amf and the mean-transport balance"))
+    last(flux)-first(flux)
+end
