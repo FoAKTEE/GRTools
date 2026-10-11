@@ -25,6 +25,7 @@ include("fourier.jl")
 include("second_order_averages.jl")
 include("linearised.jl")
 include("master.jl")
+include("mastereq_code_gate.jl")
 include("lindblad.jl")
 include("phi_factorisation.jl")
 

@@ -6,6 +6,14 @@ const FR = FRDerivation
 include("phi_quadrature.jl")
 include("master_background.jl")
 include("reconstruction.jl")
+@testset "FR22 exact runtime master-equation code gate" begin
+    certs = FR.certify_fr22_mastereq_code_gate()
+    @test length(certs) == 15
+    @test count(c -> c.modality == :symbolic,certs) == 6
+    @test count(c -> startswith(c.name,"mastereq-code-gate exact"),certs) == 7
+    @test count(c -> occursin("KILLED",c.name),certs) == 2
+    @test all(c -> c.pass,certs)
+end
 @testset "FR derivation environment" begin
     @test all(c -> c.pass, FR.certify_environment())
     @test FR.certificate_disc(0.1, 1.0, 0.0).h0 isa Float64
