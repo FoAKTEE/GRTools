@@ -67,9 +67,9 @@ const _c13_alpha = c13_alpha
 """
     _test_Zout(l, m, n, a, r1; eR=1e-2, Nm=300) -> (Zout, ZH)
 
-Eccentric `n=±1` test amplitudes `(Z^out, Z^H)` at the resonance radius `r1`, Richardson-extrapolated
-in `e²` (kills the a<0 small-e n=0 leakage; an identity for a≥0). Built on
-`Perturbation.TeukolskyPointParticleModeEccentric`.
+Eccentric `n=±1` test amplitudes `(Z^out, Z^H)` at the resonance radius `r1`, per unit `e`:
+`Z^out` is the linear-in-`e` amplitude `Z^∞/e` Richardson-extrapolated in `e²` from `e = eR, 2eR`;
+`Z^H` is `Z^H/e` at `e = eR`. Built on `Perturbation.TeukolskyPointParticleModeEccentric`.
 """
 function _test_Zout(l, m, n, a, r1; eR=1e-2, Nm=300)
     t1 = TeukolskyPointParticleModeEccentric(l, m, n, a, r1, eR;  s=-2, Nmax=Nm, N=64)
