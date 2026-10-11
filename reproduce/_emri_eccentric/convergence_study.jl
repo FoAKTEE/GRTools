@@ -1,7 +1,7 @@
 """Float64 convergence measurements using the existing eccentric source and BVP owners.
 
 Run with the AccretionDisc project: convergence_study.jl source|radial EVIDENCE_DIR.
-PREREG.json must already exist. Per-case files support restart without replacing evidence.
+The study's preregistration must already exist. Per-case files support restart without replacing evidence.
 Numerical gate failures are data; the independent evidence verifier exposes them.
 """
 module EccentricConvergenceStudy
@@ -219,23 +219,26 @@ end
 
 function radial_context(a,p,e,m,k,pole,edge)
     d,pert = fixture(a,p,e;pole)
-    ilo,peri,apo = ((1.05,0.6,2.0),(1.01,0.4,3.0),(1.001,0.25,4.0))[edge]
+    ilo,peri,apo = ((1.05,0.6,2.0),(1.01,0.4,3.0),(1.001,0.25,4.0),
+                    (1.001,0.0,6.0),(1.001,0.0,8.0))[edge]
     domain = (max(ilo*SW.r_isco(d),peri*p/(1+e)),apo*p/(1-e))
     SW.ModeContext(d,pert,m,k;closure=Adiabatic,domain),pert
 end
 
-function radial_solve(c,pert,n,nq,costs,label;nanc=512,cache=false)
+function radial_solve(c,pert,n,nq,costs,label;nanc=512,cache=false,source=nothing,nphi=nothing)
     width = SW.corotation_width(c)
     fraction = width === nothing ? 0.01 : 16width/c.r_c
     nw = max(1,n÷64) # grid.jl's nL/nR are cells per WKB radian, not node counts.
     sol = timed(costs,label,Dict("n"=>n,"Nq"=>nq,"n_anc"=>nanc,
-                                "phase_cells_per_radian"=>nw,
+                                "phase_cells_per_radian"=>nw,"shared_source"=>source!==nothing,
                                 "pole"=>c.disc.εp,
                                 "domain"=>collect(c.domain))) do
         grid = SW.build_grid(c;nL=nw,nR=nw,nC=n+1,n_anc=nanc,σ_wc_frac=fraction)
         ops = cache ? SW.mode_operator_cache(c,grid) : nothing
-        SW.solve_mode(c,pert;grid,cache=ops,bank_options=(;Nq=nq,blocksize=1),
-                      radial_batch_size=16)
+        source === nothing ?
+            SW.solve_mode(c,pert;grid,cache=ops,bank_options=(;Nq=nq,Nphi=nphi,blocksize=1),
+                          radial_batch_size=16) :
+            SW.solve_mode(c;source,grid,cache=ops,boundary_rows=SW.mode_boundary_rows(c))
     end
     last(costs)["nodes"] = length(sol.r)
     last(costs)["bvp_wall_seconds"] = sol.seconds
@@ -258,9 +261,9 @@ end
 function causal_audit(c,pert,base,costs,label)
     c.r_c===nothing && return [base,base,base]
     solutions = [base]
-    for pole in (5e-4,2.5e-4)
-        cc,_ = radial_context(pert.orbit.a,pert.orbit.p,pert.orbit.e,c.mode.m,c.mode.k,pole,1)
-        cc.domain==c.domain || error("causal audit requires the registered baseline domain")
+    for pole in (c.disc.εp/2,c.disc.εp/4)
+        d,_ = fixture(pert.orbit.a,pert.orbit.p,pert.orbit.e;pole)
+        cc = SW.ModeContext(d,pert,c.mode;closure=c.closure,domain=c.domain)
         grid = SW.EccentricGrid(copy(base.r),cc.r_c,1:0,SW.mode_cache_key(cc),(;fixed_causal_grid=true))
         sol = timed(costs,"$(label)_$pole",Dict("pole"=>pole,"nodes"=>length(grid.r),
                                               "source_reused"=>true)) do
@@ -271,14 +274,55 @@ function causal_audit(c,pert,base,costs,label)
     solutions
 end
 
-"Radial gate (PREREG.json, unchanged) from the reported budget and source probe; secular (1,-1) is conditional."
-radial_pass(r) = !r["conditional"] && sum(values(r["budget"]))<=1e-3 &&
-    r["source_projection_error"]!==nothing && r["source_projection_error"]<=1e-8
+"Relative observable change with no cancellation-dependent acceptance floor."
+relative_change(a,b,reference) = iszero(a-b) ? zero(abs(a-b)) : abs(a-b)/abs(reference)
 
-function radial_case(a,p,e,m,k; nq=1024, source_reference=nothing, levels=(128,256,512))
+"Store response and physical observables so independent verifiers can recompute budgets."
+function solution_record(s; comparison_radii=nothing)
+    work = SW.gravitational_work(s)
+    torque = SW.total_torque(s;density=getproperty.(work,:torque))
+    power = SW.total_power(s;density=getproperty.(work,:power))
+    r = comparison_radii===nothing ? s.r : comparison_radii
+    y = comparison_radii===nothing ? s.y :
+        permutedims(hcat([local_interp(r,s.r,vec(s.y[j,:]);npts=4) for j in 1:2]...))
+    Dict("r"=>r,"y"=>encode_value(y),"torque"=>torque,"power"=>power,
+         "comparison_samples"=>comparison_radii!==nothing,
+         "residual"=>s.residual,"bc_residual"=>s.bc_residual,"nodes"=>length(s.r),
+         "corotation"=>s.context.r_c,"pole_width"=>SW.corotation_width(s.context),
+         "pole"=>s.context.disc.εp)
+end
+
+const RADIAL_AXES = ("grid","source","cache","ancillary","pole","pole_mesh","edge")
+
+"PREREG_radial_v2: profile gates per axis, summed uncertainty for EACH physical observable."
+function radial_pass(r)
+    diagnostics = r["diagnostics"]
+    base = findfirst(d->get(d,"axis_level","")=="grid_1",diagnostics)
+    # An expanded domain can acquire a corotation absent from the baseline.
+    # Its causal error was not measured by the baseline pole ladder.
+    base!==nothing && (diagnostics[base]["corotation"]!==nothing ||
+                       all(d->d["corotation"]===nothing,diagnostics)) &&
+        !r["conditional"] && r["Nq"]>=1024 &&
+        all(k -> r[k]!==nothing && !isempty(_flat(r[k])) && all(x->0<=x<=1,_flat(r[k])),
+            ("source_budget","source_budget_sensitivity")) &&
+        all(k -> 0<=get(r["budget"],k,Inf)<=1e-3,RADIAL_AXES) &&
+        all(q -> all(k->0<=get(r["observable_budget"][q],k,Inf)<=1e-3,RADIAL_AXES) &&
+                 sum(r["observable_budget"][q][k] for k in RADIAL_AXES)<=1e-3,("torque","power")) &&
+        all(d -> 0<=d["residual"]<=1e-9 && 0<=d["bc_residual"]<=1e-9,diagnostics)
+end
+
+function radial_case(a,p,e,m,k; nq=1024, source_reference=nothing, levels=(128,256,512),
+                     source=nothing, source_fine=nothing, source_probe=nothing, nphi=nothing,
+                     compact=false, edge_levels=(1,2,3), pole=1e-3, source_control_nq=2nq)
+    source_control_nq isa Integer && source_control_nq>0 && source_control_nq!=nq ||
+        throw(ArgumentError("source control Nq must be a distinct positive integer"))
+    required_nphi = e==0.6 ? 16384 : 8192
+    nphi = something(nphi,required_nphi)
+    nphi>=required_nphi || throw(ArgumentError("radial source Nphi floor is below the qualified resolution"))
     costs = Dict[]
-    c,pert = radial_context(a,p,e,m,k,1e-3,1)
+    c,pert = radial_context(a,p,e,m,k,pole,first(edge_levels))
     projection_error = nothing
+    projection_budgets = nothing; sensitivity_budgets = nothing
     if source_reference!==nothing
         ref = source_reference
         j = findfirst(==([m,k]),ref["modes"])
@@ -286,6 +330,8 @@ function radial_case(a,p,e,m,k; nq=1024, source_reference=nothing, levels=(128,2
         h,_ = source_table(c.disc,pert,ref["radii"],[c.mode],nq,ref["Nphi_base"],costs,"radial_source_probe")
         baseline = decode_value(ref["raw_orbit"][1])[:,j:j]
         projection_error = maximum(source_error(h,baseline,source_floors(c.disc,pert)))
+        projection_budgets = vec(source_budget(h,baseline,source_floors(c.disc,pert)))
+        sensitivity_budgets = vec(source_budget(h,baseline,test_unit_floors(pert)))
         println("SOURCE_PROBE_ERROR ",projection_error); flush(stdout)
         checkpoint = get(ENV,"ECC_CONVERGENCE_CHECKPOINT_DIR","")
         if !isempty(checkpoint)
@@ -293,6 +339,11 @@ function radial_case(a,p,e,m,k; nq=1024, source_reference=nothing, levels=(128,2
                       "error"=>projection_error,"candidate"=>encode_value(h),
                       "reference"=>encode_value(baseline),"floors"=>source_floors(c.disc,pert)))
         end
+    end
+    if source_probe !== nothing
+        projection_error = source_probe["strict"]
+        projection_budgets = source_probe["primary"]
+        sensitivity_budgets = source_probe["sensitivity"]
     end
     radii = collect(range(c.domain...;length=257))
     if c.r_c!==nothing
@@ -304,7 +355,7 @@ function radial_case(a,p,e,m,k; nq=1024, source_reference=nothing, levels=(128,2
     finest = last(levels)
     grids = Any[]
     for n in levels
-        push!(grids,radial_solve(c,pert,n,nq,costs,"grid_$n"))
+        push!(grids,radial_solve(c,pert,n,nq,costs,"grid_$n";source,nphi))
         if n==first(levels) && c.r_c!==nothing
             probes = causal_audit(c,pert,first(grids),costs,"coarse_causal")
             checkpoint = get(ENV,"ECC_CONVERGENCE_CHECKPOINT_DIR","")
@@ -318,59 +369,73 @@ function radial_case(a,p,e,m,k; nq=1024, source_reference=nothing, levels=(128,2
             end
         end
     end
-    grid_error = [response_error(grids[i],grids[i+1],radii) for i in 1:2]
-    # Reuse exact source values for the operator-only cache audit. Grid, source
-    # and domain refinements use the end-to-end solve_mode(c,pert) entry point.
+    grid_error = [response_error(grids[i],grids[i+1],radii) for i in 1:length(grids)-1]
+    # Reuse the identical source for the operator-only cache audit. A supplied
+    # qualified bank also permits reuse across the independently changed meshes.
     g = SW.EccentricGrid(copy(last(grids).r),c.r_c,1:0,SW.mode_cache_key(c),(;audit=true))
     cached = timed(costs,"operator_cache",Dict("nodes"=>length(g.r))) do
         SW.solve_mode(c;source=last(grids).source,grid=g,cache=SW.mode_operator_cache(c,g),
                       boundary_rows=SW.mode_boundary_rows(c))
     end
     cache_error = response_error(cached,last(grids),radii)
-    ancillary = [radial_solve(c,pert,finest,nq,costs,"ancillary_$nanc";nanc) for nanc in (128,256)]
+    ancillary = [radial_solve(c,pert,finest,nq,costs,"ancillary_$nanc";nanc,source,nphi) for nanc in (128,256)]
     push!(ancillary,last(grids))
     ancillary_error = [response_error(ancillary[i],ancillary[i+1],radii) for i in 1:2]
     poles = causal_audit(c,pert,last(grids),costs,"fine_causal")
     pole_error = [response_error(poles[i],poles[i+1],radii) for i in 1:2]
     pole_mesh = c.r_c===nothing ? last(poles) :
-        radial_solve(last(poles).context,pert,2finest,nq,costs,"lowest_pole_mesh_$(2finest)")
+        radial_solve(last(poles).context,pert,2finest,nq,costs,"lowest_pole_mesh_$(2finest)";source,nphi)
     pole_mesh_error = response_error(last(poles),pole_mesh,radii)
     edges = Any[last(grids)]
-    for edge in (2,3)
-        cc,pp = radial_context(a,p,e,m,k,1e-3,edge)
+    for edge in edge_levels[2:end]
+        cc,pp = radial_context(a,p,e,m,k,pole,edge)
         # Fixed cells per WKB radian: actual node count grows with domain width.
-        push!(edges,radial_solve(cc,pp,finest,nq,costs,"edge_$edge"))
+        push!(edges,radial_solve(cc,pp,finest,nq,costs,"edge_$edge";source,nphi))
     end
     edge_error = [response_error(edges[i],edges[i+1],radii) for i in 1:2]
-    sourcefine = radial_solve(c,pert,finest,2nq,costs,"response_source_$(2nq)")
-    source_change = response_error(last(grids),sourcefine,radii)
+    # source_fine supplies the comparison bank; its actual resolution may be lower.
+    sourceother = radial_solve(c,pert,finest,source_control_nq,costs,
+        "response_source_$source_control_nq";source=source_fine,nphi)
+    source_pair = source_control_nq<nq ? [sourceother,last(grids)] : [last(grids),sourceother]
+    source_change = response_error(source_pair...,radii)
     reflection = [Dict("edge"=>i,"samples"=>[
         reflection_sample(s,first(s.r),false),reflection_sample(s,last(s.r),true),
         reflection_sample(s,radii[17],false),reflection_sample(s,radii[end-16],true)])
         for (i,s) in enumerate(edges)]
-    diagnostics = [Dict("axis_level"=>label,"torque"=>SW.total_torque(s),
-                        "power"=>SW.total_power(s),"residual"=>s.residual,
-                        "bc_residual"=>s.bc_residual,"nodes"=>length(s.r),
-                        "corotation"=>s.context.r_c,"pole_width"=>SW.corotation_width(s.context))
-                   for (label,s) in vcat(collect(zip(["grid_$n" for n in levels],grids)),
-                                          collect(zip(("pole_1","pole_2","pole_3"),poles)),
-                                          collect(zip(("edge_1","edge_2","edge_3"),edges)))]
     budget = Dict("grid"=>maximum(last(grid_error)),"source"=>maximum(source_change),
                   "cache"=>maximum(cache_error),"ancillary"=>maximum(last(ancillary_error)),
                   "pole"=>maximum(last(pole_error)),"pole_mesh"=>maximum(pole_mesh_error),
                   "edge"=>maximum(last(edge_error)))
-    raw_axes = Dict(label=>[Dict("r"=>s.r,"y"=>encode_value(s.y)) for s in solutions]
-                   for (label,solutions) in (("grid",grids),("ancillary",ancillary),
-                       ("pole",poles),("edge",edges),("cache",[cached,last(grids)]),
-                       ("source",[last(grids),sourcefine]),("pole_mesh",[last(poles),pole_mesh])))
-    result = Dict("a"=>a,"p"=>p,"e"=>e,"m"=>m,"k"=>k,"Nq"=>nq,
-         "grid_error"=>grid_error,"grid_order"=>[observed_order(grid_error[1][j],grid_error[2][j]) for j in 1:2],
+    axes = (("grid",grids),("ancillary",ancillary),("pole",poles),("edge",edges),
+            ("cache",[cached,last(grids)]),("source",source_pair),
+            ("pole_mesh",[last(poles),pole_mesh]))
+    records = IdDict()
+    for (_,solutions) in axes, s in solutions
+        get!(records,s) do
+            solution_record(s;comparison_radii=compact ? radii : nothing)
+        end
+    end
+    raw_axes = Dict(label=>[records[s] for s in solutions] for (label,solutions) in axes)
+    diagnostics = [merge(Dict("axis_level"=>label*"_$i"),
+                    Dict(k=>v for (k,v) in records[s] if k ∉ ("r","y")))
+                   for (label,solutions) in axes for (i,s) in enumerate(solutions)]
+    reference = records[last(grids)]
+    observable_budget = Dict(q=>Dict(label=>relative_change(solutions[end-1][q],
+                              solutions[end][q],reference[q])
+                              for (label,solutions) in raw_axes) for q in ("torque","power"))
+    result = Dict("a"=>a,"p"=>p,"e"=>e,"m"=>m,"k"=>k,"Nq"=>nq,"Nphi_floor"=>nphi,
+         "edge_levels"=>collect(edge_levels),"baseline_pole"=>pole,
+         "source_control_Nq"=>sort([nq,source_control_nq]),
+         "grid_error"=>grid_error,"grid_order"=>[[observed_order(grid_error[i][j],grid_error[i+1][j]) for j in 1:2] for i in 1:length(grid_error)-1],
          "cache_error"=>cache_error,"ancillary_error"=>ancillary_error,
          "pole_error"=>pole_error,"edge_error"=>edge_error,"source_error"=>source_change,
          "pole_mesh_error"=>pole_mesh_error,
          "reflection"=>reflection,"diagnostics"=>diagnostics,"budget"=>budget,
          "raw_axes"=>raw_axes,
          "source_projection_error"=>projection_error,
+         "source_budget"=>projection_budgets,"source_budget_sensitivity"=>sensitivity_budgets,
+         "observable_budget"=>observable_budget,"protocol"=>"PREREG_radial_v2",
+         "legacy_profile_sum"=>sum(values(budget)),
          "comparison_radii"=>radii,
          "costs"=>costs,"conditional"=>m==1 && k==-1)
     result["pass"] = radial_pass(result)
@@ -378,6 +443,7 @@ function radial_case(a,p,e,m,k; nq=1024, source_reference=nothing, levels=(128,2
 end
 
 function radial_study(out, selected, nq)
+    nq>=1024 || throw(ArgumentError("PREREG_radial_v2 requires Nq >= 1024"))
     fixtures = vcat([(0.0,30.0,e) for e in (0.05,0.3,0.6)],
                     [(a,p,0.3) for p in (10.0,100.0) for a in (-0.9,0.9)])
     cases = [(a,p,e,m,k) for (a,p,e) in fixtures for (m,k) in ((0,1),(2,1),(8,40),(8,-40),(1,-1))]
@@ -408,7 +474,8 @@ end
 function main(args)
     length(args)>=2 || error("usage: convergence_study.jl source|radial EVIDENCE_DIR [case-index] [Nq]")
     kind,out = args[1:2]
-    isfile(joinpath(out,"PREREG.json")) || error("write the preregistration before running")
+    prereg = kind == "radial" ? "PREREG_radial_v2.json" : "PREREG.json"
+    isfile(joinpath(out,prereg)) || error("write $prereg before running")
     BLAS.set_num_threads(1)
     if kind == "source"
         cases = [(a,p,e) for e in (0.05,0.3,0.6) for p in (10.0,30.0,100.0) for a in (-0.9,0.0,0.9)]

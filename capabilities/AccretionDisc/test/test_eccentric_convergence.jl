@@ -44,6 +44,7 @@ end
     ref["raw_orbit"] = [ECS.encode_value([collect(values(x)) for x in h])]
     result = ECS.radial_case(0.0,30.0,0.05,0,1;nq=4,source_reference=ref,levels=(16,32,64))
     @test result["source_projection_error"]==0
+    @test result["source_control_Nq"]==[4,8]
     @test all(iszero,result["cache_error"])
     @test length(result["grid_error"])==2
     @test all(isfinite,values(result["budget"]))
@@ -70,12 +71,13 @@ end
 end
 
 @testset "Causal prescription changes the operator while retaining the source" begin
-    c,p = ECS.radial_context(0.0,30.0,0.3,2,1,1e-3,1)
+    c,p = ECS.radial_context(0.0,30.0,0.3,2,1,4e-3,2)
     @test c.r_c!==nothing
     costs = Dict[]
     base = ECS.radial_solve(c,p,16,4,costs,"causal_test";nanc=32)
     sols = ECS.causal_audit(c,p,base,costs,"causal_test")
-    @test [s.context.disc.εp for s in sols]==[1e-3,5e-4,2.5e-4]
+    @test [s.context.disc.εp for s in sols]==[4e-3,2e-3,1e-3]
+    @test all(s->s.context.domain==c.domain,sols)
     @test all(s->s.source===base.source && s.r==base.r,sols)
     @test all(s->all(isfinite,s.y),sols)
     @test maximum(abs,sols[end].y-base.y)>0
@@ -216,14 +218,104 @@ end
     @test ECS.response_error(a,z,radii)[1] ≈ l2(r->base(r)+dif(r))/(sqrt(sum(w))*floor1) rtol=1e-10
 end
 
-@testset "Radial gate is a pure function of the reported budget and source probe" begin
+@testset "Radial v2 gates keep profile and observable budgets separate" begin
     axes7 = ("grid","source","cache","ancillary","pole","pole_mesh","edge")
-    base() = Dict{String,Any}("conditional"=>false,"source_projection_error"=>1e-9,
-                              "budget"=>Dict(k=>1e-4 for k in axes7))
-    @test ECS.radial_pass(base())                                  # sum 7e-4
-    r = base(); r["budget"]["edge"] = 5e-4; @test !ECS.radial_pass(r) # the SUM of axes is gated
-    r = base(); r["source_projection_error"] = 2e-8; @test !ECS.radial_pass(r)
-    r = base(); r["source_projection_error"] = nothing; @test !ECS.radial_pass(r)
-    r = base(); r["conditional"] = true; @test !ECS.radial_pass(r)
-    r = base(); r["budget"]["pole"] = NaN; @test !ECS.radial_pass(r)
+    base() = Dict{String,Any}("conditional"=>false,"Nq"=>1024,"source_projection_error"=>1.0,
+        "source_budget"=>[0.5],"source_budget_sensitivity"=>[0.5],
+        "budget"=>Dict(k=>2e-4 for k in axes7),
+        "observable_budget"=>Dict(q=>Dict(k=>1e-4 for k in axes7) for q in ("torque","power")),
+        "diagnostics"=>[Dict{String,Any}("axis_level"=>"grid_1","corotation"=>nothing,
+                                        "residual"=>1e-12,"bc_residual"=>1e-14)])
+    @test ECS.radial_pass(base()) # profile maxima SUM is 1.4e-3: it is diagnostic only
+    for key in ("source_budget","source_budget_sensitivity")
+        r=base(); r[key][1]=1.01; @test !ECS.radial_pass(r)
+        r=base(); r[key][1]=NaN; @test !ECS.radial_pass(r)
+        r=base(); r[key]=nothing; @test !ECS.radial_pass(r)
+    end
+    for key in axes7
+        r=base(); r["budget"][key]=1.01e-3; @test !ECS.radial_pass(r)
+        r=base(); delete!(r["budget"],key); @test !ECS.radial_pass(r)
+        for q in ("torque","power")
+            r=base(); r["observable_budget"][q][key]=5e-4; @test !ECS.radial_pass(r)
+            r=base(); delete!(r["observable_budget"][q],key); @test !ECS.radial_pass(r)
+            r=base(); r["observable_budget"][q][key]=-1e-4; @test !ECS.radial_pass(r)
+        end
+    end
+    r=base(); r["conditional"]=true; @test !ECS.radial_pass(r)
+    r=base(); r["Nq"]=512; @test !ECS.radial_pass(r)
+    @test_throws ArgumentError ECS.radial_study("unused",1,512)
+    @test_throws ArgumentError ECS.radial_case(0.0,30.0,0.05,0,1;nphi=4096)
+    @test_throws ArgumentError ECS.radial_case(0.0,30.0,0.6,0,1;nphi=8192)
+    r=base(); r["diagnostics"][1]["residual"]=2e-9; @test !ECS.radial_pass(r)
+    r=base(); r["diagnostics"][1]["bc_residual"]=NaN; @test !ECS.radial_pass(r)
+    r=base(); empty!(r["diagnostics"]); @test !ECS.radial_pass(r)
+    r=base(); edge=copy(r["diagnostics"][1]);edge["axis_level"]="edge_2";edge["corotation"]=10.0
+    push!(r["diagnostics"],edge); @test !ECS.radial_pass(r)
+    r["diagnostics"][1]["corotation"]=10.0; @test ECS.radial_pass(r)
+    @test ECS.relative_change(0.0,0.0,0.0)==0
+    @test isinf(ECS.relative_change(1.0,0.0,0.0))
+    @test ECS.relative_change(-3.0,2.0,-10.0)==0.5
+end
+
+@testset "Radial shared source retains C-66 rows and measured observables" begin
+    c,p=ECS.radial_context(0.0,30.0,0.05,0,1,1e-3,1)
+    narrow=ECS.SW.ModeContext(c.disc,p,0,1;closure=ECS.Adiabatic,domain=(45.0,46.0))
+    bank=ECS.SW.source_radial_bank(c.disc,p,narrow.domain,[c.mode];Nq=8)
+    source=ECS.SW.mode_source(bank,c.mode)
+    costs=Dict[]
+    shared=ECS.radial_solve(narrow,p,8,8,costs,"shared";source,nanc=32)
+    direct=ECS.radial_solve(narrow,p,8,8,costs,"direct";nanc=32)
+    @test maximum(ECS.response_error(shared,direct,shared.r))<1e-8
+    @test shared.source===source
+    @test last(costs)["Nq"]==8
+    doc=ECS.solution_record(shared)
+    @test doc["power"]==ECS.SW.total_power(shared)
+    @test doc["torque"]==0
+    @test doc["bc_residual"]<1e-9
+    sampled=ECS.solution_record(shared;comparison_radii=[45.0,45.5,46.0])
+    @test sampled["r"]==[45.0,45.5,46.0]
+    @test sampled["nodes"]==length(shared.r)
+    @test sampled["comparison_samples"] && !doc["comparison_samples"]
+    @test sampled["power"]==doc["power"] && sampled["torque"]==doc["torque"]
+    values=ECS.decode_value(sampled["y"])
+    @test values[1,:] ≈ ECS.local_interp(sampled["r"],shared.r,vec(shared.y[1,:]);npts=4)
+    @test values[2,:] ≈ ECS.local_interp(sampled["r"],shared.r,vec(shared.y[2,:]);npts=4)
+end
+
+
+@testset "Coarser source control uses the qualified baseline as profile reference" begin
+    result = ECS.radial_case(0.0,30.0,0.05,0,1;
+        nq=8,source_control_nq=4,levels=(8,16,32),compact=true)
+    @test result["source_control_Nq"]==[4,8]
+    @test last(result["raw_axes"]["source"]) === last(result["raw_axes"]["grid"])
+    control = only(filter(x->x["axis_level"]=="response_source_4",result["costs"]))
+    @test control["Nq"]==4
+    @test all(isfinite,result["source_error"])
+    @test !result["pass"] # Small diagnostic source is not production-qualified.
+    for invalid in (0,-4,8,4.5)
+        @test_throws ArgumentError ECS.radial_case(0.0,30.0,0.05,0,1;
+            nq=8,source_control_nq=invalid)
+    end
+end
+
+@testset "Reported observable budget recomputes from the stored records (lander L-G39)" begin
+    # A corotation mode: nC = n+1 refines the grid even at these tiny levels, and the
+    # causal ladder changes the operator, so every three-level axis carries distinct records.
+    result = ECS.radial_case(0.0,30.0,0.3,2,1;nq=8,levels=(8,16,32),compact=true)
+    rax = result["raw_axes"]; ref = last(rax["grid"])
+    @test all(k->length(rax[k])==3,("grid","ancillary","pole","edge"))
+    for q in ("torque","power"), (axis,records) in rax
+        x,y = records[end-1][q],records[end][q]
+        @test result["observable_budget"][q][axis] == (x==y ? 0.0 : abs(x-y)/abs(ref[q]))
+    end
+    @test all(q->result["observable_budget"][q]["grid"]>0 && result["observable_budget"][q]["pole"]>0,
+              ("torque","power"))
+    @test first(rax["grid"])["power"] != ref["power"]
+end
+
+@testset "Expanded production-domain edge levels (lander L-G39)" begin
+    for (edge,apo) in ((4,6.0),(5,8.0))
+        c,_ = ECS.radial_context(0.0,30.0,0.3,2,1,1e-3,edge)
+        @test c.domain == (1.001*ECS.SW.r_isco(c.disc),apo*30.0/(1-0.3))
+    end
 end
