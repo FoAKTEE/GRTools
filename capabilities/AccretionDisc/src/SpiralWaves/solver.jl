@@ -205,10 +205,13 @@ frequency (51) there. Selection (see the file header, ERRATUM E-M4):
     evanescent (both roots essentially real) pick the root that DECAYS away from the orbit
     (Re k < 0 outward, Re k > 0 inward).
   * `:paper` — the literal printed criterion Im[k] < 0 at both edges.
+
+For arbitrary frequencies use `outgoing_branch(C, dC_dω; outward)`, defined with
+the matrix-frequency-derivative overload of [`wkb_split`](@ref) in boundary.jl.
+It uses the full local dispersion derivative, including near-turning roots.
 """
-function outgoing_branch(C::AbstractMatrix{TC}, ωd::Real; outward::Bool, bc::Symbol = :outgoing) where {TC<:Number}
-    k1, k2, Y1, Y2 = eigen2(C)
-    k, Y = _away_is_first(k1, k2, ωd; outward = outward, bc = bc) ? (k1, Y1) : (k2, Y2)
+function outgoing_branch(C::AbstractMatrix{TC}, dispersion; outward::Bool, bc::Symbol = :outgoing) where {TC<:Number}
+    k, Y, _, _ = wkb_split(C, dispersion; outward = outward, bc = bc)
     (k, Y, (-Y[2], Y[1]))
 end
 
@@ -263,8 +266,8 @@ a direct measure of how much incoming amplitude a CHANGE of boundary treatment (
 grid) admits: it is the response variable of the inner-boundary protocol behind the low-m torque
 deficit of Fig. 10.  Exact 2×2 inverse (Cramer), so `R` costs one eigen-decomposition.
 """
-function wkb_amplitudes(C::AbstractMatrix, ωd::Real, y; outward::Bool, bc::Symbol = :outgoing)
-    ka, Ya, kt, Yt = wkb_split(C, ωd; outward = outward, bc = bc)
+function wkb_amplitudes(C::AbstractMatrix, dispersion, y; outward::Bool, bc::Symbol = :outgoing)
+    ka, Ya, kt, Yt = wkb_split(C, dispersion; outward = outward, bc = bc)
     D = Ya[1] * Yt[2] - Ya[2] * Yt[1]
     A_away = (y[1] * Yt[2] - y[2] * Yt[1]) / D
     A_toward = (Ya[1] * y[2] - Ya[2] * y[1]) / D
