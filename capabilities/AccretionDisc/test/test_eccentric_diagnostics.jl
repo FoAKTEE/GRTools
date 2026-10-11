@@ -136,6 +136,24 @@ function adiabatic_checks()
         @test reinterpret(UInt64,values)==UInt64[0x409a85b7ef0cd74c,0x4085292221778c6b,
             0x40c5897e6acf4ab8,0x40b7ec04227d6e83,0xc0cae29f3e97a33f,0x40b97541fd8fb6bf,
             0xc0a0f7a3a3ff55fe,0x405393bd7efe8a20]
+        # Lander review R2 (finding of lane w11-g30): at e = 0 the context AMF equals the frozen
+        # circular AMF THROUGH corotation with the Landau shift on, at the original regulator
+        # epsilon_p = 1e-5: the conjugated factor is continued in omega_d (R3 formal bar), not
+        # literally conjugated (up to 28% apart inside the layer before the fix).
+        bc=SW.DiscBackground(χ=0.9,aEMRI=30.0,h0=0.08,𝔭=1.5,𝔮=0.0,b=0.3)
+        @test bc.εp==1e-5
+        cc=SW.ModeContext(SW.DiscModel(bc;closure=Adiabatic,evolution=:fixed),
+                          HarmonicMode(2,0,2SW.Omega_emri(bc));closure=Adiabatic,domain=(12.0,75.0))
+        shifts=Float64[]
+        for δ in (-1e-3,-1e-4,-3e-5,3e-5,1e-4,1e-3,1e-2)
+            r=cc.r_c+δ; y=(0.3+0.1im,-0.2+0.4im)
+            h=SW.singular_field_mode(bc,2,r;N=128); he=merge(map(complex,h),(htr=0im,hrphi=0im))
+            inp=SW.master_inputs(cc,r;hmodes=he,landau=true,y)
+            push!(shifts,imag(inp.omega_d)/abs(real(inp.omega_d)))
+            @test SW.amf_mode(cc,r,y;hmodes=he,landau=true) ≈
+                  SW.amf_mode(bc,2,r,y;hmodes=h,landau=true,rc=cc.r_c) rtol=1e-12
+        end
+        @test maximum(shifts)>1   # the sampled radii reach inside the Landau layer
         forced_check(Adiabatic)
     end
     println("PASS legacy diagnostic bit-identity: eight baseline Float64 flux/torque values")
@@ -220,6 +238,11 @@ function circular_checks(closure)
                         hc=SW.singular_field_mode(bg,m,r;mEMRI=1e-5)
                         @test SW.amf_mode(c,r,sol.y[:,i];hmodes=sol.source(r),landau=false) ≈
                               SW.amf_mode(bg,m,r,circ.y[:,i];hmodes=hc,landau=false,rc=c.r_c) rtol=2e-7
+                        # Lander review R2: the solved profiles also agree through corotation with
+                        # the Landau shift on (the context AMF continues omega_d as the frozen kernel).
+                        Fc=SW.amf(bg,circ); Fe=SW.amf(sol)
+                        @test maximum(abs.(Fe-Fc))<=1e-6*maximum(abs,Fc)
+                        @printf("AMF_PROFILE,m=%d,%.3e\n",m,maximum(abs.(Fe-Fc))/maximum(abs,Fc))
                     end
                 end
             end

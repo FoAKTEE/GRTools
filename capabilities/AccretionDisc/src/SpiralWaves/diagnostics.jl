@@ -361,14 +361,25 @@ end
 torque_density_mode(c::ModeContext,r,y;kwargs...) = gravitational_work(c,r,y;kwargs...).torque
 power_density_mode(c::ModeContext,r,y;kwargs...) = gravitational_work(c,r,y;kwargs...).power
 
-function _wave_flux(::Val{Adiabatic},c,r,y;hmodes,landau)
-    f=reconstruct_fluid(c,r,y;hmodes,landau)
-    rot=rotation_profile(c.disc,r)
-    sqrt_minus_g(c.disc,r)*reality_pair_weight(c.mode)*
-        real(rot.uφ*f.dp*conj(f.dur)+(eps_profile(c.disc,r)+pressure(c.disc,r))*f.dur*conj(f.du_phi))
+# Conjugated partner of a reconstruction in quadratic diagnostics. R3's formal bar
+# (derivation/src/diagnostics.jl:55-59), and so the frozen circular AMF, conjugates
+# amplitudes at real Doppler frequency and continues analytically in omega_d: the
+# partner is the reconstruction at conj(omega_d), conjugated by the caller. Equal to
+# the literal conjugate when the Landau shift is off.
+function _continued_partner(c::ModeContext,inp)
+    reflected=merge((;(n=>getfield(inp,n) for n in fieldnames(typeof(inp)))...),(omega_d=conj(inp.omega_d),))
+    _context_reconstruction(Val(c.closure),reflected)
 end
 
-"Closure-specific wave angular-momentum flux of a two-index harmonic."
+function _wave_flux(::Val{Adiabatic},c,r,y;hmodes,landau)
+    inp=master_inputs(c,r;hmodes,landau,y)
+    f=_context_reconstruction(Val(Adiabatic),inp); partner=_continued_partner(c,inp)
+    rot=rotation_profile(c.disc,r)
+    sqrt_minus_g(c.disc,r)*reality_pair_weight(c.mode)*
+        real(rot.uφ*f.dp*conj(f.dur)+(eps_profile(c.disc,r)+pressure(c.disc,r))*f.dur*conj(partner.du_phi))
+end
+
+"Closure-specific wave angular-momentum flux of a two-index harmonic; with the Landau\nshift on, it continues the conjugated factor in omega_d as the frozen circular AMF does."
 amf_mode(c::ModeContext,r,y;hmodes,landau::Bool=true) =
     _wave_flux(Val(c.closure),c,r,y;hmodes,landau)
 
