@@ -232,6 +232,22 @@ function circular_checks(closure)
     println("PASS ",closure,": e-to-zero m=2:3 k=-1:1 summed direct power against circular 2608; qTemp=0 matched closure")
 end
 
+function axisymmetric_checks(closure)
+    @testset "Dynamic axisymmetric direct power $closure" begin
+        tensor_checks(closure;axisymmetric=true)
+        for mode in (HarmonicMode(0,0,0.0),HarmonicMode(0,0,0.1),HarmonicMode(0,-1,-0.1))
+            @test_throws ArgumentError SW.reality_pair_weight(mode)
+            @test_throws ArgumentError SW.gravitational_work(mode,zeros(4,4),zeros(4,4))
+        end
+        @test SW.reality_pair_weight(HarmonicMode(0,1,0.1))==4pi
+        @test SW.reality_pair_weight(HarmonicMode(2,-4,-0.1))==4pi
+        @test SW.reality_pair_weight(HarmonicMode(2,-4,0.0))==4pi
+        @test SW._fourier_weight(Float64,0)==2pi
+        forced_check(closure;m=0,k=1)
+    end
+    println("PASS ",closure,": T_0k=0; dynamic weight 4pi; static (0,0) excluded; no division by m or omega")
+end
+
 function sanity_checks(closure)
     @testset "Exploratory GR eccentric physics table $closure" begin
         for (a,e) in ((0.9,0.2),(0.0,0.2),(0.9,0.05)), (m,k) in ((2,0),(2,1),(0,1))
@@ -245,6 +261,7 @@ end # module
 
 let selection=get(ENV,"ECC_DIAGNOSTICS_TEST","all")
     selection in ("all","adiabatic") && EccentricDiagnosticsTests.adiabatic_checks()
+    selection in ("all","axisymmetric") && EccentricDiagnosticsTests.axisymmetric_checks(EccentricDiagnosticsTests.Adiabatic)
     selection=="circular" && EccentricDiagnosticsTests.circular_checks(EccentricDiagnosticsTests.Adiabatic)
     selection=="sanity" && EccentricDiagnosticsTests.sanity_checks(EccentricDiagnosticsTests.Adiabatic)
 end
