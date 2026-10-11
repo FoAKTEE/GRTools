@@ -129,6 +129,9 @@ export corotation_window
 # (needs locally_isothermal.jl and diagnostics.jl, whose eccentric context/solution work, torque
 # and power methods belong to ECC::gr-adiabatic-balance-diagnostics; no new exports)
 include("li_diagnostics.jl")
+# ECC::gr-balance-diagnostics — the one closure-tagged work/torque/AMF entry point over the two closures'
+# certified owners above, with the emitted kernel tags (needs diagnostics.jl, li_diagnostics.jl; no new exports)
+include("balance_diagnostics.jl")
 
 # ---- EGD::sw-survey-parallel — threaded m-sweep and configuration sweep (Sec. III) ----------------
 include("survey.jl")
