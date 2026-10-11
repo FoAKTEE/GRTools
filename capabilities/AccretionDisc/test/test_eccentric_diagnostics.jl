@@ -5,6 +5,7 @@ using AccretionDisc.ForcingModes
 const SW = AccretionDisc.SpiralWaves
 for (name,file) in ((:SourceAzimuthBank,"eccentric_source.jl"),
                     (:li_boundary,"li_boundary.jl"),
+                    (:li_flux_decomposition,"li_diagnostics.jl"),
                     (:EccentricModeSource,"eccentric_modes.jl"))
     isdefined(SW,name) || Base.include(SW,joinpath(@__DIR__,"../src/SpiralWaves",file))
 end
@@ -248,6 +249,165 @@ function axisymmetric_checks(closure)
     println("PASS ",closure,": T_0k=0; dynamic weight 4pi; static (0,0) excluded; no division by m or omega")
 end
 
+function li_flux_checks()
+    c=context(closure=LocallyIsothermalOptionA)
+    for r in (19.0,38.0)
+        h=eccentric_test_source(r); y=(0.003+0.001im,-0.002+0.004im)
+        f=SW.reconstruct_fluid(c,r,y;hmodes=h,landau=false)
+        geo=SW._diagnostic_geometry(c,r,h)
+        du=[f.dut,f.dur,f.duphi_up,0im]
+        @test f.du_phi ≈ (geo.g*du+geo.metric*geo.u)[3] rtol=1e-12
+        # Independently differentiate the exact perfect-fluid stress jet.
+        enthalpy=SW.eps_profile(c.disc,r)+SW.pressure(c.disc,r)
+        eulerian=(f.deps+f.dp)*(geo.u*transpose(geo.u))+
+            enthalpy*(du*transpose(geo.u)+geo.u*transpose(du))+
+            f.dp*geo.gi-SW.pressure(c.disc,r)*geo.gi*geo.metric*geo.gi
+        @test SW.linear_stress(c,r,y;hmodes=h,landau=false).dT ≈ eulerian rtol=2e-12
+        parts=SW.li_flux_decomposition(c,r,y;hmodes=h,landau=false)
+        @test parts.quadratic-parts.mean_transport ≈ parts.wave rtol=1e-12
+        @test !iszero(parts.mean_transport)
+        @test parts.wave==SW.amf_mode(c,r,y;hmodes=h,landau=false)
+        no_cross=SW.reynolds_flux(c.mode;measure=geo.measure,enthalpy,dur=f.dur,du_phi=(geo.g*du)[3])
+        @test abs(no_cross-parts.wave)>1e-8*abs(parts.wave)
+        # Extract the quadratic term of the actual nonlinear mixed stress and
+        # subtract the background angular momentum transported by the mean.
+        δ=1e-3; full=0.0; mean=0.0; u_phi=(geo.g*geo.u)[3]
+        for j in 0:63, sign in (-1,1)
+            z=cis(2pi*j/64); λ=sign*δ
+            g=geo.g+λ*2real.(geo.metric*z)
+            u=geo.u+λ*2real.(du*z)
+            e=SW.eps_profile(c.disc,r)+λ*2real(f.deps*z)
+            p=SW.pressure(c.disc,r)+λ*2real(f.dp*z)
+            stress=(e+p)*(u*transpose(u))+p*inv(g)
+            full+=sqrt(-det(g))*(stress*g)[2,3]
+            mean+=sqrt(-det(g))*(e+p)*u[2]*u_phi
+        end
+        full*=2pi/(128δ^2); mean*=2pi/(128δ^2)
+        @test full ≈ parts.quadratic rtol=2e-6
+        @test mean ≈ parts.mean_transport rtol=2e-6
+        @test full-mean ≈ parts.wave rtol=2e-6
+    end
+    # Direct convention recovery, with arbitrary independent FR amplitudes.
+    mode=HarmonicMode(2,1,0.03)
+    for r in (0.7,1.3,8.0)
+        ur=0.3+0.2im; up=-0.1+0.4im; Sigma=r^(-1.5)
+        F=SW.reynolds_flux(mode;measure=r,enthalpy=Sigma,dur=ur/2,du_phi=r*up/2)
+        @test F ≈ pi*r^2*Sigma*real(ur*conj(up)) rtol=5e-15
+    end
+    println("PASS LI Reynolds: emitted stress jets, exact mixed-stress expansion, metric cross terms and mean-transport subtraction; FR24 pi r^2 Sigma Re(ur conj(uphi))")
+end
+
+# Independent coordinate-current divergence, retaining the perturbed measure.
+# It tests zero-bath equations, separately from the algebraic C-POWER identity.
+function current_density(c,r,y,h)
+    geo=SW._diagnostic_geometry(c,r,h)
+    stress=SW.gravitational_stress(c,r,y;hmodes=h,landau=false)
+    p=SW.pressure(c.disc,r); e=SW.eps_profile(c.disc,r)
+    background=(e+p)*(geo.u*transpose(geo.u))+p*geo.gi
+    (;current=geo.measure*(stress.stress*geo.g+background*geo.metric),
+      background,metric=geo.metric,measure=geo.measure)
+end
+
+function zero_bath_checks(;axisymmetric=false)
+    for q in (0.0,0.75,1.0), omega in (-0.021,0.021)
+        c=context(;closure=LocallyIsothermalOptionA,m=axisymmetric ? 0 : 2,omega,q)
+        r=38.0; y=[0.003+0.001im,-0.002+0.004im]; h=eccentric_test_source(r)
+        C,S=SW.master_matrices(c,r;hmodes=h,landau=false); yp=C*y+S
+        j=current_density(c,r,y,h); errors=Float64[]
+        for δ in (0.02,0.01,0.005)
+            jp=current_density(c,r+δ,y+δ*yp,eccentric_test_source(r+δ))
+            jm=current_density(c,r-δ,y-δ*yp,eccentric_test_source(r-δ))
+            dj=(jp.current-jm.current)/(2δ)
+            terms=ComplexF64[]; scales=Float64[]
+            for (a,w) in ((1,-im*omega),(3,im*c.mode.m))
+                td=-im*omega*j.current[1,a]; pd=im*c.mode.m*j.current[3,a]
+                metricwork=j.measure*sum(j.background .* (w*j.metric))/2
+                push!(terms,td+pd+dj[2,a]-metricwork)
+                push!(scales,abs(td)+abs(pd)+abs(dj[2,a])+abs(metricwork))
+            end
+            push!(errors,maximum(abs.(terms)./scales))
+        end
+        @test errors[end]<2e-7
+        @test 3.5<errors[1]/errors[2]<4.5 && 3.5<errors[2]/errors[3]<4.5
+        @printf("ZERO_BATH,m=%d,q=%.2f,omega=%+.3f,%.6e,%.6e,%.6e\n",c.mode.m,q,omega,errors...)
+    end
+    println("PASS OPTION A zero bath: independent densitized E/J-current divergence with metric work; qTemp=0,0.75,1; no constant-FJ assumption")
+end
+
+function newtonian_flux_checks()
+    MO=AccretionDisc.Modes
+    for q in (0.0,0.75,1.0)
+        d=MO.NewtonianDisc(h0=0.12,p=1.5,q=q,beta=0.0,pole_disp=0.0)
+        m=2; mode=HarmonicMode(m,0,Float64(m)); errors=Float64[]; fjchange=0.0
+        for n in (128,256,512)
+            rs=collect(range(1.5,2.0;length=n+1))
+            # Reuse the certified zero-cooling Newtonian operator, ih=0.
+            Cs=map(1:n) do i
+                r=(rs[i]+rs[i+1])/2
+                col0=MO.master_rhs(d,r,(1.,0.,0.,0.),m,0)
+                col1=MO.master_rhs(d,r,(0.,0.,1.,0.),m,0)
+                ComplexF64[0 1; col0[3]+im*col0[4] col1[3]+im*col1[4]]
+            end
+            y=SW.solve_midpoint(rs,Cs,[zeros(ComplexF64,2) for _ in 1:n],(1,0),1,
+                                 (-MO.wkbC(d,last(rs),m),1),0)
+            F=map(eachindex(rs)) do i
+                r=rs[i]; Ω=MO.Omega(d,r); σ=m-m*Ω; D=MO.Dfreq(d,r,m)
+                # MR20 src/main.tex:925–931, read as text; physical FR amplitudes.
+                ur=im/D*(σ*(y[2,i]-MO.LTinv(d,r)*y[1,i])-2m*Ω/r*y[1,i])
+                up=SW._newtonian_delta_u_phi(m,r,Ω,MO.kappa(d,r)^2,σ,(y[1,i],-im*ur),0)
+                flux=SW.reynolds_flux(mode;measure=r,enthalpy=MO.Sigma(d,r),dur=ur/2,du_phi=r*up/2)
+                wronskian=pi*m*r*MO.Sigma(d,r)/D*imag(y[1,i]*conj(y[2,i]))
+                @test flux ≈ wronskian rtol=2e-12
+                flux
+            end
+            law=F./MO.csiso.(Ref(d),rs).^2
+            push!(errors,maximum(abs.(law./first(law).-1)))
+            fjchange=last(F)/first(F)-1
+        end
+        @test all(3.7 .< errors[1:end-1]./errors[2:end] .< 4.3)
+        @test errors[end]<5e-5
+        q>0 && @test abs(fjchange)>0.1
+        @printf("NEWTONIAN_FJ_CT2,q=%.2f,%.6e,%.6e,%.6e,FJ_change=%+.6e\n",q,errors...,fjchange)
+    end
+    println("PASS MR20 source-free law: Reynolds FJ equals pressure Wronskian; FJ/cT2 conserved at second order, FJ varies for qTemp!=0")
+end
+
+function weak_field_flux_checks()
+    MO=AccretionDisc.Modes
+    for q in (0.0,0.75,1.0)
+        errors=Float64[]; x=1.7; m=2; omega=3.0
+        dn=MO.NewtonianDisc(h0=0.08,p=1.5,q=q,beta=0.0,pole_disp=0.0)
+        yn=(0.002+0.001im,0.003-0.002im)
+        up=SW._newtonian_delta_u_phi(m,x,MO.Omega(dn,x),MO.kappa(dn,x)^2,
+                                    omega-m*MO.Omega(dn,x),yn,0)
+        target=pi*x^2*MO.Sigma(dn,x)*real((2im*yn[2])*conj(2up))
+        for R in (2e3,2e4,2e5)
+            d=SW.DiscModel(;χ=0.9,r_ref=R,h_ref=0.08,pSigma=1.5,qTemp=q,
+                           closure=LocallyIsothermalOptionA,evolution=:fixed)
+            c=SW.ModeContext(d,HarmonicMode(m,1,omega/R^(3/2));
+                             closure=LocallyIsothermalOptionA,domain=(R,2R))
+            y=(yn[1]/R,yn[2]/sqrt(R))
+            F=SW.amf_mode(c,x*R,y;hmodes=SW._zero_source(c),landau=false)/R
+            push!(errors,abs(F/target-1))
+        end
+        @test all(8 .< errors[1:end-1]./errors[2:end] .< 12)
+        @test last(errors)<1e-4
+        @printf("WEAK_FIELD_FLUX,q=%.2f,%.6e,%.6e,%.6e\n",q,errors...)
+    end
+    println("PASS emitted GR LI Reynolds flux approaches the FR24 formula at first order in M/r; half amplitudes and covariant r factor retained")
+end
+
+function li_checks()
+    @testset "LI stress, Reynolds flux and independent balance" begin
+        tensor_checks(LocallyIsothermalOptionA)
+        li_flux_checks()
+        newtonian_flux_checks()
+        weak_field_flux_checks()
+        zero_bath_checks()
+        forced_check(LocallyIsothermalOptionA)
+    end
+end
+
 function sanity_checks(closure)
     @testset "Exploratory GR eccentric physics table $closure" begin
         for (a,e) in ((0.9,0.2),(0.0,0.2),(0.9,0.05)), (m,k) in ((2,0),(2,1),(0,1))
@@ -263,5 +423,8 @@ let selection=get(ENV,"ECC_DIAGNOSTICS_TEST","all")
     selection in ("all","adiabatic") && EccentricDiagnosticsTests.adiabatic_checks()
     selection in ("all","axisymmetric") && EccentricDiagnosticsTests.axisymmetric_checks(EccentricDiagnosticsTests.Adiabatic)
     selection=="circular" && EccentricDiagnosticsTests.circular_checks(EccentricDiagnosticsTests.Adiabatic)
+    selection in ("all","li") && EccentricDiagnosticsTests.li_checks()
+    selection=="li_circular" && EccentricDiagnosticsTests.circular_checks(EccentricDiagnosticsTests.LocallyIsothermalOptionA)
     selection=="sanity" && EccentricDiagnosticsTests.sanity_checks(EccentricDiagnosticsTests.Adiabatic)
+    selection=="li_sanity" && EccentricDiagnosticsTests.sanity_checks(EccentricDiagnosticsTests.LocallyIsothermalOptionA)
 end

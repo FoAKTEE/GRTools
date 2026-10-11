@@ -1,0 +1,70 @@
+# Closure-independent connected Reynolds flux, with OPTION A perturbations.
+# Stress origin: derivation/src/diagnostics.jl:163–172, emitted by li_emission.jl.
+# No adiabatic U/V/W tensor enters this file.
+
+_diagnostic_stress(::Val{LocallyIsothermalOptionA},c,r,y,geo;hmodes,landau) =
+    linear_stress(c,r,y;hmodes,landau).dT
+
+"""
+    reynolds_flux(mode; measure, enthalpy, dur, du_phi)
+
+Connected quadratic Reynolds contribution to the physical angular-momentum
+current: `4π sqrt(-g) (epsilon+p) Re(delta u^r conj(delta u_phi))`.
+`du_phi` is COVARIANT and includes `g_phi,a delta u^a + h_phi,a u^a`.
+Inputs are half amplitudes, as in C-NORM. The definition is independent of the
+thermodynamic closure; `li_flux_decomposition` substitutes OPTION A solutions.
+
+Newtonian limit: measure=r, enthalpy=Sigma, dur=du_r_FR/2 and
+du_phi=r*du_phi_FR/2, giving FR24 v1 eq:F_jml exactly:
+`π r² Sigma Re(du_r_FR conj(du_phi_FR))` (2_linear_framework.tex:268–287).
+Its source-free LI transport law is F_J/c_T² constant, not F_J constant.
+"""
+function reynolds_flux(mode::HarmonicMode;measure,enthalpy,dur,du_phi)
+    reality_pair_weight(mode)*measure*enthalpy*real(dur*conj(du_phi))
+end
+
+"""
+    li_flux_decomposition(context,r,y;hmodes,landau=true)
+
+Expand sqrt(-g) T^r_phi = sqrt(-g) (epsilon+p) u^r u_phi about u^r=0.
+The terms quadratic in the first-order fields are
+
+    quadratic = sqrt(-g) < (epsilon+p) du^r du_phi
+                         + u_phi [d(epsilon+p)+(epsilon+p) dlog(sqrt(-g))] du^r >.
+
+Subtract the transport of BACKGROUND angular momentum by the enthalpy current:
+
+    mean_transport = sqrt(-g) u_phi <[d(epsilon+p)+(epsilon+p) dlog(sqrt(-g))] du^r>.
+
+The result `wave=quadratic-mean_transport` is evaluated directly as a connected
+product to avoid subtractive cancellation. `dlog(sqrt(-g))=g^ab h_ab/2`.
+Any unknown second-order mean radial velocity contributes the same
+sqrt(-g)(epsilon+p) u_phi <u2^r> to both terms and cancels. The reported
+`quadratic`/`mean_transport` contain only the known first-order bilinears;
+they do not solve the second-order mean flow. Pressure gives no mixed r-phi
+Kronecker term. Metric/velocity cross terms survive in du_phi.
+
+This is distinct from the adiabatic Noether flux, which also contains
+u_phi<dp du^r>. OPTION A has zero bath four-force. Finite-GR wave/mean balance
+does not imply a conserved wave flux or identify its edge jump as total torque.
+"""
+function li_flux_decomposition(c::ModeContext,r,y;hmodes,landau::Bool=true)
+    c.closure==LocallyIsothermalOptionA || throw(ArgumentError("LI flux requires OPTION A context"))
+    f=reconstruct_fluid(c,r,y;hmodes,landau)
+    geo=_diagnostic_geometry(c,r,hmodes)
+    enthalpy=eps_profile(c.disc,r)+pressure(c.disc,r)
+    u_phi=sum(geo.g[3,:] .* geo.u)
+    dlogmeasure=sum(geo.gi .* geo.metric)/2
+    wave=reynolds_flux(c.mode;measure=geo.measure,enthalpy,dur=f.dur,du_phi=f.du_phi)
+    mean_transport=reality_pair_weight(c.mode)*geo.measure*u_phi*
+        real((f.deps+f.dp+enthalpy*dlogmeasure)*conj(f.dur))
+    (;wave,mean_transport,quadratic=wave+mean_transport)
+end
+
+_wave_flux(::Val{LocallyIsothermalOptionA},c,r,y;hmodes,landau) =
+    li_flux_decomposition(c,r,y;hmodes,landau).wave
+
+"Wave/mean bilinears at each solved radius; closure is checked by the point method."
+li_flux_decomposition(sol::EccentricModeSolution) =
+    [li_flux_decomposition(sol.context,r,view(sol.y,:,i);hmodes=sol.source(r),landau=sol.params.landau)
+     for (i,r) in enumerate(sol.r)]
