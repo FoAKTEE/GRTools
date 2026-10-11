@@ -107,6 +107,62 @@ function solve_mode(c::ModeContext,p::EccentricPerturber;
     solve_mode(c;source,grid,boundary_rows,kwargs...)
 end
 
+"""
+    solve_modes(context_builder, perturber, modes; bank=nothing,
+                bank_options=(;), grid_builder=build_grid, transform=identity,
+                boundary_builder=mode_boundary_rows, kwargs...)
+
+Solve an ordered, nonempty mode collection with one caller-owned source bank.
+`context_builder(mode)` supplies each context; `grid_builder(context)` supplies
+its grid. By default, build a `SourceRadialBank` on the union of the context
+domains, forwarding `bank_options` to `source_radial_bank`. Its Chebyshev source
+interpolation uses the documented 1e-8 |ref| + 1e-12 U source budget, not a
+bound on response error. Quadrature convergence remains the caller's duty.
+
+An explicit `SourceAzimuthBank` instead uses the direct projector and must
+contain every grid node and midpoint. Identical samples and quadrature give
+bitwise-identical results to separate solves. An explicit bank must belong to
+the supplied perturber instance; no global cache or circular dispatch is used.
+
+`transform(solution)` runs immediately after each solve, so survey reductions
+need not retain every full solution. Results preserve input order, including
+duplicates. With an explicit bank, contexts are also constructed one at a time;
+without one, their domain metadata is collected before building the bank.
+`kwargs` forwards to the existing context solver. The single-mode
+`solve_mode(context, perturber)` interface and defaults are unchanged.
+"""
+function solve_modes(context_builder, p::EccentricPerturber, modes;
+                     bank=nothing, bank_options::NamedTuple=(;),
+                     grid_builder=build_grid, transform=identity,
+                     boundary_builder=mode_boundary_rows, kwargs...)
+    selected = collect(modes)
+    isempty(selected) && throw(ArgumentError("at least one mode is required"))
+    checked_context = function(mode)
+        c = context_builder(mode)
+        c.mode == mode || throw(ArgumentError("context builder changed the requested mode"))
+        ModeContext(c.disc,p,c.mode;closure=c.closure,domain=c.domain)
+    end
+    if bank === nothing
+        contexts = map(checked_context,selected)
+        domain = (minimum(c.domain[1] for c in contexts),
+                  maximum(c.domain[2] for c in contexts))
+        bank = source_radial_bank(first(contexts).disc,p,domain,
+                                  unique(c.mode for c in contexts);bank_options...)
+    else
+        bank isa Union{SourceAzimuthBank,SourceRadialBank} ||
+            throw(ArgumentError("expected an eccentric source bank"))
+        bank.perturber === p || throw(ArgumentError("bank belongs to another perturber"))
+        isempty(bank_options) || throw(ArgumentError("bank_options require bank=nothing"))
+        contexts = Iterators.map(checked_context,selected)
+    end
+    map(contexts) do c
+        source = mode_source(bank,c.mode)
+        grid = grid_builder(c)
+        rows = boundary_builder(c)
+        transform(solve_mode(c;source,grid,boundary_rows=rows,kwargs...))
+    end
+end
+
 "Reconstruct closure-tagged Eulerian fluid amplitudes at all solved grid nodes."
 function reconstruct_fluid(sol::EccentricModeSolution)
     [reconstruct_fluid(sol.context,r,view(sol.y,:,i);hmodes=sol.source(r),
