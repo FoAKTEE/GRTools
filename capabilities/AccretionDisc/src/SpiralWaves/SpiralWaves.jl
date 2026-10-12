@@ -153,6 +153,7 @@ export newtonian_balance_residual
 
 # ---- EGD::sw-image-synthesis — mode-sum reconstruction of the wake (Figs. 1-2) --------------------
 include("image_synthesis.jl")
+include("eccentric_synthesis.jl")
 export ModeInterp, mode_interp, synthesize, synthesize_cartesian, polar_to_cartesian, image_grid
 export arm_phase, wake_modes
 
