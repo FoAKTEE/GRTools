@@ -410,3 +410,96 @@ end
     end
     @test only(filter(x->startswith(x["axis_level"],"lowest_pole_mesh"),r["costs"]))["n"]==64
 end
+
+@testset "v4 production-domain verified-order grid certificate" begin
+    domain=[6.,80.]; radii=[6.,20.,80.]; levels=[8,16,32,64]
+    function ladder(order; m=2)
+        [Dict("domain"=>domain,"r"=>radii,
+              "y"=>ECS.encode_value(ComplexF64[1 2 3; 3 2 1].*(1+n^(-order))),
+              "torque"=>m==0 ? 0. : 2+n^(-order),"power"=>3+2n^(-order),
+              "row_backward_error"=>1e-13,"bc_residual"=>0.) for n in levels]
+    end
+    good=ladder(2.)
+    cert=ECS.grid_richardson(good,levels;domain,rref=30.,m=2)
+    @test cert["qualified"]
+    @test all(v->all(p->p≈2,v),values(cert["orders"]))
+    @test all(k->cert["estimates"][k]≈cert["differences"][k][end]/3,keys(cert["estimates"]))
+    @test !ECS.grid_richardson(ladder(1.),levels;domain,rref=30.,m=2)["qualified"]
+    @test ECS.grid_richardson(ladder(2.;m=0),levels;domain,rref=30.,m=0)["qualified"]
+    for key in ("power","torque")
+        bad=deepcopy(good)
+        for (j,n) in enumerate(levels); bad[j][key]=1+n^(-1.); end
+        @test !ECS.grid_richardson(bad,levels;domain,rref=30.,m=2)["qualified"]
+    end
+    for component in 1:2
+        bad=deepcopy(good)
+        for (j,n) in enumerate(levels)
+            y=ECS.decode_value(bad[j]["y"]); y[component,:].=1+n^(-1.)
+            bad[j]["y"]=ECS.encode_value(y)
+        end
+        @test !ECS.grid_richardson(bad,levels;domain,rref=30.,m=2)["qualified"]
+    end
+    bad=deepcopy(good); bad[1]["domain"]=[6.006,40.]
+    @test_throws ArgumentError ECS.grid_richardson(bad,levels;domain,rref=30.,m=2)
+    @test_throws ArgumentError ECS.grid_richardson(good[2:end],levels[2:end];domain,rref=30.,m=2)
+    @test_throws ArgumentError ECS.grid_richardson(good,[8,16,32,128];domain,rref=30.,m=2)
+    bad=deepcopy(good); bad[2]["power"]=NaN
+    @test !ECS.grid_richardson(bad,levels;domain,rref=30.,m=2)["qualified"]
+    bad=deepcopy(good); bad[2]["row_backward_error"]=2e-9
+    @test !ECS.grid_richardson(bad,levels;domain,rref=30.,m=2)["qualified"]
+    # One good final order does not rescue the earlier first-order ratio.
+    bad=deepcopy(good); bad[1]["power"]=bad[2]["power"]+2*(bad[2]["power"]-bad[3]["power"])
+    @test !ECS.grid_richardson(bad,levels;domain,rref=30.,m=2)["qualified"]
+    # Lander L-G50 (test-only addition): the owner's |p - 2| <= 0.1 window is pinned at both edges.
+    @test ECS.grid_richardson(ladder(1.92),levels;domain,rref=30.,m=2)["qualified"]
+    @test ECS.grid_richardson(ladder(2.08),levels;domain,rref=30.,m=2)["qualified"]
+    @test !ECS.grid_richardson(ladder(1.85),levels;domain,rref=30.,m=2)["qualified"]
+    @test !ECS.grid_richardson(ladder(2.15),levels;domain,rref=30.,m=2)["qualified"]
+end
+
+@testset "v4 keeps raw causal, ISCO, source and integrity gates" begin
+    axes7=ECS.RADIAL_AXES
+    ind=Dict{String,Any}("protocol"=>"PREREG_radial_v3","conditional"=>false,"Nq"=>1024,
+        "source_budget"=>[0.5],"source_budget_sensitivity"=>[0.5],
+        "budget"=>Dict(k=>1e-4 for k in axes7),
+        "observable_budget"=>Dict(q=>Dict(k=>1e-4 for k in axes7) for q in ("torque","power")),
+        "diagnostics"=>[Dict("axis_level"=>"grid_1","corotation"=>10.,
+            "row_backward_error"=>1e-12,"bc_residual"=>0.)])
+    ind["budget"]["grid"]=2.4e-3
+    joint=Dict{String,Any}("profile"=>Dict(k=>[1e-4,1e-4] for k in (axes7...,"isco")),
+        "absolute_observable_terms"=>Dict(q=>Dict(k=>1e-4 for k in (axes7...,"isco")) for q in ("torque","power")),
+        "integrity"=>true,"owner_grid_rejections"=>[],"causal_covered"=>true,
+        "source_probe"=>Dict("primary"=>[.5],"sensitivity"=>[.5]))
+    joint["profile"]["grid"]=[2.4e-3,1e-4]
+    cert=Dict("qualified"=>true,"integrity"=>true,"estimates"=>Dict("component_1"=>8e-4,"component_2"=>1e-4,"power"=>1e-4,"torque"=>1e-4))
+    cert["orders"]=Dict("component_1"=>[2.,2.],"component_2"=>[2.,2.])
+    ig=Dict("profile"=>[8e-4,1e-4],"power"=>1e-4,"torque"=>1e-4)
+    ref=Dict("power"=>1.,"torque"=>1.)
+    @test ECS.radial_v4_gate(ind,joint,cert,ig,ref,ref)["pass"]
+    c=deepcopy(cert);c["qualified"]=false
+    @test !ECS.radial_v4_gate(ind,joint,c,ig,ref,ref)["pass"]
+    for axis in ("pole","pole_mesh","isco")
+        j=deepcopy(joint);j["absolute_observable_terms"]["power"][axis]=4e-4
+        @test !ECS.radial_v4_gate(ind,j,c,ig,ref,ref)["pass"]
+        @test !ECS.radial_v4_gate(ind,j,cert,ig,ref,ref)["pass"]
+    end
+    for key in ("integrity","causal_covered")
+        j=deepcopy(joint);j[key]=false
+        @test !ECS.radial_v4_gate(ind,j,cert,ig,ref,ref)["pass"]
+    end
+    j=deepcopy(joint);j["owner_grid_rejections"]=["failed control"]
+    @test !ECS.radial_v4_gate(ind,j,cert,ig,ref,ref)["pass"]
+    j=deepcopy(joint);j["source_probe"]["sensitivity"]=[1.01]
+    @test !ECS.radial_v4_gate(ind,j,cert,ig,ref,ref)["pass"]
+    j=deepcopy(joint);j["profile"]["isco"]=[1.1e-3,0.]
+    @test !ECS.radial_v4_gate(ind,j,cert,ig,ref,ref)["pass"]
+    j=deepcopy(joint);delete!(j["absolute_observable_terms"]["power"],"isco")
+    @test !ECS.radial_v4_gate(ind,j,cert,ig,ref,ref)["pass"]
+    c=deepcopy(cert);c["integrity"]=false
+    @test !ECS.radial_v4_gate(ind,joint,c,ig,ref,ref)["pass"]
+    # Lander L-G50 (test-only addition): either response component alone fails the joint profile gate.
+    for axis in ("edge","isco"), comp in 1:2
+        j=deepcopy(joint);j["profile"][axis][comp]=1.1e-3
+        @test !ECS.radial_v4_gate(ind,j,cert,ig,ref,ref)["pass"]
+    end
+end

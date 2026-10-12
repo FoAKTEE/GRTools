@@ -185,15 +185,16 @@ function source_case(a,p,e; nq=1024, mode_list=SOURCE_MODES)
 end
 
 "Compare both response components independently on fixed common radii."
-function response_error(a,b,radii)
+function response_error(a,b,radii; reference=b)
     floors = (1e-12*1e-5/b.context.disc.r_ref,
               1e-12*1e-5/sqrt(b.context.disc.r_ref))
     weights = [(radii[min(i+1,end)]-radii[max(i-1,1)])/2 for i in eachindex(radii)]
     map(1:2) do j
         va = local_interp(radii,a.r,vec(a.y[j,:]);npts=4)
         vb = local_interp(radii,b.r,vec(b.y[j,:]);npts=4)
+        vr = reference===b ? vb : local_interp(radii,reference.r,vec(reference.y[j,:]);npts=4)
         sqrt(sum(weights.*abs2.(va-vb))) /
-            max(sqrt(sum(weights.*abs2.(vb))),sqrt(sum(weights))*floors[j])
+            max(sqrt(sum(weights.*abs2.(vr))),sqrt(sum(weights))*floors[j])
     end
 end
 
@@ -325,6 +326,7 @@ function solution_record(s; comparison_radii=nothing, row_residual=false)
     record = Dict("r"=>r,"y"=>encode_value(y),"torque"=>torque,"power"=>power,
          "comparison_samples"=>comparison_radii!==nothing,
          "residual"=>s.residual,"bc_residual"=>s.bc_residual,"nodes"=>length(s.r),
+         "domain"=>collect(s.context.domain),
          "corotation"=>s.context.r_c,"pole_width"=>SW.corotation_width(s.context),
          "pole"=>s.context.disc.εp)
     row_residual && (record["row_backward_error"] = solution_row_backward_error(s))
@@ -332,6 +334,86 @@ function solution_record(s; comparison_radii=nothing, row_residual=false)
 end
 
 const RADIAL_AXES = ("grid","source","cache","ancillary","pole","pole_mesh","edge")
+
+"""Verified second-order grid error on at least four production-domain levels.
+
+All differences share the finest reference norm. Both consecutive orders of
+both state components and both observables must qualify before any grid relief
+is used. Identically zero axisymmetric torque needs no error estimate. An
+unqualified ladder retains its full last differences; it never certifies an
+extrapolated production value or grants relief to another refinement axis.
+"""
+function grid_richardson(records, levels; domain, rref, m)
+    length(records)==length(levels)>=4 || throw(ArgumentError("need at least four grid levels"))
+    all(>(0),levels) && all(levels[2:end].==2 .* levels[1:end-1]) ||
+        throw(ArgumentError("grid levels must double"))
+    all(r->get(r,"domain",nothing)==collect(domain),records) ||
+        throw(ArgumentError("all grid levels must use the production domain"))
+    radii=Float64.(last(records)["r"])
+    all(r->r["r"]==radii,records) || throw(ArgumentError("grid samples must agree"))
+    mock(r)=(;r=radii,y=decode_value(r["y"]),context=(;disc=(;r_ref=rref)))
+    solutions=mock.(records)
+    profiles=[response_error(solutions[j],solutions[j+1],radii;reference=last(solutions))
+              for j in 1:length(records)-1]
+    differences=Dict("component_$j"=>getindex.(profiles,j) for j in 1:2)
+    for q in ("torque","power")
+        differences[q]=[relative_change(records[j][q],records[j+1][q],last(records)[q])
+                        for j in 1:length(records)-1]
+    end
+    orders=Dict(k=>[observed_order(d[j],d[j+1]) for j in 1:length(d)-1]
+                for (k,d) in differences)
+    zero_torque=m==0 && all(r->iszero(r["torque"]),records)
+    integrity=all(r->0<=get(r,"row_backward_error",Inf)<=1e-9 &&
+                      0<=get(r,"bc_residual",Inf)<=1e-9,records)
+    qualified=integrity && all(k->(k=="torque" && zero_torque) ||
+        all(p->p!==nothing && isfinite(p) && abs(p-2)<=0.1,orders[k]),keys(orders))
+    estimates=Dict(k=>qualified && !(k=="torque" && zero_torque) ?
+        last(d)/(2^last(orders[k])-1) : last(d) for (k,d) in differences)
+    Dict("qualified"=>qualified,"levels"=>collect(levels),"domain"=>collect(domain),
+         "orders"=>orders,"differences"=>differences,"estimates"=>estimates,
+         "integrity"=>integrity,"structural_zero_torque"=>zero_torque)
+end
+
+"""v4 joint gate: retain every v3 control, changing only a qualified grid term.
+
+`independent_grid` contains separately measured grid estimates (full differences
+when their order is unverified). Its entries are two profile components and
+relative torque/power errors with the independent grid reference. The corner
+certificate was measured on the production domain. Causal, pole-mesh and final
+ISCO differences remain raw and the larger independent/corner term is charged.
+"""
+function radial_v4_gate(independent, joint, certificate, independent_grid, grid_reference, corner_reference)
+    ind=deepcopy(independent)
+    profiles=deepcopy(joint["profile"])
+    terms=deepcopy(joint["absolute_observable_terms"])
+    for j in 1:2
+        key="component_$j"
+        factor=certificate["qualified"] ? 2^last(certificate["orders"][key])-1 : 1
+        profiles["grid"][j]=max(profiles["grid"][j]/factor,certificate["estimates"][key])
+    end
+    if certificate["qualified"]
+        ind["budget"]["grid"]=maximum(independent_grid["profile"])
+        for q in ("torque","power")
+            ind["observable_budget"][q]["grid"]=independent_grid[q]
+            terms[q]["grid"]=max(independent_grid[q]*abs(grid_reference[q]),
+                certificate["estimates"][q]*abs(corner_reference[q]))
+        end
+    end
+    budgets=Dict(q=>relative_change(sum(values(terms[q])),0.,corner_reference[q])
+                 for q in ("torque","power"))
+    pass=radial_pass(ind) && get(joint,"integrity",false) &&
+        isempty(get(joint,"owner_grid_rejections",["missing"])) &&
+        get(joint,"causal_covered",false) &&
+        all(q->all(k->haskey(terms[q],k) && 0<=terms[q][k],(RADIAL_AXES...,"isco")),("torque","power")) &&
+        all(k->haskey(profiles,k) && length(profiles[k])==2 &&
+            all(x->0<=x<=1e-3,profiles[k]),(RADIAL_AXES...,"isco")) &&
+        all(v->0<=v<=1e-3,values(budgets)) &&
+        all(k->!isempty(joint["source_probe"][k]) && all(x->0<=x<=1,joint["source_probe"][k]),("primary","sensitivity")) &&
+        certificate["integrity"]
+    Dict("pass"=>pass,"independent_pass"=>radial_pass(ind),"profile"=>profiles,
+         "observable_budget"=>budgets,"absolute_observable_terms"=>terms,
+         "grid_relief"=>certificate["qualified"])
+end
 
 "PREREG_radial_v2: profile gates per axis, summed uncertainty for EACH physical observable."
 function radial_pass(r)
