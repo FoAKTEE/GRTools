@@ -258,10 +258,11 @@ function radial_solve(c,pert,n,nq,costs,label;nanc=512,cache=false,source=nothin
 end
 
 "Vary only the causal prescription on a fixed grid, reusing its exact source table."
-function causal_audit(c,pert,base,costs,label)
+function causal_audit(c,pert,base,costs,label; divisors=(2,4))
     c.r_c===nothing && return [base,base,base]
     solutions = [base]
-    for pole in (c.disc.εp/2,c.disc.εp/4)
+    for divisor in divisors
+        pole = c.disc.εp/divisor
         d,_ = fixture(pert.orbit.a,pert.orbit.p,pert.orbit.e;pole)
         cc = SW.ModeContext(d,pert,c.mode;closure=c.closure,domain=c.domain)
         grid = SW.EccentricGrid(copy(base.r),cc.r_c,1:0,SW.mode_cache_key(cc),(;fixed_causal_grid=true))
@@ -277,19 +278,57 @@ end
 "Relative observable change with no cancellation-dependent acceptance floor."
 relative_change(a,b,reference) = iszero(a-b) ? zero(abs(a-b)) : abs(a-b)/abs(reference)
 
+"""Maximum discrete-row residual divided by its largest individual term.
+
+`matrices` supplies `(Cmid, Smid)` pairs, possibly lazily. The four matrix-times-state
+terms are exactly those of `SW.midpoint_system`, plus the right-hand side `dr*S`.
+This measures the solved algebraic equations without dividing a small difference
+of adjacent states by the mesh spacing. Boundary rows retain their separate gate.
+"""
+function midpoint_row_backward_error(r, y, matrices)
+    size(y)==(2,length(r)) || throw(DimensionMismatch("expected two states per node"))
+    length(matrices)==length(r)-1 || throw(DimensionMismatch("expected one matrix/source per cell"))
+    worst = zero(real(eltype(y)))
+    for (i,(C,S)) in enumerate(matrices)
+        dr = r[i+1]-r[i]; h = dr/2
+        for a in 1:2
+            terms = ntuple(4) do j
+                c = (j+1)÷2
+                delta = a==c ? one(eltype(y)) : zero(eltype(y))
+                isodd(j) ? -(delta+h*C[a,c])*y[c,i] : (delta-h*C[a,c])*y[c,i+1]
+            end
+            rhs = dr*S[a]
+            residual = abs(sum(terms)-rhs)
+            scale = max(maximum(abs,terms),abs(rhs))
+            worst = max(worst,iszero(scale) ? residual : residual/scale)
+        end
+    end
+    worst
+end
+
+"Row integrity of an existing solution; no solve, source or precision is changed."
+function solution_row_backward_error(s)
+    matrices = (SW.master_matrices(s.context,(s.r[i]+s.r[i+1])/2;
+        hmodes=s.source((s.r[i]+s.r[i+1])/2),landau=s.params.landau)
+        for i in 1:length(s.r)-1)
+    midpoint_row_backward_error(s.r,s.y,matrices)
+end
+
 "Store response and physical observables so independent verifiers can recompute budgets."
-function solution_record(s; comparison_radii=nothing)
+function solution_record(s; comparison_radii=nothing, row_residual=false)
     work = SW.gravitational_work(s)
     torque = SW.total_torque(s;density=getproperty.(work,:torque))
     power = SW.total_power(s;density=getproperty.(work,:power))
     r = comparison_radii===nothing ? s.r : comparison_radii
     y = comparison_radii===nothing ? s.y :
         permutedims(hcat([local_interp(r,s.r,vec(s.y[j,:]);npts=4) for j in 1:2]...))
-    Dict("r"=>r,"y"=>encode_value(y),"torque"=>torque,"power"=>power,
+    record = Dict("r"=>r,"y"=>encode_value(y),"torque"=>torque,"power"=>power,
          "comparison_samples"=>comparison_radii!==nothing,
          "residual"=>s.residual,"bc_residual"=>s.bc_residual,"nodes"=>length(s.r),
          "corotation"=>s.context.r_c,"pole_width"=>SW.corotation_width(s.context),
          "pole"=>s.context.disc.εp)
+    row_residual && (record["row_backward_error"] = solution_row_backward_error(s))
+    record
 end
 
 const RADIAL_AXES = ("grid","source","cache","ancillary","pole","pole_mesh","edge")
@@ -297,23 +336,29 @@ const RADIAL_AXES = ("grid","source","cache","ancillary","pole","pole_mesh","edg
 "PREREG_radial_v2: profile gates per axis, summed uncertainty for EACH physical observable."
 function radial_pass(r)
     diagnostics = r["diagnostics"]
+    v3 = get(r,"protocol","")=="PREREG_radial_v3"
+    residual_key = v3 ? "row_backward_error" : "residual"
+    required_nq = v3 && get(r,"e",0)==0.6 && abs(get(r,"k",0))==40 ? 2048 : 1024
     base = findfirst(d->get(d,"axis_level","")=="grid_1",diagnostics)
     # An expanded domain can acquire a corotation absent from the baseline.
     # Its causal error was not measured by the baseline pole ladder.
     base!==nothing && (diagnostics[base]["corotation"]!==nothing ||
                        all(d->d["corotation"]===nothing,diagnostics)) &&
-        !r["conditional"] && r["Nq"]>=1024 &&
+        !r["conditional"] && r["Nq"]>=required_nq &&
         all(k -> r[k]!==nothing && !isempty(_flat(r[k])) && all(x->0<=x<=1,_flat(r[k])),
             ("source_budget","source_budget_sensitivity")) &&
         all(k -> 0<=get(r["budget"],k,Inf)<=1e-3,RADIAL_AXES) &&
         all(q -> all(k->0<=get(r["observable_budget"][q],k,Inf)<=1e-3,RADIAL_AXES) &&
                  sum(r["observable_budget"][q][k] for k in RADIAL_AXES)<=1e-3,("torque","power")) &&
-        all(d -> 0<=d["residual"]<=1e-9 && 0<=d["bc_residual"]<=1e-9,diagnostics)
+        all(d -> 0<=get(d,residual_key,Inf)<=1e-9 && 0<=d["bc_residual"]<=1e-9,diagnostics)
 end
 
 function radial_case(a,p,e,m,k; nq=1024, source_reference=nothing, levels=(128,256,512),
                      source=nothing, source_fine=nothing, source_probe=nothing, nphi=nothing,
-                     compact=false, edge_levels=(1,2,3), pole=1e-3, source_control_nq=2nq)
+                     compact=false, edge_levels=(1,2,3), pole=1e-3, source_control_nq=2nq,
+                     protocol="PREREG_radial_v2")
+    protocol in ("PREREG_radial_v2","PREREG_radial_v3") || throw(ArgumentError("unknown radial protocol"))
+    v3 = protocol=="PREREG_radial_v3"
     source_control_nq isa Integer && source_control_nq>0 && source_control_nq!=nq ||
         throw(ArgumentError("source control Nq must be a distinct positive integer"))
     required_nphi = e==0.6 ? 16384 : 8192
@@ -381,7 +426,9 @@ function radial_case(a,p,e,m,k; nq=1024, source_reference=nothing, levels=(128,2
     ancillary = [radial_solve(c,pert,finest,nq,costs,"ancillary_$nanc";nanc,source,nphi) for nanc in (128,256)]
     push!(ancillary,last(grids))
     ancillary_error = [response_error(ancillary[i],ancillary[i+1],radii) for i in 1:2]
-    poles = causal_audit(c,pert,last(grids),costs,"fine_causal")
+    pole_diagnostic = causal_audit(c,pert,last(grids),costs,"fine_causal";
+                                  divisors=v3 ? (2,4,8) : (2,4))
+    poles = pole_diagnostic[1:3]
     pole_error = [response_error(poles[i],poles[i+1],radii) for i in 1:2]
     pole_mesh = c.r_c===nothing ? last(poles) :
         radial_solve(last(poles).context,pert,2finest,nq,costs,"lowest_pole_mesh_$(2finest)";source,nphi)
@@ -412,7 +459,7 @@ function radial_case(a,p,e,m,k; nq=1024, source_reference=nothing, levels=(128,2
     records = IdDict()
     for (_,solutions) in axes, s in solutions
         get!(records,s) do
-            solution_record(s;comparison_radii=compact ? radii : nothing)
+            solution_record(s;comparison_radii=compact ? radii : nothing,row_residual=v3)
         end
     end
     raw_axes = Dict(label=>[records[s] for s in solutions] for (label,solutions) in axes)
@@ -434,10 +481,14 @@ function radial_case(a,p,e,m,k; nq=1024, source_reference=nothing, levels=(128,2
          "raw_axes"=>raw_axes,
          "source_projection_error"=>projection_error,
          "source_budget"=>projection_budgets,"source_budget_sensitivity"=>sensitivity_budgets,
-         "observable_budget"=>observable_budget,"protocol"=>"PREREG_radial_v2",
+         "observable_budget"=>observable_budget,"protocol"=>protocol,
          "legacy_profile_sum"=>sum(values(budget)),
          "comparison_radii"=>radii,
          "costs"=>costs,"conditional"=>m==1 && k==-1)
+    if v3 && c.r_c!==nothing
+        fourth = solution_record(last(pole_diagnostic);comparison_radii=radii,row_residual=true)
+        result["causal_diagnostic"] = vcat(raw_axes["pole"],[fourth])
+    end
     result["pass"] = radial_pass(result)
     result
 end

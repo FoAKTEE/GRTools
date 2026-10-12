@@ -30,6 +30,76 @@ const ECS = EccentricConvergenceStudy
     @test eltype(b1.q) === Float64
 end
 
+@testset "Discrete row integrity uses the assembled terms and fails closed" begin
+    # Cross-check the streaming measurement against the independent sparse assembler.
+    r = [1.0,1.0+1e-10,1.25,2.0]
+    C = [[2.0+im -3.0; 5.0 1.0-im] for _ in 1:3]
+    S = [[0.5+0im, -0.3im] for _ in 1:3]
+    y = ComplexF64[1 1+1e-10 2 3; 2 2-1e-10 1 -1]
+    A,b = ECS.SW.midpoint_system(r,C,S,(1,0),0im,(0,1),0im)
+    u = vec(y)
+    expected = maximum(2:length(b)-1) do i
+        terms = A[i,:].*u
+        abs(sum(terms)-b[i])/max(maximum(abs,terms),abs(b[i]))
+    end
+    @test ECS.midpoint_row_backward_error(r,y,zip(C,S)) ≈ expected rtol=1e-14
+    @test ECS.midpoint_row_backward_error(r,7y,zip(C,7 .* S)) ≈ expected rtol=1e-14
+    z = zeros(ComplexF64,2,4)
+    @test ECS.midpoint_row_backward_error(r,z,zip(C,[zeros(ComplexF64,2) for _ in 1:3]))==0
+    bad = copy(y); bad[1,2]=NaN
+    @test isnan(ECS.midpoint_row_backward_error(r,bad,zip(C,S)))
+    @test_throws DimensionMismatch ECS.midpoint_row_backward_error(r,y[:,1:3],zip(C,S))
+    @test_throws DimensionMismatch ECS.midpoint_row_backward_error(r,y,zip(C[1:2],S[1:2]))
+    # A representational derivative residual is large even for a row solved to roundoff.
+    tiny = [1.0,1.0+1e-10]
+    cm = [zeros(ComplexF64,2,2)]; sm = [ones(ComplexF64,2)]
+    smooth = ComplexF64[1 1+(tiny[2]-tiny[1]); 2 2+(tiny[2]-tiny[1])]
+    @test ECS.midpoint_row_backward_error(tiny,smooth,zip(cm,sm))<1e-15
+end
+
+@testset "v3 gates row error independently of derivative diagnostics and source resolution" begin
+    axes7 = ECS.RADIAL_AXES
+    r = Dict{String,Any}("protocol"=>"PREREG_radial_v3","conditional"=>false,"Nq"=>1024,
+        "source_budget"=>[0.5],"source_budget_sensitivity"=>[0.5],
+        "budget"=>Dict(k=>1e-4 for k in axes7),
+        "observable_budget"=>Dict(q=>Dict(k=>1e-4 for k in axes7) for q in ("torque","power")),
+        "diagnostics"=>[Dict{String,Any}("axis_level"=>"grid_1","corotation"=>10.0,
+            "residual"=>1e-4,"row_backward_error"=>1e-12,"bc_residual"=>1e-14)])
+    @test ECS.radial_pass(r)
+    for value in (1.01e-9,NaN,Inf,-1.0)
+        rr=deepcopy(r); rr["diagnostics"][1]["row_backward_error"]=value
+        @test !ECS.radial_pass(rr)
+    end
+    rr=deepcopy(r); delete!(rr["diagnostics"][1],"row_backward_error")
+    @test !ECS.radial_pass(rr)
+    rr=deepcopy(r); rr["protocol"]="PREREG_radial_v2"
+    @test !ECS.radial_pass(rr)
+    rr=deepcopy(r); rr["e"]=0.6; rr["k"]=40
+    @test !ECS.radial_pass(rr)
+    rr["Nq"]=2048
+    @test ECS.radial_pass(rr)
+    rr["k"]=-40; rr["Nq"]=1024
+    @test !ECS.radial_pass(rr)
+end
+
+@testset "Row backward error keeps the right-hand side in its scale (lander L-G46)" begin
+    # A small state under a large source: dr*S dominates every interior row, so the largest
+    # term entering the row is the right-hand side, not a matrix-times-state term.
+    r = [1.0,1.25,2.0]
+    C = [[2.0+im -3.0; 5.0 1.0-im] for _ in 1:2]
+    S = [[40.0+0im, -25.0im] for _ in 1:2]
+    y = 1e-3 .* ComplexF64[1 2 3; 2 1 -1]
+    A,b = ECS.SW.midpoint_system(r,C,S,(1,0),0im,(0,1),0im)
+    u = vec(y)
+    rows = 2:length(b)-1
+    @test all(i -> abs(b[i]) > 10maximum(abs,A[i,:].*u), rows)
+    expected = maximum(rows) do i
+        terms = A[i,:].*u
+        abs(sum(terms)-b[i])/max(maximum(abs,terms),abs(b[i]))
+    end
+    @test ECS.midpoint_row_backward_error(r,y,zip(C,S)) ≈ expected rtol=1e-14
+end
+
 @testset "Complete small diagnostic path with an independent source reference" begin
     d,p = ECS.fixture(0.0,30.0,0.05)
     mode = ECS.HarmonicMode(0,1,ECS.orbit_frequency(p.orbit,0,1))
@@ -318,4 +388,25 @@ end
         c,_ = ECS.radial_context(0.0,30.0,0.3,2,1,1e-3,edge)
         @test c.domain == (1.001*ECS.SW.r_isco(c.disc),apo*30.0/(1-0.3))
     end
+end
+
+@testset "v3 records four causal points while budgeting the registered three-point ladder" begin
+    c,p=ECS.radial_context(0.0,30.0,0.3,2,1,4e-6,1)
+    largest,_=ECS.radial_context(0.0,30.0,0.3,2,1,4e-6,3)
+    domain=(largest.domain[1],largest.domain[2])
+    banks=[ECS.SW.source_radial_bank(c.disc,p,domain,[c.mode];Nq=nq,Nphi=8192,method=:fft)
+           for nq in (8,16)]
+    sources=[ECS.SW.mode_source(b,c.mode) for b in banks]
+    r=ECS.radial_case(0.0,30.0,0.3,2,1;nq=8,levels=(8,16,32),compact=true,
+        source=sources[1],source_fine=sources[2],pole=4e-6,protocol="PREREG_radial_v3")
+    @test [x["pole"] for x in r["causal_diagnostic"]]==[4e-6,2e-6,1e-6,5e-7]
+    @test [x["pole"] for x in r["raw_axes"]["pole"]]==[4e-6,2e-6,1e-6]
+    @test all(x->isfinite(x["row_backward_error"]) && haskey(x,"residual"),r["diagnostics"])
+    @test r["protocol"]=="PREREG_radial_v3"
+    @test !r["pass"] # This deliberately small source is not production qualified.
+    for q in ("power","torque")
+        a,b=r["raw_axes"]["pole"][2:3]
+        @test r["observable_budget"][q]["pole"] == ECS.relative_change(a[q],b[q],r["raw_axes"]["grid"][end][q])
+    end
+    @test only(filter(x->startswith(x["axis_level"],"lowest_pole_mesh"),r["costs"]))["n"]==64
 end
