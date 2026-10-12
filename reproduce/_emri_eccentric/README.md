@@ -47,8 +47,13 @@ source components/derivatives, against `1e-8 |ref| + 1e-12 U`. Failure aborts th
 figure. `bank_costs.jsonl` records this check and the bank's CPU/wall cost. This
 source budget does not relax any golden tolerance or bound the BVP error.
 
-`solve_modes` calls the existing eccentric context solver with C-66 radiation
-rows. Its `transform` callback reduces each solution immediately; torque
+The adapter passes an explicit `egd_boundary_rows` builder to `solve_modes`:
+the (66)-(68) eigenvector of the Landau-shifted eccentric edge operator, using
+the EGD outgoing/decaying selector (`SpiralWaves/solver.jl:572-579`). The builder
+honors the solve's `landau` option. It applies to both individual profile calls
+and batched surveys/wakes, independently of the context solver's default rows.
+The package's certified unregularized C-66 production default is unchanged.
+The `transform` callback reduces each solution immediately; torque
 surveys retain only reductions, and wake synthesis retains only radial states.
 Torque and flux use the source retained by each eccentric solution. Explicit-bank contexts and grids are built one at a time. Per-mode
 JSONL costs include solves and, after the first mode, grid construction. The
@@ -59,14 +64,13 @@ bank build. `Nq=16` resolves the retained k=-2:2 sideband/limit checks. This is 
 regression on the frozen discretization, not certification of finite-e source
 quadrature, adaptive-grid selection or exterior truncation.
 
-Known HOLE (lander review of lane w15-g38). The C-66 rows are eigenvectors of the
-UNREGULARIZED edge operator; the EGD (66)-(68) rows are eigenvectors of the
-Landau-shifted edge matrix (`SpiralWaves/solver.jl`, `solve_mode(bg, m)`). Where a
-domain edge lies inside the Landau profile (small a near the ISCO, narrow high-m
-domains) they define different e=0 problems, at order eps(r_edge)/|omega_d(r_edge)|:
-up to 1e-5 per mode and 1.3e-7 in the Fig. 6 total at a = 11 M. The regression
-therefore does not yet meet its contract; the fix is tracked as obligation
-gr-o-e0-boundary-convention. The test file pins the convention near corotation.
+The edge-row regression test places an edge inside the Landau profile and
+checks both adapter entry points against the circular solution. It also pins
+the distinct C-66 package convention. Matching the boundary convention alone
+does not establish the 14-figure regression gate: every key still uses its
+original tolerance (R0). Comparison readings and their owner-approved scope
+are tracked under `gr-o-regression-comparison-semantics`; consult its latest
+claim row separately from the original-tolerance campaign results.
 
 The original drivers are loaded only from this checkout's reproduction tree.
 No mirrored source artifact is executed. Their arguments are temporarily set
@@ -74,12 +78,14 @@ to `--check --tier heavy` and then restored; tolerances, reductions and numerica
 configurations remain unchanged. Evidence must use a fresh, empty directory outside the reproduction tree;
 its parent must already exist. Symlinks into the reproduction tree and nonempty
 attempt directories are rejected before any write. Run each figure in a separate process with
-the external CPU limit above. A signal/timeout leaves measured partial costs
+an external CPU limit. For the full fig08 and fig09 runs, use respectively
+`prlimit --cpu=12700:12710` and `prlimit --cpu=16200:16210`, with wall timeouts
+long enough for shared-host contention. A signal/timeout leaves measured partial costs
 in the command receipt and completed-mode log and is a cost HOLE.
 
 Shared-bank tests verify bitwise identity on identical samples, interpolation
 against direct source jets and responses, input order, and bank isolation.
-The package test is run by direct include (no change to `test/runtests.jl`):
+The package test is registered in `test/runtests.jl`, and can run directly:
 
 ```sh
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 timeout 600 julia -t1 --startup-file=no \

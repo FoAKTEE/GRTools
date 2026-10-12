@@ -42,6 +42,17 @@ end
 
 const SINGLE_BANK = Ref{Any}(nothing)
 
+# EGD (66)-(68): solver.jl:572-579 closes with the Landau-shifted edge
+# eigenvector. Keep this convention local to the frozen regression; the
+# production eccentric solver's certified C-66 rows remain unregularized.
+function egd_boundary_rows(c::SW.ModeContext{T}; landau=true) where {T}
+    map(((first(c.domain),false),(last(c.domain),true))) do (r,outward)
+        C=SW.master_operator(c,r;landau)
+        _,_,row=SW.outgoing_branch(C,SW.omega_d(c,r);outward)
+        (row,zero(Complex{T}))
+    end
+end
+
 function record_mode(bg, grid, sol, cpu, wall)
     c=sol.context; m=c.mode.m
     row=Dict{String,Any}("m"=>m,"k"=>0,"e"=>0.0,"chi"=>bg.χ,"a"=>bg.aEMRI,
@@ -50,7 +61,7 @@ function record_mode(bg, grid, sol, cpu, wall)
         "omega"=>c.mode.omega,"r_c"=>c.r_c,"cpu_seconds"=>cpu_seconds()-cpu,
         "wall_seconds"=>time()-wall,"residual"=>sol.residual,
         "bc_residual"=>sol.bc_residual,
-        "path"=>"shared source_radial_bank -> ModeContext -> C-66 -> solve_modes")
+        "path"=>"shared source_radial_bank -> ModeContext -> explicit EGD edge rows -> solve_modes")
     push!(TRACE,row)
     isempty(OUTPUT[]) || open(joinpath(OUTPUT[],"mode_costs.jsonl"),"a") do io
         println(io,replace(RH.json_write(row),"\n"=>""))
@@ -96,7 +107,8 @@ function solve_mode(bg, m; grid=SW.build_grid(bg,m), threads=false,
         bank=regression_bank(c.disc,p,domain,modes)
         cached=(;key,bank,p); SINGLE_BANK[]=cached
     end
-    sol=only(SW.solve_modes(_->c,cached.p,[c.mode];bank=cached.bank,grid_builder=_->g,landau,linsolve))
+    sol=only(SW.solve_modes(_->c,cached.p,[c.mode];bank=cached.bank,grid_builder=_->g,
+        boundary_builder=ctx->egd_boundary_rows(ctx;landau),landau,linsolve))
     record_mode(bg,grid,sol,cpu,wall)
 end
 
@@ -120,6 +132,7 @@ function batch_modes(transform,bg,ms;grid_kwargs=(;),mEMRI=1.0,threads=false,
         ctx
     end
     SW.solve_modes(builder,p,modes;bank,grid_builder=_->current[][2],landau,linsolve,
+        boundary_builder=ctx->egd_boundary_rows(ctx;landau),
         transform=sol->begin
             record_mode(bg,current[][1],sol,cpu[],wall[])
             value=transform(sol)

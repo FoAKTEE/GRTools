@@ -197,7 +197,8 @@ end
 # edge inside the Landau profile the C-66 rows (bare edge operator) and the EGD
 # (66)-(68) rows (Landau-shifted edge matrix) define different e=0 problems. The
 # eccentric context solver's default rows reproduce the circular solve; the C-66
-# rows do not. The broken test flips when the boundary convention is fixed.
+# rows do not. The regression adapter must select EGD rows explicitly, while
+# the package default remains C-66.
 @testset "e=0 edge-row convention with an edge near corotation" begin
     bg=SW.DiscBackground(χ=0.4,aEMRI=20.0,h0=0.08,𝔭=1.5,𝔮=0.75,b=0.3,εp=1e-3)
     grid=SW.build_grid(bg,2;nL=1,nR=1,nC=65,n_anc=64,extent=:fiducial,r_in=17.0,r_out=45.0)
@@ -212,7 +213,33 @@ end
     egd_err=norm(egd.y-circ.y)/norm(circ.y); c66_err=norm(c66.y-circ.y)/norm(circ.y)
     @test egd_err<1e-10
     @test abs(SW.total_torque(egd)/SW.total_torque(bg,circ)-1)<1e-10
-    @test_broken c66_err<1e-8
+    @test c66_err>1e-6
+    adapted=CR.solve_mode(bg,2;grid,mEMRI=p.mass,linsolve=:banded)
+    batched=only(CR.batch_modes(identity,bg,2:2;mEMRI=p.mass,linsolve=:banded,
+        grid_kwargs=(;nL=1,nR=1,nC=65,n_anc=64,extent=:fiducial,r_in=17.0,r_out=45.0)))
+    @test norm(adapted.y-circ.y)/norm(circ.y)<1e-8
+    @test norm(batched.y-circ.y)/norm(circ.y)<1e-8
+    @test abs(SW.total_torque(adapted)/SW.total_torque(bg,circ)-1)<1e-8
+    @test adapted.params.rows==egd.params.rows
+    @test batched.params.rows==egd.params.rows
+    for landau in (true,false)
+        rows=CR.egd_boundary_rows(c;landau)
+        for (i,(r,outward)) in enumerate(((first(c.domain),false),(last(c.domain),true)))
+            C,_=SW.master_matrices(bg,2,r;landau,rc=grid.r_c,
+                hmodes=SW.singular_field_mode(bg,2,r;mEMRI=p.mass))
+            expected=last(SW.outgoing_branch(C,SW.omega_d(bg,2,r);outward))
+            @test collect(rows[i][1]) ≈ collect(expected) rtol=1e-12
+            @test iszero(rows[i][2])
+        end
+    end
+    # Lander L-G48 (mutant M4): both adapter entry points forward the solve's
+    # landau option to the EGD edge rows.
+    bare=CR.solve_mode(bg,2;grid,mEMRI=p.mass,linsolve=:banded,landau=false)
+    bare_batch=only(CR.batch_modes(identity,bg,2:2;mEMRI=p.mass,linsolve=:banded,landau=false,
+        grid_kwargs=(;nL=1,nR=1,nC=65,n_anc=64,extent=:fiducial,r_in=17.0,r_out=45.0)))
+    @test bare.params.rows==CR.egd_boundary_rows(bare.context;landau=false)
+    @test bare_batch.params.rows==CR.egd_boundary_rows(bare_batch.context;landau=false)
+    @test bare.params.rows!=adapted.params.rows
     println("EDGE_ROW landau_over_omega_d=",shift," EGD_rows_state_error=",egd_err,
             " C66_rows_state_error=",c66_err)
 end
