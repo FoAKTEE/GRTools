@@ -141,6 +141,27 @@ function wkb_boundary_coeffs(d::NewtonianDisc, x, i_in, i_out, m)
 end
 
 """
+    group_velocity_boundary_coeffs(d, x, i_in, i_out, mode)
+
+Locally isothermal (`beta=0`) radiation coefficients. In a wave region,
+`v_g=c_s^2*k_r/(omega-m*Omega)`, so the inner/outer edge needs
+`sign(k_r)=(-1/+1)*sign(omega-m*Omega)`. In an evanescent region select
+decay into the exterior. Retains the existing WKB amplitude gradient;
+corotation and exact turning points at an edge are rejected. Unlike the
+legacy m=1 special case, selection depends on the actual local dispersion.
+"""
+function group_velocity_boundary_coeffs(d::NewtonianDisc, x, i_in, i_out, mode)
+    iszero(d.beta) || throw(ArgumentError("group_velocity_bc requires beta=0"))
+    map(((i_in,-1),(i_out,1))) do (i,normal)
+        r=x[i]; w=omega_pat(d,mode)-_azimuthal_number(mode)*Omega(d,r)
+        D=Dfreq(d,r,mode)
+        iszero(w) || iszero(D) ? throw(DomainError(r,"move boundary away from corotation/turning point")) : nothing
+        branch = D < 0 ? normal*sign(w) : normal
+        wkbC(d,r,mode)+(branch-1)*im*kwave(d,r,mode)
+    end
+end
+
+"""
     solve_m_mode(d, m, x; reint_steps = 2, phgrad_steps = 0, diagnostics = false, rtol = 1e-10, atol = 1e-12) -> complex (n, 2)
 
 Enthalpy perturbation `(δh, δh′)` of azimuthal number `m` on grid `x` by the MR19 method: two
@@ -307,9 +328,20 @@ Frequency-aware MR shooting solver. Construct `mode = NewtonianMode(m,l,n)` in
 GM=1. Supply the forcing through any `PotentialCache`, including `harmonic_cache`.
 The cache and grid must use those same length units; for a Kepler orbit n=a^(-3/2).
 
-This corotation shooting method requires m>0 and a positive frequency whose
-corotation lies in the grid. Static, retrograde and axisymmetric modes require a
-different boundary-value treatment and are rejected here.
+By default this corotation shooting method requires m>0 and a positive frequency
+whose corotation lies in the grid. `group_velocity_bc=true` opts into signed
+frequency radiation boundaries for beta=0 and admits omega<=0, still with m>0.
+These modes have no corotation: the existing integration seed (minimum |omega-m
+Omega|) is the OUTER grid node, and adaptive edge selection is anchored at the
+node nearest r=1 (the reference semimajor axis in the FR units). Both homogeneous
+solutions and the particular solution are shot inward from that outer seed.
+At omega=0 the same regular Doppler frequency -m*Omega and radiation/decay
+conditions apply; there is no division by the total frequency, and mode power
+is exactly zero. The global m=1,l=0 response remains boundary dependent.
+For omega<=0 the phase-gradient correction is disabled explicitly: its published
+corotation-based refinement has no certificate in this sector. `diagnostics`
+still exposes the selected boundaries. Positive-frequency phase settings are
+unchanged. The opt-in fixes boundary selection, not exterior truncation error.
 
 `:auto` anchors adaptive boundaries at corotation for non-circular frequencies,
 and at r=1 when omega=m to retain circular bit identity. `:corotation` explicitly
@@ -333,22 +365,31 @@ and all circular defaults are unchanged. Grid and forcing convergence remain the
 caller's responsibility; use `dense=false` to avoid cubic dense-output error.
 """
 function solve_lm_mode(d::NewtonianDisc, mode::HarmonicMode, x, cache::PotentialCache;
-                       lindblad_regular::Bool=false, kwargs...)
-    mode.m > 0 && mode.omega > 0 ||
+                       lindblad_regular::Bool=false, group_velocity_bc::Bool=false, kwargs...)
+    mode.m > 0 && (mode.omega > 0 || group_velocity_bc) ||
         throw(ArgumentError("corotation shooting requires m > 0 and omega > 0"))
     length(x) >= 2 && all(r -> isfinite(r) && r > 0,x) && all(diff(x) .> 0) ||
         throw(ArgumentError("the radial grid must be positive, finite and strictly increasing"))
-    mode.m*Omega(d,first(x)) >= mode.omega >= mode.m*Omega(d,last(x)) ||
+    (group_velocity_bc && mode.omega <= 0) ||
+        mode.m*Omega(d,first(x)) >= mode.omega >= mode.m*Omega(d,last(x)) ||
         throw(ArgumentError("corotation must lie within the radial grid"))
     length(cache.lg) >= 4 && length(cache.lg) == length(cache.P) == length(cache.dP) == length(cache.d2P) &&
         all(diff(cache.lg) .> 0) && first(cache.lg) <= log10(first(x)) && last(cache.lg) >= log10(last(x)) ||
         throw(ArgumentError("the potential cache must have at least four ordered nodes covering the grid"))
+    options = (;kwargs...)
+    if group_velocity_bc
+        iszero(d.beta) || throw(ArgumentError("group_velocity_bc requires beta=0"))
+        options = merge(options,(;boundary_coeffs=group_velocity_boundary_coeffs))
+        if mode.omega <= 0
+            options = merge(options,(;anchor=:legacy,phgrad_steps=0))
+        end
+    end
     if lindblad_regular
         iszero(d.beta) || throw(ArgumentError("lindblad_regular requires beta=0"))
         return _solve_m_mode(d,mode,x,RegularPotential(cache);
-                             rtol=1e-8,atol=1e-10,kwargs...)
+                             rtol=1e-8,atol=1e-10,options...)
     end
-    solve_m_mode(d,mode,x,cache; kwargs...)
+    solve_m_mode(d,mode,x,cache; options...)
 end
 
 """
