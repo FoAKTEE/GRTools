@@ -35,6 +35,7 @@ using AccretionDisc
     include("Modes/test_fr22_circular_limit.jl")  # ECC::fr22-circular-limit: e -> 0 through the eccentric path, no circular dispatch
     include("Modes/test_fd25_disc_setup.jl")  # ECC::fd25-disc-setup: FD25 discs, fixed softening and printed F_J0, tau_0 units
     include("Modes/test_fr24_mode_set.jl")  # ECC::fr24-mode-set: FR24 v1 masks and the per-mode domain policy
+    include("Modes/test_fr22_retrograde_sector.jl")  # ECC::fr24-excluded-sector: opt-in group-velocity branch for static/retrograde (l <= 0) modes
     include("test_mr_core_certification.jl")   # ECC::mr19-core-certification: thermal endpoints
     include("Modes/test_thindisc.jl")   # NT/SS thin-disc structure + total Lindblad torque (2510.02433)
     include("Force/test_loader.jl")
@@ -75,4 +76,5 @@ using AccretionDisc
     include("test_eccentric_convergence.jl") # ECC::gr-quadrature-convergence (PREREG_v2 audit), gr-radial-convergence tooling: norms, gates, tiny ladders
     include("test_eccentric_regression.jl")  # ECC::gr-circular-regression: shared-bank solve_modes, e=0 EGD adapter, limit/sidebands, edge-row convention
     include("test_eccentric_synthesis.jl")   # ECC::gr-first-results: inertial-frame eccentric wake synthesis, first-results signs/rates/products
+    include("test_eccentric_retrograde_sector.jl") # ECC::gr-mode-masks: paper/physical mode masks, signed-frequency (omega <= 0) boundary certificate
 end
