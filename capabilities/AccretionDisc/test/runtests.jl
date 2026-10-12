@@ -74,4 +74,5 @@ using AccretionDisc
     include("test_eccentric_balance_diagnostics.jl") # ECC::gr-balance-diagnostics: one closure-tagged work/torque/AMF entry point, emitted kernel tags
     include("test_eccentric_convergence.jl") # ECC::gr-quadrature-convergence (PREREG_v2 audit), gr-radial-convergence tooling: norms, gates, tiny ladders
     include("test_eccentric_regression.jl")  # ECC::gr-circular-regression: shared-bank solve_modes, e=0 EGD adapter, limit/sidebands, edge-row convention
+    include("test_eccentric_synthesis.jl")   # ECC::gr-first-results: inertial-frame eccentric wake synthesis, first-results signs/rates/products
 end
