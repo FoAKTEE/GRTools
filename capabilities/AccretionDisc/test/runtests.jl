@@ -63,6 +63,7 @@ using AccretionDisc
     include("test_eccentric_disc_model.jl")  # ECC::gr-disc-model: DiscModel units, hydrostatic balance, closure/evolution
     include("test_eccentric_context.jl")     # ECC::gr-frequency-context: arbitrary-ω complex contexts, e → 0 parity
     include("test_eccentric_grid.jl")        # ECC::gr-corotation-grid: physical grids, root/no-root/edge, Landau layer
+    include("test_grid_invert_phi.jl")       # ECC::gr-grid-inversion-guard: _invert_phi converges or throws (owner decision D2)
     include("test_eccentric_li.jl")          # ECC::gr-li-runtime: OPTION A runtime, closure-bound cache and solutions
     include("test_eccentric_boundary.jl")    # ECC::gr-boundary-certificate: arbitrary-frequency radiation rows (66)-(68)
     include("test_eccentric_li_boundary.jl") # ECC::gr-li-boundary-certificate: OPTION A edge rows, thermal transport, GR transparency

@@ -254,14 +254,15 @@ end
 
 # solve Φ(r) = target on the ancillary segment [a, b] (Φ(a) = Φa, Φ(b) = Φb, monotone): with
 # t = |target − Φa| the problem is I(r) ≡ ∫_a^r dr'/S = t, I increasing, I' = 1/S > 0 — a safeguarded
-# Newton iteration with a bisection fallback inside the bracket [a, b]
+# Newton iteration with a bisection fallback inside the bracket [a, b]. The derivative 1/S
+# is only an approximation to the derivative of the GL estimator on a coarse segment.
 function _invert_phi(S, a::T, b::T, Φa::T, Φb::T, target::T, glx, glw, side::Symbol) where {T}
     t = abs(target - Φa)
     lo, hi = a, b
     r = a + (b - a) * t / abs(Φb - Φa)                  # linear first guess
     ftol = 32 * eps(T) * max(one(T), t)
     xtol = 4 * eps(T) * max(abs(a), abs(b))
-    for _ in 1:200
+    for iteration in 1:400
         g = _gl_density_integral(S, a, r, glx, glw) - t
         abs(g) ≤ ftol && return r
         if g > 0
@@ -270,11 +271,24 @@ function _invert_phi(S, a::T, b::T, Φa::T, Φb::T, target::T, glx, glw, side::S
             lo = r
         end
         rn = r - g * S(r, 1)                              # Newton: g' = 1/S
-        (lo < rn < hi) || (rn = (lo + hi) / 2)
-        hi - lo ≤ xtol && return rn
+        (iteration ≤ 200 && lo < rn < hi) || (rn = (lo + hi) / 2)
+        if hi - lo ≤ xtol
+            # Certify the returned value, including the representability floor of
+            # the GL nodes near corotation. A narrow bracket alone is insufficient.
+            h = (rn - a) / 2; c = (a + rn) / 2
+            sensitivity = zero(T)
+            for q in eachindex(glx)
+                z = c + h * glx[q]; s = S(z, 1)
+                sensitivity += abs(glw[q]) * (inv(s) / 2 +
+                    abs(h * S(z, 1; deriv_order=1)) / s^2)
+            end
+            residual = abs(_gl_density_integral(S, a, rn, glx, glw) - t)
+            residual ≤ ftol + xtol * sensitivity && return rn
+            break
+        end
         r = rn
     end
-    r
+    throw(ErrorException("grid: cell-count inversion did not converge on [$a, $b] at target $target"))
 end
 
 # ------------------------------------------------------------------------------------------------
