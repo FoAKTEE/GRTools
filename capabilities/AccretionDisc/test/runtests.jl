@@ -74,6 +74,7 @@ using AccretionDisc
     include("test_li_thermostat.jl")         # ECC::gr-li-thermostat-sensitivity: thermostat law, bath work, primary-dispatch separation
     include("test_eccentric_diagnostics.jl") # ECC::gr-{adiabatic,li}-balance-diagnostics, gr-{,li-}axisymmetric-power: direct work, LI Reynolds flux
     include("test_eccentric_balance_diagnostics.jl") # ECC::gr-balance-diagnostics: one closure-tagged work/torque/AMF entry point, emitted kernel tags
+    include("test_eccentric_li_overlap.jl")  # ECC::gr-li-circular-overlap: C-LI-0 e=0 qTemp=0 two-closure parity; AMF parity/balance @test_broken
     include("test_eccentric_convergence.jl") # ECC::gr-quadrature-convergence (PREREG_v2 audit), gr-radial-convergence tooling: norms, gates, tiny ladders
     include("test_eccentric_regression.jl")  # ECC::gr-circular-regression: shared-bank solve_modes, e=0 EGD adapter, limit/sidebands, edge-row convention
     include("test_eccentric_synthesis.jl")   # ECC::gr-first-results: inertial-frame eccentric wake synthesis, first-results signs/rates/products
