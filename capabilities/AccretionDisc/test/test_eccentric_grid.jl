@@ -72,3 +72,48 @@ import AccretionDisc.SpiralWaves as ESW
     end
 end
 println("[PASS] in-domain/no-root/edge grids, physical boundaries, Landau-layer refinement, shared solver")
+
+@testset "No-corotation WKB resolution at the ISCO" begin
+    # Production cell 34: the old central-spacing soft minimum gives only
+    # 0.83 cells per wave radian at nW=512 (G50-G1). There is no central block.
+    d = DiscModel(χ=0.9,r_ref=100/(1-0.3^2),h_ref=0.06,pSigma=1.5,qTemp=0.0,
+                  closure=:adiabatic,evolution=:fixed,εp=1e-3)
+    pert = ESW.EccentricPerturber(EquatorialOrbit(0.9,100.0,0.3);mass=1e-5,
+                                softening=FixedSoftening(0.018d.r_ref))
+    c = ModeContext(d,pert,8,-40;closure=:adiabatic,
+                    domain=(ESW.r_isco(d),8*100/(1-0.3)))
+    @test c.r_c === nothing
+    for nW in (64,512)
+        g = build_grid(c;nL=nW,nR=nW,nC=65,n_anc=512)
+        @test first(g.r)==first(c.domain) && last(g.r)==last(c.domain)
+        @test all(diff(g.r).>0)
+        # Direct local phase increment checks the resolution, not the recipe.
+        phase = [(g.r[j+1]-g.r[j])*ESW.wkb_wavenumber(c,(g.r[j+1]+g.r[j])/2)
+                 for j in 1:64]
+        @test 0.99/nW < minimum(phase) <= maximum(phase) < 1.01/nW
+    end
+    # A short no-root block never encounters the floor: retain literal C8.
+    short = ModeContext(d,pert,8,-40;closure=:adiabatic,domain=(100.0,110.0))
+    region = ESW._wkb_region(short,:R,short.domain...,100.0,(short.domain[2]-short.domain[1])/4,0.0,64,10.0)
+    N,nW = ESW._solve_nW(region,4)
+    expected = ESW._place_nodes(region,nW,N)
+    @test reinterpret(UInt64,build_grid(short;nL=4,nR=4,nC=65,n_anc=64).r) ==
+          reinterpret(UInt64,expected)
+end
+
+@testset "Corotating WKB blocks keep the literal C8 blend" begin
+    # L-G55 (FM3): the no-root bypass must not reach the blocks that join a central sinh block.
+    d = DiscModel(χ=0.4,r_ref=20,h_ref=0.08,closure=:adiabatic,evolution=:fixed,εp=1e-3)
+    c = ModeContext(d,HarmonicMode(3,0,3Omega(d,20.0));closure=:adiabatic,domain=(8.0,35.0))
+    g = build_grid(c;nL=2,nR=2,nC=65,n_anc=64)
+    lo,hi = c.domain
+    inner,outer = g.r[first(g.central)],g.r[last(g.central)]
+    spacing,slope = ESW._central_edge_spacing(1e-3*c.r_c,4.0,65)
+    regL = ESW._wkb_region(c,:L,lo,inner,inner,spacing,slope,64,10.0)
+    regR = ESW._wkb_region(c,:R,outer,hi,outer,spacing,slope,64,10.0)
+    NL,nWL = ESW._solve_nW(regL,2); NR,nWR = ESW._solve_nW(regR,2)
+    @test reinterpret(UInt64,g.r[1:first(g.central)-1]) ==
+          reinterpret(UInt64,ESW._place_nodes(regL,nWL,NL)[1:end-1])
+    @test reinterpret(UInt64,g.r[last(g.central)+1:end]) ==
+          reinterpret(UInt64,ESW._place_nodes(regR,nWR,NR)[2:end])
+end

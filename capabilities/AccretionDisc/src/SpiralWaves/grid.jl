@@ -173,7 +173,9 @@ end
 
 # trial spacing (C7)-(C8) at the ancillary nodes and its cubic spline S(r)
 function _trial_spline(reg::WKBRegion{T}, nW) where {T}
-    Δr = [smoothmin(1 / (k * T(nW)), d) for (k, d) in zip(reg.kbar, reg.Δr_in)]
+    # An empty central-spacing vector denotes a pure WKB block (no corotation).
+    Δr = isempty(reg.Δr_in) ? [1 / (k * T(nW)) for k in reg.kbar] :
+        [smoothmin(1 / (k * T(nW)), d) for (k, d) in zip(reg.kbar, reg.Δr_in)]
     CubicSplineInterpolant(reg.r_anc, Δr)
 end
 
@@ -584,6 +586,12 @@ function build_grid(c::ModeContext{T}; nL::Integer=240,nR::Integer=240,nC::Integ
     rc = c.r_c
     if rc === nothing
         region = _wkb_region(c,:R,lo,hi,lo,(hi-lo)/max(nL,nR),zero(T),n_anc,T(k_trust))
+        # C9 has an additive floor Δr_in exp(-8). With no central block to
+        # join, use the WKB spacing if that floor masks the requested wavelength.
+        # Keep every other grid on the original arithmetic path.
+        if any(k -> 1 / (k * T(max(nL,nR))) <= first(region.Δr_in)*exp(-T(8)), region.kbar)
+            empty!(region.Δr_in)
+        end
         N,nW = _solve_nW(region,max(nL,nR))
         r = _place_nodes(region,nW,N)
         central = 1:0
