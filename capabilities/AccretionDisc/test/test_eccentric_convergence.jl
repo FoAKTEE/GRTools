@@ -513,6 +513,12 @@ end
         j=deepcopy(joint);j["profile"][axis][comp]=1.1e-3
         @test !ECS.radial_v4_gate(ind,j,cert,ig,ref,ref)["pass"]
     end
+    # W-CELL11 (test-only addition): the D1 production-domain estimate is charged in the joint grid profile even when
+    # the corner pair alone passes (the term that kept adiabatic cell 11 a HOLE at n = 4096; survivor MC2).
+    for comp in 1:2
+        c=deepcopy(cert);c["estimates"]["component_$comp"]=1.1e-3
+        @test !ECS.radial_v4_gate(ind,joint,c,ig,ref,ref)["pass"]
+    end
     # A nearly cancelling base-domain observable must not tighten LI's production budget.
     small=Dict("power"=>1e-3,"torque"=>1e-3)
     i=deepcopy(ind); i["observable_budget"]["power"]["edge"]=0.03
