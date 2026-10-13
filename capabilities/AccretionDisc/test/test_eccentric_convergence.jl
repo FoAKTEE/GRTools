@@ -431,13 +431,28 @@ end
         for (j,n) in enumerate(levels); bad[j][key]=1+n^(-1.); end
         @test !ECS.grid_richardson(bad,levels;domain,rref=30.,m=2)["qualified"]
     end
+    # Owner 2026-10-13: a cancelling observable cannot withhold another channel's relief.
+    for failed in ("power","torque")
+        mixed=deepcopy(good)
+        for (j,n) in enumerate(levels); mixed[j][failed]=1+n^(-1.); end
+        mc=ECS.grid_richardson(mixed,levels;domain,rref=30.,m=2)
+        @test mc["qualified_channels"]["profile"]
+        @test !mc["qualified_channels"][failed]
+        @test mc["estimates"]["component_1"]≈mc["differences"]["component_1"][end]/3
+        @test mc["estimates"][failed]==mc["differences"][failed][end]
+        other=failed=="power" ? "torque" : "power"
+        @test mc["qualified_channels"][other]
+    end
     for component in 1:2
         bad=deepcopy(good)
         for (j,n) in enumerate(levels)
             y=ECS.decode_value(bad[j]["y"]); y[component,:].=1+n^(-1.)
             bad[j]["y"]=ECS.encode_value(y)
         end
-        @test !ECS.grid_richardson(bad,levels;domain,rref=30.,m=2)["qualified"]
+        bc=ECS.grid_richardson(bad,levels;domain,rref=30.,m=2)
+        @test !bc["qualified"]
+        @test bc["qualified_channels"]["torque"]
+        @test bc["qualified_channels"]["power"]
     end
     bad=deepcopy(good); bad[1]["domain"]=[6.006,40.]
     @test_throws ArgumentError ECS.grid_richardson(bad,levels;domain,rref=30.,m=2)
@@ -483,12 +498,36 @@ end
         "source_probe"=>Dict("primary"=>[.5],"sensitivity"=>[.5]))
     joint["profile"]["grid"]=[2.4e-3,1e-4]
     cert=Dict("qualified"=>true,"integrity"=>true,"estimates"=>Dict("component_1"=>8e-4,"component_2"=>1e-4,"power"=>1e-4,"torque"=>1e-4))
-    cert["orders"]=Dict("component_1"=>[2.,2.],"component_2"=>[2.,2.])
+    cert["orders"]=Dict(k=>[2.,2.] for k in ("component_1","component_2","torque","power"))
+    cert["levels"]=[8,16,32,64]
+    cert["differences"]=Dict(k=>[48v,12v,3v] for (k,v) in cert["estimates"])
     ig=Dict("profile"=>[8e-4,1e-4],"power"=>1e-4,"torque"=>1e-4)
     ref=Dict("power"=>1.,"torque"=>1.)
     @test ECS.radial_v4_gate(ind,joint,cert,ig,ref,ref)["pass"]
-    c=deepcopy(cert);c["qualified"]=false
+    c=deepcopy(cert);c["orders"]["component_1"]=[1.,1.]
     @test !ECS.radial_v4_gate(ind,joint,c,ig,ref,ref)["pass"]
+    # The legacy all-channel summary is ignored; each channel uses its measured orders.
+    c=deepcopy(cert);c["qualified"]=false;c["orders"]["power"]=[1.66,1.93]
+    mixed=ECS.radial_v4_gate(ind,joint,c,ig,ref,ref)
+    @test mixed["pass"]
+    @test mixed["grid_relief_channels"]==Dict("profile"=>true,"torque"=>true,"power"=>false)
+    @test mixed["absolute_observable_terms"]["power"]["grid"]≈3e-4
+    @test mixed["absolute_observable_terms"]["torque"]["grid"]≈1e-4
+    # Production first-order profiles do not revoke independent second-order relief.
+    c=deepcopy(cert);c["orders"]["component_1"]=[1.,1.]
+    j=deepcopy(joint);j["profile"]["grid"]=[8e-4,1e-4]
+    c["differences"]["component_1"]=[3.2e-3,1.6e-3,8e-4]
+    @test ECS.radial_v4_gate(ind,j,c,ig,ref,ref)["pass"]
+    # Lander L-G59 (test-only addition, survivor MG5): a stored certificate on fewer than four doubling levels earns no
+    # relief in any channel (D1, owner 1c79a58c), even when its single order verifies.
+    c3=deepcopy(cert);c3["levels"]=[16,32,64]
+    c3["orders"]=Dict(k=>[2.] for k in keys(cert["orders"]))
+    c3["differences"]=Dict(k=>v[2:3] for (k,v) in cert["differences"])
+    r3=ECS.grid_channel_estimates(c3)
+    @test !any(values(r3["qualified_channels"]))
+    @test r3["estimates"]["component_1"]==c3["differences"]["component_1"][end]
+    @test !ECS.radial_v4_gate(ind,joint,c3,ig,ref,ref)["pass"]
+    c=deepcopy(cert);c["orders"]["component_1"]=[1.,1.]
     for axis in ("pole","pole_mesh","isco")
         j=deepcopy(joint);j["absolute_observable_terms"]["power"][axis]=4e-4
         @test !ECS.radial_v4_gate(ind,j,c,ig,ref,ref)["pass"]
@@ -517,6 +556,7 @@ end
     # the corner pair alone passes (the term that kept adiabatic cell 11 a HOLE at n = 4096; survivor MC2).
     for comp in 1:2
         c=deepcopy(cert);c["estimates"]["component_$comp"]=1.1e-3
+        c["differences"]["component_$comp"]=[48,12,3].*1.1e-3
         @test !ECS.radial_v4_gate(ind,joint,c,ig,ref,ref)["pass"]
     end
     # A nearly cancelling base-domain observable must not tighten LI's production budget.

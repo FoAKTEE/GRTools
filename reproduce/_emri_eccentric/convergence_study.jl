@@ -349,8 +349,8 @@ const RADIAL_AXES = ("grid","source","cache","ancillary","pole","pole_mesh","edg
 """Verified second-order grid error on at least four production-domain levels.
 
 All differences share the finest reference norm. Both consecutive orders of
-both state components and both observables must qualify before any grid relief
-is used. Identically zero axisymmetric torque needs no error estimate. An
+both state components must qualify for the profile channel; torque and power
+each qualify independently. An unverified observable cannot veto profile relief. Identically zero axisymmetric torque needs no error estimate. An
 unqualified ladder retains its full last differences; it never certifies an
 extrapolated production value or grants relief to another refinement axis.
 """
@@ -381,13 +381,26 @@ function grid_richardson(records, levels; domain, rref, m)
     zero_torque=m==0 && all(r->iszero(r["torque"]),records)
     integrity=all(r->0<=get(r,"row_backward_error",Inf)<=1e-9 &&
                       0<=get(r,"bc_residual",Inf)<=1e-9,records)
-    qualified=integrity && all(k->(k=="torque" && zero_torque) ||
-        all(p->p!==nothing && isfinite(p) && abs(p-2)<=0.1,orders[k]),keys(orders))
-    estimates=Dict(k=>qualified && !(k=="torque" && zero_torque) ?
-        last(d)/(2^last(orders[k])-1) : last(d) for (k,d) in differences)
-    Dict("qualified"=>qualified,"levels"=>collect(levels),"domain"=>collect(domain),
-         "orders"=>orders,"differences"=>differences,"estimates"=>estimates,
+    certificate=Dict("levels"=>collect(levels),"domain"=>collect(domain),
+         "orders"=>orders,"differences"=>differences,
          "integrity"=>integrity,"structural_zero_torque"=>zero_torque)
+    merge(certificate,grid_channel_estimates(certificate))
+end
+
+"Re-evaluate even stored certificates under the owner's per-channel order rule."
+function grid_channel_estimates(certificate)
+    levels=certificate["levels"]; orders=certificate["orders"]
+    valid=certificate["integrity"] && length(levels)>=4 && all(>(0),levels) &&
+        all(levels[2:end].==2 .* levels[1:end-1])
+    qualifies(k)=valid && length(orders[k])==length(levels)-2 &&
+        all(p->p!==nothing && isfinite(p) && abs(p-2)<=0.1,orders[k])
+    channels=Dict("profile"=>qualifies("component_1") && qualifies("component_2"),
+        "torque"=>valid && (get(certificate,"structural_zero_torque",false) || qualifies("torque")),
+        "power"=>qualifies("power"))
+    estimates=Dict(k=>channels[startswith(k,"component_") ? "profile" : k] &&
+        !(k=="torque" && get(certificate,"structural_zero_torque",false)) ?
+        last(d)/(2^last(orders[k])-1) : last(d) for (k,d) in certificate["differences"])
+    Dict("qualified"=>all(values(channels)),"qualified_channels"=>channels,"estimates"=>estimates)
 end
 
 """v4 joint gate: retain every v3 control, changing only a qualified grid term.
@@ -408,20 +421,21 @@ function radial_v4_gate(independent, joint, certificate, independent_grid, grid_
         throw(ArgumentError("an absolute power reference must be positive, finite and LI"))
     reference=power_reference===nothing ? corner_reference :
         merge(corner_reference,Dict("power"=>power_reference))
+    relief=grid_channel_estimates(certificate)
     profiles=deepcopy(joint["profile"])
     terms=deepcopy(joint["absolute_observable_terms"])
     for j in 1:2
         key="component_$j"
-        factor=certificate["qualified"] ? 2^last(certificate["orders"][key])-1 : 1
-        profiles["grid"][j]=max(profiles["grid"][j]/factor,certificate["estimates"][key])
+        factor=relief["qualified_channels"]["profile"] ? 2^last(certificate["orders"][key])-1 : 1
+        profiles["grid"][j]=max(profiles["grid"][j]/factor,relief["estimates"][key])
     end
-    if certificate["qualified"]
-        ind["budget"]["grid"]=maximum(independent_grid["profile"])
-        for q in ("torque","power")
-            ind["observable_budget"][q]["grid"]=independent_grid[q]
-            terms[q]["grid"]=max(independent_grid[q]*abs(grid_reference[q]),
-                certificate["estimates"][q]*abs(corner_reference[q]))
-        end
+    # independent_grid already contains that ladder's own verified estimates (or raw
+    # differences). Its relief must not depend on the production ladder's orders.
+    ind["budget"]["grid"]=maximum(independent_grid["profile"])
+    for q in ("torque","power")
+        ind["observable_budget"][q]["grid"]=independent_grid[q]
+        terms[q]["grid"]=max(independent_grid[q]*abs(grid_reference[q]),
+            relief["estimates"][q]*abs(corner_reference[q]))
     end
     if li
         for q in ("torque","power"), axis in RADIAL_AXES
@@ -442,7 +456,7 @@ function radial_v4_gate(independent, joint, certificate, independent_grid, grid_
         certificate["integrity"]
     result=Dict("pass"=>pass,"independent_pass"=>radial_pass(ind),"profile"=>profiles,
          "observable_budget"=>budgets,"absolute_observable_terms"=>terms,
-         "grid_relief"=>certificate["qualified"])
+         "grid_relief"=>relief["qualified"],"grid_relief_channels"=>relief["qualified_channels"])
     if li
         result["independent_observable_budget"]=ind["observable_budget"]
         result["observable_reference"]=Dict(q=>abs(reference[q]) for q in ("torque","power"))
