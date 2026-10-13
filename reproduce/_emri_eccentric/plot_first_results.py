@@ -43,11 +43,16 @@ def truncation(result):
     return best, trend, passed
 
 
-def plot_case(directory, result):
+def plot_case(directory, result, status_label="PRELIMINARY", spectrum_label="positive-frequency spectrum"):
     profile = np.genfromtxt(directory / 'profiles.csv', delimiter=',', names=True)
     modes = np.genfromtxt(directory / 'modes.csv', delimiter=',', names=True)
     closure_label='adiabatic' if result['closure']=='Adiabatic' else 'LI option A'
     label = rf"$\chi={result['chi']:+.1f},\ p/M=20,\ e={result['e']:.1f}$" + ' — ' + closure_label
+    label += f"\n1 ≤ m ≤ {result['m_max']}; {result.get('k_min',-result['k_max'])} ≤ k ≤ {result.get('k_plus',result['k_max'])}"
+    with_axisymmetric = result.get('axisymmetric_included', False)
+    sector_label = 'm ≥ 0' if with_axisymmetric else 'm > 0'
+    if with_axisymmetric:
+        label += f"\nm = 0: 1 ≤ k ≤ {result['axisymmetric_k_max']}; boundary HOLE"
     scale = result['epsilon_ref'] * result['mu'] ** 2
     fig, axes = plt.subplots(3, 1, figsize=(7.2, 6.5), sharex=True, layout='constrained')
     for axis, column, ylabel in zip(axes,
@@ -60,27 +65,33 @@ def plot_case(directory, result):
         axis.set_ylabel(ylabel)
         axis.grid(alpha=.15)
     axes[-1].set_xlabel(r'$r/M$')
-    fig.suptitle('PRELIMINARY: disc profiles; (1,−1) omitted\n' + label)
+    fig.suptitle(status_label+': disc profiles; '+sector_label+', secular sector omitted\n' + label)
     fig.savefig(directory / 'profiles.png', dpi=140)
     plt.close(fig)
 
     fig, axes = plt.subplots(1, 2, figsize=(9, 3.8), layout='constrained')
     for axis, column, title in zip(axes, ['torque_disc', 'power_disc'], ['|torque|', '|power|']):
-        spectrum = np.full((2*result['k_max']+1, result['m_max']), np.nan)
+        m_min = 0 if with_axisymmetric else 1
+        spectrum = np.full((2*result['k_max']+1, result['m_max']-m_min+1), np.nan)
         for row in np.atleast_1d(modes):
-            spectrum[int(row['k'])+result['k_max'], int(row['m'])-1] = abs(row[column]) / scale
+            spectrum[int(row['k'])+result['k_max'], int(row['m'])-m_min] = abs(row[column]) / scale
         spectrum = np.ma.masked_where(~np.isfinite(spectrum) | (spectrum <= 0), spectrum)
         image = axis.imshow(np.ma.log10(spectrum), origin='lower', aspect='auto',
-                            extent=[.5,result['m_max']+.5,-result['k_max']-.5,result['k_max']+.5], cmap='viridis')
+                            extent=[m_min-.5,result['m_max']+.5,-result['k_max']-.5,result['k_max']+.5], cmap='viridis')
         axis.set(xlabel='m', ylabel='k', title=title + r' / $(\epsilon_{ref}\mu^2)$')
+        if 'k_min' in result:
+            axis.set_ylim(result['k_min']-.5,max(result['k_plus'],result.get('axisymmetric_k_max',result['k_plus']))+.5)
+            mm=np.array([1,result['m_max']])
+            axis.plot(mm,-mm*result['Omega_phi']/result['Omega_r'],'w--',lw=.7,label='omega=0')
+            axis.legend(fontsize=7)
         if result['e']:
             axis.plot(1,-1,'rx',ms=6)
         fig.colorbar(image,ax=axis,label='log10 amplitude')
-    fig.suptitle('PRELIMINARY: positive-frequency spectrum; red × = conditional\n' + label)
+    fig.suptitle(status_label+': '+spectrum_label+'; red × = conditional\n' + label)
     fig.savefig(directory / 'spectra.png', dpi=140)
     plt.close(fig)
 
-    bankdir = Path(result['source_bank']).parent
+    bankdir = Path(result.get('wake_directory',Path(result['source_bank']).parent))
     r, phi, peri = wake(bankdir / 'wake_peri.bin')
     ra, phia, apo = wake(bankdir / 'wake_apo.bin')
     assert np.array_equal(r,ra) and np.array_equal(phi,phia)
@@ -99,7 +110,7 @@ def plot_case(directory, result):
         axis.set(aspect='equal',xlabel=r'$x/M$',ylabel=r'$y/M$')
         phase_name=('pericentre' if name=='peri' else 'apocentre') if result['e'] else (
             'circular phase 0' if name=='peri' else 'circular half radial-limit period')
-        axis.set_title('PRELIMINARY: '+phase_name+'\n'+label)
+        axis.set_title(status_label+': '+phase_name+'; '+sector_label+', secular omitted\n'+label)
         fig.colorbar(image,ax=axis,label=r'$\delta\epsilon/\epsilon$ (Eulerian)' + '\nshared 99.5% colour limits (clipped)')
         fig.savefig(directory / f'wake_{name}.png',dpi=140)
         plt.close(fig)

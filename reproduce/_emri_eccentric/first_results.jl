@@ -24,11 +24,11 @@ function modal_sum(records,key)
     value+correction
 end
 
-function fixture(a,e,closure)
+function fixture(a,e,closure;epsilon_p=1e-5)
     p = 20.0
     orbit = EquatorialOrbit(a,p,e) # owner checks separatrix and bound-orbit validity
     d = SW.DiscModel(;χ=a,r_ref=p/(1-e^2),h_ref=0.06,pSigma=1.5,qTemp=0.0,
-                    epsilon_ref=1e-8,closure,evolution=:fixed,εp=1e-5)
+                    epsilon_ref=1e-8,closure,evolution=:fixed,εp=epsilon_p)
     pert = SW.EccentricPerturber(orbit;mass=1e-5,softening=FixedSoftening(0.018d.r_ref))
     domain = (1.001SW.r_isco(d),8p/(1-e))
     domain[1] < p/(1+e) < p/(1-e) <= domain[2] ||
@@ -36,10 +36,9 @@ function fixture(a,e,closure)
     d,pert,domain
 end
 
-function production_grid(c)
+function production_grid(c;n=abs(c.mode.k)>20 ? 65536 : 8192)
     # Candidate transfer from gr-radial-convergence/rerun/production_rules.csv:
     # grid-only failures use their measured next doubling; no certification implied.
-    n = abs(c.mode.k)>20 ? 65536 : 8192
     width = SW.corotation_width(c)
     SW.build_grid(c;nL=n÷64,nR=n÷64,nC=n+1,n_anc=512,
                   σ_wc_frac=width===nothing ? 0.01 : 16width/c.r_c)
@@ -79,15 +78,16 @@ function summarize_mode(sol,rq,wr)
     (;record,profiles,density)
 end
 
-function rates(orbit,torque,power)
+function rates(orbit,torque,power;mass=1e-5)
+    isfinite(mass) && mass>0 || throw(ArgumentError("mass must be positive and finite"))
     Etotal,Ltotal = -power,-torque
     if iszero(orbit.e)
-        return Dict("Edot_orbit"=>Etotal,"Ldot_orbit"=>Ltotal,"Edot_specific"=>Etotal/1e-5,
-                    "Ldot_specific"=>Ltotal/1e-5,"pdot"=>nothing,"edot"=>nothing,
+        return Dict("Edot_orbit"=>Etotal,"Ldot_orbit"=>Ltotal,"Edot_specific"=>Etotal/mass,
+                    "Ldot_specific"=>Ltotal/mass,"pdot"=>nothing,"edot"=>nothing,
                     "circular_map"=>"undefined: owner rejects degenerate e=0 Jacobian")
     end
     J = Spacetime.EL_to_pe_jacobian(orbit.a,orbit.p,orbit.e)
-    specific = [Etotal,Ltotal]./1e-5
+    specific = [Etotal,Ltotal]./mass
     pe = J*specific
     guarded = Spacetime.ELdot_to_pedot(orbit,specific...)
     isapprox(pe[1],guarded.pdot;rtol=1e-13) && isapprox(pe[2],guarded.edot;rtol=1e-13) ||
@@ -108,10 +108,10 @@ function write_products(out,bankdir,meta,records,rq,wr,phi,profiles,densities,la
         push!(rows,merge(Dict("m_max"=>M,"k_max"=>K,"modes"=>length(subset),
             "torque_disc"=>torque,"power_disc"=>power,
             "sum_abs_torque"=>sum(abs(r["torque_disc"]) for r in subset),
-            "sum_abs_power"=>sum(abs(r["power_disc"]) for r in subset)),rates(orbit,torque,power)))
+            "sum_abs_power"=>sum(abs(r["power_disc"]) for r in subset)),rates(orbit,torque,power;mass=meta["mu"])))
     end
     sec = filter(r->r["conditional_secular"],records)
-    meta["secular"] = [merge(r,rates(orbit,r["torque_disc"],r["power_disc"])) for r in sec]
+    meta["secular"] = [merge(r,rates(orbit,r["torque_disc"],r["power_disc"];mass=meta["mu"])) for r in sec]
     meta["ladder"] = rows
     # Detailed per-mode diagnostics are in the external checkpoint bank and CSV;
     # avoid a multi-megabyte JSON duplicate in the evidence repository.

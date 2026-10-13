@@ -108,7 +108,7 @@ end
                  for md in modes[2:3]]
     mktempdir() do dir
         out,bank = mkpath(joinpath(dir,"out")),mkpath(joinpath(dir,"bank"))
-        meta = Dict{String,Any}("chi"=>0.0,"e"=>0.2)
+        meta = Dict{String,Any}("chi"=>0.0,"e"=>0.2,"mu"=>1e-5)
         FR.write_products(out,bank,meta,records,wr,wr,phi,zeros(length(wr),3),densities,[3],[2])
         wake = meta["wake"]
         @test wake["t_peri"] == 0
@@ -128,4 +128,98 @@ end
         @test !isapprox(apo.field,peri.field;rtol=1e-3)
     end
 end
+
+# Lander addition (L-G52, lane w20-g52 stage 1). The element maps take the perturber mass from the caller
+# (obligation gr-first-o-driver-mass), and the converged-results driver keeps its radial rule, provenance
+# guards and native reduction fixed.
+@testset "First-results element maps use the supplied perturber mass" begin
+    FR = FirstEccentricResults
+    orbit = EquatorialOrbit(0.9,20.0,0.2)
+    a,b = FR.rates(orbit,2e-14,3e-16;mass=1e-5),FR.rates(orbit,2e-14,3e-16;mass=2e-5)
+    @test b["pdot"] ≈ a["pdot"]/2 rtol=1e-14
+    @test b["edot"] ≈ a["edot"]/2 rtol=1e-14
+    @test b["Ldot_specific"] ≈ a["Ldot_specific"]/2 rtol=1e-14
+    @test (b["Ldot_orbit"],b["Edot_orbit"]) == (a["Ldot_orbit"],a["Edot_orbit"]) == (-2e-14,-3e-16)
+    for bad in (0.0,-1e-5,Inf,NaN)
+        @test_throws ArgumentError FR.rates(orbit,1.0,1.0;mass=bad)
+    end
+    @test FR.rates(EquatorialOrbit(0.9,20.0,0.0),1e-16,1e-18;mass=2e-5)["Ldot_specific"] ≈ -5e-12 rtol=1e-14
+    modes = [HarmonicMode(m,k,orbit_frequency(orbit,m,k)) for (m,k) in ((1,-1),(2,1))]
+    records = [Dict{String,Any}("m"=>md.m,"k"=>md.k,"omega"=>md.omega,"torque_disc"=>t,
+                   "power_disc"=>md.omega/md.m*t,"conditional_secular"=>(md.m,md.k)==(1,-1),
+                   "nodes"=>10,"residual"=>0.0,"bc_residual"=>0.0,"power_identity_relative"=>0.0)
+               for (md,t) in zip(modes,(5e-16,-2e-15))]
+    wr = collect(range(15.0,26.0;length=8)); phi = collect(range(-pi,pi;length=9))
+    dens = [(context=(;mode=modes[2]),r=wr,y=vcat(transpose(complex.(wr./30)),zeros(ComplexF64,1,length(wr))))]
+    mktempdir() do dir
+        out,bank = mkpath(joinpath(dir,"out")),mkpath(joinpath(dir,"bank"))
+        meta = Dict{String,Any}("chi"=>0.9,"e"=>0.2,"mu"=>2e-5)
+        FR.write_products(out,bank,meta,records,wr,wr,phi,zeros(length(wr),3),dens,[2],[1])
+        for (row,rec) in ((only(meta["ladder"]),records[2]),(only(meta["secular"]),records[1]))
+            want = FR.rates(orbit,rec["torque_disc"],rec["power_disc"];mass=2e-5)
+            @test row["pdot"] == want["pdot"] && row["edot"] == want["edot"]
+            @test row["pdot"] ≈ FR.rates(orbit,rec["torque_disc"],rec["power_disc"];mass=1e-5)["pdot"]/2 rtol=1e-14
+        end
+    end
+end
+
+include(joinpath(@__DIR__,"../../../reproduce/_emri_eccentric/converged_results.jl"))
+@testset "Converged-results driver: radial rule, provenance and native reduction" begin
+    CR = ConvergedEccentricResults
+    d,p,domain = CR.FR.fixture(0.9,0.2,Adiabatic;epsilon_p=1e-6)
+    @test d.εp == 1e-6 && CR.FR.fixture(0.9,0.2,Adiabatic)[1].εp == 1e-5
+    ctx(m,k) = SW.ModeContext(d,p,m,k;closure=Adiabatic,domain)
+    for ((m,k),n,class) in (((2,1),16384,"corotation"),((20,-21),65536,"corotation"),((40,-20),16384,"corotation"),
+                            ((10,-15),32768,"negative_frequency_no_corotation"),
+                            ((30,-40),65536,"negative_frequency_no_corotation"),
+                            ((8,-9),32768,"positive_frequency_no_corotation"),
+                            ((23,-26),65536,"positive_frequency_no_corotation"),
+                            ((1,-1),16384,"secular"),((0,1),32768,"axisymmetric"))
+        rule = CR.radial_rule(ctx(m,k))
+        @test (rule.n,rule.cellclass,rule.certified) == (n,class,false)
+    end
+    c = ctx(2,1); g = CR.production_grid(c)
+    @test length(g.r) == length(CR.FR.production_grid(c;n=16384).r) != length(CR.FR.production_grid(c).r)
+    mktempdir() do root
+        evidence = mkpath(joinpath(root,"converged","stage1")); banks = mkpath(joinpath(root,"banks"))
+        @test_throws ErrorException CR.setup(evidence,banks,.9,.2,3,4,2)
+        write(joinpath(evidence,"PREREG.json"),"{}"); write(joinpath(evidence,"STAGE1_AMENDMENT.json"),"{}")
+        @test CR.setup(evidence,banks,.9,.2,3,4,2).domain == domain
+        rm(joinpath(banks,"a+0.9_e0.2_ad");recursive=true)
+        grand = mkpath(joinpath(root,"gr-first-results","a+0.9_e0.2_ad"))
+        CR.FR.writejson(joinpath(grand,"result.json"),Dict("domain"=>[3.0,150.0]))
+        x = CR.setup(evidence,banks,.9,.2,3,4,2)
+        @test x.domain == (3.0,150.0) && x.config["domain"] == [3.0,150.0]
+        @test x.config["epsilon_p"] == 1e-6 && x.d.εp == 1e-6
+        @test sort([(s.m,s.k) for s in x.selected]) == [(m,k) for m in 1:3 for k in -4:2]
+        @test all(s->s.m==0,x.axisymmetric_modes) && !isempty(x.axisymmetric_modes)
+        @test (1,-1) in x.sec
+        @test CR.setup(evidence,banks,.9,.2,3,4,2).config == x.config
+        @test_throws ErrorException CR.setup(evidence,banks,.9,.2,3,5,2)
+        rm(joinpath(banks,"a+0.9_e0.2_ad");recursive=true)
+        parent = mkpath(joinpath(root,"converged","gr-first-results","a+0.9_e0.2_ad"))
+        CR.FR.writejson(joinpath(parent,"result.json"),Dict("domain"=>[4.0,120.0]))
+        @test CR.setup(evidence,banks,.9,.2,3,4,2).domain == (4.0,120.0)
+        write(joinpath(evidence,"STAGE1_AMENDMENT.json"),"{\"amended\":1}")
+        @test_throws ErrorException CR.setup(evidence,banks,.9,.2,3,4,2)
+        stale = mkpath(joinpath(root,"stale","a+0.9_e0.2_ad")); write(joinpath(stale,"mode_1_0.jls"),"unversioned")
+        @test_throws ErrorException CR.setup(evidence,joinpath(root,"stale"),.9,.2,3,4,2)
+    end
+    c = ctx(2,-3)
+    @test c.r_c === nothing
+    r = collect(range(domain...;length=1025))
+    g = SW.EccentricGrid(r,c.r_c,1:0,SW.mode_cache_key(c),(;))
+    bump(x) = exp(-(x-20)^2/8)
+    src = x -> merge(SW._zero_source(c),(htt=complex(bump(x)),htt_r=complex(-(x-20)/4*bump(x)),hphiphi=complex(x^2*bump(x)/4)))
+    sol = SW.solve_mode(c;source=src,grid=g,boundary_rows=SW.mode_boundary_rows(c))
+    ref,new = CR.FR.summarize_mode(sol,r,r),CR.reduce_mode(sol,r,r)
+    @test !iszero(ref.record["torque_disc"]) && !iszero(ref.record["power_disc"])
+    @test new.record["torque_disc"] ≈ ref.record["torque_disc"] rtol=1e-12
+    @test new.record["power_disc"] ≈ ref.record["power_disc"] rtol=1e-12
+    @test new.record["power_disc"] ≈ c.mode.omega/c.mode.m*new.record["torque_disc"] rtol=1e-9
+    @test new.profiles ≈ ref.profiles rtol=1e-9
+    @test new.density == ref.density
+    @test new.record["residual"] == sol.residual && new.record["nodes"] == length(r)
+end
+
 end
