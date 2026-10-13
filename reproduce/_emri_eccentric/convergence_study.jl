@@ -226,15 +226,21 @@ function radial_context(a,p,e,m,k,pole,edge; closure=Adiabatic, qTemp=0.0)
     SW.ModeContext(d,pert,m,k;closure,domain),pert
 end
 
-function radial_solve(c,pert,n,nq,costs,label;nanc=512,cache=false,source=nothing,nphi=nothing)
+function radial_solve(c,pert,n,nq,costs,label;nanc=512,cache=false,source=nothing,nphi=nothing,
+                      grid_context=c)
     width = SW.corotation_width(c)
-    fraction = width === nothing ? 0.01 : 16width/c.r_c
+    mesh_width = SW.corotation_width(grid_context)
+    fraction = mesh_width === nothing ? 0.01 : 16mesh_width/grid_context.r_c
     nw = max(1,n÷64) # grid.jl's nL/nR are cells per WKB radian, not node counts.
     sol = timed(costs,label,Dict("n"=>n,"Nq"=>nq,"n_anc"=>nanc,
                                 "phase_cells_per_radian"=>nw,"shared_source"=>source!==nothing,
                                 "pole"=>c.disc.εp,
                                 "domain"=>collect(c.domain))) do
-        grid = SW.build_grid(c;nL=nw,nR=nw,nC=n+1,n_anc=nanc,σ_wc_frac=fraction)
+        grid = SW.build_grid(grid_context;nL=nw,nR=nw,nC=n+1,n_anc=nanc,σ_wc_frac=fraction)
+        if grid_context !== c
+            grid_context.domain == c.domain || throw(ArgumentError("pole meshes need the same domain"))
+            grid = SW.EccentricGrid(grid.r,c.r_c,1:0,SW.mode_cache_key(c),(;fixed_causal_grid=true))
+        end
         ops = cache ? SW.mode_operator_cache(c,grid) : nothing
         source === nothing ?
             SW.solve_mode(c,pert;grid,cache=ops,bank_options=(;Nq=nq,Nphi=nphi,blocksize=1),
@@ -386,9 +392,17 @@ when their order is unverified). Its entries are two profile components and
 relative torque/power errors with the independent grid reference. The corner
 certificate was measured on the production domain. Causal, pole-mesh and final
 ISCO differences remain raw and the larger independent/corner term is charged.
+LI controls use the production observable scale. A preregistered absolute power
+reference may replace that scale near a cancellation; it never changes profiles.
 """
-function radial_v4_gate(independent, joint, certificate, independent_grid, grid_reference, corner_reference)
+function radial_v4_gate(independent, joint, certificate, independent_grid, grid_reference, corner_reference;
+                        power_reference=nothing)
     ind=deepcopy(independent)
+    li=get(ind,"closure",nothing)=="LocallyIsothermalOptionA"
+    power_reference===nothing || (li && isfinite(power_reference) && power_reference>0) ||
+        throw(ArgumentError("an absolute power reference must be positive, finite and LI"))
+    reference=power_reference===nothing ? corner_reference :
+        merge(corner_reference,Dict("power"=>power_reference))
     profiles=deepcopy(joint["profile"])
     terms=deepcopy(joint["absolute_observable_terms"])
     for j in 1:2
@@ -404,7 +418,13 @@ function radial_v4_gate(independent, joint, certificate, independent_grid, grid_
                 certificate["estimates"][q]*abs(corner_reference[q]))
         end
     end
-    budgets=Dict(q=>relative_change(sum(values(terms[q])),0.,corner_reference[q])
+    if li
+        for q in ("torque","power"), axis in RADIAL_AXES
+            absolute=ind["observable_budget"][q][axis]*abs(grid_reference[q])
+            ind["observable_budget"][q][axis]=relative_change(absolute,zero(absolute),reference[q])
+        end
+    end
+    budgets=Dict(q=>relative_change(sum(values(terms[q])),0.,reference[q])
                  for q in ("torque","power"))
     pass=radial_pass(ind) && get(joint,"integrity",false) &&
         isempty(get(joint,"owner_grid_rejections",["missing"])) &&
@@ -415,9 +435,14 @@ function radial_v4_gate(independent, joint, certificate, independent_grid, grid_
         all(v->0<=v<=1e-3,values(budgets)) &&
         all(k->!isempty(joint["source_probe"][k]) && all(x->0<=x<=1,joint["source_probe"][k]),("primary","sensitivity")) &&
         certificate["integrity"]
-    Dict("pass"=>pass,"independent_pass"=>radial_pass(ind),"profile"=>profiles,
+    result=Dict("pass"=>pass,"independent_pass"=>radial_pass(ind),"profile"=>profiles,
          "observable_budget"=>budgets,"absolute_observable_terms"=>terms,
          "grid_relief"=>certificate["qualified"])
+    if li
+        result["independent_observable_budget"]=ind["observable_budget"]
+        result["observable_reference"]=Dict(q=>abs(reference[q]) for q in ("torque","power"))
+    end
+    result
 end
 
 "PREREG_radial_v2: profile gates per axis, summed uncertainty for EACH physical observable."
@@ -518,7 +543,7 @@ function radial_case(a,p,e,m,k; nq=1024, source_reference=nothing, levels=(128,2
     poles = pole_diagnostic[1:3]
     pole_error = [response_error(poles[i],poles[i+1],radii) for i in 1:2]
     pole_mesh = c.r_c===nothing ? last(poles) :
-        radial_solve(last(poles).context,pert,2finest,nq,costs,"lowest_pole_mesh_$(2finest)";source,nphi)
+        radial_solve(last(poles).context,pert,finest,nq,costs,"lowest_pole_mesh_$finest";source,nphi)
     pole_mesh_error = response_error(last(poles),pole_mesh,radii)
     edges = Any[last(grids)]
     for edge in edge_levels[2:end]
@@ -587,6 +612,13 @@ end
 "LI OPTION A branch: retain the complete closure-dispatched operator and boundary rows."
 li_radial_case(a,p,e,m,k; qTemp, protocol="PREREG_radial_v3", kwargs...) =
     radial_case(a,p,e,m,k;kwargs...,closure=LocallyIsothermalOptionA,qTemp,protocol)
+
+"Last LI grid cycle: fixed qTemp-aware ladder from the preregistered prior finest n."
+function li_radial_levels(previous_n, qTemp; cell)
+    qTemp in (0,1) || throw(ArgumentError("LI radial registration covers qTemp=0,1"))
+    n=previous_n*(qTemp==1 ? (cell==11 ? 4 : 2) : (cell==11 ? 2 : 1))
+    (n÷8,n÷4,n÷2,n)
+end
 
 function radial_study(out, selected, nq)
     nq>=1024 || throw(ArgumentError("PREREG_radial_v2 requires Nq >= 1024"))

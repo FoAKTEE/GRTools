@@ -408,7 +408,7 @@ end
         a,b=r["raw_axes"]["pole"][2:3]
         @test r["observable_budget"][q]["pole"] == ECS.relative_change(a[q],b[q],r["raw_axes"]["grid"][end][q])
     end
-    @test only(filter(x->startswith(x["axis_level"],"lowest_pole_mesh"),r["costs"]))["n"]==64
+    @test only(filter(x->startswith(x["axis_level"],"lowest_pole_mesh"),r["costs"]))["n"]==32
 end
 
 @testset "v4 production-domain verified-order grid certificate" begin
@@ -502,6 +502,38 @@ end
         j=deepcopy(joint);j["profile"][axis][comp]=1.1e-3
         @test !ECS.radial_v4_gate(ind,j,cert,ig,ref,ref)["pass"]
     end
+    # A nearly cancelling base-domain observable must not tighten LI's production budget.
+    small=Dict("power"=>1e-3,"torque"=>1e-3)
+    i=deepcopy(ind); i["observable_budget"]["power"]["edge"]=0.03
+    @test !ECS.radial_v4_gate(i,joint,cert,ig,small,ref)["pass"] # adiabatic unchanged
+    i["closure"]="LocallyIsothermalOptionA"
+    result=ECS.radial_v4_gate(i,joint,cert,ig,small,ref)
+    @test result["pass"]
+    @test result["independent_observable_budget"]["power"]["edge"]≈3e-5
+    @test i["observable_budget"]["power"]["edge"]==0.03 # pure gate
+    # The cancellation exception changes both independent and joint power budgets only.
+    cancelled=Dict("power"=>0.01,"torque"=>1.)
+    @test !ECS.radial_v4_gate(i,joint,cert,ig,small,cancelled)["pass"]
+    bounded=ECS.radial_v4_gate(i,joint,cert,ig,small,cancelled;power_reference=1.)
+    @test bounded["pass"]
+    @test bounded["profile"]==result["profile"]
+    @test bounded["observable_reference"]["power"]==1.
+    for bad in (0.,-1.,Inf,NaN)
+        @test_throws ArgumentError ECS.radial_v4_gate(i,joint,cert,ig,small,ref;power_reference=bad)
+    end
+    @test_throws ArgumentError ECS.radial_v4_gate(ind,joint,cert,ig,small,ref;power_reference=1.)
+    for axis in ("pole","pole_mesh")
+        j=deepcopy(joint); j["profile"][axis]=[1.1e-3,0.]
+        @test !ECS.radial_v4_gate(i,j,cert,ig,small,ref;power_reference=1.)["pass"]
+    end
+end
+
+@testset "Preregistered LI resolution has no post-run escalation" begin
+    @test ECS.li_radial_levels(4096,0;cell=6)==(512,1024,2048,4096)
+    @test ECS.li_radial_levels(4096,1;cell=6)==(1024,2048,4096,8192)
+    @test ECS.li_radial_levels(4096,0;cell=11)==(1024,2048,4096,8192)
+    @test ECS.li_radial_levels(4096,1;cell=11)==(2048,4096,8192,16384)
+    @test_throws ArgumentError ECS.li_radial_levels(4096,0.5;cell=6)
 end
 
 @testset "LI radial controls preserve closure, temperature gradients and source reuse" begin
@@ -523,6 +555,13 @@ end
         sol=ECS.radial_solve(c,p,16,8,Dict[],"li_fixture";source)
         @test sol.closure == sol.params.closure == ECS.LocallyIsothermalOptionA
         @test sol.source === source
+        narrow,_=ECS.radial_context(0.0,30.0,0.3,2,1,1e-6,3;
+            closure=ECS.LocallyIsothermalOptionA,qTemp=q)
+        mesh=ECS.radial_solve(narrow,p,16,8,Dict[],"equal_n_mesh";source,grid_context=c)
+        @test mesh.r==sol.r
+        @test mesh.context.disc.εp==1e-6
+        @test mesh.source===source
+        @test mesh.closure==sol.closure
         for (j,node) in enumerate((1,length(sol.r)))
             terms=rows[j][1].*sol.y[:,node]
             @test abs(sum(terms))/maximum(abs,terms)<1e-9
@@ -544,6 +583,7 @@ end
         @test !r["pass"] # Tiny Nq and no source qualification cannot be certified.
         @test all(x->x["closure"]==r["closure"] && x["qTemp"]==q,r["diagnostics"])
         @test all(x->x["qTemp"]==q,r["causal_diagnostic"])
+        @test only(filter(x->startswith(x["axis_level"],"lowest_pole_mesh"),r["costs"]))["n"]==64
         for obs in ("power","torque"), (axis,records) in r["raw_axes"]
             @test r["observable_budget"][obs][axis] == ECS.relative_change(
                 records[end-1][obs],records[end][obs],r["raw_axes"]["grid"][end][obs])
