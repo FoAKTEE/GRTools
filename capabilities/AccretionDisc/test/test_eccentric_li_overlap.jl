@@ -3,11 +3,9 @@
 # must give the same solution and the same diagnostics. No circular kernel is used; the receipt driver
 # also runs this file with the circular kernels poisoned (test/eccentric_modes_isolation.jl).
 #
-# The native AMF accessors differ by 4pi sqrt(-g) u_phi Re(delta_p conj(delta_u^r)): the OPTION A
-# accessor subtracts angular momentum carried by the enthalpy current, the adiabatic accessor is the
-# 2608.17003 (72a) flux. In this limit only (72a) satisfies dF/dr = sqrt(-g)<T>. The AMF parity and
-# the OPTION A balance are therefore @test_broken until the flux definition is decided (blocking
-# obligation gr-li-o-amf-definition); a fix makes them pass, which Test reports as an error.
+# Owner decision 2026-10-13 (gr-li-o-amf-definition): subtract the conserved baryon
+# current h u_phi Mdot. Both accessors then give (72a), including the pressure current.
+# The formerly broken parity/balance gates retain their original thresholds.
 module LICircularOverlapTests
 using Test, Printf
 using AccretionDisc, Spacetime
@@ -82,17 +80,17 @@ end
         for error in (state,fluid,torque,power,td,pd)
             @test error <= OVERLAP_TOL
         end
-        @test_broken flux <= OVERLAP_TOL
+        @test flux <= OVERLAP_TOL
         rows += 1
     end
     @test rows == 18
 end
 println("[PASS] C-LI-0: 18 eccentric mode pairs; states, fluid, torque and power within ",OVERLAP_TOL,
-        "; native AMF parity @test_broken (obligation gr-li-o-amf-definition)")
+        "; conserved AMF parity at the same tolerance")
 
 # The balance dF/dr = sqrt(-g)<T> cell by cell in the midpoint scheme's own form (as the circular
 # balance_residual), outside 3 sigma_eps of corotation, on two uniform levels. The adiabatic (72a)
-# flux converges at second order; the OPTION A flux keeps the gradient of the pressure current.
+# flux and the conserved OPTION A flux both converge at second order.
 function balance_defects(sol)
     c,r = sol.context,sol.r
     F = SW.amf(sol)
@@ -116,8 +114,8 @@ end
         @printf("AMF_BALANCE,%+.1f,m=3,adiabatic=%.6e,%.6e,ratio=%.3f,li=%.6e,%.6e,ratio=%.3f\n",
                 spin,ad...,ad[1]/ad[2],li...,li[1]/li[2])
         @test 3.5 < ad[1]/ad[2] < 4.5 && ad[2] < 1e-3
-        @test_broken 3.5 < li[1]/li[2] < 4.5 && li[2] < 1e-3
+        @test 3.5 < li[1]/li[2] < 4.5 && li[2] < 1e-3
     end
 end
-println("[PASS] C-LI-0 balance: (72a) converges at second order; OPTION A AMF balance @test_broken")
+println("[PASS] C-LI-0 balance: both conserved AMF accessors converge at second order")
 end

@@ -108,11 +108,13 @@ end
 end
 println("[PASS] C-LI-0 37 complex symbolic residuals = 0; 5 mutants rejected")
 
-# Diagnose a separate observable convention; this is NOT native AMF parity.
+# Retain the counterexample to the FORMER connected-Reynolds-only convention.
 # R3 diagnostics.jl:193-201 defines the adiabatic Noether integrand. The LI
-# connected Reynolds definition is li_diagnostics.jl:39-58. The pressure current
-# remains even when the pressure laws and reconstructed solutions coincide.
-@testset "AMF observable gap under the exact closure overlap" begin
+# accessor now includes the pressure current (owner decision 2026-10-13,
+# gr-li-o-amf-definition); certify_li_amf_definition.jl proves the conserved
+# baryon-current split for every closure. The old Reynolds-only term still
+# differs from (72a) when the pressure laws and reconstructed solutions coincide.
+@testset "Former Reynolds-only AMF gap under the exact closure overlap" begin
     ad_flux = R3.onshell_nu(R3.to_omega_d(R3.AMF_MODE))
     li_flux = (R3.eps+R3.p)*(im*R3.y1)*R3.cbar(LI.ELIMINATED_ONSHELL.duphi_low)
     pressure = R3.ULOW[R3.IPHI]*R3.DP_M*R3.cbar(R3.DUUP_M[R3.IR])
@@ -130,7 +132,7 @@ println("[PASS] C-LI-0 37 complex symbolic residuals = 0; 5 mutants rejected")
         println(io,"Noether - connected Reynolds - u_phi Re(dp conjugate(dur)) = 0 exactly.")
         println(io,"Common external factor: 4pi sqrt(-g). Physical conjugacy imposed on the witness.")
         println(io,"Nonzero exact witness (without common factor): ",gap)
-        println(io,"This REFUTES equality of the two native AMF definitions, not the closure identity.")
+        println(io,"This rejects the former Reynolds-only definition; both native accessors now include this current.")
     end
 end
-println("[PASS] AMF convention gap identified; native AMF equality is NOT certified")
+println("[PASS] former Reynolds-only gap identified; conserved native AMF parity has its own runtime gate")

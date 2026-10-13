@@ -1,4 +1,4 @@
-# Closure-independent connected Reynolds flux, with OPTION A perturbations.
+# Conserved-baryon angular-momentum flux, with OPTION A perturbations.
 # Stress origin: derivation/src/diagnostics.jl:163–172, emitted by li_emission.jl.
 # No adiabatic U/V/W tensor enters this file.
 
@@ -33,20 +33,25 @@ The terms quadratic in the first-order fields are
     quadratic = sqrt(-g) < (epsilon+p) du^r du_phi
                          + u_phi [d(epsilon+p)+(epsilon+p) dlog(sqrt(-g))] du^r >.
 
-Subtract the transport of BACKGROUND angular momentum by the enthalpy current:
+Subtract the transport of BACKGROUND angular momentum by the conserved baryon
+current `h u_phi Mdot`, where `h=(epsilon+p)/rho` (owner decision 2026-10-13,
+gr-li-o-amf-definition; certificate: derivation/scripts/certify_li_amf_definition.jl):
 
-    mean_transport = sqrt(-g) u_phi <[d(epsilon+p)+(epsilon+p) dlog(sqrt(-g))] du^r>.
+    mean_transport = sqrt(-g) u_phi <[d epsilon+(epsilon+p) dlog(sqrt(-g))] du^r>.
 
-The result `wave=quadratic-mean_transport` is evaluated directly as a connected
-product to avoid subtractive cancellation. `dlog(sqrt(-g))=g^ab h_ab/2`.
+Relation (19) gives `h d rho = d epsilon + xi^r (epsilon' - h rho')`;
+the displacement term averages to zero against `du^r`. Thus
+`wave=quadratic-mean_transport` is (72a): the connected Reynolds product PLUS
+`sqrt(-g) u_phi <dp du^r>`. Evaluate it directly to avoid subtractive cancellation.
+`dlog(sqrt(-g))=g^ab h_ab/2`.
 Any unknown second-order mean radial velocity contributes the same
 sqrt(-g)(epsilon+p) u_phi <u2^r> to both terms and cancels. The reported
 `quadratic`/`mean_transport` contain only the known first-order bilinears;
 they do not solve the second-order mean flow. Pressure gives no mixed r-phi
 Kronecker term. Metric/velocity cross terms survive in du_phi.
 
-This is distinct from the adiabatic Noether flux, which also contains
-u_phi<dp du^r>. OPTION A has zero bath four-force. Finite-GR wave/mean balance
+This uses the same flux expression as the adiabatic branch, with OPTION A
+perturbations and zero bath four-force. Finite-GR wave/mean balance
 does not imply a conserved wave flux or identify its edge jump as total torque.
 With the Landau shift on, the conjugated du_phi is continued in omega_d as in the
 adiabatic and frozen circular AMF (one convention for every closure); du^r and the
@@ -60,9 +65,10 @@ function li_flux_decomposition(c::ModeContext,r,y;hmodes,landau::Bool=true)
     enthalpy=eps_profile(c.disc,r)+pressure(c.disc,r)
     u_phi=sum(geo.g[3,:] .* geo.u)
     dlogmeasure=sum(geo.gi .* geo.metric)/2
-    wave=reynolds_flux(c.mode;measure=geo.measure,enthalpy,dur=f.dur,du_phi=partner.du_phi)
+    wave=reynolds_flux(c.mode;measure=geo.measure,enthalpy,dur=f.dur,du_phi=partner.du_phi)+
+        reality_pair_weight(c.mode)*geo.measure*u_phi*real(f.dp*conj(f.dur))
     mean_transport=reality_pair_weight(c.mode)*geo.measure*u_phi*
-        real((f.deps+f.dp+enthalpy*dlogmeasure)*conj(f.dur))
+        real((f.deps+enthalpy*dlogmeasure)*conj(f.dur))
     (;wave,mean_transport,quadratic=wave+mean_transport)
 end
 

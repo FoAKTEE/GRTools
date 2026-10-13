@@ -290,11 +290,22 @@ function li_flux_checks()
         @test parts.quadratic-parts.mean_transport ≈ parts.wave rtol=1e-12
         @test !iszero(parts.mean_transport)
         @test parts.wave==SW.amf_mode(c,r,y;hmodes=h,landau=false)
-        no_cross=SW.reynolds_flux(c.mode;measure=geo.measure,enthalpy,dur=f.dur,du_phi=(geo.g*du)[3])
+        u_phi=(geo.g*geo.u)[3]
+        pc=SW.reality_pair_weight(c.mode)*geo.measure*u_phi*real(f.dp*conj(f.dur))
+        no_cross=SW.reynolds_flux(c.mode;measure=geo.measure,enthalpy,dur=f.dur,du_phi=(geo.g*du)[3])+pc
         @test abs(no_cross-parts.wave)>1e-8*abs(parts.wave)
         # Extract the quadratic term of the actual nonlinear mixed stress and
-        # subtract the background angular momentum transported by the mean.
-        δ=1e-3; full=0.0; mean=0.0; u_phi=(geo.g*geo.u)[3]
+        # subtract h u_phi times the conserved BARYON current (owner decision
+        # 2026-10-13, gr-li-o-amf-definition). Keep the displacement-gradient
+        # term of (19) in delta_rho: it vanishes only after phase averaging.
+        # L04 now mutates this mean back to enthalpy transport; L05 drops the
+        # pressure current from the wave. Adding it is no longer a mutant.
+        inp=SW.master_inputs(c,r;hmodes=h,landau=false,y)
+        rho=2.3; rho_r=0.07; hspec=enthalpy/rho
+        xi=im*f.dur/(geo.u[1]*inp.omega_d)
+        drho=(f.deps+xi*inp.eps_r)/hspec-xi*rho_r
+        @test abs(drho-f.deps/hspec)>1e-8*abs(drho)
+        δ=1e-3; full=0.0; mean=0.0
         for j in 0:63, sign in (-1,1)
             z=cis(2pi*j/64); λ=sign*δ
             g=geo.g+λ*2real.(geo.metric*z)
@@ -303,7 +314,8 @@ function li_flux_checks()
             p=SW.pressure(c.disc,r)+λ*2real(f.dp*z)
             stress=(e+p)*(u*transpose(u))+p*inv(g)
             full+=sqrt(-det(g))*(stress*g)[2,3]
-            mean+=sqrt(-det(g))*(e+p)*u[2]*u_phi
+            baryon_density=rho+λ*2real(drho*z)
+            mean+=sqrt(-det(g))*hspec*baryon_density*u[2]*u_phi
         end
         full*=2pi/(128δ^2); mean*=2pi/(128δ^2)
         @test full ≈ parts.quadratic rtol=2e-6
@@ -319,7 +331,7 @@ function li_flux_checks()
     end
     # Lander review R2: one conjugation convention for every closure. At qTemp = 0 the OPTION A and
     # adiabatic reconstructions coincide (C-LI-0), so through corotation with the Landau shift on the
-    # LI wave flux plus the adiabatic pressure current u_phi<dp du^r> equals the adiabatic context AMF.
+    # conserved LI wave flux equals the adiabatic context AMF, including pressure transport.
     ca=context(;closure=Adiabatic,q=0.0); cl=context(;closure=LocallyIsothermalOptionA,q=0.0)
     @test ca.r_c==cl.r_c
     shifts=Float64[]
@@ -327,13 +339,11 @@ function li_flux_checks()
         r=ca.r_c+δ; h=eccentric_test_source(r); y=(0.003+0.001im,-0.002+0.004im)
         inp=SW.master_inputs(cl,r;hmodes=h,landau=true,y)
         push!(shifts,imag(inp.omega_d)/abs(real(inp.omega_d)))
-        fa=SW.reconstruct_fluid(ca,r,y;hmodes=h,landau=true)
-        pc=4pi*SW.sqrt_minus_g(ca.disc,r)*real(SW.rotation_profile(ca.disc,r).uφ*fa.dp*conj(fa.dur))
-        @test SW.li_flux_decomposition(cl,r,y;hmodes=h,landau=true).wave+pc ≈
+        @test SW.li_flux_decomposition(cl,r,y;hmodes=h,landau=true).wave ≈
               SW.amf_mode(ca,r,y;hmodes=h,landau=true) rtol=1e-10
     end
     @test maximum(shifts)>1
-    println("PASS LI Reynolds: emitted stress jets, exact mixed-stress expansion, metric cross terms and mean-transport subtraction; FR24 pi r^2 Sigma Re(ur conj(uphi))")
+    println("PASS LI conserved AMF: emitted stress, mixed-stress expansion, metric cross terms and baryon-current subtraction; Newtonian Reynolds limit")
 end
 
 # Independent coordinate-current divergence, retaining the perturbed measure.
@@ -433,11 +443,11 @@ function weak_field_flux_checks()
         @test last(errors)<1e-4
         @printf("WEAK_FIELD_FLUX,q=%.2f,%.6e,%.6e,%.6e\n",q,errors...)
     end
-    println("PASS emitted GR LI Reynolds flux approaches the FR24 formula at first order in M/r; half amplitudes and covariant r factor retained")
+    println("PASS emitted GR LI conserved flux approaches the FR24 formula at first order in M/r; half amplitudes and covariant r factor retained")
 end
 
 function li_checks()
-    @testset "LI stress, Reynolds flux and independent balance" begin
+    @testset "LI stress, conserved AMF and independent balance" begin
         tensor_checks(LocallyIsothermalOptionA)
         li_flux_checks()
         newtonian_flux_checks()
