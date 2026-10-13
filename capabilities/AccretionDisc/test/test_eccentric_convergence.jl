@@ -503,3 +503,55 @@ end
         @test !ECS.radial_v4_gate(ind,j,cert,ig,ref,ref)["pass"]
     end
 end
+
+@testset "LI radial controls preserve closure, temperature gradients and source reuse" begin
+    for q in (0.0,1.0)
+        c,p=ECS.radial_context(0.0,30.0,0.3,2,1,4e-6,3;
+            closure=ECS.LocallyIsothermalOptionA,qTemp=q)
+        @test c.closure == c.disc.closure == ECS.LocallyIsothermalOptionA
+        @test c.disc.qTemp == q
+        rows=ECS.SW.mode_boundary_rows(c)
+        for (j,outward) in enumerate((false,true))
+            r=c.domain[j]
+            @test rows[j][1] == ECS.SW.li_boundary(c,r;outward).row
+        end
+        d0,_=ECS.fixture(0.0,30.0,0.3)
+        # Reuse an adiabatic-built bank on a real LI response, including causal controls.
+        outer=8p.orbit.p/(1-p.orbit.e)
+        bank=ECS.SW.source_radial_bank(d0,p,(c.domain[1],outer),[c.mode];Nq=8,Nphi=8192)
+        source=ECS.SW.mode_source(bank,c.mode)
+        sol=ECS.radial_solve(c,p,16,8,Dict[],"li_fixture";source)
+        @test sol.closure == sol.params.closure == ECS.LocallyIsothermalOptionA
+        @test sol.source === source
+        for (j,node) in enumerate((1,length(sol.r)))
+            terms=rows[j][1].*sol.y[:,node]
+            @test abs(sum(terms))/maximum(abs,terms)<1e-9
+        end
+        @test abs(ECS.SW.li_boundary(c,last(c.domain);outward=true).mixing)>1e-8
+        for s in ECS.causal_audit(c,p,sol,Dict[],"li_pole")
+            @test s.context.disc.qTemp == q
+            @test s.closure == ECS.LocallyIsothermalOptionA
+            @test s.source === source
+            @test ECS.solution_row_backward_error(s)<1e-9
+            @test s.bc_residual<1e-9
+        end
+        r=ECS.li_radial_case(0.0,30.0,0.3,2,1;qTemp=q,nq=8,closure=ECS.Adiabatic,
+            source_control_nq=16,levels=(8,16,32,64),compact=true,
+            source,source_fine=source,pole=4e-6,edge_levels=(3,4,5))
+        @test r["protocol"] == "PREREG_radial_v3"
+        @test r["closure"] == "LocallyIsothermalOptionA"
+        @test r["qTemp"] == q
+        @test !r["pass"] # Tiny Nq and no source qualification cannot be certified.
+        @test all(x->x["closure"]==r["closure"] && x["qTemp"]==q,r["diagnostics"])
+        @test all(x->x["qTemp"]==q,r["causal_diagnostic"])
+        for obs in ("power","torque"), (axis,records) in r["raw_axes"]
+            @test r["observable_budget"][obs][axis] == ECS.relative_change(
+                records[end-1][obs],records[end][obs],r["raw_axes"]["grid"][end][obs])
+        end
+    end
+    ad,_=ECS.radial_context(0.0,30.0,0.3,2,1,1e-3,3)
+    @test ad.closure == ECS.Adiabatic && ad.disc.qTemp == 0.0
+    # Lander L-G54: the fixture's own defaults stay adiabatic (survivor M8 of round 1).
+    da,_=ECS.fixture(0.0,30.0,0.3)
+    @test da.closure == ECS.Adiabatic && da.qTemp == 0.0
+end

@@ -16,10 +16,10 @@ const SOURCE_MODES = ((0,1),(0,40),(2,0),(2,1),(8,-40),(8,40),(20,0),(1,-1))
 cpu_seconds() = Float64(ccall(:clock, Clong, ()))/1e6
 writejson(path, x) = write(path, json_write(encode_value(x)))
 
-function fixture(a, p, e; pole=1e-3)
+function fixture(a, p, e; pole=1e-3, closure=Adiabatic, qTemp=0.0)
     rref = p/(1-e^2)
-    d = SW.DiscModel(;χ=a,r_ref=rref,h_ref=0.06,pSigma=1.5,qTemp=0.0,
-                     closure=Adiabatic,evolution=:fixed,εp=pole)
+    d = SW.DiscModel(;χ=a,r_ref=rref,h_ref=0.06,pSigma=1.5,qTemp,
+                     closure,evolution=:fixed,εp=pole)
     pert = SW.EccentricPerturber(EquatorialOrbit(a,p,e);mass=1e-5,
                                softening=FixedSoftening(0.018rref))
     d, pert
@@ -218,12 +218,12 @@ function reflection_sample(sol,r,outward)
          "incoming_norm"=>incoming,"outgoing_norm"=>outgoing)
 end
 
-function radial_context(a,p,e,m,k,pole,edge)
-    d,pert = fixture(a,p,e;pole)
+function radial_context(a,p,e,m,k,pole,edge; closure=Adiabatic, qTemp=0.0)
+    d,pert = fixture(a,p,e;pole,closure,qTemp)
     ilo,peri,apo = ((1.05,0.6,2.0),(1.01,0.4,3.0),(1.001,0.25,4.0),
                     (1.001,0.0,6.0),(1.001,0.0,8.0))[edge]
     domain = (max(ilo*SW.r_isco(d),peri*p/(1+e)),apo*p/(1-e))
-    SW.ModeContext(d,pert,m,k;closure=Adiabatic,domain),pert
+    SW.ModeContext(d,pert,m,k;closure,domain),pert
 end
 
 function radial_solve(c,pert,n,nq,costs,label;nanc=512,cache=false,source=nothing,nphi=nothing)
@@ -264,7 +264,8 @@ function causal_audit(c,pert,base,costs,label; divisors=(2,4))
     solutions = [base]
     for divisor in divisors
         pole = c.disc.εp/divisor
-        d,_ = fixture(pert.orbit.a,pert.orbit.p,pert.orbit.e;pole)
+        d,_ = fixture(pert.orbit.a,pert.orbit.p,pert.orbit.e;pole,
+                      closure=c.closure,qTemp=c.disc.qTemp)
         cc = SW.ModeContext(d,pert,c.mode;closure=c.closure,domain=c.domain)
         grid = SW.EccentricGrid(copy(base.r),cc.r_c,1:0,SW.mode_cache_key(cc),(;fixed_causal_grid=true))
         sol = timed(costs,"$(label)_$pole",Dict("pole"=>pole,"nodes"=>length(grid.r),
@@ -329,6 +330,10 @@ function solution_record(s; comparison_radii=nothing, row_residual=false)
          "domain"=>collect(s.context.domain),
          "corotation"=>s.context.r_c,"pole_width"=>SW.corotation_width(s.context),
          "pole"=>s.context.disc.εp)
+    if s.context.closure == LocallyIsothermalOptionA
+        record["closure"] = string(s.closure)
+        record["qTemp"] = s.context.disc.qTemp
+    end
     row_residual && (record["row_backward_error"] = solution_row_backward_error(s))
     record
 end
@@ -438,7 +443,7 @@ end
 function radial_case(a,p,e,m,k; nq=1024, source_reference=nothing, levels=(128,256,512),
                      source=nothing, source_fine=nothing, source_probe=nothing, nphi=nothing,
                      compact=false, edge_levels=(1,2,3), pole=1e-3, source_control_nq=2nq,
-                     protocol="PREREG_radial_v2")
+                     protocol="PREREG_radial_v2", closure=Adiabatic, qTemp=0.0)
     protocol in ("PREREG_radial_v2","PREREG_radial_v3") || throw(ArgumentError("unknown radial protocol"))
     v3 = protocol=="PREREG_radial_v3"
     source_control_nq isa Integer && source_control_nq>0 && source_control_nq!=nq ||
@@ -447,7 +452,7 @@ function radial_case(a,p,e,m,k; nq=1024, source_reference=nothing, levels=(128,2
     nphi = something(nphi,required_nphi)
     nphi>=required_nphi || throw(ArgumentError("radial source Nphi floor is below the qualified resolution"))
     costs = Dict[]
-    c,pert = radial_context(a,p,e,m,k,pole,first(edge_levels))
+    c,pert = radial_context(a,p,e,m,k,pole,first(edge_levels);closure,qTemp)
     projection_error = nothing
     projection_budgets = nothing; sensitivity_budgets = nothing
     if source_reference!==nothing
@@ -517,7 +522,7 @@ function radial_case(a,p,e,m,k; nq=1024, source_reference=nothing, levels=(128,2
     pole_mesh_error = response_error(last(poles),pole_mesh,radii)
     edges = Any[last(grids)]
     for edge in edge_levels[2:end]
-        cc,pp = radial_context(a,p,e,m,k,pole,edge)
+        cc,pp = radial_context(a,p,e,m,k,pole,edge;closure,qTemp)
         # Fixed cells per WKB radian: actual node count grows with domain width.
         push!(edges,radial_solve(cc,pp,finest,nq,costs,"edge_$edge";source,nphi))
     end
@@ -571,9 +576,17 @@ function radial_case(a,p,e,m,k; nq=1024, source_reference=nothing, levels=(128,2
         fourth = solution_record(last(pole_diagnostic);comparison_radii=radii,row_residual=true)
         result["causal_diagnostic"] = vcat(raw_axes["pole"],[fourth])
     end
+    if c.closure == LocallyIsothermalOptionA
+        result["closure"] = string(c.closure)
+        result["qTemp"] = c.disc.qTemp
+    end
     result["pass"] = radial_pass(result)
     result
 end
+
+"LI OPTION A branch: retain the complete closure-dispatched operator and boundary rows."
+li_radial_case(a,p,e,m,k; qTemp, protocol="PREREG_radial_v3", kwargs...) =
+    radial_case(a,p,e,m,k;kwargs...,closure=LocallyIsothermalOptionA,qTemp,protocol)
 
 function radial_study(out, selected, nq)
     nq>=1024 || throw(ArgumentError("PREREG_radial_v2 requires Nq >= 1024"))
