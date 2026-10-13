@@ -362,6 +362,11 @@ function grid_richardson(records, levels; domain, rref, m)
         throw(ArgumentError("all grid levels must use the production domain"))
     radii=Float64.(last(records)["r"])
     all(r->r["r"]==radii,records) || throw(ArgumentError("grid samples must agree"))
+    # Owner 2026-10-12: D1 covers the full production domain, including its tail. The window
+    # may start at the finest ISCO cutoff 1.000001 r_in, whose sliver both gates charge on the isco axis.
+    length(radii)>=2 && first(domain)<=first(radii)<=1.000001*first(domain) && last(radii)==last(domain) &&
+        all(isfinite,radii) && all(diff(radii).>0) ||
+        throw(ArgumentError("grid samples must span the full production domain"))
     mock(r)=(;r=radii,y=decode_value(r["y"]),context=(;disc=(;r_ref=rref)))
     solutions=mock.(records)
     profiles=[response_error(solutions[j],solutions[j+1],radii;reference=last(solutions))

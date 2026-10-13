@@ -443,6 +443,17 @@ end
     @test_throws ArgumentError ECS.grid_richardson(bad,levels;domain,rref=30.,m=2)
     @test_throws ArgumentError ECS.grid_richardson(good[2:end],levels[2:end];domain,rref=30.,m=2)
     @test_throws ArgumentError ECS.grid_richardson(good,[8,16,32,128];domain,rref=30.,m=2)
+    # Owner 2026-10-12: a solve-domain label cannot certify an unsampled tail.
+    for samples in ([6.,20.,60.], [6.001,20.,80.], [6.,90.,80.])
+        truncated=deepcopy(good)
+        for rec in truncated; rec["r"]=samples; end
+        @test_throws ArgumentError ECS.grid_richardson(truncated,levels;domain,rref=30.,m=2)
+    end
+    # The LI corner windows start at the finest ISCO cutoff, charged separately on the isco axis.
+    cutoff=deepcopy(good); for rec in cutoff; rec["r"]=[6*1.000001,20.,80.]; end
+    @test ECS.grid_richardson(cutoff,levels;domain,rref=30.,m=2)["qualified"]
+    early=deepcopy(good); for rec in early; rec["r"]=[6.00001,20.,80.]; end
+    @test_throws ArgumentError ECS.grid_richardson(early,levels;domain,rref=30.,m=2)
     bad=deepcopy(good); bad[2]["power"]=NaN
     @test !ECS.grid_richardson(bad,levels;domain,rref=30.,m=2)["qualified"]
     bad=deepcopy(good); bad[2]["row_backward_error"]=2e-9
