@@ -1,6 +1,7 @@
 """Signed-frequency continuation of first_results, with one shared bank and resumable shards.
 
 Commands:
+bank EVIDENCE BANKS CHI E M KMINUS KPLUS
 solve EVIDENCE BANKS CHI E M KMINUS KPLUS SHARD NSHARDS [target_M target_Kminus target_Kplus] [li]
 collect|collect_with_axisymmetric EVIDENCE BANKS CHI E M KMINUS KPLUS [target_M target_Kminus target_Kplus] [li]
 The preregistration and source-owner hashes are required for every resumed checkpoint.
@@ -12,6 +13,14 @@ using NumericsCore: CubicSplineInterpolant
 const FR=FirstEccentricResults
 const SW=FR.SW
 const DRIVER_SHA256=bytes2hex(open(sha256,@__FILE__))
+
+"Prospectively registered ridge bounds; rectangles remain available for replay."
+function mode_window(m,Kminus,Kplus,ridge)
+    ridge===nothing && return (-Kminus,Kplus)
+    w=ridge["window"]
+    (min(-w["negative_floor"],floor(Int,w["k_apo"]*m)-w["padding"]),
+     max(w["positive_floor"],ceil(Int,w["k_peri"]*m)+w["padding"]))
+end
 
 "Native-grid gravitational totals; flux and wake reconstruction only on display radii."
 function reduce_mode(sol,rq,wr)
@@ -44,7 +53,17 @@ function setup(evidence,banks,a,e,M,Kminus,Kplus,closure=Adiabatic)
         end
     end
     mask=SW.eccentric_mode_mask(p.orbit;mmax=M,kmax=max(Kminus,Kplus),mask=:physical)
-    selected=filter(s->s.m>0 && -Kminus<=s.k<=Kplus,mask.physical)
+    ridgepath=joinpath(evidence,"PREREG_ridge_v2.json")
+    ridge=isfile(ridgepath) ? FR.json_read(read(ridgepath,String)) : nothing
+    if ridge!==nothing
+        all(m->begin lo,hi=mode_window(m,Kminus,Kplus,ridge); -Kminus<=lo<=hi<=Kplus end,1:M) ||
+            error("source envelope does not contain registered ridge window")
+    end
+    exclusions=ridge===nothing ? Set{Tuple{Int,Int}}() : Set(Tuple(Int.(v)) for v in ridge["named_exclusions"])
+    selected=filter(mask.physical) do s
+        lo,hi=mode_window(s.m,Kminus,Kplus,ridge)
+        s.m>0 && lo<=s.k<=hi && !((s.m,s.k) in exclusions)
+    end
     axisymmetric_modes=filter(s->s.m==0,mask.physical)
     sec=Set((s.m,s.k) for s in mask.sectors.secular)
     dir=joinpath(banks,id); out=joinpath(evidence,id);mkpath(dir);mkpath(out)
@@ -56,6 +75,7 @@ function setup(evidence,banks,a,e,M,Kminus,Kplus,closure=Adiabatic)
         "prereg_sha256"=>bytes2hex(open(sha256,prereg)),
         "amendment_sha256"=>bytes2hex(open(sha256,joinpath(evidence,"STAGE1_AMENDMENT.json"))),
         "epsilon_p"=>1e-6)
+    ridge!==nothing && (config["ridge_prereg_sha256"]=bytes2hex(open(sha256,ridgepath)))
     path=joinpath(dir,"configuration.json")
     if isfile(path)
         FR.json_read(read(path,String))==config || error("checkpoint provenance differs")
@@ -63,10 +83,59 @@ function setup(evidence,banks,a,e,M,Kminus,Kplus,closure=Adiabatic)
         any(endswith(f,".jls") for f in readdir(dir)) && error("unversioned source/checkpoints cannot be reused")
         FR.writejson(path,config)
     end
-    (;d,p,domain,selected,axisymmetric_modes,sec,dir,out,config,bankfile=joinpath(dir,"source_manifest.json"))
+    (;d,p,domain,selected,axisymmetric_modes,sec,dir,out,config,ridge,bankfile=joinpath(dir,"source_manifest.json"))
 end
 
 source_block(dir,m) = joinpath(dir,@sprintf("source_m%03d_%03d.jls",5*((m-1)÷5)+1,5*((m-1)÷5)+5))
+
+"Build and checkpoint five-m source blocks using the source owner's radial bank."
+function build_bank(x)
+    manifest=isfile(x.bankfile) ? FR.json_read(read(x.bankfile,String)) : Dict{String,Any}()
+    reuse=x.ridge===nothing ? nothing : get(x.ridge,"source_reuse",nothing)
+    origin=nothing
+    if reuse!==nothing
+        bytes2hex(open(sha256,reuse["manifest"]))==reuse["manifest_sha256"] || error("reuse manifest hash differs")
+        origin=FR.json_read(read(reuse["manifest"],String))
+    end
+    for path in unique(source_block(x.dir,s.m) for s in x.selected)
+        modes=filter(s->source_block(x.dir,s.m)==path,x.selected)
+        name=basename(path)
+        if haskey(manifest,name)
+            read_source_block(x,path,modes)
+            continue
+        end
+        cp0=FR.cpu_seconds();t0=time()
+        old=nothing
+        if origin!==nothing && haskey(origin,name)
+            entry=origin[name];oldpath=joinpath(dirname(reuse["manifest"]),name)
+            bytes2hex(open(sha256,oldpath))==entry["sha256"] || error("reused source block hash differs")
+            old=deserialize(oldpath)
+            FR.validate_bank(old,x.p,filter(s->s in old.modes,modes),x.domain)
+        end
+        missing=old===nothing ? modes : filter(s->!(s in old.modes),modes)
+        fresh=isempty(missing) ? nothing : SW.source_radial_bank(x.d,x.p,x.domain,missing;
+            Nq=x.config["Nq"],Nphi=x.config["Nphi"],method=:fft,max_memory_bytes=8*1024^3)
+        base=fresh===nothing ? old : fresh
+        if old!==nothing && fresh!==nothing
+            old.grid.rs==fresh.grid.rs && old.grid.edges==fresh.grid.edges || error("source radial grids differ")
+        end
+        jets=similar(base.jets,length(base.grid.rs),length(modes))
+        for (j,s) in enumerate(modes)
+            from=old!==nothing && s in old.modes ? old : fresh
+            jets[:,j]=from.jets[:,findfirst(==(s),from.modes)]
+        end
+        block=SW.SourceRadialBank(base.perturber,base.grid,modes,jets)
+        serialize(path*".tmp",block);mv(path*".tmp",path;force=true)
+        manifest[name]=Dict("sha256"=>bytes2hex(open(sha256,path)),"modes"=>length(modes),
+            "m_min"=>minimum(s.m for s in modes),"m_max"=>maximum(s.m for s in modes),
+            "new_modes"=>length(missing),"cpu_seconds"=>FR.cpu_seconds()-cp0,"wall_seconds"=>time()-t0)
+        FR.writejson(x.bankfile*".tmp",manifest);mv(x.bankfile*".tmp",x.bankfile;force=true)
+        println("BANK ",name," modes=",length(modes)," new=",length(missing)," cpu=",manifest[name]["cpu_seconds"]);flush(stdout)
+        old=nothing;fresh=nothing;base=nothing;block=nothing;jets=nothing;GC.gc()
+    end
+    FR.writejson(joinpath(x.out,"bank_cost.json"),Dict("cpu_seconds"=>sum(get(v,"cpu_seconds",0.) for v in values(manifest)),
+        "sha256"=>bytes2hex(open(sha256,x.bankfile)),"modes"=>sum(v["modes"] for v in values(manifest))))
+end
 
 "Rules borrowed from v4: exact-cell transfer remains uncertified at p=20,e=.2."
 function radial_rule(c)
@@ -155,7 +224,7 @@ function collect_case(x,M,Kminus,Kplus;include_axisymmetric=false)
     axis_profiles=zeros(size(profiles))
     for mode in selected
         file=joinpath(x.dir,"mode_$(mode.m)_$(mode.k).jls")
-        isfile(file) || error("incomplete rectangle: missing $file")
+        isfile(file) || error("incomplete registered window: missing $file")
         data=deserialize(file);push!(records,data.record)
         if !data.record["conditional_secular"]
             profiles .+= data.profiles
@@ -170,6 +239,10 @@ function collect_case(x,M,Kminus,Kplus;include_axisymmetric=false)
         "k_min"=>-Kminus,"k_plus"=>Kplus,"configuration"=>x.config,
         "Omega_phi"=>x.p.orbit.Ωφ,"Omega_r"=>x.p.orbit.Ωr,"axisymmetric_included"=>include_axisymmetric,
         "bank_cpu_seconds"=>cost["cpu_seconds"],"source_bank"=>x.bankfile,"source_bank_sha256"=>cost["sha256"],"wake_directory"=>bankdir)
+    if x.ridge!==nothing
+        meta["ridge_registration"]=x.ridge
+        meta["status"]="UNCONVERGED ridge-window finite sum; no tail extrapolation adopted"
+    end
     if include_axisymmetric
         axisbank=joinpath(x.dir,"source_axisymmetric.jls")
         meta["axisymmetric_k_max"]=maximum(s.k for s in x.axisymmetric_modes)
@@ -178,7 +251,8 @@ function collect_case(x,M,Kminus,Kplus;include_axisymmetric=false)
         meta["status"]="candidate finite nonsecular union; axisymmetric boundary HOLE; no convergence admission"
     end
     lm=sort(unique(vcat(collect(5:5:min(M,20)),collect(30:10:M),M)))
-    lk=sort(unique(vcat([k for k in (3,6,12,20,30,40,50,60,70,80) if k<=Kminus],Kminus)))
+    K=max(Kminus,Kplus)
+    lk=sort(unique(vcat([k for k in (3,6,12,20,30,40,50,60,70,80) if k<=K],K)))
     FR.write_products(out,bankdir,meta,records,rq,wr,phi,profiles,densities,lm,lk)
     if include_axisymmetric
         ri=round.(Int,range(1,length(rq);length=5))
@@ -205,7 +279,9 @@ function main(args)
     snapshots=joinpath(evidence,"driver_versions");mkpath(snapshots)
     cp(@__FILE__,joinpath(snapshots,DRIVER_SHA256*".jl");force=true)
     x=setup(evidence,banks,a,e,M,Kminus,Kplus,closure)
-    if kind=="solve"
+    if kind=="bank"
+        build_bank(x)
+    elseif kind=="solve"
         shard,nshards=parse.(Int,args[9:10])
         bounds=length(args)>=13 ? parse.(Int,args[11:13]) : [M,Kminus,Kplus]
         solve_shard(x,bounds...,shard,nshards)

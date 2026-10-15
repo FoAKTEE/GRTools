@@ -222,4 +222,123 @@ include(joinpath(@__DIR__,"../../../reproduce/_emri_eccentric/converged_results.
     @test new.record["residual"] == sol.residual && new.record["nodes"] == length(r)
 end
 
+@testset "Ridge source bank construction, resume and provenance" begin
+    CR=ConvergedEccentricResults
+    ridge=Dict("window"=>Dict("negative_floor"=>40,"positive_floor"=>20,
+                              "padding"=>8,"k_apo"=>-.354,"k_peri"=>.562),
+               "named_exclusions"=>[[1,22],[1,24]])
+    @test CR.mode_window(60,40,42,ridge)==(-40,42)
+    @test CR.mode_window(80,40,53,ridge)==(-40,53)
+    @test CR.mode_window(100,44,65,ridge)==(-44,65)
+    @test CR.mode_window(60,40,20,nothing)==(-40,20)
+    mktempdir() do root
+        evidence=mkpath(joinpath(root,"evidence"));banks=joinpath(root,"banks")
+        write(joinpath(evidence,"PREREG.json"),"{}")
+        write(joinpath(evidence,"STAGE1_AMENDMENT.json"),"{}")
+        CR.FR.writejson(joinpath(evidence,"PREREG_ridge_v2.json"),ridge)
+        @test_throws ErrorException CR.setup(evidence,banks,.9,.2,60,40,20)
+        x=CR.setup(evidence,banks,.9,.2,80,40,53)
+        @test length(x.selected)==5892
+        @test count(s->s.m<=60,x.selected)==4110
+        @test count(s->s.m<=60 && s.k>20,x.selected)==450
+        @test all(s->s.k<=20,filter(s->s.m==1,x.selected))
+        @test (1,-1) in Set((s.m,s.k) for s in x.selected)
+        # A small physical bank exercises the same builder at inexpensive quadrature.
+        x=merge(x,(selected=filter(s->s.m==2 && s.k in (0,1),x.selected),))
+        x.config["Nq"]=16;x.config["Nphi"]=64
+        CR.build_bank(x)
+        file=CR.source_block(x.dir,2)
+        bank=CR.read_source_block(x,file,x.selected)
+        direct=SW.source_radial_bank(x.d,x.p,x.domain,x.selected;Nq=16,Nphi=64,method=:fft,max_memory_bytes=8*1024^3)
+        @test bank.jets==direct.jets
+        @test bank.grid.rs==direct.grid.rs
+        firsthash=bytes2hex(open(CR.sha256,file))
+        CR.build_bank(x)
+        @test bytes2hex(open(CR.sha256,file))==firsthash
+        # Reuse a strict subset and compute the missing column; compare the full bank.
+        otherdir=mkpath(joinpath(root,"other"));otherout=mkpath(joinpath(root,"otherout"))
+        reuse=Dict("manifest"=>x.bankfile,"manifest_sha256"=>bytes2hex(open(CR.sha256,x.bankfile)))
+        y=merge(x,(dir=otherdir,out=otherout,bankfile=joinpath(otherdir,"source_manifest.json"),
+            selected=[x.selected;HarmonicMode(2,2,orbit_frequency(x.p.orbit,2,2))],
+            ridge=merge(ridge,Dict("source_reuse"=>reuse))))
+        CR.build_bank(y)
+        combined=CR.read_source_block(y,CR.source_block(y.dir,2),y.selected)
+        @test combined.jets[:,1:2]==bank.jets
+        third=SW.source_radial_bank(x.d,x.p,x.domain,y.selected[3:3];Nq=16,Nphi=64,method=:fft,max_memory_bytes=8*1024^3)
+        @test combined.jets[:,3:3]==third.jets
+        # Positive extent can exceed the negative extent in the ridge window.
+        # The final products row must include the entire requested positive band.
+        for (i,s) in enumerate(x.selected)
+            record=Dict{String,Any}("m"=>s.m,"k"=>s.k,"omega"=>s.omega,
+                "torque_disc"=>i*1e-16,"power_disc"=>s.omega/s.m*i*1e-16,
+                "conditional_secular"=>false,"nodes"=>4,"residual"=>0.,
+                "bc_residual"=>0.,"power_identity_relative"=>0.)
+            CR.serialize(joinpath(x.dir,"mode_$(s.m)_$(s.k).jls"),
+                (;record,profiles=zeros(1600,3),density=zeros(ComplexF64,768)))
+        end
+        CR.collect_case(x,2,0,1)
+        lastrow=CR.FR.json_read(read(joinpath(x.out,"result.json"),String))["ladder"][end]
+        @test lastrow["k_max"]==1 && lastrow["modes"]==2
+        @test lastrow["torque_disc"]≈3e-16 rtol=1e-15
+        open(file,"a") do io;write(io,"changed");end
+        @test_throws ErrorException CR.build_bank(x)
+    end
+end
+
+# Lander L-G58 additions (lane w22-g58): each assertion below kills a mutant that survived the lane's tests.
+@testset "Ridge registration, named exclusions and bank-reuse guards" begin
+    CR=ConvergedEccentricResults
+    ridge=Dict("window"=>Dict("negative_floor"=>40,"positive_floor"=>24,"padding"=>8,"k_apo"=>-.354,"k_peri"=>.562),
+               "named_exclusions"=>[[1,22],[1,24]])
+    mktempdir() do root
+        evidence=mkpath(joinpath(root,"evidence"));banks=joinpath(root,"banks")
+        write(joinpath(evidence,"PREREG.json"),"{}");write(joinpath(evidence,"STAGE1_AMENDMENT.json"),"{}")
+        regfile=joinpath(evidence,"PREREG_ridge_v2.json");CR.FR.writejson(regfile,ridge)
+        x=CR.setup(evidence,banks,.9,.2,2,40,24)
+        pairs=Set((s.m,s.k) for s in x.selected)
+        # named exclusions leave the selection; their neighbours stay
+        @test !((1,22) in pairs) && !((1,24) in pairs) && (1,23) in pairs && (2,22) in pairs && (2,24) in pairs
+        @test length(x.selected)==2*65-2
+        # the registration file is part of the checkpoint provenance
+        @test x.config["ridge_prereg_sha256"]==bytes2hex(open(CR.sha256,regfile))
+        ridge["window"]["padding"]=9;CR.FR.writejson(regfile,ridge)
+        @test_throws ErrorException CR.setup(evidence,banks,.9,.2,2,40,24)
+        ridge["window"]["padding"]=8;CR.FR.writejson(regfile,ridge)
+        x=CR.setup(evidence,banks,.9,.2,2,40,24)
+        x=merge(x,(selected=filter(s->s.m==2 && s.k in (0,1),x.selected),))
+        x.config["Nq"]=16;x.config["Nphi"]=64
+        CR.build_bank(x)
+        # products carry the registration and the UNCONVERGED status
+        for (i,s) in enumerate(x.selected)
+            record=Dict{String,Any}("m"=>s.m,"k"=>s.k,"omega"=>s.omega,"torque_disc"=>i*1e-16,"power_disc"=>s.omega/s.m*i*1e-16,
+                "conditional_secular"=>false,"nodes"=>4,"residual"=>0.,"bc_residual"=>0.,"power_identity_relative"=>0.)
+            CR.serialize(joinpath(x.dir,"mode_$(s.m)_$(s.k).jls"),(;record,profiles=zeros(1600,3),density=zeros(ComplexF64,768)))
+        end
+        CR.collect_case(x,2,0,1)
+        meta=CR.FR.json_read(read(joinpath(x.out,"result.json"),String))
+        @test meta["ridge_registration"]["named_exclusions"]==[[1,22],[1,24]] && startswith(meta["status"],"UNCONVERGED")
+        extra=HarmonicMode(2,2,orbit_frequency(x.p.orbit,2,2))
+        reuse=Dict("manifest"=>x.bankfile,"manifest_sha256"=>bytes2hex(open(CR.sha256,x.bankfile)))
+        reusing(name,r;domain=x.domain)=begin
+            dir=mkpath(joinpath(root,name));out=mkpath(joinpath(root,name*"_out"))
+            merge(x,(dir=dir,out=out,bankfile=joinpath(dir,"source_manifest.json"),selected=[x.selected;extra],domain,
+                     ridge=merge(ridge,Dict("source_reuse"=>r))))
+        end
+        # a reuse manifest whose recorded hash differs is refused before any block is read
+        @test_throws ErrorException CR.build_bank(reusing("badmanifest",merge(reuse,Dict("manifest_sha256"=>"0"^64))))
+        # a reused block that no longer matches its manifest entry is refused
+        copydir=joinpath(root,"copy");cp(x.dir,copydir)
+        open(io->write(io,"changed"),CR.source_block(copydir,2),"a")
+        copied=Dict("manifest"=>joinpath(copydir,"source_manifest.json"),
+                    "manifest_sha256"=>bytes2hex(open(CR.sha256,joinpath(copydir,"source_manifest.json"))))
+        @test_throws ErrorException CR.build_bank(reusing("badblock",copied))
+        # columns reused from a bank on another radial grid are not merged with fresh ones
+        wide=merge(x,(dir=mkpath(joinpath(root,"wide")),out=mkpath(joinpath(root,"wide_out")),
+                      bankfile=joinpath(root,"wide","source_manifest.json"),domain=(x.domain[1],x.domain[2]+10)))
+        CR.build_bank(wide)
+        widereuse=Dict("manifest"=>wide.bankfile,"manifest_sha256"=>bytes2hex(open(CR.sha256,wide.bankfile)))
+        @test_throws ErrorException CR.build_bank(reusing("grid",widereuse))
+    end
+end
+
 end

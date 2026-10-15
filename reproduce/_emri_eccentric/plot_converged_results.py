@@ -1,4 +1,4 @@
-"""Verify signed rectangles, estimate independent tails, and render candidate products."""
+"""Verify registered finite windows and render candidate products (no admission)."""
 import argparse
 import csv
 import json
@@ -26,7 +26,10 @@ def plot_ladder(directory, result, summary, ladder):
             axis=axes[i,j];total=summary['totals'][key]
             values=[row[key]/total for row in entries] if total else [np.nan]*len(entries)
             axis.plot([row['edge'] for row in entries],values,'o-',lw=1,ms=3)
-            axis.axhspan(.99,1.01,color='0.8',alpha=.5)
+            reference=summary.get('criterion_references',{}).get(key,abs(total))
+            if total and (not result.get('ridge_registration') or key in OBS[:2]):
+                width=.01*reference/abs(total)
+                axis.axhspan(1-width,1+width,color='0.8',alpha=.5)
             axis.axhline(1,color='0.4',lw=.6,ls='--')
             axis.grid(alpha=.2)
             if j==0:axis.set_ylabel(key+' / final')
@@ -36,7 +39,7 @@ def plot_ladder(directory, result, summary, ladder):
     fig.suptitle(f"{status}: independent signed sums; m > 0, secular omitted\n"
                  f"chi={result['chi']:+.1f}, p/M=20, e={result['e']:.1f}; M={result['m_max']}, "
                  f"k=[{result['k_min']},{result['k_plus']}]\n"
-                 'Other cutoffs held fixed; shaded band is ±1% of final finite sum')
+                 'Other cutoffs held fixed; ±1% reference: |T|, gross |P| for ridge window')
     fig.savefig(directory/'convergence.png',dpi=140)
     plt.close(fig)
 
@@ -60,11 +63,59 @@ def fitted_tail(shells):
     return dict(valid=valid,estimate=float(shells[-1]*ratio/(1-ratio)) if valid else None,
                 slope=float(slope),r2=r2,ratio=ratio,shells=shells,interpretation='fitted absolute tail; no rigorous bound')
 
+def ridge_window(m, registration):
+    w=registration['window']
+    return (min(-w['negative_floor'],math.floor(w['k_apo']*m)-w['padding']),
+            max(w['positive_floor'],math.ceil(w['k_peri']*m)+w['padding']))
+
+def band_diagnostics(main, result):
+    """Measured shells and descriptive fits; never add fitted tails to the totals."""
+    M=result['m_max'];shells=[];fits={}
+    soft=.018*result.get('p',20)/(1-result['e']**2)
+    for band in ('apocentre','pericentre'):
+        radius=result.get('p',20)/(1+(result['e'] if band=='pericentre' else -result['e']))
+        for m in range(1,M+1):
+            rows=[r for r in main if r['m']==m and (r['k']<=0 if band=='apocentre' else r['k']>0)]
+            edge=min(r['k'] for r in rows) if band=='apocentre' else max(r['k'] for r in rows)
+            row=dict(m=m,band=band,k_edge=edge,modes=len(rows))
+            for key in OBS[:2]:
+                peak=max(abs(r[key]) for r in rows)
+                gross=math.fsum(abs(r[key]) for r in rows)
+                row[key]=math.fsum(r[key] for r in rows)
+                row['gross_'+key]=gross
+                row['edge_peak_'+key]=sum(abs(r[key]) for r in rows if r['k']==edge)/peak if peak else 0.
+                row['edge4_gross_'+key]=math.fsum(abs(r[key]) for r in rows if abs(r['k']-edge)<4)/gross if gross else 0.
+            shells.append(row)
+        for label,lo in [('last30',max(1,M-29)),('post_onset',math.floor(radius/soft)+1)]:
+            rows=[r for r in shells if r['band']==band and lo<=r['m']<=M]
+            for key in OBS[:2]:
+                name=f'{band}_{key}_{label}'
+                fit=dict(range=[lo,M],samples=len(rows),expected_efold=radius/(2*soft),valid=False)
+                values=np.array([r[key] for r in rows]);ms=np.array([r['m'] for r in rows])
+                if len(rows)>=3 and np.all(values!=0) and len(set(np.sign(values)))==1:
+                    slope,intercept=np.polyfit(ms,np.log(np.abs(values)),1)
+                    residual=np.log(np.abs(values))-(intercept+slope*ms)
+                    variance=float(np.sum((np.log(np.abs(values))-np.mean(np.log(np.abs(values))))**2))
+                    fit.update(slope=float(slope),intercept=float(intercept),sign=float(np.sign(values[0])),
+                        efold_m=float(-1/slope) if slope<0 else None,
+                        r2=1-float(np.sum(residual**2))/variance if variance>0 else None,valid=bool(slope<0))
+                else:
+                    fit['reason']='need at least three nonzero same-sign shells; post-onset data may be unavailable'
+                fits[name]=fit
+    return dict(shells=shells,fits=fits,interpretation='descriptive measurement; no extrapolated tail in finite totals')
+
 def assess(modes,result):
     pairs=[(r['m'],r['k']) for r in modes]
     M,Km,Kp=result['m_max'],-result['k_min'],result['k_plus']
-    expected={(m,k) for m in range(1,M+1) for k in range(-Km,Kp+1)}
-    assert len(pairs)==len(set(pairs)) and set(pairs)==expected,'incomplete or duplicate rectangle'
+    ridge=result.get('ridge_registration')
+    if ridge:
+        excluded={tuple(v) for v in ridge['named_exclusions']}
+        bounds=[(m,ridge_window(m,ridge)) for m in range(1,M+1)]
+        assert all(-Km<=lo<=hi<=Kp for m,(lo,hi) in bounds),'envelope misses ridge'
+        expected={(m,k) for m,(lo,hi) in bounds for k in range(lo,hi+1)}-excluded
+    else:
+        expected={(m,k) for m in range(1,M+1) for k in range(-Km,Kp+1)}
+    assert len(pairs)==len(set(pairs)) and set(pairs)==expected,'incomplete or duplicate registered window'
     for row in modes:
         assert row['m']>=1 and math.isfinite(row['torque_disc']) and math.isfinite(row['power_disc'])
         frequency=row['m']*result['Omega_phi']+row['k']*result['Omega_r']
@@ -75,6 +126,9 @@ def assess(modes,result):
     jac=decode_matrix(result['ladder'][-1]['jacobian'])
     main=[r for r in modes if not r['conditional_secular']]
     totals=rates(main,jac,result['mu'])
+    references={key:abs(totals[key]) for key in OBS}
+    if ridge:
+        references['power_disc']=math.fsum(abs(r['power_disc']) for r in main)
     for key in OBS:
         assert math.isclose(totals[key],result['ladder'][-1][key],rel_tol=1e-12,abs_tol=1e-35)
     sectors={}
@@ -87,20 +141,29 @@ def assess(modes,result):
         def inside(row,edge):
             return row['m']<=edge if axis=='m' else row['k']>=-edge if axis=='negative_k' else row['k']<=edge
         entries=[]
-        for edge in range(0,bound+1,width):
+        for edge in sorted({0,*range(bound%width,bound+1,width)}):
             entry=dict(axis=axis,edge=edge,**rates([r for r in main if inside(r,edge)],jac,result['mu']))
             entries.append(entry);ladder.append(entry)
         if not entries or entries[-1]['edge']!=bound or len(entries)<4:
             axes[axis]=dict(passed=False,reason='three complete equal-width shells unavailable');continue
-        changes={key:[abs(entries[-i][key]-entries[-i-1][key])/abs(totals[key]) if totals[key] else None for i in [1,2]] for key in OBS}
+        changes={key:[abs(entries[-i][key]-entries[-i-1][key])/references[key] if references[key] else None for i in [1,2]] for key in OBS}
         tails={}
         for key in OBS[:2]:
             shells=[math.fsum(abs(r[key]) for r in main if inside(r,edge) and not inside(r,edge-width)) for edge in [bound-2*width,bound-width,bound]]
-            tail=fitted_tail(shells);tail['fraction_of_total']=tail['estimate']/abs(totals[key]) if tail['estimate'] is not None and totals[key] else None;tails[key]=tail
+            tail=fitted_tail(shells);tail['fraction_of_total']=tail['estimate']/references[key] if tail['estimate'] is not None and references[key] else None;tails[key]=tail
         passed=all(v is not None and v<.01 for vs in changes.values() for v in vs) and all(t['valid'] and t['fraction_of_total'] is not None and t['fraction_of_total']<.01 for t in tails.values())
         axes[axis]=dict(passed=passed,width=width,last_two_changes=changes,tails=tails)
     integrity=all(r['residual']<=1e-6 and r['bc_residual']<=1e-6 for r in main)
-    return dict(totals=totals,sectors=sectors,axes=axes,solver_integrity=integrity,criterion_met=integrity and all(v['passed'] for v in axes.values()) and Km>M*result['Omega_phi']/result['Omega_r'],omega_zero_boundary_contained=Km>M*result['Omega_phi']/result['Omega_r'],modes=len(main),verification_checks=7*len(modes)+len(OBS)+1),ladder
+    summary=dict(totals=totals,sectors=sectors,axes=axes,solver_integrity=integrity,
+        criterion_met=integrity and all(v['passed'] for v in axes.values()) and Km>M*result['Omega_phi']/result['Omega_r'],
+        omega_zero_boundary_contained=Km>M*result['Omega_phi']/result['Omega_r'],modes=len(main),
+        verification_checks=7*len(modes)+len(OBS)+1,criterion_references=references)
+    if ridge:
+        summary.update(criterion_met=False,tail_adopted=False,
+            coverage_guard='registered ridge padding; measured edge fall-off, not omega=0 coverage',
+            convergence_hole='finite M stage only; no adopted remaining-tail bound',
+            bands=band_diagnostics(main,result))
+    return summary,ladder
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('evidence',type=Path);parser.add_argument('--no-plot',action='store_true');args=parser.parse_args()
@@ -133,6 +196,10 @@ def main():
             summary['figures']=plot_case(path.parent,result,status_label='TRUNCATION PASS' if summary['criterion_met'] else 'UNCONVERGED',spectrum_label='signed-frequency spectrum')
             plot_ladder(path.parent,result,summary,ladder)
         path.with_name('convergence.json').write_text(json.dumps(summary,indent=2,allow_nan=False)+'\n')
+        if 'bands' in summary:
+            shells=summary['bands']['shells']
+            with path.with_name('band_shells.csv').open('w') as stream:
+                writer=csv.DictWriter(stream,fieldnames=list(shells[0]));writer.writeheader();writer.writerows(shells)
         with path.with_name('independent_ladder.csv').open('w') as stream:
             writer=csv.DictWriter(stream,fieldnames=list(ladder[0]));writer.writeheader();writer.writerows(ladder)
         summaries.append(summary);print('VERIFY',path.parent.name,'PASS',summary['verification_checks'],'checks; truncation=',summary['criterion_met'],flush=True)
