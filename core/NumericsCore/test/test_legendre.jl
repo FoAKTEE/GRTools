@@ -134,7 +134,12 @@ include("fixtures/numericscore_swsh_ref.jl")
                 (-1, 4, -3), (2, 5, 4), (-2, 10, 7), (0, 19, 11)]
         for (s, l, m) in reps, θ in (0.37, 1.05, 2.41), φ in (0.0, 0.83)
             ref = REF_Y[(float(s), float(l), float(m), θ, φ)]
-            @test spin_weighted_Y(s, l, m, θ, φ) ≈ ref rtol=1e-13 atol=1e-300
+            y = spin_weighted_Y(s, l, m, θ, φ)
+            # At l=19 (just below _LHIGH_SWSHY=20), the baked x86_64 SWSH Float64 fixture itself
+            # carries 2.24e-13 half-angle binomial cancellation drift from exact BigFloat, while
+            # spin_weighted_Y stays within 1e-13 of the exact BigFloat value across architectures.
+            @test y ≈ ref rtol=(l == 19 ? 5e-13 : 1e-13) atol=1e-300
+            @test y ≈ ComplexF64(spin_weighted_Y(s, l, m, BigFloat(θ), BigFloat(φ))) rtol=1e-13 atol=1e-300
         end
         # analytic anchor ₀Y₀₀ = 1/√(4π)
         @test spin_weighted_Y(0, 0, 0, 1.0, 0.5) ≈ complex(1 / sqrt(4π))
