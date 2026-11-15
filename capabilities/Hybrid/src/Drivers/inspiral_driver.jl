@@ -33,18 +33,33 @@ Integrate the 2-var (Ω, φ) inspiral of `model` (0PASchwarz / 1PAT1) from initi
 `r0_init` (so `Ω0 = r0_init^{-3/2}`) and phase `φ0`, terminating when `r0 = Ω^{-2/3}` reaches
 `stop_r0(model, ν)`. `reltol`/`abstol` map to the upstream `PrecisionGoal`/`AccuracyGoal`.
 """
+struct _DrvStopR0
+    sc::Float64
+end
+(c::_DrvStopR0)(u, t, integrator) = u[1]^(-2 / 3) - c.sc
+
+struct _DrvStopOmegaUp
+    ωc::Float64
+end
+(c::_DrvStopOmegaUp)(u, t, integrator) = u[1] - c.ωc
+
+struct _DrvStopOmegaDown
+    Ωstop::Float64
+end
+(c::_DrvStopOmegaDown)(u, t, integrator) = c.Ωstop - u[1]
+
+_drv_terminate!(integrator) = terminate!(integrator)
+
 function int_inspiral(model, r0_init::Real, ν::Real, M::Real;
                       φ0::Real = 0.0, reltol::Real = 1e-10, abstol::Real = 1e-10,
                       tmax::Real = 1e12)
     Ω0 = float(r0_init)^(-3 / 2)
-    sc = stop_r0(model, ν)
+    sc = float(stop_r0(model, ν))
     # r0 - stop_r0 crosses zero from above (r0 decreasing) → terminate.
-    cond(u, t, integrator) = u[1]^(-2 / 3) - sc
-    affect!(integrator) = terminate!(integrator)
-    cb = ContinuousCallback(cond, affect!)
-    prob = ODEProblem(inspiral_rhs!, [Ω0, float(φ0)], (0.0, float(tmax)),
+    cb = ContinuousCallback(_DrvStopR0(sc), _drv_terminate!)
+    prob = ODEProblem{true, SciMLBase.NoSpecialize}(inspiral_rhs!, [Ω0, float(φ0)], (0.0, float(tmax)),
                       (model, float(ν), float(M)))
-    sol = solve(prob, Vern9(); reltol = reltol, abstol = abstol, callback = cb)
+    sol = solve(prob, Vern9(); reltol = float(reltol), abstol = float(abstol), callback = cb)
     return InspiralSolution(sol, model, float(ν), float(M))
 end
 
@@ -59,13 +74,11 @@ Kerr state and the `ω ≥ Ωcrit` stop (`0PAKerr.m`).
 function int_inspiral(model::Forcing0PAKerr, ω0::Real, ν::Real, M::Real, χ1::Real;
                       φ0::Real = 0.0, reltol::Real = 1e-10, abstol::Real = 1e-10,
                       tmax::Real = 1e12)
-    ωc = omega_crit(model, χ1)
-    cond(u, t, integrator) = u[1] - ωc           # ω increases; crosses ωc → terminate.
-    affect!(integrator) = terminate!(integrator)
-    cb = ContinuousCallback(cond, affect!)
-    prob = ODEProblem(kerr_inspiral_rhs!, [float(ω0), float(φ0)], (0.0, float(tmax)),
+    ωc = float(omega_crit(model, χ1))
+    cb = ContinuousCallback(_DrvStopOmegaUp(ωc), _drv_terminate!)
+    prob = ODEProblem{true, SciMLBase.NoSpecialize}(kerr_inspiral_rhs!, [float(ω0), float(φ0)], (0.0, float(tmax)),
                       (model, float(ν), float(M), float(χ1)))
-    sol = solve(prob, Vern9(); reltol = reltol, abstol = abstol, callback = cb)
+    sol = solve(prob, Vern9(); reltol = float(reltol), abstol = float(abstol), callback = cb)
     return InspiralSolution(sol, model, float(ν), float(M), float(χ1))
 end
 
@@ -161,13 +174,11 @@ function int_inspiral(model::_SpinModel, ics::NamedTuple;
     φ0 = haskey(ics, :φ) ? float(ics.φ) : 0.0
     u0 = [float(ics.Ω), φ0, float(ics.ν), float(ics.M),
           float(ics.χt1), float(ics.χt2), float(ics.δm)]
-    Ωstop = omega_crit(model, ics.ν, ics.χt1, ics.χt2)
+    Ωstop = float(omega_crit(model, ics.ν, ics.χt1, ics.χt2))
     # Ω increases; (Ωstop - Ω) crosses zero from above → terminate.
-    cond(u, t, integrator) = Ωstop - u[1]
-    affect!(integrator) = terminate!(integrator)
-    cb = ContinuousCallback(cond, affect!)
-    prob = ODEProblem(_spin_rhs!, u0, (0.0, float(tmax)), model)
-    sol = solve(prob, Vern9(); reltol = reltol, abstol = abstol, callback = cb)
+    cb = ContinuousCallback(_DrvStopOmegaDown(Ωstop), _drv_terminate!)
+    prob = ODEProblem{true, SciMLBase.NoSpecialize}(_spin_rhs!, u0, (0.0, float(tmax)), model)
+    sol = solve(prob, Vern9(); reltol = float(reltol), abstol = float(abstol), callback = cb)
     return SpinInspiralSolution(sol, model)
 end
 

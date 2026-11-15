@@ -59,6 +59,16 @@ partial1d_1(f, x) = derivative(f, x)
 
 # --- the WaSABI-C model: every interpolant the closed forms read ------------
 
+struct _Schw2SFLogExp
+    itp::Interp1{Float64,ComplexF64}
+    offset::Float64
+end
+_Schw2SFLogExp(itp::Interp1{Float64,ComplexF64}) = _Schw2SFLogExp(itp, 0.0)
+@inline function (f::_Schw2SFLogExp)(logr0::Real)
+    v = real(exp(f.itp(logr0)))
+    return iszero(f.offset) ? v : v + f.offset
+end
+
 """
     WaSABICModel
 
@@ -143,7 +153,7 @@ function wasabic_model(inspiral_datadir::AbstractString, amp_datadir::AbstractSt
     # already Log[r0] (no inner log, unlike the 1PAT1 `interp_logexp`).
     _f2itp = interp1_order8(read_wl_table_complex(
         joinpath(inspiral_datadir, "2SF_Flux", "Schwarz_Circ", "2SFCircShwarzDotEInf.m")))
-    FI2SFSchw = logr0 -> real(exp(_f2itp(logr0)))
+    FI2SFSchw = _Schw2SFLogExp(_f2itp)
 
     # 3D critical-frequency stop table.
     ωcrit = interp3_lagrange(read_wl_grid3d(joinpath(inspiral_datadir, "stop_conditions",
@@ -161,7 +171,7 @@ end
 WaSABI-C waveform-frequency correction `δx` (`WaSABI-C.m` §WF frequency correction). Machine
 -generated closed form over the (2,2) amplitude + Kerr 1SF flux interpolants.
 """
-wc_δx(mdl::WaSABICModel, ω, φ, ν, m, χ1, χ2, δm, δν, δχ) =
+Base.@noinline wc_δx(mdl::WaSABICModel, ω, φ, ν, m, χ1, χ2, δm, δν, δχ) =
     _wc_dx(mdl, ω, φ, ν, m, χ1, χ2, δm, δν, δχ)
 
 """
@@ -169,5 +179,5 @@ wc_δx(mdl::WaSABICModel, ω, φ, ν, m, χ1, χ2, δm, δν, δχ) =
 
 `∂δx/∂χ1` (`WaSABI-C.m`), the χ1-derivative of [`wc_δx`](@ref).
 """
-wc_dδxdχ(mdl::WaSABICModel, ω, φ, ν, m, χ1, χ2, δm, δν, δχ) =
+Base.@noinline wc_dδxdχ(mdl::WaSABICModel, ω, φ, ν, m, χ1, χ2, δm, δν, δχ) =
     _wc_ddxdχ(mdl, ω, φ, ν, m, χ1, χ2, δm, δν, δχ)

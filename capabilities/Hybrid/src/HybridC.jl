@@ -15,6 +15,9 @@ the one shared primitive), interpolation to `Hybrid.Interpolation`, the Kerr 1SF
 `WaSABICModel`.
 """
 module HybridC
+@static if isdefined(Base, :Experimental) && isdefined(Base.Experimental, Symbol("@optlevel"))
+    Base.Experimental.@optlevel 1
+end
 
 using Spacetime: kerr_isco
 using Data: read_wl_table, read_wl_table_complex, read_wl_data, read_wl_grid2d, read_wl_grid3d
@@ -23,9 +26,11 @@ using ..Interpolation: Interp1, Interp2Hermite, Interp3Lagrange,
     interp1_order8, interp2_hermite, interp3_lagrange, partial, derivative
 using ..Models: forcing_0PAKerr
 import ..Models: omega_crit
+import ..Drivers
 import ..Drivers: int_inspiral, duration, omega_at, phi_at
 
 using OrdinaryDiffEqVerner: Vern9
+using SciMLBase
 using SciMLBase: ODEProblem, ContinuousCallback, terminate!, solve
 
 include("HybridC/wasabic_deps.jl")
@@ -36,5 +41,24 @@ export WaSABICModel, wasabic_model, PolyGamma,
     wc_x, wc_s, wc_sigma, wc_δx, wc_dδxdχ,
     wc_Fφ, wc_forcing, omega_crit, WaSABICSolution,
     int_inspiral, duration, omega_at, phi_at, wc_state_at
+
+for _Tm in (Float64, Int)
+    precompile(wc_forcing, (WaSABICModel{_Schw2SFLogExp}, Float64, Float64, Float64, _Tm, Float64, Float64, Float64, Float64, Float64))
+    precompile(wc_δx, (WaSABICModel{_Schw2SFLogExp}, Float64, Float64, Float64, _Tm, Float64, Float64, Float64, Float64, Float64))
+    precompile(wc_dδxdχ, (WaSABICModel{_Schw2SFLogExp}, Float64, Float64, Float64, _Tm, Float64, Float64, Float64, Float64, Float64))
+end
+precompile(_wasabic_eom!, (Vector{Float64}, Vector{Float64}, WaSABICModel{_Schw2SFLogExp}))
+precompile(int_inspiral, (WaSABICModel{_Schw2SFLogExp}, @NamedTuple{ω::Float64, ν::Float64, χ1::Float64, χ2::Float64}))
+
+if ccall(:jl_generating_output, Cint, ()) == 1
+    _precomp_noop!(du, u, p, t) = (fill!(du, 0.0); nothing)
+    let _p = ODEProblem{true, SciMLBase.NoSpecialize}(_precomp_noop!, zeros(9), (0.0, 1e-3), nothing)
+        solve(_p, Vern9(); reltol = 1e-10, abstol = 1e-10)
+        solve(_p, Vern9(); reltol = 1e-10, abstol = 1e-10,
+              callback = ContinuousCallback(_WcOmegaStop(1.0), _wc_terminate!))
+        solve(_p, Vern9(); reltol = 1e-10, abstol = 1e-10,
+              callback = ContinuousCallback(Drivers._DrvStopOmegaDown(1.0), Drivers._drv_terminate!))
+    end
+end
 
 end # module HybridC

@@ -27,7 +27,7 @@ The full WaSABI-C forcing channel vector `(Fω, Fφ, Fν, Fm, Fχ1, Fχ2, Fδm, 
 (`WaSABI-C.m`, the `ForcingTerms["WaSABI-C"]` order). `Fδm/Fδν/Fδχ` are the upstream shift
 combinations of `Fm/Fν/Fχ1` (computed once and reused).
 """
-function wc_forcing(mdl::WaSABICModel, ω, φ, ν, m, χ1, χ2, δm, δν, δχ)
+Base.@noinline function wc_forcing(mdl::WaSABICModel, ω, φ, ν, m, χ1, χ2, δm, δν, δχ)
     Fω = _wc_Fω(mdl, ω, φ, ν, m, χ1, χ2, δm, δν, δχ)
     Fν = _wc_Fν(mdl, ω, φ, ν, m, χ1, χ2, δm, δν, δχ)
     Fm = _wc_Fm(mdl, ω, φ, ν, m, χ1, χ2, δm, δν, δχ)
@@ -98,17 +98,21 @@ the three shifts default to 0, `M` to 1), terminating when `ω` reaches
 [`omega_crit`](@ref)`(mdl, ν, χ1, χ2)`. Adds a `WaSABICModel` method to the `Drivers.int_inspiral`
 generic. `reltol`/`abstol` map to upstream `PrecisionGoal`/`AccuracyGoal`.
 """
+struct _WcOmegaStop
+    ωstop::Float64
+end
+(c::_WcOmegaStop)(u, t, integrator) = c.ωstop - u[1]
+_wc_terminate!(integrator) = terminate!(integrator)
+
 function int_inspiral(mdl::WaSABICModel, ics::NamedTuple;
                       reltol::Real = 1e-10, abstol::Real = 1e-10, tmax::Real = 1e12)
     g(k, d) = haskey(ics, k) ? float(getfield(ics, k)) : d
     u0 = [float(ics.ω), g(:φ, 0.0), float(ics.ν), g(:M, 1.0),
           float(ics.χ1), float(ics.χ2), g(:δm, 0.0), g(:δν, 0.0), g(:δχ, 0.0)]
-    ωstop = omega_crit(mdl, ics.ν, ics.χ1, ics.χ2)
-    cond(u, t, integrator) = ωstop - u[1]          # ω increases; crosses ωstop → terminate.
-    affect!(integrator) = terminate!(integrator)
-    cb = ContinuousCallback(cond, affect!)
-    prob = ODEProblem(_wasabic_rhs!, u0, (0.0, float(tmax)), mdl)
-    sol = solve(prob, Vern9(); reltol = reltol, abstol = abstol, callback = cb)
+    ωstop = float(omega_crit(mdl, ics.ν, ics.χ1, ics.χ2))
+    cb = ContinuousCallback(_WcOmegaStop(ωstop), _wc_terminate!)
+    prob = ODEProblem{true, SciMLBase.NoSpecialize}(_wasabic_rhs!, u0, (0.0, float(tmax)), mdl)
+    sol = solve(prob, Vern9(); reltol = float(reltol), abstol = float(abstol), callback = cb)
     return WaSABICSolution(sol, mdl)
 end
 

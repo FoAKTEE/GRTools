@@ -10,6 +10,7 @@ callbacks, over the 2-var (Ω, φ) Schwarzschild, the 4-arg (ω, φ; χ1) Kerr a
 module Drivers
 
 using OrdinaryDiffEqVerner: Vern9
+using SciMLBase
 using SciMLBase: ODEProblem, ContinuousCallback, terminate!, solve
 using NumericsCore: blas_single_thread
 

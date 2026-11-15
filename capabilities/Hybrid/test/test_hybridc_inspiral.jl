@@ -88,4 +88,11 @@ const _WI_BASE = joinpath(@__DIR__, "fixtures", "wasabi")
             @test threaded[i] == serial[i]
         end
     end
+
+    @testset "concrete model type + zero-allocation wc_forcing" begin
+        @test isconcretetype(typeof(mdl))
+        _alloc_wc(m) = @allocated wc_forcing(m, 0.02, 0.0, 0.1, 1, 0.5, 0.3, 0.1, 0.05, 0.2)
+        _alloc_wc(mdl)
+        @test _alloc_wc(mdl) == 0
+    end
 end
