@@ -112,9 +112,10 @@ Solve every azimuthal mode in `ms` (each on its OWN adaptive grid, `grid_kwargs`
 [`build_grid`](@ref), `solve_kwargs` to [`solve_mode`](@ref)) and reduce each to a [`ModeTorque`](@ref);
 sum the per-mode torques SERIALLY in the order of `ms`.
 
-`threads = true` distributes the modes with `Threads.@threads :static`; each task owns everything it
-touches (its grid, its matrices, its source modes — the inner source projection is forced serial to
-avoid nested threading) and writes one disjoint slot, so the result is BITWISE identical to
+`threads = true` distributes the modes dynamically in descending-`m` order (`Threads.@threads :dynamic`,
+largest WKB grids first so high-`m` modes do not serialize on a single tail worker); each task owns
+everything it touches (its grid, its matrices, its source modes — the inner source projection is forced
+serial to avoid nested threading) and writes one disjoint slot, so the result is BITWISE identical to
 `threads = false`. `verbose = true` prints the [`compute_budget`](@ref) note before the loop.
 
 `model = :relativistic` (default) solves (47) with the relativistic C, S; `model = :newtonian` solves
@@ -137,7 +138,9 @@ function torque_survey(bg::DiscBackground{T}, ms::AbstractVector{<:Integer};
     profs = keep_profiles ?
         Vector{NamedTuple{(:r, :F_J, :density),Tuple{Vector{T},Vector{T},Vector{T}}}}(undef, n) : nothing
     if threads
-        Threads.@threads :static for i in 1:n
+        order = sortperm(ms; rev = true)
+        Threads.@threads :dynamic for idx in 1:n
+            i = @inbounds order[idx]
             mt, pr = _survey_one(bg, ms[i]; grid_kwargs = grid_kwargs, solve_kwargs = solve_kwargs,
                                  halfwidth = halfwidth, keep_profiles = keep_profiles, model = model)
             @inbounds mts[i] = mt
