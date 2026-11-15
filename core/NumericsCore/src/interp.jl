@@ -732,49 +732,139 @@ end
 
 (itp::Interp1WL)(xq::Real; deriv_order::Integer=0) = _wl_eval(itp, xq, deriv_order)
 
-# First-form Lagrange basis over ALL nodes: L_i(xq) (order 0), L_i'(xq) (1), L_i''(xq) (2). Node-safe.
-function _lagrange_all(nodes::AbstractVector, xq::Real, deriv_order::Integer)
-    n = length(nodes); B = Vector{float(typeof(xq))}(undef, n)
-    @inbounds for i in 1:n
-        if deriv_order == 0
-            p = one(float(xq))
-            for j in 1:n
-                j == i && continue
-                p *= (xq - nodes[j]) / (nodes[i] - nodes[j])
-            end
-            B[i] = p
-        elseif deriv_order == 1
-            dLi = zero(float(xq))
-            for k in 1:n
-                k == i && continue
-                term = one(float(xq)) / (nodes[i] - nodes[k])
-                for j in 1:n
-                    (j == i || j == k) && continue
-                    term *= (xq - nodes[j]) / (nodes[i] - nodes[j])
-                end
-                dLi += term
-            end
-            B[i] = dLi
-        elseif deriv_order == 2
-            d2Li = zero(float(xq))
-            for k in 1:n
-                k == i && continue
-                for l in 1:n
-                    (l == i || l == k) && continue
-                    term = one(float(xq)) / ((nodes[i] - nodes[k]) * (nodes[i] - nodes[l]))
-                    for j in 1:n
-                        (j == i || j == k || j == l) && continue
-                        term *= (xq - nodes[j]) / (nodes[i] - nodes[j])
-                    end
-                    d2Li += term
-                end
-            end
-            B[i] = d2Li
-        else
-            throw(ArgumentError("_lagrange_all: deriv_order must be in 0:2, got $deriv_order"))
+# First-form Lagrange basis over ALL nodes: L_i(xq) (order 0), L_i'(xq) (1), L_i''(xq) (2).
+# Node-safe O(n) prefix/suffix recurrence multiplied by precomputed `bary_weights(nodes)`.
+function _lagrange_all_weights!(B, S, S1, S2, nodes::AbstractVector, w::AbstractVector,
+                                xq::Tq, deriv_order::Integer, n::Int) where {Tq<:Real}
+    n == 0 && return B
+    if deriv_order == 0
+        @inbounds S[n] = one(Tq)
+        @inbounds for i in n:-1:2
+            S[i - 1] = S[i] * (xq - nodes[i])
         end
+        P = one(Tq)
+        @inbounds for i in 1:n
+            B[i] = w[i] * (P * S[i])
+            P *= (xq - nodes[i])
+        end
+    elseif deriv_order == 1
+        @inbounds begin
+            S[n] = one(Tq)
+            S1[n] = zero(Tq)
+            for i in n:-1:2
+                d = xq - nodes[i]
+                S1[i - 1] = S1[i] * d + S[i]
+                S[i - 1] = S[i] * d
+            end
+            P = one(Tq)
+            P1 = zero(Tq)
+            for i in 1:n
+                B[i] = w[i] * (P1 * S[i] + P * S1[i])
+                d = xq - nodes[i]
+                P1 = P1 * d + P
+                P = P * d
+            end
+        end
+    elseif deriv_order == 2
+        @inbounds begin
+            S[n] = one(Tq)
+            S1[n] = zero(Tq)
+            S2[n] = zero(Tq)
+            for i in n:-1:2
+                d = xq - nodes[i]
+                S2[i - 1] = S2[i] * d + 2 * S1[i]
+                S1[i - 1] = S1[i] * d + S[i]
+                S[i - 1] = S[i] * d
+            end
+            P = one(Tq)
+            P1 = zero(Tq)
+            P2 = zero(Tq)
+            for i in 1:n
+                B[i] = w[i] * (P2 * S[i] + 2 * P1 * S1[i] + P * S2[i])
+                d = xq - nodes[i]
+                P2 = P2 * d + 2 * P1
+                P1 = P1 * d + P
+                P = P * d
+            end
+        end
+    else
+        throw(ArgumentError("_lagrange_all: deriv_order must be in 0:2, got $deriv_order"))
     end
     return B
+end
+
+function _lagrange_all(nodes::AbstractVector, w::AbstractVector, xq::Real, deriv_order::Integer)
+    (0 <= deriv_order <= 2) || throw(ArgumentError("_lagrange_all: deriv_order must be in 0:2, got $deriv_order"))
+    Tq = float(promote_type(eltype(nodes), typeof(xq)))
+    n = length(nodes)
+    wt = eltype(w) === Tq ? w : bary_weights(Tq.(nodes))
+    B = Vector{Tq}(undef, n)
+    S = Vector{Tq}(undef, n)
+    S1 = deriv_order >= 1 ? Vector{Tq}(undef, n) : S
+    S2 = deriv_order == 2 ? Vector{Tq}(undef, n) : S
+    return _lagrange_all_weights!(B, S, S1, S2, nodes, wt, Tq(xq), deriv_order, n)
+end
+
+function _lagrange_all(nodes::AbstractVector, xq::Real, deriv_order::Integer)
+    (0 <= deriv_order <= 2) || throw(ArgumentError("_lagrange_all: deriv_order must be in 0:2, got $deriv_order"))
+    Tq = float(promote_type(eltype(nodes), typeof(xq)))
+    nf = eltype(nodes) === Tq ? nodes : Tq.(nodes)
+    return _lagrange_all(nf, bary_weights(nf), Tq(xq), deriv_order)
+end
+
+# Zero-allocation stack-buffered Float64 helper for 1 <= n <= 64 (covers all 36x36 Kerr SF tables).
+@inline function _lagrange_f64_ptr!(pB::Ptr{Float64}, pS::Ptr{Float64}, pS1::Ptr{Float64}, pS2::Ptr{Float64},
+                                    nodes::Vector{Float64}, w::Vector{Float64}, xq::Float64, ord::Int, n::Int)
+    if ord == 0
+        unsafe_store!(pS, 1.0, n)
+        @inbounds for i in n:-1:2
+            unsafe_store!(pS, unsafe_load(pS, i) * (xq - nodes[i]), i - 1)
+        end
+        P = 1.0
+        @inbounds for i in 1:n
+            unsafe_store!(pB, w[i] * (P * unsafe_load(pS, i)), i)
+            P *= (xq - nodes[i])
+        end
+    elseif ord == 1
+        unsafe_store!(pS, 1.0, n)
+        unsafe_store!(pS1, 0.0, n)
+        @inbounds for i in n:-1:2
+            d = xq - nodes[i]
+            si = unsafe_load(pS, i)
+            s1i = unsafe_load(pS1, i)
+            unsafe_store!(pS1, s1i * d + si, i - 1)
+            unsafe_store!(pS, si * d, i - 1)
+        end
+        P = 1.0; P1 = 0.0
+        @inbounds for i in 1:n
+            unsafe_store!(pB, w[i] * (P1 * unsafe_load(pS, i) + P * unsafe_load(pS1, i)), i)
+            d = xq - nodes[i]
+            P1 = P1 * d + P
+            P = P * d
+        end
+    else
+        unsafe_store!(pS, 1.0, n)
+        unsafe_store!(pS1, 0.0, n)
+        unsafe_store!(pS2, 0.0, n)
+        @inbounds for i in n:-1:2
+            d = xq - nodes[i]
+            si = unsafe_load(pS, i)
+            s1i = unsafe_load(pS1, i)
+            s2i = unsafe_load(pS2, i)
+            unsafe_store!(pS2, s2i * d + 2.0 * s1i, i - 1)
+            unsafe_store!(pS1, s1i * d + si, i - 1)
+            unsafe_store!(pS, si * d, i - 1)
+        end
+        P = 1.0; P1 = 0.0; P2 = 0.0
+        @inbounds for i in 1:n
+            unsafe_store!(pB, w[i] * (P2 * unsafe_load(pS, i) + 2.0 * P1 * unsafe_load(pS1, i) + P * unsafe_load(pS2, i)), i)
+            d = xq - nodes[i]
+            P2 = P2 * d + 2.0 * P1
+            P1 = P1 * d + P
+            P = P * d
+        end
+    end
+    return nothing
 end
 
 """
@@ -789,7 +879,17 @@ struct Interp2Hermite{T<:Real}
     x::Vector{T}
     y::Vector{T}
     z::Matrix{T}
+    wx::Vector{T}
+    wy::Vector{T}
+    function Interp2Hermite{T}(x::Vector{T}, y::Vector{T}, z::Matrix{T},
+                               wx::Vector{T}, wy::Vector{T}) where {T<:Real}
+        new{T}(x, y, z, wx, wy)
+    end
+    function Interp2Hermite{T}(x::Vector{T}, y::Vector{T}, z::Matrix{T}) where {T<:Real}
+        new{T}(x, y, z, bary_weights(x), bary_weights(y))
+    end
 end
+Interp2Hermite(x::Vector{T}, y::Vector{T}, z::Matrix{T}) where {T<:Real} = Interp2Hermite{T}(x, y, z)
 
 """
     interp2_hermite(grid) -> Interp2Hermite
@@ -810,14 +910,77 @@ function interp2_hermite(grid)
     return Interp2Hermite{T}(collect(T, xs), collect(T, ys), z)
 end
 
-function (itp::Interp2Hermite)(xq::Real, yq::Real)
-    Lx = _lagrange_all(itp.x, xq, 0); Ly = _lagrange_all(itp.y, yq, 0); z = itp.z
-    acc = zero(eltype(z)) * one(float(xq))
-    @inbounds for i in eachindex(Lx), j in eachindex(Ly)
-        acc += Lx[i] * z[i, j] * Ly[j]
+@inline function _eval_interp2_f64(itp::Interp2Hermite{Float64}, xq::Float64, yq::Float64, ax::Int, ay::Int)
+    (0 <= ax <= 2 && 0 <= ay <= 2) ||
+        throw(ArgumentError("partial: deriv_order must be in 0:2, got ($ax, $ay)"))
+    nx = length(itp.x); ny = length(itp.y)
+    if 1 <= nx <= 64 && 1 <= ny <= 64
+        rBx = Ref{NTuple{64,Float64}}()
+        rBy = Ref{NTuple{64,Float64}}()
+        rS  = Ref{NTuple{64,Float64}}()
+        rS1 = Ref{NTuple{64,Float64}}()
+        rS2 = Ref{NTuple{64,Float64}}()
+        z = itp.z
+        acc = 0.0
+        GC.@preserve rBx rBy rS rS1 rS2 begin
+            pBx = Base.unsafe_convert(Ptr{Float64}, rBx)
+            pBy = Base.unsafe_convert(Ptr{Float64}, rBy)
+            pS  = Base.unsafe_convert(Ptr{Float64}, rS)
+            pS1 = Base.unsafe_convert(Ptr{Float64}, rS1)
+            pS2 = Base.unsafe_convert(Ptr{Float64}, rS2)
+            _lagrange_f64_ptr!(pBx, pS, pS1, pS2, itp.x, itp.wx, xq, ax, nx)
+            _lagrange_f64_ptr!(pBy, pS, pS1, pS2, itp.y, itp.wy, yq, ay, ny)
+            @inbounds for j in 1:ny
+                byj = unsafe_load(pBy, j)
+                s = 0.0
+                @simd for i in 1:nx
+                    s = muladd(unsafe_load(pBx, i), z[i, j], s)
+                end
+                acc = muladd(s, byj, acc)
+            end
+        end
+        return acc
+    end
+    Bx = _lagrange_all(itp.x, itp.wx, xq, ax)
+    By = _lagrange_all(itp.y, itp.wy, yq, ay)
+    z = itp.z
+    acc = 0.0
+    @inbounds for j in 1:ny
+        byj = By[j]
+        s = 0.0
+        @simd for i in 1:nx
+            s = muladd(Bx[i], z[i, j], s)
+        end
+        acc = muladd(s, byj, acc)
     end
     return acc
 end
+
+function _eval_interp2_generic(itp::Interp2Hermite, xq::Real, yq::Real, ax::Integer, ay::Integer)
+    Bx = _lagrange_all(itp.x, itp.wx, xq, ax)
+    By = _lagrange_all(itp.y, itp.wy, yq, ay)
+    z = itp.z
+    Tq = float(promote_type(eltype(z), typeof(xq), typeof(yq)))
+    acc = zero(Tq)
+    @inbounds for j in eachindex(By)
+        byj = By[j]
+        s = zero(Tq)
+        for i in eachindex(Bx)
+            s += Bx[i] * z[i, j]
+        end
+        acc += s * byj
+    end
+    return acc
+end
+
+function (itp::Interp2Hermite{Float64})(xq::Real, yq::Real)
+    if xq isa Union{Float64,Int} && yq isa Union{Float64,Int}
+        return _eval_interp2_f64(itp, Float64(xq), Float64(yq), 0, 0)
+    end
+    return _eval_interp2_generic(itp, xq, yq, 0, 0)
+end
+
+(itp::Interp2Hermite)(xq::Real, yq::Real) = _eval_interp2_generic(itp, xq, yq, 0, 0)
 
 """
     partial(itp::Interp2Hermite, xq, yq, ax, ay) -> value
@@ -825,14 +988,15 @@ end
 Mixed partial `∂ₓ^ax ∂_y^ay` of the tensor-product interpolant (`ax, ay ∈ 0:2`), matching Wolfram
 `Derivative[ax, ay][itp][x, y]`.
 """
-function partial(itp::Interp2Hermite, xq::Real, yq::Real, ax::Integer, ay::Integer)
-    Bx = _lagrange_all(itp.x, xq, ax); By = _lagrange_all(itp.y, yq, ay); z = itp.z
-    acc = zero(eltype(z)) * one(float(xq))
-    @inbounds for i in eachindex(Bx), j in eachindex(By)
-        acc += Bx[i] * z[i, j] * By[j]
+function partial(itp::Interp2Hermite{Float64}, xq::Real, yq::Real, ax::Integer, ay::Integer)
+    if xq isa Union{Float64,Int} && yq isa Union{Float64,Int}
+        return _eval_interp2_f64(itp, Float64(xq), Float64(yq), Int(ax), Int(ay))
     end
-    return acc
+    return _eval_interp2_generic(itp, xq, yq, ax, ay)
 end
+
+partial(itp::Interp2Hermite, xq::Real, yq::Real, ax::Integer, ay::Integer) =
+    _eval_interp2_generic(itp, xq, yq, ax, ay)
 
 """
     Interp3Lagrange{T}
@@ -846,7 +1010,19 @@ struct Interp3Lagrange{T<:Real}
     y::Vector{T}
     z::Vector{T}
     f::Array{T,3}
+    wx::Vector{T}
+    wy::Vector{T}
+    wz::Vector{T}
+    function Interp3Lagrange{T}(x::Vector{T}, y::Vector{T}, z::Vector{T}, f::Array{T,3},
+                                wx::Vector{T}, wy::Vector{T}, wz::Vector{T}) where {T<:Real}
+        new{T}(x, y, z, f, wx, wy, wz)
+    end
+    function Interp3Lagrange{T}(x::Vector{T}, y::Vector{T}, z::Vector{T}, f::Array{T,3}) where {T<:Real}
+        new{T}(x, y, z, f, bary_weights(x), bary_weights(y), bary_weights(z))
+    end
 end
+Interp3Lagrange(x::Vector{T}, y::Vector{T}, z::Vector{T}, f::Array{T,3}) where {T<:Real} =
+    Interp3Lagrange{T}(x, y, z, f)
 
 """
     interp3_lagrange(grid) -> Interp3Lagrange
@@ -869,15 +1045,69 @@ function interp3_lagrange(grid)
     return Interp3Lagrange{T}(collect(T, xs), collect(T, ys), collect(T, zs), f)
 end
 
-function (itp::Interp3Lagrange)(xq::Real, yq::Real, zq::Real)
-    Lx = _lagrange_all(itp.x, xq, 0); Ly = _lagrange_all(itp.y, yq, 0); Lz = _lagrange_all(itp.z, zq, 0)
+@inline function _eval_interp3_f64(itp::Interp3Lagrange{Float64}, xq::Float64, yq::Float64, zq::Float64)
+    nx = length(itp.x); ny = length(itp.y); nz = length(itp.z)
+    if 1 <= nx <= 64 && 1 <= ny <= 64 && 1 <= nz <= 64
+        rLx = Ref{NTuple{64,Float64}}()
+        rLy = Ref{NTuple{64,Float64}}()
+        rLz = Ref{NTuple{64,Float64}}()
+        rS  = Ref{NTuple{64,Float64}}()
+        f = itp.f
+        acc = 0.0
+        GC.@preserve rLx rLy rLz rS begin
+            pLx = Base.unsafe_convert(Ptr{Float64}, rLx)
+            pLy = Base.unsafe_convert(Ptr{Float64}, rLy)
+            pLz = Base.unsafe_convert(Ptr{Float64}, rLz)
+            pS  = Base.unsafe_convert(Ptr{Float64}, rS)
+            _lagrange_f64_ptr!(pLx, pS, pS, pS, itp.x, itp.wx, xq, 0, nx)
+            _lagrange_f64_ptr!(pLy, pS, pS, pS, itp.y, itp.wy, yq, 0, ny)
+            _lagrange_f64_ptr!(pLz, pS, pS, pS, itp.z, itp.wz, zq, 0, nz)
+            @inbounds for k in 1:nz
+                sk = 0.0
+                for j in 1:ny
+                    sj = 0.0
+                    @simd for i in 1:nx
+                        sj = muladd(unsafe_load(pLx, i), f[i, j, k], sj)
+                    end
+                    sk = muladd(sj, unsafe_load(pLy, j), sk)
+                end
+                acc = muladd(sk, unsafe_load(pLz, k), acc)
+            end
+        end
+        return acc
+    end
+    Lx = _lagrange_all(itp.x, itp.wx, xq, 0)
+    Ly = _lagrange_all(itp.y, itp.wy, yq, 0)
+    Lz = _lagrange_all(itp.z, itp.wz, zq, 0)
     f = itp.f
-    acc = zero(eltype(f)) * one(float(xq))
+    acc = 0.0
+    @inbounds for k in 1:nz, j in 1:ny, i in 1:nx
+        acc = muladd(Lx[i] * Ly[j] * Lz[k], f[i, j, k], acc)
+    end
+    return acc
+end
+
+function _eval_interp3_generic(itp::Interp3Lagrange, xq::Real, yq::Real, zq::Real)
+    Lx = _lagrange_all(itp.x, itp.wx, xq, 0)
+    Ly = _lagrange_all(itp.y, itp.wy, yq, 0)
+    Lz = _lagrange_all(itp.z, itp.wz, zq, 0)
+    f = itp.f
+    Tq = float(promote_type(eltype(f), typeof(xq), typeof(yq), typeof(zq)))
+    acc = zero(Tq)
     @inbounds for k in eachindex(Lz), j in eachindex(Ly), i in eachindex(Lx)
         acc += Lx[i] * Ly[j] * Lz[k] * f[i, j, k]
     end
     return acc
 end
+
+function (itp::Interp3Lagrange{Float64})(xq::Real, yq::Real, zq::Real)
+    if xq isa Union{Float64,Int} && yq isa Union{Float64,Int} && zq isa Union{Float64,Int}
+        return _eval_interp3_f64(itp, Float64(xq), Float64(yq), Float64(zq))
+    end
+    return _eval_interp3_generic(itp, xq, yq, zq)
+end
+
+(itp::Interp3Lagrange)(xq::Real, yq::Real, zq::Real) = _eval_interp3_generic(itp, xq, yq, zq)
 
 # =====================================================================================================
 # Log-domain Chebyshev-barycentric interpolants (KerrLorenzCirc LogChebInterp / BigLogRInterp)

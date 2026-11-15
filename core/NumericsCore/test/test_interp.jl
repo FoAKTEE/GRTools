@@ -331,17 +331,52 @@ using NumericsCore: LogChebInterp, log_cheb_interp, BigLogRInterp, biglogr_inter
     @testset "Interp2Hermite exact on tensor bidegree + partials" begin
         xs = collect(range(-1.0, 1.0; length=5))   # per-axis degree ≤ 4
         ys = collect(range(0.0, 2.0; length=4))     # per-axis degree ≤ 3
-        F(x, y)   = (1 + 2x - 0.5x^2 + 0.1x^3) * (0.3 - y + 0.4y^2)
-        Fx(x, y)  = (2 - x + 0.3x^2) * (0.3 - y + 0.4y^2)
-        Fy(x, y)  = (1 + 2x - 0.5x^2 + 0.1x^3) * (-1 + 0.8y)
-        Fxy(x, y) = (2 - x + 0.3x^2) * (-1 + 0.8y)
+        F(x, y)    = (1 + 2x - 0.5x^2 + 0.1x^3) * (0.3 - y + 0.4y^2)
+        Fx(x, y)   = (2 - x + 0.3x^2) * (0.3 - y + 0.4y^2)
+        Fxx(x, y)  = (-1 + 0.6x) * (0.3 - y + 0.4y^2)
+        Fy(x, y)   = (1 + 2x - 0.5x^2 + 0.1x^3) * (-1 + 0.8y)
+        Fyy(x, y)  = (1 + 2x - 0.5x^2 + 0.1x^3) * 0.8
+        Fxy(x, y)  = (2 - x + 0.3x^2) * (-1 + 0.8y)
+        Fxxyy(x, y)= (-1 + 0.6x) * 0.8
         grid = [([x, y], F(x, y)) for x in xs for y in ys]
         itp = interp2_hermite(grid)
-        for xq in (-0.7, 0.2, 0.85), yq in (0.4, 1.1, 1.7)
+        # off-node + exact nodal collision queries (verifies node-safe prefix/suffix recurrence)
+        for xq in (-0.7, xs[1], xs[3], xs[end], 0.2, 0.85), yq in (0.4, ys[1], ys[2], ys[end], 1.7)
             @test itp(xq, yq) ≈ F(xq, yq) rtol=1e-11
             @test partial(itp, xq, yq, 1, 0) ≈ Fx(xq, yq) rtol=1e-10
+            @test partial(itp, xq, yq, 2, 0) ≈ Fxx(xq, yq) rtol=1e-9
             @test partial(itp, xq, yq, 0, 1) ≈ Fy(xq, yq) rtol=1e-10
+            @test partial(itp, xq, yq, 0, 2) ≈ Fyy(xq, yq) rtol=1e-9
             @test partial(itp, xq, yq, 1, 1) ≈ Fxy(xq, yq) rtol=1e-9
+            @test partial(itp, xq, yq, 2, 2) ≈ Fxxyy(xq, yq) rtol=1e-8
+        end
+        @test_throws ArgumentError partial(itp, 0.2, 0.7, 3, 0)
+        @test_throws ArgumentError partial(itp, 0.2, 0.7, -1, 1)
+        # zero-allocation Float64 hot path (nx, ny ≤ 64)
+        _alloc2(f, x, y) = @allocated f(x, y)
+        _alloc2p(f, x, y) = @allocated partial(f, x, y, 2, 1)
+        _alloc2(itp, 0.2, 0.7); _alloc2p(itp, 0.2, 0.7)
+        @test _alloc2(itp, 0.2, 0.7) == 0
+        @test _alloc2p(itp, 0.2, 0.7) == 0
+        # fallback path for grids > 64 along an axis (Chebyshev nodes avoid Runge blowup)
+        xc = [cos(π * (k - 1) / 69) for k in 70:-1:1]
+        yc = [cos(π * (k - 1) / 4) for k in 5:-1:1]
+        itp_big = Interp2Hermite(xc, yc, [F(x, y) for x in xc, y in yc])
+        @test itp_big(0.25, -0.35) ≈ F(0.25, -0.35) rtol=1e-11
+        @test partial(itp_big, 0.25, -0.35, 1, 2) ≈ (2 - 0.25 + 0.3 * 0.25^2) * 0.8 rtol=1e-9
+        # BigFloat genericity (setprecision 200) + mixed (Float64, BigFloat) promotion
+        setprecision(BigFloat, 200) do
+            xb = BigFloat[-1, -1//3, 1//3, 1]
+            yb = BigFloat[0, 1, 2]
+            Fb(x, y)   = (BigFloat(1) + 2x - x^2 / 2 + x^3 / 10) * (BigFloat(3)/10 - y + 2 * y^2 / 5)
+            Fbxy(x, y) = (BigFloat(2) - x + 3 * x^2 / 10) * (-BigFloat(1) + 4 * y / 5)
+            itpb = interp2_hermite([([x, y], Fb(x, y)) for x in xb for y in yb])
+            xq, yq = BigFloat(1)/7, BigFloat(5)/7
+            @test itpb(xq, yq) isa BigFloat
+            @test abs(itpb(xq, yq) - Fb(xq, yq)) < big(2.0)^-170
+            @test abs(partial(itpb, xq, yq, 1, 1) - Fbxy(xq, yq)) < big(2.0)^-165
+            @test abs(itpb(xb[2], yb[3]) - Fb(xb[2], yb[3])) < big(2.0)^-180
+            @test itp(0.25, BigFloat(1)/3) isa BigFloat
         end
     end
 
@@ -352,8 +387,21 @@ using NumericsCore: LogChebInterp, log_cheb_interp, BigLogRInterp, biglogr_inter
         G(x, y, z) = (1 - x + 0.5x^2) * (0.2 + y) * (1 + 0.3z)
         grid = [([x, y, z], G(x, y, z)) for x in xs for y in ys for z in zs]
         itp = interp3_lagrange(grid)
-        for xq in (0.15, 0.8), yq in (-0.6, 0.7), zq in (0.5, 1.6)
+        for xq in (0.15, xs[2], 0.8), yq in (-0.6, ys[1], 0.7), zq in (0.5, zs[3], 1.6)
             @test itp(xq, yq, zq) ≈ G(xq, yq, zq) rtol=1e-11
+        end
+        _alloc3(f, x, y, z) = @allocated f(x, y, z)
+        _alloc3(itp, 0.15, -0.6, 0.5)
+        @test _alloc3(itp, 0.15, -0.6, 0.5) == 0
+        setprecision(BigFloat, 200) do
+            xb = BigFloat[0, 1//2, 1]
+            yb = BigFloat[-1, 1]
+            zb = BigFloat[0, 2]
+            Gb(x, y, z) = (BigFloat(1) - x + x^2 / 2) * (BigFloat(1)/5 + y) * (BigFloat(1) + 3z / 10)
+            itpb = interp3_lagrange([([x, y, z], Gb(x, y, z)) for x in xb for y in yb for z in zb])
+            @test itpb(BigFloat(1)/3, BigFloat(1)/7, BigFloat(3)/5) isa BigFloat
+            @test abs(itpb(BigFloat(1)/3, BigFloat(1)/7, BigFloat(3)/5) -
+                      Gb(BigFloat(1)/3, BigFloat(1)/7, BigFloat(3)/5)) < big(2.0)^-170
         end
     end
 
